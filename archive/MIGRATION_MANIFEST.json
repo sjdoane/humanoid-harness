@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "created_at_utc": "2026-09-02T22:57:32Z",
   "migration": {
     "source_workspace_label": "RL Sculptor local workspace",
@@ -798,72 +798,84 @@
     {
       "classification": "new_process_pointer",
       "path": "research/literature_review/01_process/001_oracle_composition/README.md",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/README.md",
       "sha256": "bab2d39748c81f9da4914a302d6bc49611fe3d21558c85db4a0e30268ecc3617",
       "bytes": 581
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/candidate_papers.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/candidate_papers.csv",
       "sha256": "7b84062e3efa5c8a487fe37b98acacf8c2ed93ea38b4c45195dd75f0c06b14c1",
       "bytes": 228
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/citation_ledger.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/citation_ledger.csv",
       "sha256": "c1bd8d66605378cc139aa4b062fc87f03c47c2d4edaf8e077545aeed9ec4e9c4",
       "bytes": 103
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/coding_taxonomy.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/coding_taxonomy.csv",
       "sha256": "8e3cb70725dbba122038dc7d9ad787df3da87acfc662f846ae0d0c236389b94e",
       "bytes": 110
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/extraction_table.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/extraction_table.csv",
       "sha256": "f4c3b5bf5ece45880260847c4bcd5cce8af4c3bd759d56f44c3a161793cbf576",
       "bytes": 199
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/reference_table.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/reference_table.csv",
       "sha256": "234fd4121cb4bfae22defa7dc5bbed93de5dc771cc949f4e4dec940e25f8dd9c",
       "bytes": 107
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/screening_table.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/screening_table.csv",
       "sha256": "b931b112c1788812b1ecc15e9532c5cfb3300760f8d6f0b6051e028347174d85",
       "bytes": 120
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/search_log.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/search_log.csv",
       "sha256": "8d7efa55e7b24d5749681b283951346ce8d4a454b07db74ba261c86c6394cf0a",
       "bytes": 86
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/selection_decisions.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/selection_decisions.csv",
       "sha256": "ad72b3ba6d8f6e9226525c7c83052a33a940d902d881abc42729cfce54cee164",
       "bytes": 97
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/source_inventory.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/source_inventory.csv",
       "sha256": "13a41adefc3001d12ceb3dfee1df8d8893e18f2de7e53ed6b97188968a8de167",
       "bytes": 83
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/source_triage.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/source_triage.csv",
       "sha256": "1201c630c1feffe5664820a32d751b04ed27667a573e1e4fff6358ea8035692a",
       "bytes": 134
     },
     {
       "classification": "new_empty_review_table",
       "path": "research/literature_review/01_process/001_oracle_composition/matrices/synthesis_matrix.csv",
+      "verification_path": "archive/initial_review_scaffold/research/literature_review/01_process/001_oracle_composition/matrices/synthesis_matrix.csv",
       "sha256": "010b3624d2d11c084d7aed2cfcff517b21082b8e6db1f4f9686daa9539f9bac7",
       "bytes": 170
     }
@@ -914,6 +926,7 @@
     "Paper cards and extractions preserve a byte-identical historical evidence snapshot; two project-context provenance labels were explicitly sanitized and source hashes retained.",
     "Legacy cards and extractions were not reverified against raw papers during this migration.",
     "Formal screening tables are empty pending human approval of the review protocol.",
+    "The exact initial empty review scaffold is retained under archive/initial_review_scaffold; live review paths may evolve without rewriting the migration snapshot.",
     "This manifest does not claim that all collaborator knowledge or prior research context was locally available."
   ]
 }

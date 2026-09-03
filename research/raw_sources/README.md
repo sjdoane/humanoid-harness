@@ -10,3 +10,8 @@ Current local source expected:
 |---|---|---|
 | `2608.25955v1.pdf` | `360967ac23f6cc4d9455a8b2bec5c0826765a028f67c53c8364099c17f42c9fc` | `research/evidence/engineering_methods/praxist/source.json` |
 
+The oracle-composition review also expects 31 version-pinned arXiv PDFs below
+`oracle_composition/`. They total 292,019,427 bytes and are bound individually
+by SHA-256 in
+`research/literature_review/01_process/001_oracle_composition/source_acquisition_manifest.json`.
+They are registered-not-screened and are not yet citable evidence.
