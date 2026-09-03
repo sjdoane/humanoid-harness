@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -471,11 +472,11 @@ class TrajectoryTrace:
                 event.sample_index for event in events if event.event_type == "oracle.transition"
             }
             unexplained = [
-                index
+                index - 1
                 for index in range(1, len(samples))
                 if samples[index].numeric_values[mode_index]
                 != samples[index - 1].numeric_values[mode_index]
-                and index not in transition_samples
+                and index - 1 not in transition_samples
             ]
             if unexplained:
                 raise TraceContractError(
@@ -519,16 +520,27 @@ class TrajectoryTrace:
         content = self.canonical_bytes
         if len(content) > MAX_TRACE_BYTES:
             raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
-        resolved = path.resolve()
-        resolved.parent.mkdir(parents=True, exist_ok=True)
+        requested = Path(path).absolute()
+        requested.parent.mkdir(parents=True, exist_ok=True)
+        parent = requested.parent
+        parent_metadata = parent.lstat()
+        if stat.S_ISLNK(parent_metadata.st_mode) or not stat.S_ISDIR(parent_metadata.st_mode):
+            raise TraceContractError("trace output parent must be a real directory")
+        destination = parent / requested.name
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
         try:
-            descriptor = os.open(resolved, flags, 0o600)
+            descriptor = os.open(destination, flags, 0o600)
         except FileExistsError as exc:
-            raise TraceContractError(f"trace output already exists: {resolved}") from exc
+            raise TraceContractError(f"trace output already exists: {destination}") from exc
+        except OSError as exc:
+            raise TraceContractError(f"cannot create trace output: {destination}") from exc
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(content)
-        return resolved
+            stream.flush()
+            os.fsync(stream.fileno())
+        return destination
 
 
 class TraceRecorder:
@@ -618,18 +630,69 @@ class TraceRecorder:
 
 
 def load_trace(path: Path) -> TrajectoryTrace:
+    resolved = Path(path)
+    descriptor: int | None = None
     try:
-        size = path.stat().st_size
-        if size > MAX_TRACE_BYTES:
+        if stat.S_ISLNK(resolved.lstat().st_mode):
+            raise TraceContractError("trajectory trace must not be a symlink")
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(resolved, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise TraceContractError("trajectory trace must be a regular file")
+        if before.st_size > MAX_TRACE_BYTES:
             raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
-        source_bytes = path.read_bytes()
+        chunks: list[bytes] = []
+        remaining = MAX_TRACE_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(remaining, 1024 * 1024))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        source_bytes = b"".join(chunks)
         if len(source_bytes) > MAX_TRACE_BYTES:
             raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
-        raw = json.loads(source_bytes)
+        after = os.fstat(descriptor)
+        identity_before = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        identity_after = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        path_after = resolved.lstat()
+        path_identity = (
+            path_after.st_dev,
+            path_after.st_ino,
+            path_after.st_size,
+            path_after.st_mtime_ns,
+            path_after.st_ctime_ns,
+        )
+        if (
+            identity_before != identity_after
+            or identity_before != path_identity
+            or len(source_bytes) != before.st_size
+        ):
+            raise TraceContractError("trajectory trace changed while it was read")
+        raw = json.loads(source_bytes.decode("utf-8", errors="strict"))
     except TraceContractError:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TraceContractError(f"cannot read trajectory trace: {path}") from exc
+        raise TraceContractError(f"cannot read trajectory trace: {resolved}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
     root = _exact_mapping(
         raw,
         field="trajectory trace",

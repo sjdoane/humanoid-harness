@@ -102,6 +102,13 @@ HUMANOID_ACTUATOR_GEAR_BY_JOINT = (
     25.0,
 )
 HUMANOID_ACTUATOR_CONTROL_RANGE = (-0.4, 0.4)
+HUMANOID_NOISY_ROOT_QUATERNION_NORM_BOUNDS = (0.98, 1.02)
+HUMANOID_RESET_ROOT_QUATERNION_COMPONENT_BOUNDS = (
+    (0.99, 1.01),
+    (-0.01, 0.01),
+    (-0.01, 0.01),
+    (-0.01, 0.01),
+)
 HUMANOID_GENERALIZED_ACTUATOR_TORQUE_CAPACITY_N_M = (
     40.0,
     40.0,
@@ -356,6 +363,8 @@ def validate_humanoid_actuator_abi(env: object) -> HumanoidActuatorABI:
     if tuple(torque_capacities) != HUMANOID_GENERALIZED_ACTUATOR_TORQUE_CAPACITY_N_M:
         errors.append("actuator torque-capacity vector does not match the frozen Humanoid-v5 ABI")
     action_dtype = np.dtype(action_space.dtype)
+    if action_dtype.str != "<f4":
+        errors.append("action Box dtype must be exact little-endian float32")
     expected_action_low = np.asarray(model.actuator_ctrlrange[:, 0], dtype=action_dtype)
     expected_action_high = np.asarray(model.actuator_ctrlrange[:, 1], dtype=action_dtype)
     if not np.array_equal(
@@ -506,9 +515,12 @@ def actuated_state(
     return positions.copy(), velocities.copy()
 
 
-def tracking_state(env: object, abi: HumanoidActuatorABI) -> HumanoidTrackingState:
-    """Read the finite free-root and actuator state in reference coordinates."""
-
+def _tracking_state(
+    env: object,
+    abi: HumanoidActuatorABI,
+    *,
+    normalize_bounded_root_orientation: bool,
+) -> HumanoidTrackingState:
     unwrapped = getattr(env, "unwrapped", env)
     data = getattr(unwrapped, "data", None)
     if data is None:
@@ -520,12 +532,26 @@ def tracking_state(env: object, abi: HumanoidActuatorABI) -> HumanoidTrackingSta
     if not np.isfinite(qpos).all() or not np.isfinite(qvel).all():
         raise OracleContractError("Humanoid state contains non-finite values")
     quaternion = qpos[3:7].copy()
-    if not math.isclose(
-        float(np.linalg.norm(quaternion)),
-        1.0,
-        rel_tol=0.0,
-        abs_tol=1e-6,
-    ):
+    norm = float(np.linalg.norm(quaternion))
+    if normalize_bounded_root_orientation:
+        if any(
+            not lower <= float(component) <= upper
+            for component, (lower, upper) in zip(
+                quaternion,
+                HUMANOID_RESET_ROOT_QUATERNION_COMPONENT_BOUNDS,
+                strict=True,
+            )
+        ):
+            raise OracleContractError(
+                "Humanoid reset root quaternion is outside the frozen noise envelope"
+            )
+        lower, upper = HUMANOID_NOISY_ROOT_QUATERNION_NORM_BOUNDS
+        if not lower <= norm <= upper:
+            raise OracleContractError(
+                "Humanoid noisy root quaternion norm is outside the frozen bounds"
+            )
+        quaternion /= norm
+    elif not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
         raise OracleContractError("Humanoid root quaternion is not unit length")
     positions, velocities = actuated_state(env, abi)
     return HumanoidTrackingState(
@@ -537,3 +563,18 @@ def tracking_state(env: object, abi: HumanoidActuatorABI) -> HumanoidTrackingSta
         joint_positions_rad=positions,
         joint_velocities_rad_s=velocities,
     )
+
+
+def tracking_state(env: object, abi: HumanoidActuatorABI) -> HumanoidTrackingState:
+    """Read state while requiring an already unit-length root quaternion."""
+
+    return _tracking_state(env, abi, normalize_bounded_root_orientation=False)
+
+
+def tracking_state_with_bounded_reset_orientation(
+    env: object,
+    abi: HumanoidActuatorABI,
+) -> HumanoidTrackingState:
+    """Read reset state with the frozen Gym noise envelope and projection."""
+
+    return _tracking_state(env, abi, normalize_bounded_root_orientation=True)

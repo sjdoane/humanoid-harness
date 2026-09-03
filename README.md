@@ -19,15 +19,15 @@ task + references + r0
 | Evidence class | Current state |
 |---|---|
 | **research target** | Autonomous, steerable iteration over reference oracle `O_k` and task reward `r_k` |
-| **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
-| **measured evidence** | Interface and regression checks only; no trained tracker, oracle improvement, reward improvement, or cross-MDP result |
+| **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, strict data-only source projection, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
+| **measured evidence** | Interface/regression checks plus one local, non-admitted tracker exploration; no formal causal-use, oracle-improvement, reward-improvement, or cross-MDP result |
 
 ## Quick start
 
 Requires Python 3.12 or 3.13 and `uv`.
 
 ```bash
-uv sync --locked --extra gym --extra train --extra dev
+uv sync --locked --extra sources --extra gym --extra train --extra dev
 uv run humanoid-harness doctor
 uv run humanoid-harness research build
 uv run humanoid-harness research query "phase recovery"
@@ -36,7 +36,10 @@ uv run humanoid-harness ui
 ```
 
 The UI opens a local, read-only view. It does not grade a run or keep a second
-copy of research state.
+copy of research state. On loopback only, it can display an internally
+reconciled bundle from the fixed local exploration path. Missing, tampered,
+unlisted, or symlinked artifacts fail closed. That bundle still lacks a bound
+evaluator source and canonical per-step trace, so it is not formal evidence.
 
 ## First development adapter
 
@@ -49,6 +52,17 @@ copy of research state.
 
 The immediately falling Humanoid seen in the current smoke evidence is an
 interface check. It is not a trained-policy or oracle demonstration.
+
+## Source data boundary
+
+| Source | Local use | Current ceiling |
+|---|---|---|
+| Minari `mujoco/humanoid/expert-v0` | Exact commit, file sizes, and SHA-256 values are registered; episode 0 projects data-only into the 45D reference ABI | Tier K only; root x/y is absent and dataset redistribution rights are unresolved |
+| DeepMimic `humanoid3d` motions | Exact MIT-licensed source files are audited in the research tree | Format/source evidence only; retargeting and Tier-D certification remain undone |
+
+The registered Minari importer rejects any file, source-record, HDF5 storage,
+shape, or environment drift before reading episode arrays. It never loads an
+external checkpoint or grants training admission.
 
 ## Repository map
 
@@ -63,6 +77,7 @@ src/oracle_composition/
   evaluation/         structural evidence admission
   experiments/        frozen runner and protected evaluator
   research/           deterministic research index and retrieval
+  sources/            bounded data-only source audits and projections
   traces/             bounded synchronized trajectory contract
   ui/                 read-only local evidence surface
 tests/                 contract, negative, integration, and UI tests

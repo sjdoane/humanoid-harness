@@ -13,6 +13,8 @@ from oracle_composition.tracking import (
     HUMANOID_REFERENCE_SCHEMA,
     actuated_state,
     make_static_stand_reference,
+    tracking_state,
+    tracking_state_with_bounded_reset_orientation,
     validate_humanoid_actuator_abi,
     validate_humanoid_reference,
 )
@@ -160,6 +162,51 @@ def test_real_humanoid_actuator_mapping_matches_declared_order_and_addresses() -
 
 
 @pytest.mark.gym
+def test_v1_reader_projects_bounded_seeded_reset_quaternion_without_mutating_simulator() -> None:
+    env = make_humanoid_env()
+    try:
+        env.reset(seed=4000)
+        abi = validate_humanoid_actuator_abi(env)
+        raw = np.asarray(env.unwrapped.data.qpos[3:7], dtype=np.float64).copy()
+        assert np.linalg.norm(raw) == pytest.approx(1.00511956, abs=1e-8)
+
+        with pytest.raises(OracleContractError, match="not unit length"):
+            tracking_state(env, abi)
+        projected = tracking_state_with_bounded_reset_orientation(env, abi)
+
+        assert np.linalg.norm(projected.root_orientation_wxyz) == pytest.approx(1.0, abs=1e-15)
+        assert np.array_equal(env.unwrapped.data.qpos[3:7], raw)
+    finally:
+        env.close()
+
+
+@pytest.mark.gym
+def test_v1_reader_rejects_root_quaternion_outside_frozen_noise_bounds() -> None:
+    env = make_humanoid_env()
+    try:
+        env.reset(seed=4000)
+        abi = validate_humanoid_actuator_abi(env)
+        env.unwrapped.data.qpos[3:7] = np.array([0.97, 0.0, 0.0, 0.0])
+        with pytest.raises(OracleContractError, match="frozen"):
+            tracking_state_with_bounded_reset_orientation(env, abi)
+    finally:
+        env.close()
+
+
+@pytest.mark.gym
+def test_v1_reset_reader_rejects_unit_orientation_outside_noise_envelope() -> None:
+    env = make_humanoid_env()
+    try:
+        env.reset(seed=4000)
+        abi = validate_humanoid_actuator_abi(env)
+        env.unwrapped.data.qpos[3:7] = np.array([0.0, 1.0, 0.0, 0.0])
+        with pytest.raises(OracleContractError, match="noise envelope"):
+            tracking_state_with_bounded_reset_orientation(env, abi)
+    finally:
+        env.close()
+
+
+@pytest.mark.gym
 def test_actuator_validator_rejects_unhealthy_termination() -> None:
     import gymnasium as gym
 
@@ -193,6 +240,19 @@ def test_actuator_validator_rejects_one_float32_ulp_action_bound_drift() -> None
     )
     try:
         with pytest.raises(OracleContractError, match="action Box bounds"):
+            validate_humanoid_actuator_abi(env)
+    finally:
+        env.close()
+
+
+@pytest.mark.gym
+def test_actuator_validator_rejects_float64_action_space() -> None:
+    import gymnasium as gym
+
+    env = make_humanoid_env()
+    env.action_space = gym.spaces.Box(-0.4, 0.4, shape=(17,), dtype=np.float64)
+    try:
+        with pytest.raises(OracleContractError, match=r"dtype.*little-endian float32"):
             validate_humanoid_actuator_abi(env)
     finally:
         env.close()

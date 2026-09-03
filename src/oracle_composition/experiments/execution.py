@@ -53,6 +53,21 @@ from .protected_evaluator import (
     EpisodeAccumulator,
     evaluate_tracking_step,
 )
+from .protected_runtime import (
+    direct_contact_facts as _shared_direct_contact_facts,
+)
+from .protected_runtime import (
+    finite_direct_vector as _shared_finite_direct_vector,
+)
+from .protected_runtime import (
+    initial_protected_history as _shared_initial_protected_history,
+)
+from .protected_runtime import (
+    normalized_policy_action as _shared_normalized_policy_action,
+)
+from .protected_runtime import (
+    protected_step_inputs as _shared_protected_step_inputs,
+)
 from .squashed_policy import (
     ACTION_BOUNDARY_MARGIN,
     ACTION_LIKELIHOOD_AUDIT_ID,
@@ -537,6 +552,14 @@ def _protected_step_inputs(
         "contact_facts": _direct_contact_facts(environment),
         "control_period_seconds": float(control_period),
     }
+
+
+# Both experiment runners consume one protected runtime-reader implementation.
+_finite_direct_vector = _shared_finite_direct_vector
+_normalized_policy_action = _shared_normalized_policy_action
+_initial_protected_history = _shared_initial_protected_history
+_direct_contact_facts = _shared_direct_contact_facts
+_protected_step_inputs = _shared_protected_step_inputs
 
 
 _CALIBRATION_RECEIPT_KEYS = {

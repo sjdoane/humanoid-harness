@@ -7,7 +7,7 @@ candidate-title metadata to order later source acquisition.
 | Queue | Count | Acquisition purpose after approval |
 |---|---:|---|
 | A — mechanism-keyword priority | 42 | Acquire first because metadata contains reference composition, phase/transition, switching, motion matching, sequencing, or recovery terms. This is not a relevance judgment. |
-| B — adjacent-keyword priority | 32 | Acquire second because metadata contains potentially transferable control, phase, retargeting, or feasibility terms. This is not a transferability judgment. |
+| B — adjacent-keyword priority | 34 | Acquire second because metadata contains potentially transferable control, phase, retargeting, or feasibility terms. This is not a transferability judgment. |
 | C — context-keyword priority | 3 | Acquire after A/B because metadata points to benchmark, runtime, or evaluation context. This is not a `background_only` decision. |
 | H — administrative hold | 1 | Preserve the metadata record; do not acquire or screen while the withdrawal remains active. |
 
@@ -41,7 +41,8 @@ candidate-title metadata to order later source acquisition.
 `arxiv:2208.07363v3`, `arxiv:2308.12751v1`,
 `arxiv:2406.08858v1`, `arxiv:2407.18946v1`,
 `arxiv:2410.21229v2`, `arxiv:2412.13196v2`,
-`arxiv:2507.07356v3`, `arxiv:2509.15443v2`,
+`arxiv:2506.14770v2`, `arxiv:2507.07356v3`,
+`arxiv:2509.13833v3`, `arxiv:2509.15443v2`,
 `arxiv:2510.02252v1`, `arxiv:2511.07820v4`,
 `arxiv:2512.09423v2`, `arxiv:2601.12799v1`,
 `arxiv:2603.09956v2`, `arxiv:2603.22201v3`,

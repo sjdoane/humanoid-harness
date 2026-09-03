@@ -226,6 +226,15 @@ h2 { font-size: 20px; font-weight: 620; }
 .stage-copy { position: absolute; left: 22px; right: 22px; bottom: 20px; display: grid; gap: 5px; }
 .stage-copy strong { font-size: 13px; }
 .stage-copy span { color: #aeb0ad; font-size: 11px; }
+.stage.has-video { display: block; background: #151615; }
+.evidence-video { width: 100%; height: 100%; min-height: 460px; object-fit: contain; }
+.stage.has-video .stage-copy {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgb(20 21 20 / 82%);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
 .inspector dl { margin: 18px 0 0; }
 .inspector dl div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .inspector dl div:last-child { border-bottom: 0; }
@@ -234,6 +243,40 @@ h2 { font-size: 20px; font-weight: 620; }
 
 .signal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 18px 0; }
 .signal-grid span { padding: 9px; border: 1px dashed var(--line-strong); border-radius: 7px; color: var(--muted); font: 11px var(--mono); }
+
+.exploration-card { border-color: #e4c384; }
+.table-scroll { margin-top: 18px; overflow-x: auto; }
+.result-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.result-table th, .result-table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.result-table thead th { color: var(--muted); font: 10px var(--mono); text-transform: uppercase; letter-spacing: 0.05em; }
+.result-table tbody th { font-weight: 600; }
+.result-table td small { display: block; max-width: 190px; margin-top: 5px; color: var(--muted); line-height: 1.35; }
+.check-label { display: inline-flex; padding: 3px 7px; border-radius: 999px; font: 10px var(--mono); }
+.check-pass { color: #386339; background: #edf6eb; }
+.check-fail { color: var(--blocked); background: var(--blocked-soft); }
+.check-neutral { color: var(--muted); background: var(--canvas); }
+.diagnostic-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+.diagnostic-row div { padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--canvas); }
+.diagnostic-row strong { display: block; font: 18px var(--mono); }
+.diagnostic-row span { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.evidence-figure { margin: 18px 0 0; }
+.evidence-figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 9px; }
+.evidence-figure figcaption { margin-top: 8px; color: var(--muted); font-size: 11px; }
+.boundary-note { display: grid; gap: 5px; margin-top: 18px; padding: 13px 14px; border-left: 3px solid var(--warning); background: var(--warning-soft); }
+.boundary-note strong { font-size: 12px; }
+.boundary-note span { color: #725322; font-size: 11px; line-height: 1.5; }
+.boundary-note ul { margin: 3px 0 0; padding-left: 17px; color: #725322; font-size: 11px; line-height: 1.5; }
+.receipt-details { margin-top: 14px; color: var(--muted); font-size: 11px; }
+.receipt-details summary { cursor: pointer; }
+.receipt-details dl { margin: 10px 0 0; }
+.receipt-details dl div { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding: 6px 0; }
+.receipt-details dt { font-weight: 600; }
+.receipt-details dd { margin: 0; font: 10px var(--mono); overflow-wrap: anywhere; }
 
 .plain-list { margin: 15px 0 0; padding: 0; list-style: none; }
 .plain-list li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -263,7 +306,14 @@ h2 { font-size: 20px; font-weight: 620; }
   .rail-note { display: none; }
   main { margin-left: 0; width: auto; padding: 30px 18px 60px; }
   .two-up, .monitor-grid { grid-template-columns: 1fr; }
+  .evidence-video { min-height: 320px; }
   .ladder { grid-template-columns: 1fr; gap: 16px; }
   .ladder li::after { display: none; }
   .signal-grid { grid-template-columns: repeat(2, 1fr); }
+  .diagnostic-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .page-header { flex-direction: column; align-items: stretch; }
+  .page-header .badge { align-self: flex-start; white-space: normal; }
 }

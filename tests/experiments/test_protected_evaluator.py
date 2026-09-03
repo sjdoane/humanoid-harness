@@ -16,6 +16,7 @@ from oracle_composition.experiments import (
 )
 from oracle_composition.experiments.protected_evaluator import (
     STATION_KEEPING_ORIGIN_SOURCE,
+    CollapseDefinition,
     ContactFact,
     StepMetrics,
 )
@@ -47,6 +48,7 @@ def _evaluate(
     previous_joint_accelerations_rad_s2: object | None = None,
     contact_facts: object = (),
     control_period_seconds: object = 0.015,
+    collapse_definition: CollapseDefinition | None = None,
 ) -> StepMetrics:
     return evaluate_tracking_step(
         root_position_world_m=(
@@ -95,6 +97,7 @@ def _evaluate(
         ),
         contact_facts=contact_facts,  # type: ignore[arg-type]
         control_period_seconds=control_period_seconds,  # type: ignore[arg-type]
+        **({} if collapse_definition is None else {"collapse_definition": collapse_definition}),
     )
 
 
@@ -164,11 +167,29 @@ def test_collapse_definition_is_source_frozen_not_caller_configurable() -> None:
     assert "collapse" not in inspect.signature(evaluate_tracking_step).parameters
 
 
+def test_explicit_collapse_definition_controls_the_primary_outcome() -> None:
+    definition = CollapseDefinition(
+        min_root_height_m=1.0,
+        max_root_height_m=2.0,
+        min_torso_up_z=0.5,
+    )
+
+    assert _evaluate(root_height_m=1.0, collapse_definition=definition).collapsed is False
+    with pytest.raises(ExperimentContractError, match="source-frozen"):
+        _evaluate(
+            root_height_m=1.1,
+            collapse_definition=CollapseDefinition(1.2, 2.0, 0.5),
+        )
+
+    with pytest.raises(ExperimentContractError, match="finite"):
+        CollapseDefinition(min_root_height_m=10**400)
+
+
 def test_control_effort_contact_and_smoothness_metrics_have_explicit_units() -> None:
     metrics = _evaluate(
         normalized_policy_action=np.full(17, 0.5),
         previous_normalized_policy_action=np.full(17, -0.5),
-        generalized_actuator_torque_n_m=-0.5 * TORQUE_CAPACITY_N_M,
+        generalized_actuator_torque_n_m=0.5 * TORQUE_CAPACITY_N_M,
         joint_accelerations_rad_s2=np.full(17, 3.0),
         previous_joint_accelerations_rad_s2=np.full(17, 1.0),
         contact_facts=(
@@ -228,6 +249,12 @@ def test_executed_action_and_post_transmission_torque_must_match() -> None:
         normalized_policy_action=np.full(17, 0.5),
         generalized_actuator_torque_n_m=np.full(17, 0.50000005) * TORQUE_CAPACITY_N_M,
     )
+
+    with pytest.raises(ExperimentContractError, match="must match the executed"):
+        _evaluate(
+            normalized_policy_action=np.full(17, 0.5),
+            generalized_actuator_torque_n_m=-0.5 * TORQUE_CAPACITY_N_M,
+        )
 
 
 def test_episode_accumulator_requires_complete_horizon_and_reports_collapse() -> None:

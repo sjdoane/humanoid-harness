@@ -46,7 +46,7 @@ def _rows(path: Path) -> list[dict[str, str]]:
 
 def test_candidate_registry_is_deduplicated_and_unassessed() -> None:
     rows = _rows(MATRICES / "candidate_papers.csv")
-    assert len(rows) == 78
+    assert len(rows) == 80
     assert len({row["candidate_id"] for row in rows}) == len(rows)
     assert all(row[field] == "not_assessed" for row in rows for field in ASSESSMENT_FIELDS)
 
@@ -59,6 +59,33 @@ def test_candidate_registry_is_deduplicated_and_unassessed() -> None:
         arxiv_id, version = match.groups()
         assert row["url"] == f"https://arxiv.org/abs/{arxiv_id}v{version}"
         assert row["doi"] == f"10.48550/arXiv.{arxiv_id}"
+
+
+def test_targeted_discovery_records_pin_supplementary_code_without_claiming_evidence() -> None:
+    rows = {
+        row["candidate_id"]: row
+        for row in _rows(MATRICES / "candidate_papers.csv")
+        if row["search_string_id"] == "D5_TARGETED_WEB_DISCOVERY"
+    }
+
+    assert set(rows) == {"arxiv:2506.14770v2", "arxiv:2509.13833v3"}
+    expected_repositories = {
+        "arxiv:2506.14770v2": (
+            "https://github.com/zixuan417/humanoid-general-motion-tracking/"
+            "tree/2a590de25a1eb08e47491977a738549c22f16e1f"
+        ),
+        "arxiv:2509.13833v3": (
+            "https://github.com/GalaxyGeneralRobotics/OpenTrack/"
+            "tree/cb9b751993a2483e5d1805a2565ddbfe950c04c9"
+        ),
+    }
+    for candidate_id, row in rows.items():
+        assert f"supplementary_source={expected_repositories[candidate_id]}" in row["notes"]
+        assert "supplementary_source_role=official_code_only" in row["notes"]
+        assert (
+            "not_registered_screened_extracted_or_evidence_of_harness_implementation"
+            in row["notes"]
+        )
 
 
 def test_arxiv_metadata_lookup_is_version_pinned_and_politely_throttled(
@@ -252,7 +279,7 @@ def test_triage_proposal_partitions_every_candidate_without_deciding_inclusion()
     text = (PROCESS_ROOT / "TRIAGE_PROPOSAL.md").read_text(encoding="utf-8")
     section_markers = (
         ("## A — mechanism-keyword priority", "## B — adjacent-keyword priority", 42),
-        ("## B — adjacent-keyword priority", "## C — context-keyword priority", 32),
+        ("## B — adjacent-keyword priority", "## C — context-keyword priority", 34),
         ("## C — context-keyword priority", "## H — administrative hold", 3),
         ("## H — administrative hold", "## Approval effect", 1),
     )

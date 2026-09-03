@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import stat
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -21,6 +23,15 @@ from numpy.typing import ArrayLike
 
 class ExperimentContractError(ValueError):
     """Raised when an experiment cannot preserve its declared comparison."""
+
+
+@dataclass(frozen=True, slots=True)
+class BoundedJsonArtifact:
+    """One parsed JSON object and the exact bytes that produced it."""
+
+    value: dict[str, Any]
+    encoded_bytes: bytes
+    sha256: str
 
 
 MAX_STUDY_DESIGN_BYTES = 256 * 1024
@@ -126,21 +137,59 @@ def _assert_finite_json(value: object, *, field: str = "root") -> None:
             _assert_finite_json(child, field=f"{field}.{key}")
 
 
-def read_bounded_json_object(
+def read_bounded_json_artifact(
     path: Path,
     *,
     maximum_bytes: int,
     artifact: str,
-) -> dict[str, Any]:
-    """Read one strict UTF-8 JSON object without unbounded allocation or repair."""
+) -> BoundedJsonArtifact:
+    """Read one regular JSON file once and bind its parsed value to those bytes."""
 
     if not isinstance(maximum_bytes, int) or isinstance(maximum_bytes, bool) or maximum_bytes < 1:
         raise ExperimentContractError("maximum_bytes must be a positive integer")
+    resolved = Path(path)
+    descriptor: int | None = None
     try:
-        with Path(path).open("rb") as stream:
-            encoded = stream.read(maximum_bytes + 1)
+        if stat.S_ISLNK(resolved.lstat().st_mode):
+            raise ExperimentContractError(f"{artifact} must not be a symlink")
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(resolved, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ExperimentContractError(f"{artifact} must be a regular file")
+        if before.st_size > maximum_bytes:
+            raise ExperimentContractError(f"{artifact} exceeds the bounded size limit")
+        chunks: list[bytes] = []
+        remaining = maximum_bytes + 1
+        while remaining:
+            chunk = os.read(descriptor, min(remaining, 64 * 1024))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        encoded = b"".join(chunks)
+        after = os.fstat(descriptor)
         if len(encoded) > maximum_bytes:
             raise ExperimentContractError(f"{artifact} exceeds the bounded size limit")
+        identity_before = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        identity_after = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        if identity_before != identity_after or len(encoded) != before.st_size:
+            raise ExperimentContractError(f"{artifact} changed while it was read")
         text = encoded.decode("utf-8", errors="strict")
         value = json.loads(
             text,
@@ -151,10 +200,32 @@ def read_bounded_json_object(
         raise
     except (OSError, UnicodeError, ValueError, RecursionError) as exc:
         raise ExperimentContractError(f"cannot read {artifact}: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
     if not isinstance(value, dict):
         raise ExperimentContractError(f"{artifact} root must be a JSON object")
     _assert_finite_json(value)
-    return value
+    return BoundedJsonArtifact(
+        value=value,
+        encoded_bytes=encoded,
+        sha256=hashlib.sha256(encoded).hexdigest(),
+    )
+
+
+def read_bounded_json_object(
+    path: Path,
+    *,
+    maximum_bytes: int,
+    artifact: str,
+) -> dict[str, Any]:
+    """Read one strict bounded JSON object."""
+
+    return read_bounded_json_artifact(
+        path,
+        maximum_bytes=maximum_bytes,
+        artifact=artifact,
+    ).value
 
 
 def _sha256_json(value: object) -> str:
@@ -974,17 +1045,56 @@ class ResourceCalibrationReceipt:
 
 
 def sha256_file(path: Path) -> str:
-    """Hash exact file bytes without loading a checkpoint into memory."""
+    """Hash one regular-file snapshot through a no-follow descriptor."""
 
-    if not path.is_file():
-        raise ExperimentContractError(f"artifact is not a readable file: {path}")
+    resolved = Path(path)
+    descriptor: int | None = None
     digest = hashlib.sha256()
     try:
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
+        if stat.S_ISLNK(resolved.lstat().st_mode):
+            raise ExperimentContractError(f"artifact must not be a symlink: {resolved}")
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(resolved, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ExperimentContractError(f"artifact is not a regular file: {resolved}")
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        after = os.fstat(descriptor)
+        descriptor_identity = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        after_identity = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        path_after = resolved.lstat()
+        path_identity = (
+            path_after.st_dev,
+            path_after.st_ino,
+            path_after.st_size,
+            path_after.st_mtime_ns,
+            path_after.st_ctime_ns,
+        )
+        if descriptor_identity != after_identity or descriptor_identity != path_identity:
+            raise ExperimentContractError(f"artifact changed while it was hashed: {resolved}")
+    except ExperimentContractError:
+        raise
     except OSError as exc:
-        raise ExperimentContractError(f"cannot hash artifact {path}: {exc}") from exc
+        raise ExperimentContractError(f"cannot hash artifact {resolved}: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
     return digest.hexdigest()
 
 

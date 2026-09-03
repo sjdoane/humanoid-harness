@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -104,6 +105,65 @@ def test_trace_write_never_overwrites(tmp_path: Path) -> None:
 
     with pytest.raises(TraceContractError, match="already exists"):
         _trace().write(path)
+
+
+def test_trace_write_rejects_existing_symlink_destination(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.json"
+    destination = tmp_path / "trace.json"
+    destination.symlink_to(outside)
+
+    with pytest.raises(TraceContractError, match="already exists"):
+        _trace().write(destination)
+    assert not outside.exists()
+
+
+def test_trace_write_rejects_symlinked_parent(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked_parent = tmp_path / "linked"
+    linked_parent.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(TraceContractError, match="real directory"):
+        _trace().write(linked_parent / "trace.json")
+    assert not (outside / "trace.json").exists()
+
+
+def test_trace_loader_rejects_symlink_and_fifo_without_blocking(tmp_path: Path) -> None:
+    trace_path = _trace().write(tmp_path / "trace.json")
+    linked = tmp_path / "linked.json"
+    linked.symlink_to(trace_path)
+    fifo = tmp_path / "trace.fifo"
+    os.mkfifo(fifo)
+
+    with pytest.raises(TraceContractError, match="symlink"):
+        load_trace(linked)
+    with pytest.raises(TraceContractError, match="regular file"):
+        load_trace(fifo)
+
+
+def test_trace_loader_rejects_path_replacement_during_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from oracle_composition.traces import contract
+
+    path = _trace().write(tmp_path / "trace.json")
+    replacement = tmp_path / "replacement.json"
+    replacement.write_bytes(path.read_bytes())
+    original_read = os.read
+    replaced = False
+
+    def read_and_replace(descriptor: int, size: int) -> bytes:
+        nonlocal replaced
+        chunk = original_read(descriptor, size)
+        if chunk and not replaced:
+            replaced = True
+            replacement.replace(path)
+        return chunk
+
+    monkeypatch.setattr(contract.os, "read", read_and_replace)
+    with pytest.raises(TraceContractError, match="changed while it was read"):
+        load_trace(path)
 
 
 def test_missing_diagnostic_signal_fails_closed() -> None:
@@ -308,12 +368,12 @@ def test_behavioral_mode_change_requires_transition_reason_event() -> None:
         recorder.finish()
 
     recorder.add_event(
-        sample_index=1,
+        sample_index=0,
         event_type="oracle.transition",
         value="guard contact_ready fired",
         source="oracle.runtime",
     )
-    assert recorder.finish().events[0].sample_index == 1
+    assert recorder.finish().events[0].sample_index == 0
 
 
 def test_trace_file_size_is_checked_before_parse(

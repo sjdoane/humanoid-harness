@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "provenance_class": "registered_official_repository_revision",
+  "dataset_id": "mujoco/humanoid/expert-v0",
+  "source_repository": "https://huggingface.co/datasets/farama-minari/mujoco",
+  "source_commit": "8e62dc7f7fcb4a19f8f869c65402d4bb60049117",
+  "registered_date": "2026-09-03",
+  "license_status": "no_dataset_license_declared_in_source_repository_at_registration",
+  "metadata_declared_generation_code_url": "https://github.com/Farama-Foundation/minari-dataset-generation-scripts",
+  "files": {
+    "hdf5": {
+      "repository_path": "humanoid/expert-v0/data/main_data.hdf5",
+      "source_url": "https://huggingface.co/datasets/farama-minari/mujoco/resolve/8e62dc7f7fcb4a19f8f869c65402d4bb60049117/humanoid/expert-v0/data/main_data.hdf5",
+      "bytes": 2946805796,
+      "sha256": "8253be693f06aeeac3cb62eeb349ad02d4ca0bcad02685b4b8ed390798d9aa1e"
+    },
+    "metadata": {
+      "repository_path": "humanoid/expert-v0/data/metadata.json",
+      "source_url": "https://huggingface.co/datasets/farama-minari/mujoco/resolve/8e62dc7f7fcb4a19f8f869c65402d4bb60049117/humanoid/expert-v0/data/metadata.json",
+      "bytes": 9305,
+      "sha256": "2eb6e0ba388ceabef5eec1dea7e401e62391d856cf42b394c262db7c21366024"
+    }
+  },
+  "claim_boundary": "Exact source registration and data-only projection only. The dataset license is unresolved, root x/y evidence is absent, and no dynamics-feasibility or training admission follows."
+}

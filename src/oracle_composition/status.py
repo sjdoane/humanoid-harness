@@ -95,6 +95,7 @@ def program_status(
         "implemented_capability": [
             "immutable reference and oracle contracts",
             "deterministic guarded oracle runtime",
+            "strict data-only source audit and projection",
             "Gymnasium Humanoid development adapter",
             "protected mechanical evaluator",
             "provenance-bearing research index",
@@ -104,8 +105,8 @@ def program_status(
         "measured_evidence": [item["claim"] for item in evidence_receipts],
         "evidence_receipts": evidence_receipts,
         "not_demonstrated": [
-            "trained reference-conditioned tracker",
-            "causal use of numeric reference windows",
+            "admitted reference-conditioned tracker",
+            "formal causal use of numeric reference windows",
             "adapter-emitted canonical trajectory trace",
             "oracle improvement",
             "task-reward improvement",
@@ -113,8 +114,8 @@ def program_status(
             "cross-MDP generality",
         ],
         "current_bottleneck": (
-            "No qualifying trained tracker exists, so current falling-rollout evidence "
-            "cannot test oracle quality."
+            "No admitted tracker with a qualifying evaluator-bound trace exists, so local "
+            "exploration cannot establish oracle quality."
         ),
         "next_gate": (
             "Train or admit one frozen reference-conditioned tracker, then pass exact, "

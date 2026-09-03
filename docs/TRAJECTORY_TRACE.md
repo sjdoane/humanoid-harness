@@ -20,7 +20,9 @@ action = zero        prior-interval action        prior-interval action
 t = 0                t = i * control_period       exact cadence
 ```
 
-Samples are contiguous and finite. Events point to an exact sample index.
+Samples are contiguous and finite. Events point to an exact decision-boundary
+sample index. An action selected at boundary `i` is recorded with its resulting
+state at sample `i + 1`.
 
 ## Required diagnostic coverage
 
@@ -39,9 +41,10 @@ Each name must be recorded or listed explicitly with a missing reason:
 `not_exposed`, `not_implemented`, `not_applicable`, and `redacted` are distinct.
 Missing values are never replaced with zero.
 
-For `behavioral_evaluation`, every required signal must be recorded. Each oracle
-mode change also requires an `oracle.transition` event carrying the reason at
-the exact sample index.
+For `behavioral_evaluation`, every required signal must be recorded. If
+`oracle.mode` changes at sample `i`, an `oracle.transition` event must carry the
+reason at decision boundary `i - 1`, where the mode governing that prior
+interval was selected.
 
 ## Evidence classes
 

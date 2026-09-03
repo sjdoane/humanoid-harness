@@ -228,7 +228,7 @@ class ContactFact:
 
 
 @dataclass(frozen=True, slots=True)
-class _CollapseDefinition:
+class CollapseDefinition:
     """Source-frozen physical guardrail, independent of the learned reward."""
 
     min_root_height_m: float = 1.0
@@ -236,25 +236,17 @@ class _CollapseDefinition:
     min_torso_up_z: float = 0.5
 
     def __post_init__(self) -> None:
-        values = (
-            self.min_root_height_m,
-            self.max_root_height_m,
-            self.min_torso_up_z,
-        )
-        if any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(float(value))
-            for value in values
-        ):
-            raise ExperimentContractError("collapse thresholds must be finite numbers")
+        for field in ("min_root_height_m", "max_root_height_m", "min_torso_up_z"):
+            object.__setattr__(self, field, _finite_scalar(getattr(self, field), field=field))
         if self.min_root_height_m >= self.max_root_height_m:
             raise ExperimentContractError("collapse height bounds must be ordered")
+        if self.min_root_height_m < 0.0:
+            raise ExperimentContractError("collapse root height must be non-negative")
         if not -1.0 <= self.min_torso_up_z <= 1.0:
             raise ExperimentContractError("min_torso_up_z must be in [-1, 1]")
 
 
-_FROZEN_COLLAPSE_DEFINITION = _CollapseDefinition()
+_FROZEN_COLLAPSE_DEFINITION = CollapseDefinition()
 
 
 @dataclass(frozen=True, slots=True)
@@ -478,6 +470,7 @@ def evaluate_tracking_step(
     previous_joint_accelerations_rad_s2: ArrayLike,
     contact_facts: Sequence[ContactFact],
     control_period_seconds: float,
+    collapse_definition: CollapseDefinition = _FROZEN_COLLAPSE_DEFINITION,
 ) -> StepMetrics:
     """Recompute tracking, effort, contact, and smoothness measurements.
 
@@ -489,7 +482,11 @@ def evaluate_tracking_step(
     ``actuator_force`` is pre-transmission input and is not an equivalent fact.
     """
 
-    definition = _FROZEN_COLLAPSE_DEFINITION
+    if not isinstance(collapse_definition, CollapseDefinition):
+        raise ExperimentContractError("collapse_definition must be a CollapseDefinition")
+    if collapse_definition != _FROZEN_COLLAPSE_DEFINITION:
+        raise ExperimentContractError("collapse_definition must match the source-frozen rule")
+    definition = collapse_definition
     root_position = _finite_vector(
         root_position_world_m,
         width=3,
@@ -539,8 +536,8 @@ def evaluate_tracking_step(
             "generalized actuator torque exceeds the declared per-joint capacity"
         )
     if not np.allclose(
-        np.abs(normalized_torque),
-        np.abs(action),
+        normalized_torque,
+        action,
         rtol=0.0,
         atol=ACTION_TORQUE_NORMALIZATION_ABS_TOLERANCE,
     ):

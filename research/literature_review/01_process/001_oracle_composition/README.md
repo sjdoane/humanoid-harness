@@ -14,9 +14,10 @@ synthesis claims until their corresponding human gate is approved. Candidate
 discovery and metadata-only acquisition priorities may be recorded, but
 candidate metadata is not citable evidence.
 
-Current candidate registry: 78 deduplicated primary-paper records across five
-pilot discovery routes. One withdrawn record is retained on administrative
-hold; every evaluative field remains `not_assessed`.
+Current candidate registry: 80 deduplicated primary-paper records across five
+pilot discovery routes plus one targeted web-follow-up route. One withdrawn
+record is retained on administrative hold; every evaluative field remains
+`not_assessed`.
 
 Pending human-review surfaces:
 

@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "experiment_id": "exploratory_phase_oracle_v1",
+  "design_version": "local-v1-predeclared-2026-09-03",
+  "design_status": "predeclared_not_executed",
+  "evidence_class": "exploratory",
+  "distribution_status": "local_exploration_only",
+  "claim_ceiling": "exact_byte_local_replay_and_conditional_four_arm_diagnostics_only",
+  "redistributable": false,
+  "reference_admission": "Tier-K_not_admitted",
+  "model_training_lineage": "not_available",
+  "fresh_seed_claim": "predetermined_for_v1_not_proven_unseen_to_checkpoint_training",
+  "requested_runtime": {
+    "environment_id": "Humanoid-v5",
+    "gymnasium_version": "1.3.0",
+    "mujoco_version": "3.12.0",
+    "mujoco_model_xml_sha256": "85816f372c826d2094b4a598918233bd9c5843b2439119eece2733bdc2e0d073",
+    "max_actions": 1000,
+    "terminate_when_unhealthy": false,
+    "reset_noise_scale": 0.01,
+    "exclude_current_positions_from_observation": true,
+    "frame_skip": 5,
+    "control_period_seconds": 0.015,
+    "deterministic_actions": true,
+    "reference_horizon_steps": 8,
+    "physical_residual_scale": 0.08
+  },
+  "reset_state_projection": {
+    "implementation_id": "bounded_reset_root_orientation_l2_projection/v1",
+    "application": "reset_state_before_action_0_only",
+    "raw_simulator_state": "unchanged_and_recorded_in_trace",
+    "root_quaternion_qpos_indices": [3, 4, 5, 6],
+    "component_bounds_inclusive": [[0.99, 1.01], [-0.01, 0.01], [-0.01, 0.01], [-0.01, 0.01]],
+    "l2_norm_bounds_inclusive": [0.98, 1.02],
+    "projection": "divide_float64_quaternion_copy_by_its_float64_l2_norm",
+    "projected_consumers": ["phase_matcher", "recovery_gate"],
+    "controller_input": "raw_Gymnasium_reset_observation",
+    "post_step_state_rule": "strict_unit_quaternion_without_projection"
+  },
+  "observed_runtime_receipt_contract": {
+    "status": "required_before_execution",
+    "binding_role": "observed_runtime_model_abi_receipt_sha256",
+    "required_match_fields": [
+      "environment_id",
+      "gymnasium_version",
+      "mujoco_version",
+      "mujoco_model_xml_sha256",
+      "max_actions",
+      "terminate_when_unhealthy",
+      "reset_noise_scale",
+      "exclude_current_positions_from_observation",
+      "frame_skip",
+      "control_period_seconds"
+    ],
+    "required_observed_fields": [
+      "observation_space_sha256",
+      "action_space_sha256",
+      "qpos_shape",
+      "qvel_shape",
+      "actuator_joint_order",
+      "actuator_qpos_indices",
+      "actuator_qvel_indices",
+      "actuator_gear_by_joint",
+      "generalized_actuator_torque_capacity_n_m",
+      "dependency_lock_sha256"
+    ]
+  },
+  "artifact_pins": {
+    "base_controller_filename": "minari_bc_v0.npz",
+    "base_controller_sha256": "ce2aa3a1358609f09509d7f352475a7b517c6d11858ff76419b18a187cb3adf3",
+    "reference_residual_filename": "reference_residual_ppo_v0.npz",
+    "reference_residual_sha256": "6916bf6778dd3044bca5feae22897b7d582e7389871a728549f791112d90fc22",
+    "dataset_id": "mujoco/humanoid/expert-v0",
+    "source_commit": "8e62dc7f7fcb4a19f8f869c65402d4bb60049117",
+    "source_record_sha256": "974700591304a4d3be576d55bd294558ae0cd10cbfce5bef7bd73ca21632f899",
+    "hdf5_sha256": "8253be693f06aeeac3cb62eeb349ad02d4ca0bcad02685b4b8ed390798d9aa1e",
+    "metadata_sha256": "2eb6e0ba388ceabef5eec1dea7e401e62391d856cf42b394c262db7c21366024",
+    "projection_receipt_sha256": "433f1bb3e7a119cae49024ba714108cb378783232fd66bd1e8e3a797f5e3b754",
+    "reference_content_sha256": "ef7557643ec87a31e4feb98c30faad98a6139dd646babf2d9e3be57b18f6936c",
+    "reference_schema_sha256": "35d5e7cc86c0054d40362a40ff552ddf9252c3067d02a943cbc2f294c24b9771",
+    "tracking_reward_sha256": "cc55731febc0c05a94174d4b99601fc8b3745273d21ee72236f4d9a75f81b10e",
+    "task_reward_sha256": "1c008dabe0571a6cb76bb99bf3758f5097614baa711831c7d4e082292a240c8c"
+  },
+  "phase_rule": {
+    "implementation_id": "bounded_phase_matcher/v1",
+    "horizon_steps": 8,
+    "search_radius_frames": 4,
+    "max_phase_advance_frames": 2,
+    "anchor_penalty": 0.05,
+    "switch_margin": 0.1,
+    "match_indices": [1, 2, 3, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+    "quaternion_indices": [1, 2, 3, 4],
+    "quaternion_error": "shortest_sign_invariant_geodesic_angle",
+    "quaternion_angle_scale_rad": 0.5,
+    "quaternion_unit_tolerance": 0.000001,
+    "pose_error_aggregation": "mean_of_17_squared_scaled_joint_errors_and_one_squared_scaled_geodesic_angle",
+    "scale_rule": {
+      "implementation_id": "joint_std_floor_with_geodesic_quaternion/v2",
+      "joint_position_floor_rad": 0.1,
+      "standard_deviation_ddof": 0,
+      "frame_domain": "all_1001_reference_frames",
+      "scored_joint_indices": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+      "unscored_scale_fill": 1.0,
+      "quaternion_scale_array_role": "ignored_geodesic_angle_uses_explicit_scale"
+    },
+    "end_behavior": "inclusive_terminal_hold",
+    "recursive_phase_updates": false
+  },
+  "recovery_gate": {
+    "implementation_id": "recovery_gate/v1",
+    "entry_height_min_m": 1.05,
+    "entry_height_max_m": 1.8,
+    "entry_torso_up_z_min": 0.75,
+    "entry_pose_error_max": 2.2,
+    "entry_pose_error_dwell_steps": 3,
+    "exit_height_min_m": 1.1,
+    "exit_height_max_m": 1.7,
+    "exit_torso_up_z_min": 0.8,
+    "exit_pose_error_max": 1.5,
+    "exit_stable_steps": 20,
+    "recovery_action": "base_controller_only_residual_weight_zero"
+  },
+  "action_composition": {
+    "implementation_id": "raw_humanoid_control_additive_residual/v1",
+    "actuator_order": ["abdomen_y", "abdomen_z", "abdomen_x", "right_hip_x", "right_hip_z", "right_hip_y", "right_knee", "left_hip_x", "left_hip_z", "left_hip_y", "left_knee", "right_shoulder1", "right_shoulder2", "right_elbow", "left_shoulder1", "left_shoulder2", "left_elbow"],
+    "composition_dtype": "little_endian_float32",
+    "base_output_bounds_float32_as_float64": [-0.4000000059604645, 0.4000000059604645],
+    "base_output_contract": "float32_raw_Humanoid-v5_control_with_action_space_endpoint_bytes",
+    "residual_output_contract": "unscaled_dimensionless_action_in_closed_interval_-1_1",
+    "residual_scale_in_raw_control_units": 0.08,
+    "residual_scale_float32_as_float64": 0.07999999821186066,
+    "gate_weight_values": [0.0, 1.0],
+    "formula": "float32_clip(float32(base_raw_control)+float32(gate_weight)*float32(0.08)*float32(residual_unscaled),float32(-0.4),float32(0.4))",
+    "final_clip_bounds_float32_as_float64": [-0.4000000059604645, 0.4000000059604645],
+    "composition_timing": "after_pre_step_oracle_selection_before_environment_step",
+    "environment_action": "post_clip_float32_raw_control_command",
+    "trace_physical_action": "submitted_float32_command_promoted_exactly_to_float64",
+    "effective_control_rule": "MuJoCo_clamps_submitted_command_to_model_actuator_ctrlrange_-0.4_0.4",
+    "trace_and_evaluator_normalized_action": "clip(submitted_float32_command_promoted_to_float64_divided_by_exact_0.4,-1,1)"
+  },
+  "evaluator": {
+    "implementation_id": "protected_tracking_evaluator/v1",
+    "target_frame_rule": "cache_W_t_before_action_then_grade_x_t_plus_1_against_W_t_index_1",
+    "measurement_timing": "one_post_step_measurement_per_control_action",
+    "collapse_definition": {
+      "min_root_height_m": 1.0,
+      "max_root_height_m": 2.0,
+      "height_survival_bounds_inclusive": true,
+      "min_torso_up_z": 0.5,
+      "torso_up_survival_bound_inclusive": true
+    },
+    "primary_outcome": {
+      "name": "no_collapse_over_1000_actions",
+      "required_actions": 1000,
+      "required_post_step_samples": 1000,
+      "true_iff": "all_required_post_step_samples_are_not_collapsed"
+    },
+    "metric_inputs": {
+      "state": "direct_post_step_MuJoCo_state",
+      "action": "clip(submitted_float32_command_promoted_to_float64_divided_by_exact_0.4,-1,1)",
+      "torque": "post_transmission_generalized_actuator_torque_at_17_actuated_DoFs",
+      "contact": "every_active_contact_after_each_of_exactly_5_physics_substeps",
+      "action_rate_baseline": "seeded_reset_zero_control_then_previous_executed_action",
+      "jerk_baseline": "seeded_reset_joint_acceleration_then_previous_post_step_acceleration"
+    }
+  },
+  "attempt_policy": {
+    "identity": "reviewed_execution_manifest_sha256",
+    "claim_scope": "resolved_runs_directory",
+    "max_attempts_per_identity_in_scope": 1,
+    "claim_timing": "atomic_before_first_environment_construction",
+    "failure_retention": "immutable_failed_receipt_with_completed_and_missing_schedule_rows",
+    "outcome_based_retry_allowed": false,
+    "cross_output_root_enforcement": "not_enforceable_by_local_filesystem"
+  },
+  "factorial": {
+    "design": "full_2x2_repeated_within_seed",
+    "phase_factor": ["elapsed_time", "bounded_state_conditioned"],
+    "recovery_factor": ["residual_always_active", "explicit_recovery_fallback"],
+    "arms": [
+      {
+        "arm_id": "T0_G0",
+        "phase_level": "elapsed_time",
+        "recovery_level": "residual_always_active"
+      },
+      {
+        "arm_id": "T0_G1",
+        "phase_level": "elapsed_time",
+        "recovery_level": "explicit_recovery_fallback"
+      },
+      {
+        "arm_id": "T1_G0",
+        "phase_level": "bounded_state_conditioned",
+        "recovery_level": "residual_always_active"
+      },
+      {
+        "arm_id": "T1_G1",
+        "phase_level": "bounded_state_conditioned",
+        "recovery_level": "explicit_recovery_fallback"
+      }
+    ]
+  },
+  "conditions": [
+    {
+      "condition_id": "nominal",
+      "qvel_index": null,
+      "component": "none",
+      "unit": "1",
+      "magnitude": 0.0,
+      "sign_field": null
+    },
+    {
+      "condition_id": "lateral_velocity",
+      "qvel_index": 1,
+      "component": "root_linear_velocity_world_y",
+      "unit": "m/s",
+      "magnitude": 1.0,
+      "sign_field": "lateral_sign"
+    },
+    {
+      "condition_id": "pitch_velocity_falsifier",
+      "qvel_index": 4,
+      "component": "root_angular_velocity_body_y",
+      "unit": "rad/s",
+      "magnitude": 1.0,
+      "sign_field": "pitch_sign"
+    }
+  ],
+  "evaluation_seeds": [4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009, 4010, 4011, 4012, 4013, 4014, 4015, 4016, 4017, 4018, 4019],
+  "excluded_prior_evaluation_seeds": [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019],
+  "perturbation_schedule": [
+    {"evaluation_seed": 4000, "perturbation_action": 575, "lateral_sign": 1, "pitch_sign": 1},
+    {"evaluation_seed": 4001, "perturbation_action": 200, "lateral_sign": -1, "pitch_sign": 1},
+    {"evaluation_seed": 4002, "perturbation_action": 575, "lateral_sign": -1, "pitch_sign": -1},
+    {"evaluation_seed": 4003, "perturbation_action": 575, "lateral_sign": -1, "pitch_sign": 1},
+    {"evaluation_seed": 4004, "perturbation_action": 450, "lateral_sign": -1, "pitch_sign": 1},
+    {"evaluation_seed": 4005, "perturbation_action": 450, "lateral_sign": 1, "pitch_sign": -1},
+    {"evaluation_seed": 4006, "perturbation_action": 700, "lateral_sign": -1, "pitch_sign": 1},
+    {"evaluation_seed": 4007, "perturbation_action": 700, "lateral_sign": 1, "pitch_sign": 1},
+    {"evaluation_seed": 4008, "perturbation_action": 200, "lateral_sign": -1, "pitch_sign": -1},
+    {"evaluation_seed": 4009, "perturbation_action": 700, "lateral_sign": -1, "pitch_sign": -1},
+    {"evaluation_seed": 4010, "perturbation_action": 200, "lateral_sign": 1, "pitch_sign": -1},
+    {"evaluation_seed": 4011, "perturbation_action": 575, "lateral_sign": 1, "pitch_sign": -1},
+    {"evaluation_seed": 4012, "perturbation_action": 200, "lateral_sign": 1, "pitch_sign": 1},
+    {"evaluation_seed": 4013, "perturbation_action": 450, "lateral_sign": 1, "pitch_sign": 1},
+    {"evaluation_seed": 4014, "perturbation_action": 325, "lateral_sign": 1, "pitch_sign": -1},
+    {"evaluation_seed": 4015, "perturbation_action": 450, "lateral_sign": -1, "pitch_sign": -1},
+    {"evaluation_seed": 4016, "perturbation_action": 325, "lateral_sign": 1, "pitch_sign": 1},
+    {"evaluation_seed": 4017, "perturbation_action": 325, "lateral_sign": -1, "pitch_sign": 1},
+    {"evaluation_seed": 4018, "perturbation_action": 325, "lateral_sign": -1, "pitch_sign": -1},
+    {"evaluation_seed": 4019, "perturbation_action": 700, "lateral_sign": 1, "pitch_sign": -1}
+  ],
+  "randomization": {
+    "algorithm": "sha256_ranked_complete_blocks/v1",
+    "seed": 260905,
+    "block_fields": ["evaluation_seed", "condition_id"],
+    "within_block_field": "arm_id"
+  },
+  "analysis": {
+    "analysis_scope": "paired_seed_diagnostics_conditioned_on_one_checkpoint_bundle",
+    "independent_checkpoint_bundles": 1,
+    "paired_unit": "evaluation_seed",
+    "primary_outcome": "no_collapse_over_1000_actions",
+    "report_phase_main_effect": true,
+    "report_recovery_main_effect": true,
+    "report_phase_by_recovery_interaction": true,
+    "stock_environment_return_role": "diagnostic_only",
+    "stock_environment_return_step_value": "finite_float_returned_by_each_environment_step",
+    "stock_environment_return_summation_rule": "python_math_fsum_in_action_order_over_exactly_1000_values/v1",
+    "automatic_promotion": false,
+    "causal_reference_use_claim_allowed": false,
+    "missing_run_rule": "report_every_scheduled_run_no_outcome_based_retry"
+  },
+  "required_pre_execution_bindings": [
+    "oracle_exploration_design_sha256",
+    "oracle_exploration_design_source_sha256",
+    "registered_source_record_sha256",
+    "registered_import_projection_receipt_sha256",
+    "minari_importer_source_sha256",
+    "reference_schema_sha256",
+    "humanoid_reference_source_sha256",
+    "observed_runtime_model_abi_receipt_sha256",
+    "runner_source_sha256",
+    "phase_oracle_source_sha256",
+    "protected_evaluator_source_sha256",
+    "protected_runtime_source_sha256",
+    "tracking_reward_source_sha256",
+    "trace_contract_source_sha256",
+    "base_controller_load_receipt_sha256",
+    "reference_residual_load_receipt_sha256"
+  ],
+  "hard_gates": [
+    "reviewed_execution_manifest_binds_all_required_pre_execution_roles",
+    "observed_runtime_model_abi_receipt_matches_requested_runtime",
+    "all_240_scheduled_runs_reported_exactly_once",
+    "zero_oracle_contract_faults",
+    "1000_actions_and_1001_trace_samples_per_completed_run",
+    "finite_state_action_torque_and_metric_values",
+    "all_five_physics_substeps_present_in_contact_capture",
+    "trace_and_receipt_hashes_reverify"
+  ],
+  "expected_run_count": 240,
+  "expected_run_table_sha256": "a683f2f555f621cc309e9a1c89f5221df1c7d7eb34e08356c4bed891cb4a938d"
+}

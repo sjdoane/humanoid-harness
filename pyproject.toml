@@ -13,9 +13,13 @@ dependencies = [
 [project.scripts]
 humanoid-harness = "oracle_composition.cli:main"
 humanoid-fixed-reference = "oracle_composition.experiments.cli:main"
+humanoid-oracle-exploration = "oracle_composition.experiments.oracle_exploration_runner:main"
 humanoid-static-study-summary = "oracle_composition.experiments.study_summary:main"
 
 [project.optional-dependencies]
+sources = [
+    "h5py>=3.12,<4",
+]
 gym = [
     "gymnasium[mujoco]>=1.3,<2",
     "mujoco>=3.12,<4",

@@ -30,6 +30,8 @@ class CandidateSeed:
     full_text_available: str = "yes"
     administrative_note: str = "none"
     expected_withdrawn: bool = False
+    supplementary_source: str | None = None
+    evidence_boundary: str | None = None
 
 
 SEEDS = (
@@ -165,6 +167,36 @@ SEEDS = (
     CandidateSeed("2606.03476", 1, "D3_FEASIBILITY_ADMISSION", "retargeting;physics", "discovery"),
     CandidateSeed(
         "2607.06052", 1, "D3_FEASIBILITY_ADMISSION", "benchmark;contact;force", "discovery"
+    ),
+    CandidateSeed(
+        "2506.14770",
+        2,
+        "D5_TARGETED_WEB_DISCOVERY",
+        "future_reference_window;tracking;adaptive_sampling",
+        "agent_host_web_search_2026-09-03",
+        supplementary_source=(
+            "https://github.com/zixuan417/humanoid-general-motion-tracking/"
+            "tree/2a590de25a1eb08e47491977a738549c22f16e1f"
+        ),
+        evidence_boundary=(
+            "candidate_and_official_code_metadata_only_not_registered_screened_extracted_"
+            "or_evidence_of_harness_implementation"
+        ),
+    ),
+    CandidateSeed(
+        "2509.13833",
+        3,
+        "D5_TARGETED_WEB_DISCOVERY",
+        "disturbance_adaptation;tracking;recovery",
+        "agent_host_web_search_2026-09-03",
+        supplementary_source=(
+            "https://github.com/GalaxyGeneralRobotics/OpenTrack/"
+            "tree/cb9b751993a2483e5d1805a2565ddbfe950c04c9"
+        ),
+        evidence_boundary=(
+            "candidate_and_official_code_metadata_only_not_registered_screened_extracted_"
+            "or_evidence_of_harness_implementation"
+        ),
     ),
 )
 
@@ -361,6 +393,15 @@ def _fetch(seed: CandidateSeed, *, attempts: int = 4) -> dict[str, str | int]:
                 raise ValueError(f"{seed.arxiv_id} has a mismatched PDF URL: {pdf_url!r}")
             if seed.full_text_available == "yes" and pdf_url is None:
                 raise ValueError(f"{seed.arxiv_id} has no discoverable PDF URL")
+            supplementary_note = (
+                f"; supplementary_source={seed.supplementary_source}; "
+                "supplementary_source_role=official_code_only"
+                if seed.supplementary_source
+                else ""
+            )
+            boundary_note = (
+                f"; evidence_boundary={seed.evidence_boundary}" if seed.evidence_boundary else ""
+            )
             return {
                 "candidate_id": f"arxiv:{seed.arxiv_id}v{seed.expected_version}",
                 "database": "arXiv",
@@ -382,6 +423,7 @@ def _fetch(seed: CandidateSeed, *, attempts: int = 4) -> dict[str, str | int]:
                     "candidate-only metadata; no screening or inclusion decision; "
                     f"discovery_lanes={seed.discovery_lanes}; provenance={seed.provenance}; "
                     f"administrative_note={seed.administrative_note}"
+                    f"{supplementary_note}{boundary_note}"
                 ),
             }
         except Exception as caught:

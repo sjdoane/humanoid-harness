@@ -81,9 +81,9 @@
           </div>
           <ol class="ladder">
             <li class="complete"><span>1</span><div><strong>Contracts</strong><small>Implemented and regression-tested</small></div></li>
-            <li class="current"><span>2</span><div><strong>Tracker causal use</strong><small>Blocked: no qualifying trained tracker</small></div></li>
-            <li><span>3</span><div><strong>Matched oracle study</strong><small>Not run</small></div></li>
-            <li><span>4</span><div><strong>Held-out recovery</strong><small>Not run</small></div></li>
+            <li class="current"><span>2</span><div><strong>Tracker causal use</strong><small>Formal gate not passed</small></div></li>
+            <li><span>3</span><div><strong>Matched oracle study</strong><small>Formal study not run</small></div></li>
+            <li><span>4</span><div><strong>Held-out recovery</strong><small>Formal study not run</small></div></li>
             <li><span>5</span><div><strong>Reward and attribution</strong><small>Not implemented</small></div></li>
           </ol>
         </article>
@@ -95,32 +95,89 @@
             <p class="eyebrow">Episode inspector</p>
             <h1 id="monitor-title">Understand the rollout</h1>
           </div>
-          <span class="badge badge-blocked">no qualifying trace</span>
+          <span class="badge badge-neutral" id="exploration-badge">checking local receipts</span>
         </header>
 
         <div class="monitor-grid">
-          <article class="stage" aria-label="No trained policy video is available">
-            <div class="empty-figure" aria-hidden="true">
+          <article class="stage" id="rollout-stage">
+            <video
+              class="evidence-video"
+              id="exploration-video"
+              controls
+              playsinline
+              preload="metadata"
+              hidden
+              aria-label="Four synchronized Humanoid oracle arms under the same lateral disturbance"
+            ></video>
+            <div class="empty-figure" id="empty-figure" aria-hidden="true">
               <span class="head"></span><span class="body"></span>
               <span class="arm left"></span><span class="arm right"></span>
               <span class="leg left"></span><span class="leg right"></span>
             </div>
             <div class="stage-copy">
-              <strong>No trained-policy rollout</strong>
-              <span>The existing falling Humanoid is an interface check, not oracle evidence.</span>
+              <strong id="stage-title">No qualifying behavioral trace</strong>
+              <span id="stage-detail">The existing falling Humanoid is an interface check, not oracle evidence.</span>
             </div>
           </article>
 
           <article class="card inspector">
-            <p class="card-label">Oracle now</p>
+            <p class="card-label">Selected visual receipt</p>
             <dl>
-              <div><dt>mode</dt><dd>unavailable</dd></div>
-              <div><dt>phase</dt><dd>unavailable</dd></div>
-              <div><dt>transition</dt><dd>unavailable</dd></div>
-              <div><dt>guard reason</dt><dd>unavailable</dd></div>
+              <div><dt>evidence</dt><dd id="receipt-evidence">unavailable</dd></div>
+              <div><dt>reference</dt><dd id="receipt-reference">unavailable</dd></div>
+              <div><dt>seed</dt><dd id="receipt-seed">unavailable</dd></div>
+              <div><dt>condition</dt><dd id="receipt-condition">unavailable</dd></div>
+              <div><dt>selection</dt><dd id="receipt-selection">unavailable</dd></div>
             </dl>
           </article>
         </div>
+
+        <article class="card section-gap exploration-card" id="exploration-results" hidden>
+          <div class="card-heading">
+            <div>
+              <p class="card-label">Self-attested local exploration</p>
+              <h2>Reference timing × fallback</h2>
+            </div>
+            <span class="badge badge-warning">local exploratory · not admitted</span>
+          </div>
+          <p class="muted small" id="exploration-question"></p>
+          <div class="table-scroll">
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>condition</th>
+                  <th>time only</th>
+                  <th>phase + fallback</th>
+                  <th>Δ</th>
+                  <th>declared check</th>
+                </tr>
+              </thead>
+              <tbody id="comparison-body"></tbody>
+            </table>
+          </div>
+          <div class="diagnostic-row" aria-label="Oracle activity diagnostics">
+            <div><strong id="phase-duty">—</strong><span>nominal phase corrections</span></div>
+            <div><strong id="fallback-duty">—</strong><span>nominal fallback duty</span></div>
+            <div><strong id="run-count">—</strong><span>completed / scheduled runs</span></div>
+          </div>
+          <figure class="evidence-figure">
+            <img id="holdout-figure" hidden>
+            <figcaption>Counts, raw collapse duration, and fallback activity across all 20 bundle-declared seeds.</figcaption>
+          </figure>
+          <div class="boundary-note">
+            <strong>Claim boundary</strong>
+            <span>Local exploratory diagnostic only; this is not Tier-D or formal oracle evidence.</span>
+            <ul id="exploration-limitations"></ul>
+          </div>
+          <details class="receipt-details">
+            <summary>Integrity receipt</summary>
+            <dl>
+              <div><dt>manifest</dt><dd id="manifest-sha">—</dd></div>
+              <div><dt>run ledger</dt><dd id="runs-sha">—</dd></div>
+              <div><dt>video</dt><dd id="video-sha">—</dd></div>
+            </dl>
+          </details>
+        </article>
 
         <article class="card section-gap">
           <p class="card-label">Required canonical trace coverage</p>
@@ -130,7 +187,7 @@
             <span>saturation</span><span>reference window</span><span>mode</span><span>phase</span>
             <span>guards</span><span>disturbance</span><span>rejoin</span><span>task progress</span>
           </div>
-          <p class="muted small">Recorded-or-missing coverage is enforced. Behavioral traces require every signal, transition reasons, and exact artifact lineage. Adapter recording is not implemented yet.</p>
+          <p class="muted small">Recorded-or-missing coverage is enforced. Behavioral traces require every signal, transition reason, and exact artifact lineage. The v1 recording path is implemented; no completed v1 trace exists yet.</p>
         </article>
       </section>
 
@@ -159,8 +216,8 @@
             <p class="card-label">Not demonstrated</p>
             <ul class="plain-list subdued">
               <li>LLM-generated oracle candidate</li>
-              <li>Phase estimated from a robot rollout</li>
-              <li>Controller using an oracle window</li>
+              <li>Phase estimated in a canonical traced rollout</li>
+              <li>Formal causal use of an oracle window</li>
               <li>Transition or recovery improvement</li>
               <li>Held-out task composition</li>
             </ul>
