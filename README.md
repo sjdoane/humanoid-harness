@@ -20,7 +20,7 @@ task + references + r0
 |---|---|
 | **research target** | Autonomous, steerable iteration over reference oracle `O_k` and task reward `r_k` |
 | **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, strict data-only source projection, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
-| **measured evidence** | Interface/regression checks plus one local, non-admitted tracker exploration; no formal causal-use, oracle-improvement, reward-improvement, or cross-MDP result |
+| **measured evidence** | Interface/regression checks, one non-admitted falling tracker exploration, and one reviewed offline numeric-reference sensitivity probe; no stable-tracking, formal causal-use, oracle-improvement, reward-improvement, or cross-MDP result |
 
 ## Quick start
 
@@ -36,17 +36,18 @@ uv run humanoid-harness ui
 ```
 
 The UI opens a local, read-only view. It does not grade a run or keep a second
-copy of research state. On loopback only, it can display an internally
-reconciled bundle from the fixed local exploration path. Missing, tampered,
-unlisted, or symlinked artifacts fail closed. That bundle still lacks a bound
-evaluator source and canonical per-step trace, so it is not formal evidence.
+copy of research state. On loopback only, it can display the falling local
+exploration and the reviewed Experiment 002A report. Missing, tampered,
+unlisted, or symlinked artifacts fail closed. Neither view establishes stable
+tracking or oracle quality.
 
 ## First development adapter
 
 | Component | Current choice | Role |
 |---|---|---|
 | Robot/MDP | Gymnasium `Humanoid-v5` | Public integration substrate |
-| Trainer | PPO | Development adapter |
+| Stable-motion bootstrap | TQC | Resource probe first; never an oracle result |
+| Tracker-family screen | Frozen-TQC residual PPO, expanded TQC, direct PPO + RSI | Development selection before tracker admission |
 | First study | Static tracker-admission prerequisite | Establish static feasibility; causal reference use is a distinct next study |
 | Final adapter | Lab-supplied controller/training system | Separate future experiment family |
 

@@ -86,16 +86,14 @@ from pathlib import Path
 
 import oracle_composition
 from oracle_composition.experiments.fixed_reference import load_study_design
-from oracle_composition.experiments.fixed_reference_runner import (
-    _dependency_lock_path,
-    inspect_runtime,
-)
+from oracle_composition.experiments.fixed_reference_runner import inspect_runtime
+from oracle_composition.experiments.runtime_identity import dependency_lock_path
 
 environment_root = Path(sys.argv[1]).resolve()
 package_path = Path(oracle_composition.__file__).resolve()
 if environment_root not in package_path.parents:
     raise RuntimeError(f"oracle_composition did not load from wheel environment: {package_path}")
-lock_path = _dependency_lock_path().resolve()
+lock_path = dependency_lock_path().resolve()
 if environment_root not in lock_path.parents or lock_path.parts[-2:] != ("_runtime", "uv.lock"):
     raise RuntimeError(f"runtime lock did not load from wheel: {lock_path}")
 lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()

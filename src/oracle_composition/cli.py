@@ -68,6 +68,17 @@ def _parser() -> argparse.ArgumentParser:
         default=models / "reference_residual_ppo_v0.npz",
     )
     probe.add_argument("--output", type=Path, required=True)
+    calibrate_tqc = tracker_commands.add_parser(
+        "calibrate-tqc",
+        help="run the reviewed disposable TQC resource calibration",
+    )
+    calibrate_tqc.add_argument("--design", type=Path, required=True)
+    calibrate_tqc.add_argument("--output", type=Path, required=True)
+    calibrate_tqc.add_argument(
+        "--confirm-disposable-resource-probe",
+        action="store_true",
+        help="confirm a 5.26-GiB replay probe with a sampled 12-GiB RSS failure threshold",
+    )
 
     ui = commands.add_parser("ui", help="serve the read-only local evidence UI")
     ui.add_argument("--host", default="127.0.0.1")
@@ -100,6 +111,7 @@ def _print_human(result: object) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    exit_code = 0
     try:
         if args.command == "status":
             result = program_status()
@@ -131,15 +143,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "artifact_bindings": [binding.to_dict() for binding in trace.artifact_bindings],
             }
         elif args.command == "tracker":
-            from .experiments.reference_causal_probe import run_reference_causal_probe
+            if args.tracker_command == "probe-reference-use":
+                from .experiments.reference_causal_probe import run_reference_causal_probe
 
-            result = run_reference_causal_probe(
-                hdf5_path=args.hdf5,
-                metadata_path=args.metadata,
-                base_controller_path=args.base_controller,
-                residual_controller_path=args.residual_controller,
-                output_path=args.output,
-            ).to_dict()
+                result = run_reference_causal_probe(
+                    hdf5_path=args.hdf5,
+                    metadata_path=args.metadata,
+                    base_controller_path=args.base_controller,
+                    residual_controller_path=args.residual_controller,
+                    output_path=args.output,
+                ).to_dict()
+            else:
+                from .experiments.tqc_calibration import run_tqc_calibration
+
+                calibration = run_tqc_calibration(
+                    design_path=args.design,
+                    output_path=args.output,
+                    confirm_disposable_resource_probe=(args.confirm_disposable_resource_probe),
+                )
+                result = calibration.to_dict()
+                if not calibration.receipt["calibration_gate_passed"]:
+                    exit_code = 2
         else:
             from .ui.server import serve
 
@@ -160,7 +184,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _print_human(result)
     if args.command == "doctor" and isinstance(result, dict):
         return 0 if result["status"] == "pass" else 2
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

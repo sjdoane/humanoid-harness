@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from oracle_composition.experiments.fixed_reference_runner import _resolve_dependency_lock
+from oracle_composition.experiments.runtime_identity import resolve_dependency_lock
 
 
 def test_dependency_lock_resolver_rejects_absent_candidates(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="absent"):
-        _resolve_dependency_lock(
+        resolve_dependency_lock(
             package_lock=tmp_path / "package" / "uv.lock",
             checkout_lock=tmp_path / "checkout" / "uv.lock",
         )
@@ -22,7 +22,7 @@ def test_dependency_lock_resolver_rejects_disagreement(tmp_path: Path) -> None:
     checkout_lock.write_bytes(b"checkout-lock")
 
     with pytest.raises(RuntimeError, match="disagree"):
-        _resolve_dependency_lock(package_lock=package_lock, checkout_lock=checkout_lock)
+        resolve_dependency_lock(package_lock=package_lock, checkout_lock=checkout_lock)
 
 
 @pytest.mark.parametrize("linked_candidate", ["package", "checkout"])
@@ -45,7 +45,7 @@ def test_dependency_lock_resolver_rejects_symlinks(
     )
 
     with pytest.raises(RuntimeError, match="symlink"):
-        _resolve_dependency_lock(
+        resolve_dependency_lock(
             package_lock=package_lock,
             checkout_lock=checkout_lock,
         )
@@ -58,6 +58,6 @@ def test_dependency_lock_resolver_prefers_matching_packaged_bytes(tmp_path: Path
     checkout_lock.write_bytes(b"exact-lock")
 
     assert (
-        _resolve_dependency_lock(package_lock=package_lock, checkout_lock=checkout_lock)
+        resolve_dependency_lock(package_lock=package_lock, checkout_lock=checkout_lock)
         == package_lock
     )

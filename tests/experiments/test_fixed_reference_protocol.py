@@ -24,10 +24,10 @@ from oracle_composition.experiments.fixed_reference import (
     MAX_STUDY_DESIGN_BYTES,
 )
 from oracle_composition.experiments.fixed_reference_runner import (
-    _source_tree_sha256,
     inspect_runtime,
     make_static_tracking_env,
 )
+from oracle_composition.experiments.runtime_identity import source_tree_sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 DESIGN_PATH = (
@@ -437,11 +437,11 @@ def test_source_tree_digest_changes_with_included_source_bytes(tmp_path: Path) -
     package.mkdir()
     source = package / "reference.py"
     source.write_text("VALUE = 1\n", encoding="utf-8")
-    initial = _source_tree_sha256(package)
+    initial = source_tree_sha256(package)
 
     source.write_text("VALUE = 2\n", encoding="utf-8")
 
-    assert _source_tree_sha256(package) != initial
+    assert source_tree_sha256(package) != initial
 
 
 @pytest.mark.gym

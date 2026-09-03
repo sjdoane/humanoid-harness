@@ -177,3 +177,106 @@ def test_unified_cli_dispatches_reference_use_probe(
     assert json.loads(capsys.readouterr().out)["mechanistic_gate_passed"] is True
     assert observed["output_path"] == output_path
     assert observed["hdf5_path"].name == "main_data.hdf5"
+
+
+def test_unified_cli_dispatches_tqc_calibration(tmp_path: Path, capsys, monkeypatch) -> None:
+    from oracle_composition.experiments import tqc_calibration
+
+    observed: dict[str, Path] = {}
+
+    def run_calibration(**kwargs):
+        observed.update(kwargs)
+        return SimpleNamespace(
+            receipt={"calibration_gate_passed": True},
+            to_dict=lambda: {
+                "calibration_gate_passed": True,
+                "claim_boundary": "resource_integrity_only_no_behavior_or_controller_claim/v1",
+            },
+        )
+
+    monkeypatch.setattr(tqc_calibration, "run_tqc_calibration", run_calibration)
+    design_path = tmp_path / "design.json"
+    output_path = tmp_path / "receipt.json"
+    code = main(
+        [
+            "--json",
+            "tracker",
+            "calibrate-tqc",
+            "--design",
+            str(design_path),
+            "--output",
+            str(output_path),
+            "--confirm-disposable-resource-probe",
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["calibration_gate_passed"] is True
+    assert observed == {
+        "design_path": design_path,
+        "output_path": output_path,
+        "confirm_disposable_resource_probe": True,
+    }
+
+
+def test_unified_cli_failed_tqc_calibration_preserves_json_mode(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    from oracle_composition.experiments import tqc_calibration
+
+    monkeypatch.setattr(
+        tqc_calibration,
+        "run_tqc_calibration",
+        lambda **_kwargs: SimpleNamespace(
+            receipt={"calibration_gate_passed": False},
+            to_dict=lambda: {
+                "calibration_gate_passed": False,
+                "claim_boundary": "resource_integrity_only_no_behavior_or_controller_claim/v1",
+            },
+        ),
+    )
+
+    code = main(
+        [
+            "--json",
+            "tracker",
+            "calibrate-tqc",
+            "--design",
+            str(tmp_path / "design.json"),
+            "--output",
+            str(tmp_path / "receipt.json"),
+            "--confirm-disposable-resource-probe",
+        ]
+    )
+
+    assert code == 2
+    raw_output = capsys.readouterr().out
+    assert raw_output.count("\n") == 1
+    assert json.loads(raw_output)["calibration_gate_passed"] is False
+
+
+def test_unified_cli_requires_tqc_resource_acknowledgement(tmp_path: Path, capsys) -> None:
+    design_path = (
+        Path(__file__).resolve().parents[2]
+        / "experiments"
+        / "bootstrap_tqc_humanoid"
+        / "configs"
+        / "tqc_resource_calibration_v0.study.json"
+    )
+    output = tmp_path / "receipt.json"
+
+    code = main(
+        [
+            "--json",
+            "tracker",
+            "calibrate-tqc",
+            "--design",
+            str(design_path),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert code == 2
+    assert "--confirm-disposable-resource-probe" in capsys.readouterr().err
+    assert not output.exists()

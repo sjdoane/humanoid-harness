@@ -16,6 +16,7 @@ humanoid-fixed-reference = "oracle_composition.experiments.cli:main"
 humanoid-oracle-exploration = "oracle_composition.experiments.oracle_exploration_runner:main"
 humanoid-reference-probe = "oracle_composition.experiments.reference_causal_probe:main"
 humanoid-static-study-summary = "oracle_composition.experiments.study_summary:main"
+humanoid-tqc-calibration = "oracle_composition.experiments.tqc_calibration:main"
 
 [project.optional-dependencies]
 sources = [
@@ -26,6 +27,7 @@ gym = [
     "mujoco>=3.12,<4",
 ]
 train = [
+    "sb3-contrib>=2.9,<3",
     "stable-baselines3>=2.9,<3",
     "torch>=2.14,<3",
 ]

@@ -35,6 +35,12 @@ from .fixed_reference import (
     sha256_file,
 )
 from .protected_evaluator import protected_evaluator_sha256
+from .runtime_identity import (
+    dependency_lock_path,
+    module_sha256,
+    source_tree_sha256,
+    space_sha256,
+)
 from .squashed_policy import (
     ACTION_TRANSFORM_ID,
     POLICY_ID,
@@ -48,106 +54,6 @@ ZERO_TASK_REWARD_SPEC = {
 
 OBSERVATION_NORMALIZER_ID = "none/v1"
 REWARD_NORMALIZER_ID = "none/v1"
-MAX_SOURCE_TREE_FILES = 1024
-MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024
-MAX_SOURCE_TREE_BYTES = 32 * 1024 * 1024
-
-
-def _resolve_dependency_lock(*, package_lock: Path, checkout_lock: Path) -> Path:
-    """Select an immutable lock surface and reject ambiguous local state."""
-
-    candidates = (package_lock, checkout_lock)
-    if any(path.is_symlink() for path in candidates):
-        raise RuntimeError("runtime dependency lock must be a regular file, not a symlink")
-    present = [path for path in candidates if path.is_file()]
-    if not present:
-        raise RuntimeError("runtime dependency lock is absent from the checkout and package")
-    if len(present) == 2 and sha256_file(present[0]) != sha256_file(present[1]):
-        raise RuntimeError("packaged and checkout dependency locks disagree")
-    return package_lock if package_lock in present else checkout_lock
-
-
-def _dependency_lock_path() -> Path:
-    """Resolve the exact lock from a checkout or the built wheel.
-
-    Wheels force-include the repository lock under ``_runtime``. Editable
-    source checkouts instead bind the root ``uv.lock``. If both surfaces are
-    present, their bytes must agree before either may authorize a runtime.
-    """
-
-    return _resolve_dependency_lock(
-        package_lock=Path(__file__).resolve().parents[1] / "_runtime" / "uv.lock",
-        checkout_lock=Path(__file__).resolve().parents[3] / "uv.lock",
-    )
-
-
-def _module_sha256(module: object) -> str:
-    source_path = Path(str(getattr(module, "__file__", "")))
-    return sha256_file(source_path)
-
-
-def _source_tree_sha256(root: Path | None = None) -> str:
-    """Hash sorted regular Python source bytes under the local package tree."""
-
-    if root is not None and Path(root).is_symlink():
-        raise RuntimeError("source-tree root must be a regular directory, not a symlink")
-    source_root = root.resolve() if root is not None else Path(__file__).resolve().parents[1]
-    if not source_root.is_dir() or source_root.is_symlink():
-        raise RuntimeError("source-tree root must be a regular directory, not a symlink")
-    candidates = sorted(
-        source_root.rglob("*.py"),
-        key=lambda path: path.relative_to(source_root).as_posix(),
-    )
-    if not candidates or len(candidates) > MAX_SOURCE_TREE_FILES:
-        raise RuntimeError("source-tree Python file count is outside the bounded contract")
-    digest = hashlib.sha256()
-    total_bytes = 0
-    for path in candidates:
-        if path.is_symlink() or not path.is_file():
-            raise RuntimeError("source-tree entries must be regular Python files")
-        try:
-            with path.open("rb") as stream:
-                payload = stream.read(MAX_SOURCE_FILE_BYTES + 1)
-        except OSError as exc:
-            raise RuntimeError(f"cannot read source-tree file {path}: {exc}") from exc
-        if len(payload) > MAX_SOURCE_FILE_BYTES:
-            raise RuntimeError("source-tree Python file exceeds the bounded size limit")
-        total_bytes += len(payload)
-        if total_bytes > MAX_SOURCE_TREE_BYTES:
-            raise RuntimeError("source-tree bytes exceed the bounded aggregate size limit")
-        relative = path.relative_to(source_root).as_posix().encode("utf-8")
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
-
-
-def _space_sha256(space: object) -> str:
-    """Hash exact Box bounds, shape, and dtype without JSON infinity values."""
-
-    low = np.asarray(getattr(space, "low", None))
-    high = np.asarray(getattr(space, "high", None))
-    shape = tuple(int(value) for value in getattr(space, "shape", ()))
-    dtype = np.dtype(getattr(space, "dtype", low.dtype))
-    if low.shape != shape or high.shape != shape or not shape:
-        raise RuntimeError("runtime space does not expose exact Box bounds")
-    digest = hashlib.sha256()
-    metadata = json.dumps(
-        {"dtype": dtype.str, "shape": list(shape)},
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    for label, payload in (
-        (b"metadata", metadata),
-        (b"low", np.ascontiguousarray(low, dtype=dtype).tobytes()),
-        (b"high", np.ascontiguousarray(high, dtype=dtype).tobytes()),
-    ):
-        digest.update(len(label).to_bytes(8, "big"))
-        digest.update(label)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
 
 
 def zero_task_reward_sha256() -> str:
@@ -311,10 +217,10 @@ def inspect_runtime(design: FixedReferenceStudyDesign) -> RuntimeFingerprint:
             platform_system=platform.system(),
             platform_machine=platform.machine(),
             model_sha256=sha256_file(model_path),
-            dependency_lock_sha256=sha256_file(_dependency_lock_path()),
-            observation_space_sha256=_space_sha256(env.observation_space),
-            action_space_sha256=_space_sha256(env.action_space),
-            physical_action_space_sha256=_space_sha256(tracker.action_space),
+            dependency_lock_sha256=sha256_file(dependency_lock_path()),
+            observation_space_sha256=space_sha256(env.observation_space),
+            action_space_sha256=space_sha256(env.action_space),
+            physical_action_space_sha256=space_sha256(tracker.action_space),
             observation_shape=tuple(int(value) for value in env.observation_space.shape),
             action_shape=tuple(int(value) for value in env.action_space.shape),
             qpos_shape=tuple(int(value) for value in unwrapped.data.qpos.shape),
@@ -329,17 +235,17 @@ def inspect_runtime(design: FixedReferenceStudyDesign) -> RuntimeFingerprint:
             reference_schema_sha256=reference.identity.schema_sha256,
             tracking_reward_sha256=reward.sha256,
             task_reward_sha256=zero_task_reward_sha256(),
-            environment_source_sha256=_module_sha256(humanoid_module),
-            reference_abi_source_sha256=_module_sha256(humanoid_reference_module),
-            tracking_reward_source_sha256=_module_sha256(tracking_reward_module),
-            wrapper_source_sha256=_module_sha256(reference_tracking_module),
-            experiment_contract_source_sha256=_module_sha256(fixed_reference_module),
+            environment_source_sha256=module_sha256(humanoid_module),
+            reference_abi_source_sha256=module_sha256(humanoid_reference_module),
+            tracking_reward_source_sha256=module_sha256(tracking_reward_module),
+            wrapper_source_sha256=module_sha256(reference_tracking_module),
+            experiment_contract_source_sha256=module_sha256(fixed_reference_module),
             evaluator_source_sha256=protected_evaluator_sha256(),
             runner_source_sha256=runner_source_sha256(),
             execution_source_sha256=execution_source_sha256(),
             study_summary_source_sha256=study_summary_source_sha256(),
             policy_source_sha256=squashed_policy_source_sha256(),
-            source_tree_sha256=_source_tree_sha256(),
+            source_tree_sha256=source_tree_sha256(),
             policy_id=POLICY_ID,
             action_transform_id=ACTION_TRANSFORM_ID,
             observation_normalizer_id=OBSERVATION_NORMALIZER_ID,

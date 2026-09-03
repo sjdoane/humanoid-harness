@@ -26,8 +26,8 @@ from oracle_composition.experiments.fixed_reference import (
     load_study_design,
     sha256_file,
 )
-from oracle_composition.experiments.fixed_reference_runner import _source_tree_sha256
 from oracle_composition.experiments.protected_evaluator import STATION_KEEPING_ORIGIN_SOURCE
+from oracle_composition.experiments.runtime_identity import source_tree_sha256
 from oracle_composition.experiments.squashed_policy import (
     ACTION_BOUNDARY_MARGIN,
     ACTION_LIKELIHOOD_AUDIT_ID,
@@ -118,7 +118,7 @@ def _runtime() -> RuntimeFingerprint:
         execution_source_sha256=sha256_file(Path(execution_module.__file__)),
         study_summary_source_sha256=sha256_file(Path(study_summary_module.__file__)),
         policy_source_sha256=sha256_file(Path(squashed_policy_module.__file__)),
-        source_tree_sha256=_source_tree_sha256(),
+        source_tree_sha256=source_tree_sha256(),
         policy_id=POLICY_ID,
         action_transform_id="tanh_normalized_then_affine_physical_box/v1",
         observation_normalizer_id="none/v1",

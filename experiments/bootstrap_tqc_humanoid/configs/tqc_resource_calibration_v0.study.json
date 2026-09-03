@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "calibration_id": "tqc_humanoid_resource_calibration/v1",
+  "design_status": "predeclared_not_executed",
+  "evidence_purpose": "resource_calibration",
+  "claim_ceiling": null,
+  "seed": 92001,
+  "seed_role": "permanently_excluded_disposable_calibration",
+  "environment": {
+    "environment_id": "Humanoid-v5",
+    "n_envs": 5,
+    "worker_seeds": [92001, 92002, 92003, 92004, 92005],
+    "vectorization": "stable_baselines3.DummyVecEnv/v2.9",
+    "terminate_when_unhealthy": false,
+    "reset_noise_scale": 0.01,
+    "exclude_current_positions_from_observation": true,
+    "frame_skip": 5,
+    "normalization": "none/v1"
+  },
+  "tqc": {
+    "algorithm_id": "sb3_contrib.TQC/v2.9",
+    "required_stable_baselines3_version": "2.9.0",
+    "required_sb3_contrib_version": "2.9.0",
+    "policy": "MlpPolicy",
+    "device": "cpu",
+    "total_timesteps": 100000,
+    "learning_rate": 0.0003,
+    "buffer_size": 1000000,
+    "learning_starts": 100,
+    "batch_size": 256,
+    "tau": 0.005,
+    "gamma": 0.99,
+    "train_freq_steps": 1,
+    "gradient_steps": 1,
+    "n_steps": 1,
+    "ent_coef": "auto",
+    "target_entropy": "auto",
+    "top_quantiles_to_drop_per_net": 2,
+    "n_quantiles": 25,
+    "n_critics": 2,
+    "policy_hidden_layers": [256, 256],
+    "use_sde": false,
+    "optimize_memory_usage": false,
+    "handle_timeout_termination": true
+  },
+  "resource_gates": {
+    "sampled_peak_rss_failure_threshold_bytes": 12884901888,
+    "minimum_free_disk_bytes": 53687091200,
+    "minimum_environment_steps_per_second": 116.0,
+    "throughput_warmup_environment_steps": 10000,
+    "throughput_window_environment_steps": 10000
+  },
+  "persistence": {
+    "checkpoint": false,
+    "replay_buffer": false,
+    "normalizer": false,
+    "model_disposition": "discarded_unserialized"
+  }
+}
