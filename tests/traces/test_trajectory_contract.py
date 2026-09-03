@@ -94,9 +94,7 @@ def test_trace_round_trip_preserves_content_identity(tmp_path: Path) -> None:
     assert loaded.sha256 == trace.sha256
     assert hashlib.sha256(path.read_bytes()).hexdigest() == trace.sha256
     assert loaded.diagnostic_coverage["recorded"] == ["oracle.phase", "robot.qpos"]
-    assert loaded.diagnostic_coverage["missing"] == sorted(
-        item.name for item in _missing()
-    )
+    assert loaded.diagnostic_coverage["missing"] == sorted(item.name for item in _missing())
     assert loaded.to_dict()["samples"][1]["time_seconds"] == 0.02
 
 
@@ -240,9 +238,7 @@ def test_reset_sample_requires_zero_controller_action() -> None:
     )
     missing = tuple(
         MissingSignal(name, MissingReason.NOT_IMPLEMENTED, "Fixture omission.")
-        for name in sorted(
-            REQUIRED_DIAGNOSTIC_SIGNALS - {signal.name for signal in signals}
-        )
+        for name in sorted(REQUIRED_DIAGNOSTIC_SIGNALS - {signal.name for signal in signals})
     )
     recorder = TraceRecorder(
         trace_id="trace/nonzero-reset/v1",
@@ -359,10 +355,7 @@ def test_missing_signals_and_artifact_bindings_are_bounded() -> None:
 
     excess_bindings = (
         ArtifactBinding("runtime", "runtime/test", SHA),
-        *(
-            ArtifactBinding(f"extra.{index}", f"artifact/{index}", SHA)
-            for index in range(64)
-        ),
+        *(ArtifactBinding(f"extra.{index}", f"artifact/{index}", SHA) for index in range(64)),
     )
     with pytest.raises(TraceContractError, match="artifact binding count"):
         replace(trace, artifact_bindings=excess_bindings)

@@ -14,9 +14,7 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 DEFAULT_DATABASE = Path("artifacts/knowledge/graph.db")
-DEFAULT_EXTRACTIONS = Path(
-    "research/evidence/legacy_policy_harness_kg/extractions"
-)
+DEFAULT_EXTRACTIONS = Path("research/evidence/legacy_policy_harness_kg/extractions")
 
 PROJECT_NODES = {
     "system:agentic_harness": (
@@ -302,9 +300,7 @@ def _build_database(
             )
             paper_id = _stable_id(paper.get("id"), field=f"{path.name}.paper.id")
             title = _required_text(paper.get("title"), field=f"{paper_id}.title")
-            primary_url = _required_text(
-                paper.get("primary_url"), field=f"{paper_id}.primary_url"
-            )
+            primary_url = _required_text(paper.get("primary_url"), field=f"{paper_id}.primary_url")
             source_version = _required_text(
                 paper.get("source_version"), field=f"{paper_id}.source_version"
             )
@@ -384,9 +380,7 @@ def _build_database(
                 parameter = _required_mapping(
                     parameter_raw, field=f"{paper_id}.parameters[{index}]"
                 )
-                name = _required_text(
-                    parameter.get("name"), field=f"{paper_id}.parameter.name"
-                )
+                name = _required_text(parameter.get("name"), field=f"{paper_id}.parameter.name")
                 node_id = f"{paper_id}:parameter:{index}"
                 _insert_node(
                     connection,
@@ -412,9 +406,7 @@ def _build_database(
 
             for evidence_raw in record.get("evidence", []):
                 evidence = _required_mapping(evidence_raw, field=f"{paper_id}.evidence")
-                local_id = _stable_id(
-                    evidence.get("id"), field=f"{paper_id}.evidence.id"
-                )
+                local_id = _stable_id(evidence.get("id"), field=f"{paper_id}.evidence.id")
                 evidence_id = _canonical_evidence_id(
                     paper_id,
                     local_id,
@@ -423,12 +415,8 @@ def _build_database(
                 source_url = _required_text(
                     evidence.get("source_url"), field=f"{evidence_id}.source_url"
                 )
-                locator = _required_text(
-                    evidence.get("locator"), field=f"{evidence_id}.locator"
-                )
-                claim = _required_text(
-                    evidence.get("claim"), field=f"{evidence_id}.claim"
-                )
+                locator = _required_text(evidence.get("locator"), field=f"{evidence_id}.locator")
+                claim = _required_text(evidence.get("claim"), field=f"{evidence_id}.claim")
                 evidence_type = _required_text(
                     evidence.get("evidence_type"), field=f"{evidence_id}.evidence_type"
                 )
@@ -459,9 +447,7 @@ def _build_database(
             if not isinstance(relations, list):
                 raise KnowledgeIndexError(f"{paper_id}.relations must be a list")
             for relation_raw in relations:
-                relation = _required_mapping(
-                    relation_raw, field=f"{paper_id}.relations"
-                )
+                relation = _required_mapping(relation_raw, field=f"{paper_id}.relations")
                 source, source_label = _relation_endpoint(
                     relation.get("source"),
                     paper_id=paper_id,
@@ -479,27 +465,21 @@ def _build_database(
                         and prior_owner != paper_id
                         and endpoint not in PROJECT_NODES
                     ):
-                        raise KnowledgeIndexError(
-                            f"concept provenance is ambiguous: {endpoint}"
-                        )
+                        raise KnowledgeIndexError(f"concept provenance is ambiguous: {endpoint}")
                     concept_labels.setdefault(endpoint, label)
                     concept_papers.setdefault(endpoint, paper_id)
                     concept_sources.setdefault(endpoint, primary_url)
                 pending_edges.append(
                     (
                         source,
-                        _stable_id(
-                            relation.get("relation"), field=f"{paper_id}.relation.relation"
-                        ),
+                        _stable_id(relation.get("relation"), field=f"{paper_id}.relation.relation"),
                         target,
                         _evidence_ids(paper_id, relation.get("evidence_ids", [])),
                         f"extraction:{path.name}",
                     )
                 )
 
-        known_nodes = {
-            row[0] for row in connection.execute("SELECT id FROM nodes").fetchall()
-        }
+        known_nodes = {row[0] for row in connection.execute("SELECT id FROM nodes").fetchall()}
         unresolved = sorted(
             {
                 endpoint
@@ -513,9 +493,7 @@ def _build_database(
                 connection,
                 node_id=node_id,
                 kind="concept",
-                name=concept_labels.get(
-                    node_id, node_id.replace(":", " / ").replace("_", " ")
-                ),
+                name=concept_labels.get(node_id, node_id.replace(":", " / ").replace("_", " ")),
                 description="Concept endpoint declared by a source extraction.",
                 paper_id=concept_papers.get(node_id),
                 payload={"provenance": "source_extraction_relation"},
@@ -527,9 +505,7 @@ def _build_database(
         }
         for source, relation, target, evidence_ids, provenance in pending_edges:
             if source not in known_nodes or target not in known_nodes:
-                raise KnowledgeIndexError(
-                    f"edge endpoint is missing: {source} {relation} {target}"
-                )
+                raise KnowledgeIndexError(f"edge endpoint is missing: {source} {relation} {target}")
             missing_evidence = sorted(set(json.loads(evidence_ids)) - known_evidence)
             if missing_evidence:
                 raise KnowledgeIndexError(
@@ -584,15 +560,10 @@ def _connect(database: Path) -> sqlite3.Connection:
         version_row = connection.execute(
             "SELECT value FROM metadata WHERE key = 'schema_version'"
         ).fetchone()
-        valid_version = (
-            version_row is not None
-            and int(version_row["value"]) == SCHEMA_VERSION
-        )
+        valid_version = version_row is not None and int(version_row["value"]) == SCHEMA_VERSION
     except (sqlite3.Error, TypeError, ValueError) as exc:
         connection.close()
-        raise KnowledgeIndexError(
-            "research index is corrupt or incomplete; rebuild it"
-        ) from exc
+        raise KnowledgeIndexError("research index is corrupt or incomplete; rebuild it") from exc
     if not valid_version:
         connection.close()
         raise KnowledgeIndexError("research index schema is unsupported; rebuild it")

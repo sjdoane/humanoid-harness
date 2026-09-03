@@ -141,9 +141,7 @@ def _exact_mapping(
     missing = sorted(keys - actual)
     extra = sorted(actual - keys)
     if missing or extra:
-        raise TraceContractError(
-            f"{field} fields mismatch: missing={missing!r}, extra={extra!r}"
-        )
+        raise TraceContractError(f"{field} fields mismatch: missing={missing!r}, extra={extra!r}")
     return value
 
 
@@ -310,14 +308,9 @@ class _TraceSample:
         resolved_values: list[tuple[float, ...]] = []
         for signal_index, raw_values in enumerate(self.numeric_values):
             if not isinstance(raw_values, Sequence) or isinstance(raw_values, (str, bytes)):
-                raise TraceContractError(
-                    f"sample signal {signal_index} values must be an array"
-                )
+                raise TraceContractError(f"sample signal {signal_index} values must be an array")
             resolved_values.append(
-                tuple(
-                    _finite(value, field=f"sample signal {signal_index}")
-                    for value in raw_values
-                )
+                tuple(_finite(value, field=f"sample signal {signal_index}") for value in raw_values)
             )
         object.__setattr__(self, "numeric_values", tuple(resolved_values))
 
@@ -360,9 +353,7 @@ class TrajectoryTrace:
             "evidence_class",
             _enum(self.evidence_class, EvidenceClass, field="evidence class"),
         )
-        control_period = _finite(
-            self.control_period_seconds, field="control_period_seconds"
-        )
+        control_period = _finite(self.control_period_seconds, field="control_period_seconds")
         if control_period <= 0.0:
             raise TraceContractError("control_period_seconds must be positive")
         object.__setattr__(self, "control_period_seconds", control_period)
@@ -381,9 +372,7 @@ class TrajectoryTrace:
         if not 1 <= len(signals) <= MAX_SIGNALS:
             raise TraceContractError(f"numeric signal count must be in [1, {MAX_SIGNALS}]")
         if len(missing) > MAX_MISSING_SIGNALS:
-            raise TraceContractError(
-                f"missing signal count cannot exceed {MAX_MISSING_SIGNALS}"
-            )
+            raise TraceContractError(f"missing signal count cannot exceed {MAX_MISSING_SIGNALS}")
         if len(bindings) > MAX_ARTIFACT_BINDINGS:
             raise TraceContractError(
                 f"artifact binding count cannot exceed {MAX_ARTIFACT_BINDINGS}"
@@ -422,9 +411,7 @@ class TrajectoryTrace:
             and signal.role is not REQUIRED_DIAGNOSTIC_ROLES[signal.name]
         )
         if role_mismatches:
-            raise TraceContractError(
-                f"diagnostic signal roles are invalid: {role_mismatches!r}"
-            )
+            raise TraceContractError(f"diagnostic signal roles are invalid: {role_mismatches!r}")
         if (
             self.evidence_class is EvidenceClass.BEHAVIORAL_EVALUATION
             and REQUIRED_DIAGNOSTIC_SIGNALS & set(missing_names)
@@ -473,9 +460,7 @@ class TrajectoryTrace:
         if "controller.action" in signal_names:
             action_index = signal_names.index("controller.action")
             if any(value != 0.0 for value in samples[0].numeric_values[action_index]):
-                raise TraceContractError(
-                    "controller.action must be zero at the reset-state sample"
-                )
+                raise TraceContractError("controller.action must be zero at the reset-state sample")
 
         if (
             self.evidence_class is EvidenceClass.BEHAVIORAL_EVALUATION
@@ -483,9 +468,7 @@ class TrajectoryTrace:
         ):
             mode_index = signal_names.index("oracle.mode")
             transition_samples = {
-                event.sample_index
-                for event in events
-                if event.event_type == "oracle.transition"
+                event.sample_index for event in events if event.event_type == "oracle.transition"
             }
             unexplained = [
                 index
@@ -496,8 +479,7 @@ class TrajectoryTrace:
             ]
             if unexplained:
                 raise TraceContractError(
-                    "oracle mode changes require oracle.transition events: "
-                    f"{unexplained!r}"
+                    f"oracle mode changes require oracle.transition events: {unexplained!r}"
                 )
 
     @property
@@ -512,12 +494,10 @@ class TrajectoryTrace:
     def diagnostic_coverage(self) -> dict[str, list[str]]:
         return {
             "recorded": sorted(
-                REQUIRED_DIAGNOSTIC_SIGNALS
-                & {signal.name for signal in self.numeric_signals}
+                REQUIRED_DIAGNOSTIC_SIGNALS & {signal.name for signal in self.numeric_signals}
             ),
             "missing": sorted(
-                REQUIRED_DIAGNOSTIC_SIGNALS
-                & {signal.name for signal in self.missing_signals}
+                REQUIRED_DIAGNOSTIC_SIGNALS & {signal.name for signal in self.missing_signals}
             ),
         }
 
@@ -538,9 +518,7 @@ class TrajectoryTrace:
     def write(self, path: Path) -> Path:
         content = self.canonical_bytes
         if len(content) > MAX_TRACE_BYTES:
-            raise TraceContractError(
-                f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes"
-            )
+            raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
         resolved = path.resolve()
         resolved.parent.mkdir(parents=True, exist_ok=True)
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -643,14 +621,10 @@ def load_trace(path: Path) -> TrajectoryTrace:
     try:
         size = path.stat().st_size
         if size > MAX_TRACE_BYTES:
-            raise TraceContractError(
-                f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes"
-            )
+            raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
         source_bytes = path.read_bytes()
         if len(source_bytes) > MAX_TRACE_BYTES:
-            raise TraceContractError(
-                f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes"
-            )
+            raise TraceContractError(f"trajectory trace exceeds {MAX_TRACE_BYTES} bytes")
         raw = json.loads(source_bytes)
     except TraceContractError:
         raise
@@ -686,9 +660,7 @@ def load_trace(path: Path) -> TrajectoryTrace:
             keys=frozenset({"name", "role", "shape", "unit", "frame", "source", "dtype"}),
         )
         if signal["dtype"] != "float64":
-            raise TraceContractError(
-                f"numeric_signals[{index}].dtype must be 'float64'"
-            )
+            raise TraceContractError(f"numeric_signals[{index}].dtype must be 'float64'")
         shape = _array(signal["shape"], field=f"numeric_signals[{index}].shape")
         signals.append(
             NumericSignalSpec(
@@ -703,9 +675,7 @@ def load_trace(path: Path) -> TrajectoryTrace:
 
     missing_values = _array(root["missing_signals"], field="missing_signals")
     if len(missing_values) > MAX_MISSING_SIGNALS:
-        raise TraceContractError(
-            f"missing signal count cannot exceed {MAX_MISSING_SIGNALS}"
-        )
+        raise TraceContractError(f"missing signal count cannot exceed {MAX_MISSING_SIGNALS}")
     missing: list[MissingSignal] = []
     for index, raw_missing in enumerate(missing_values):
         item = _exact_mapping(
@@ -717,9 +687,7 @@ def load_trace(path: Path) -> TrajectoryTrace:
 
     binding_values = _array(root["artifact_bindings"], field="artifact_bindings")
     if len(binding_values) > MAX_ARTIFACT_BINDINGS:
-        raise TraceContractError(
-            f"artifact binding count cannot exceed {MAX_ARTIFACT_BINDINGS}"
-        )
+        raise TraceContractError(f"artifact binding count cannot exceed {MAX_ARTIFACT_BINDINGS}")
     bindings: list[ArtifactBinding] = []
     for index, raw_binding in enumerate(binding_values):
         item = _exact_mapping(
@@ -727,9 +695,7 @@ def load_trace(path: Path) -> TrajectoryTrace:
             field=f"artifact_bindings[{index}]",
             keys=frozenset({"role", "artifact_id", "sha256"}),
         )
-        bindings.append(
-            ArtifactBinding(item["role"], item["artifact_id"], item["sha256"])
-        )
+        bindings.append(ArtifactBinding(item["role"], item["artifact_id"], item["sha256"]))
 
     signal_names = frozenset(signal.name for signal in signals)
     sample_values = _array(root["samples"], field="samples")

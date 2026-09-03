@@ -15,8 +15,7 @@ from .research import KnowledgeIndexError, index_stats
 from .research.knowledge import DEFAULT_DATABASE, DEFAULT_EXTRACTIONS
 
 SUBSTRATE_RECEIPT = Path(
-    "experiments/001_humanoid_fixed_reference/receipts/"
-    "2026-09-02_substrate_smoke.json"
+    "experiments/001_humanoid_fixed_reference/receipts/2026-09-02_substrate_smoke.json"
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 

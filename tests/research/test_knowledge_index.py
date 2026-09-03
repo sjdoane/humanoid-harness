@@ -133,14 +133,8 @@ def test_inactive_sources_are_returned_only_when_requested(tmp_path: Path) -> No
         database,
         include_inactive=True,
     )
-    assert all(
-        item["title"] != "oscillating recovery transition"
-        for item in active_results
-    )
-    assert any(
-        item["title"] == "oscillating recovery transition"
-        for item in inactive_results
-    )
+    assert all(item["title"] != "oscillating recovery transition" for item in active_results)
+    assert any(item["title"] == "oscillating recovery transition" for item in inactive_results)
 
 
 def test_already_qualified_evidence_ids_are_not_double_prefixed(tmp_path: Path) -> None:
@@ -161,10 +155,7 @@ def test_already_qualified_evidence_ids_are_not_double_prefixed(tmp_path: Path) 
     ).fetchall()
     connection.close()
     assert evidence_ids == [("2600.00001:E1",)]
-    assert all(
-        json.loads(item[0]) == ["2600.00001:E1"]
-        for item in edge_evidence
-    )
+    assert all(json.loads(item[0]) == ["2600.00001:E1"] for item in edge_evidence)
 
 
 def test_missing_edge_evidence_fails_closed(tmp_path: Path) -> None:

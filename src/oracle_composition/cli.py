@@ -105,12 +105,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "evidence_class": trace.evidence_class.value,
                 "sample_count": len(trace.samples),
                 "event_count": len(trace.events),
-                "duration_seconds": (len(trace.samples) - 1)
-                * trace.control_period_seconds,
+                "duration_seconds": (len(trace.samples) - 1) * trace.control_period_seconds,
                 "diagnostic_coverage": trace.diagnostic_coverage,
-                "artifact_bindings": [
-                    binding.to_dict() for binding in trace.artifact_bindings
-                ],
+                "artifact_bindings": [binding.to_dict() for binding in trace.artifact_bindings],
             }
         else:
             from .ui.server import serve

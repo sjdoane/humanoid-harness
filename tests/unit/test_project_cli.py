@@ -106,9 +106,7 @@ def test_unified_cli_reports_corrupt_index_without_traceback(
     database = tmp_path / "corrupt.db"
     database.write_bytes(b"not a sqlite database")
 
-    code = main(
-        ["research", "query", "phase", "--database", str(database)]
-    )
+    code = main(["research", "query", "phase", "--database", str(database)])
 
     captured = capsys.readouterr()
     assert code == 2
