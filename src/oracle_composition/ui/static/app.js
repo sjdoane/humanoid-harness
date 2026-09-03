@@ -344,6 +344,201 @@ async function loadProbe002a() {
   }
 }
 
+function requireE0Text(value, field) {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`E0 TQC ${field} is invalid.`);
+  }
+  return value;
+}
+
+function requireE0Count(value, field, minimum = 0) {
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    throw new Error(`E0 TQC ${field} is invalid.`);
+  }
+  return value;
+}
+
+function requireE0Number(value, field, minimum = 0) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum) {
+    throw new Error(`E0 TQC ${field} is invalid.`);
+  }
+  return value;
+}
+
+function formatGiB(value, field) {
+  return `${(requireE0Number(value, field, 1) / 1073741824).toFixed(2)} GiB`;
+}
+
+function requireE0Digest(value, field) {
+  const digest = requireE0Text(value, field);
+  if (!/^[0-9a-f]{64}$/.test(digest)) {
+    throw new Error(`E0 TQC ${field} is invalid.`);
+  }
+  return digest;
+}
+
+function renderE0TqcUnavailable(payload) {
+  const badge = document.querySelector("#e0-tqc-badge");
+  badge.className =
+    payload.state === "rejected" ? "badge badge-blocked" : "badge badge-neutral";
+  badge.textContent = payload.state === "rejected" ? "receipt rejected" : "no receipt";
+  document.querySelector("#e0-tqc-state").textContent =
+    payload.detail || "No locally validated E0 resource receipt is available.";
+  document.querySelector("#e0-tqc-results").hidden = true;
+}
+
+function renderE0Tqc(payload) {
+  if (payload.state !== "available") {
+    renderE0TqcUnavailable(payload);
+    return;
+  }
+  const expectedWorkerSeeds = [92001, 92002, 92003, 92004, 92005];
+  if (
+    payload.evidence_class !== "E0_resource_only" ||
+    payload.gate_passed !== true ||
+    payload.environment_id !== "Humanoid-v5" ||
+    payload.seed !== 92001 ||
+    payload.seed_role !== "permanently_excluded_disposable_calibration" ||
+    payload.checkpoint_emitted !== false ||
+    payload.model_disposition !== "discarded_unserialized" ||
+    payload.eligible_for_controller_training !== false ||
+    payload.eligible_for_behavioral_evaluation !== false ||
+    !Array.isArray(payload.worker_seeds) ||
+    payload.worker_seeds.length !== expectedWorkerSeeds.length ||
+    !payload.worker_seeds.every((value, index) => value === expectedWorkerSeeds[index])
+  ) {
+    throw new Error("E0 TQC claim or design boundary is invalid.");
+  }
+
+  const steps = requireE0Count(payload.observed_environment_steps, "environment steps", 1);
+  const updates = requireE0Count(payload.observed_gradient_updates, "gradient updates", 1);
+  const throughput = requireE0Number(
+    payload.environment_steps_per_second,
+    "environment throughput",
+    0,
+  );
+  const throughputGate = requireE0Number(
+    payload.minimum_environment_steps_per_second,
+    "throughput gate",
+    0,
+  );
+  const windowCount = requireE0Count(
+    payload.sustained_throughput_window_count,
+    "throughput window count",
+    1,
+  );
+  if (throughput < throughputGate) {
+    throw new Error("E0 TQC throughput does not satisfy its gate.");
+  }
+
+  const badge = document.querySelector("#e0-tqc-badge");
+  badge.className = "badge badge-warning";
+  badge.textContent = "passed · E0 resource only";
+  document.querySelector("#e0-tqc-state").textContent = requireE0Text(payload.claim, "claim");
+  document.querySelector("#e0-tqc-steps").textContent = steps.toLocaleString("en-US");
+  document.querySelector("#e0-tqc-updates").textContent = updates.toLocaleString("en-US");
+  document.querySelector("#e0-tqc-throughput").textContent = throughput.toFixed(1);
+  document.querySelector("#e0-tqc-wall").textContent = requireE0Number(
+    payload.training_wall_seconds,
+    "training wall time",
+    0,
+  ).toFixed(1);
+  document.querySelector("#e0-tqc-throughput-row").textContent =
+    `${throughput.toFixed(1)} steps/s`;
+  document.querySelector("#e0-tqc-throughput-gate").textContent =
+    `≥ ${throughputGate.toFixed(0)} steps/s`;
+  document.querySelector("#e0-tqc-window-count").textContent =
+    `${windowCount} × 10k-step windows passed`;
+  document.querySelector("#e0-tqc-rss").textContent = formatGiB(
+    payload.peak_rss_bytes,
+    "sampled peak RSS",
+  );
+  document.querySelector("#e0-tqc-rss-gate").textContent =
+    `≤ ${formatGiB(payload.sampled_peak_rss_failure_threshold_bytes, "RSS threshold")}`;
+  document.querySelector("#e0-tqc-replay").textContent = formatGiB(
+    payload.replay_buffer_allocation_bytes,
+    "replay allocation",
+  );
+  document.querySelector("#e0-tqc-disk").textContent = formatGiB(
+    payload.minimum_free_disk_bytes,
+    "minimum free disk",
+  );
+  document.querySelector("#e0-tqc-disk-gate").textContent =
+    `≥ ${formatGiB(payload.minimum_free_disk_gate_bytes, "free-disk gate")}`;
+  document.querySelector("#e0-tqc-claim").textContent = requireE0Text(payload.claim, "claim");
+  document.querySelector("#e0-tqc-next-gate").textContent = requireE0Text(
+    payload.next_gate,
+    "next gate",
+  );
+
+  if (!Array.isArray(payload.limitations) || payload.limitations.length < 5) {
+    throw new Error("E0 TQC claim limitations are incomplete.");
+  }
+  const limitations = document.querySelector("#e0-tqc-limitations");
+  limitations.replaceChildren();
+  payload.limitations.forEach((value) => {
+    const item = document.createElement("li");
+    item.textContent = requireE0Text(value, "limitation");
+    limitations.append(item);
+  });
+
+  const receipts = payload.receipts;
+  if (!receipts || typeof receipts !== "object") {
+    throw new Error("E0 TQC integrity receipt is missing.");
+  }
+  document.querySelector("#e0-tqc-authority").textContent = requireE0Text(
+    payload.authority,
+    "authority",
+  );
+  document.querySelector("#e0-tqc-receipt-sha").textContent = requireE0Digest(
+    receipts.receipt_sha256,
+    "receipt SHA-256",
+  );
+  document.querySelector("#e0-tqc-design-sha").textContent = requireE0Digest(
+    receipts.design_sha256,
+    "design SHA-256",
+  );
+  document.querySelector("#e0-tqc-source-sha").textContent = requireE0Digest(
+    receipts.calibration_source_sha256,
+    "source SHA-256",
+  );
+  document.querySelector("#e0-tqc-tree-sha").textContent = requireE0Digest(
+    receipts.run_source_tree_sha256,
+    "run source-tree SHA-256",
+  );
+  document.querySelector("#e0-tqc-runtime-sha").textContent = requireE0Digest(
+    receipts.runtime_sha256,
+    "runtime SHA-256",
+  );
+  document.querySelector("#e0-tqc-lock-sha").textContent = requireE0Digest(
+    receipts.dependency_lock_sha256,
+    "dependency-lock SHA-256",
+  );
+  document.querySelector("#e0-tqc-seed").textContent = String(payload.seed);
+  document.querySelector("#e0-tqc-worker-seeds").textContent = payload.worker_seeds.join(", ");
+
+  const figureWrap = document.querySelector("#e0-tqc-figure-wrap");
+  if (payload.media && typeof payload.media.figure === "string") {
+    document.querySelector("#e0-tqc-figure").src = payload.media.figure;
+    document.querySelector("#e0-tqc-figure-sha").textContent = requireE0Digest(
+      receipts.figure_sha256,
+      "figure SHA-256",
+    );
+    figureWrap.hidden = false;
+  } else {
+    figureWrap.hidden = true;
+  }
+  document.querySelector("#e0-tqc-results").hidden = false;
+}
+
+async function loadE0Tqc() {
+  try {
+    renderE0Tqc(await loadJson("/api/experiments/e0-tqc"));
+  } catch (error) {
+    renderE0TqcUnavailable({ state: "rejected", detail: error.message });
+  }
+}
+
 function renderResults(payload) {
   const root = document.querySelector("#results");
   root.replaceChildren();
@@ -395,3 +590,4 @@ loadStatus();
 loadGraphStats();
 loadLocalExploration();
 loadProbe002a();
+loadE0Tqc();

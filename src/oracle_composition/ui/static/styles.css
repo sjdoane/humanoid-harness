@@ -317,6 +317,52 @@ h2 { font-size: 20px; font-weight: 620; }
 .probe-boundary { margin-bottom: 0; }
 .probe-receipts dl div { grid-template-columns: 110px 1fr; }
 
+.calibration-card { border-color: #e4c384; }
+.calibration-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.calibration-facts div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+}
+.calibration-facts strong { display: block; font: 18px var(--mono); }
+.calibration-facts span {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.calibration-figure img { background: #f8f9f6; }
+.calibration-table caption {
+  padding: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: left;
+}
+.calibration-table td:nth-child(2),
+.calibration-table td:nth-child(3) { font-family: var(--mono); white-space: nowrap; }
+.calibration-boundary { margin-bottom: 0; }
+.next-gate-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: baseline;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+}
+.next-gate-note span { color: var(--muted); font: 10px var(--mono); text-transform: uppercase; }
+.next-gate-note strong { font-size: 12px; }
+.calibration-receipts dl div { grid-template-columns: 120px 1fr; }
+
 .search { max-width: 760px; }
 .search label { display: block; margin-bottom: 9px; color: var(--muted); font-size: 12px; }
 .search > div { display: flex; gap: 8px; }
@@ -345,6 +391,7 @@ h2 { font-size: 20px; font-weight: 620; }
   .signal-grid { grid-template-columns: repeat(2, 1fr); }
   .diagnostic-row { grid-template-columns: 1fr; }
   .probe-facts { grid-template-columns: 1fr; }
+  .calibration-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {
@@ -352,4 +399,6 @@ h2 { font-size: 20px; font-weight: 620; }
   .page-header .badge { align-self: flex-start; white-space: normal; }
   .probe-card .card-heading { flex-direction: column; gap: 12px; }
   .probe-card .badge { align-self: flex-start; }
+  .calibration-facts { grid-template-columns: 1fr; }
+  .next-gate-note { grid-template-columns: 1fr; gap: 5px; }
 }

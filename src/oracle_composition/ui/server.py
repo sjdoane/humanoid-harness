@@ -17,6 +17,11 @@ from ..research.knowledge import DEFAULT_DATABASE
 from ..status import program_status
 from .local_evidence import LocalEvidenceError, local_exploration_status, local_media
 from .local_reference_probe import local_reference_probe_status
+from .local_tqc_calibration import (
+    LocalTQCCalibrationError,
+    local_tqc_calibration_figure,
+    local_tqc_calibration_status,
+)
 
 STATIC_DIR = Path(__file__).with_name("static")
 STATIC_FILES = {
@@ -135,9 +140,13 @@ class EvidenceRequestHandler(BaseHTTPRequestHandler):
             self._json({"error": "local_evidence_requires_loopback"}, HTTPStatus.NOT_FOUND)
             return
         try:
-            source, content_type = local_media(self.server.project_root, route_name)
+            if route_name == "e0-tqc-resource.png":
+                source = local_tqc_calibration_figure(self.server.project_root)
+                content_type = "image/png"
+            else:
+                source, content_type = local_media(self.server.project_root, route_name)
             size = len(source)
-        except LocalEvidenceError:
+        except (LocalEvidenceError, LocalTQCCalibrationError, FileNotFoundError):
             self._json({"error": "local_evidence_unavailable"}, HTTPStatus.NOT_FOUND)
             return
 
@@ -218,6 +227,9 @@ class EvidenceRequestHandler(BaseHTTPRequestHandler):
             return
         if request.path == "/api/experiments/002a":
             self._json(local_reference_probe_status(self.server.project_root))
+            return
+        if request.path == "/api/experiments/e0-tqc":
+            self._json(local_tqc_calibration_status(self.server.project_root))
             return
         if request.path.startswith("/local-evidence/"):
             self._local_media(request.path.removeprefix("/local-evidence/"))

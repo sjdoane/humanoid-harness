@@ -16,6 +16,7 @@
       </div>
       <nav aria-label="Research views">
         <button class="nav-item is-active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="bootstrap">Tracker bootstrap</button>
         <button class="nav-item" data-view="monitor">Episode monitor</button>
         <button class="nav-item" data-view="oracle">Oracle</button>
         <button class="nav-item" data-view="research">Research graph</button>
@@ -86,6 +87,105 @@
             <li><span>4</span><div><strong>Held-out recovery</strong><small>Formal study not run</small></div></li>
             <li><span>5</span><div><strong>Reward and attribution</strong><small>Not implemented</small></div></li>
           </ol>
+        </article>
+      </section>
+
+      <section class="view" id="bootstrap" aria-labelledby="bootstrap-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Stable tracker bootstrap</p>
+            <h1 id="bootstrap-title">Did the E0 workload fit this host?</h1>
+          </div>
+          <span class="badge badge-neutral" id="e0-tqc-badge">checking receipt</span>
+        </header>
+
+        <article class="card calibration-card" id="e0-tqc-calibration">
+          <div class="card-heading">
+            <div>
+              <p class="card-label">E0 · disposable resource calibration</p>
+              <h2>TQC workload on Humanoid-v5</h2>
+            </div>
+          </div>
+          <p class="probe-state muted small" id="e0-tqc-state" role="status">
+            Checking for a locally validated E0 receipt…
+          </p>
+
+          <div id="e0-tqc-results" hidden>
+            <div class="calibration-facts" aria-label="E0 execution facts">
+              <div><strong id="e0-tqc-steps">—</strong><span>environment steps</span></div>
+              <div><strong id="e0-tqc-updates">—</strong><span>gradient updates</span></div>
+              <div><strong id="e0-tqc-throughput">—</strong><span>mean steps / second</span></div>
+              <div><strong id="e0-tqc-wall">—</strong><span>training seconds</span></div>
+            </div>
+
+            <figure class="evidence-figure calibration-figure" id="e0-tqc-figure-wrap" hidden>
+              <img id="e0-tqc-figure" alt="E0 TQC sustained throughput windows and sampled resource receipt">
+              <figcaption>Receipt-derived resource figure. Replay allocation records page-address traversal, not physical residency.</figcaption>
+            </figure>
+
+            <div class="table-scroll">
+              <table class="result-table calibration-table">
+                <caption>Measured workload checks; none evaluate humanoid behavior</caption>
+                <thead>
+                  <tr><th>check</th><th>observed</th><th>predeclared gate</th><th>meaning</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Throughput</th>
+                    <td id="e0-tqc-throughput-row">—</td>
+                    <td id="e0-tqc-throughput-gate">—</td>
+                    <td id="e0-tqc-window-count">—</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Sampled peak RSS</th>
+                    <td id="e0-tqc-rss">—</td>
+                    <td id="e0-tqc-rss-gate">—</td>
+                    <td>Sampled failure threshold; not an OS cap</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Replay arrays</th>
+                    <td id="e0-tqc-replay">—</td>
+                    <td>descriptive</td>
+                    <td>Page addresses written; no residency claim</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Free disk</th>
+                    <td id="e0-tqc-disk">—</td>
+                    <td id="e0-tqc-disk-gate">—</td>
+                    <td>Minimum sampled during the run</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="boundary-note calibration-boundary">
+              <strong>Resource evidence only</strong>
+              <span id="e0-tqc-claim">—</span>
+              <ul id="e0-tqc-limitations"></ul>
+            </div>
+
+            <div class="next-gate-note">
+              <span>Next gate</span>
+              <strong id="e0-tqc-next-gate">—</strong>
+            </div>
+
+            <details class="receipt-details calibration-receipts">
+              <summary>Integrity receipt</summary>
+              <dl>
+                <div><dt>authority</dt><dd id="e0-tqc-authority">—</dd></div>
+                <div><dt>receipt</dt><dd id="e0-tqc-receipt-sha">—</dd></div>
+                <div><dt>design</dt><dd id="e0-tqc-design-sha">—</dd></div>
+                <div><dt>execution source</dt><dd id="e0-tqc-source-sha">—</dd></div>
+                <div><dt>run source tree</dt><dd id="e0-tqc-tree-sha">—</dd></div>
+                <div><dt>runtime</dt><dd id="e0-tqc-runtime-sha">—</dd></div>
+                <div><dt>dependency lock</dt><dd id="e0-tqc-lock-sha">—</dd></div>
+                <div><dt>figure</dt><dd id="e0-tqc-figure-sha">not present</dd></div>
+                <div><dt>seed</dt><dd id="e0-tqc-seed">—</dd></div>
+                <div><dt>worker seeds</dt><dd id="e0-tqc-worker-seeds">—</dd></div>
+                <div><dt>model</dt><dd>discarded · not serialized</dd></div>
+              </dl>
+            </details>
+          </div>
         </article>
       </section>
 
