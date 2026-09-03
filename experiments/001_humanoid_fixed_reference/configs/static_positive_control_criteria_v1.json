@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "criteria_id": "static_positive_control_criteria/v1",
+  "status": "frozen_prebehavioral_candidate",
+  "experiment_id": "001_humanoid_fixed_reference",
+  "claim_ceiling": "static_tracking_feasibility",
+  "reward_scale_derived_occupancy_bounds": [
+    {
+      "field": "root_height_rmse_m",
+      "maximum": 0.2,
+      "unit": "m",
+      "basis": "TrackingRewardConfig.root_height_scale_m"
+    },
+    {
+      "field": "root_orientation_rmse_rad",
+      "maximum": 0.5,
+      "unit": "rad",
+      "basis": "TrackingRewardConfig.root_orientation_scale_rad"
+    },
+    {
+      "field": "root_linear_velocity_rmse_m_s",
+      "maximum": 1.0,
+      "unit": "m/s",
+      "basis": "TrackingRewardConfig.root_linear_velocity_scale_m_s"
+    },
+    {
+      "field": "root_angular_velocity_rmse_rad_s",
+      "maximum": 2.0,
+      "unit": "rad/s",
+      "basis": "TrackingRewardConfig.root_angular_velocity_scale_rad_s"
+    },
+    {
+      "field": "joint_position_rmse_rad",
+      "maximum": 0.35,
+      "unit": "rad",
+      "basis": "TrackingRewardConfig.joint_position_scale_rad"
+    },
+    {
+      "field": "joint_velocity_rmse_rad_s",
+      "maximum": 2.0,
+      "unit": "rad/s",
+      "basis": "TrackingRewardConfig.joint_velocity_scale_rad_s"
+    },
+    {
+      "field": "joint_position_max_abs_rad",
+      "maximum": 0.35,
+      "unit": "rad",
+      "basis": "TrackingRewardConfig.joint_position_scale_rad"
+    },
+    {
+      "field": "joint_velocity_max_abs_rad_s",
+      "maximum": 2.0,
+      "unit": "rad/s",
+      "basis": "TrackingRewardConfig.joint_velocity_scale_rad_s"
+    }
+  ],
+  "guardrail_thresholds": {
+    "status": "complete_bounded_control_and_prohibited_floor_contact_conformance_prebehavioral",
+    "thresholds": [
+      {
+        "field": "normalized_policy_action_rms",
+        "maximum": 1.0,
+        "unit": "1",
+        "basis": "normalized_action_box[-1,1]_rms_upper_bound"
+      },
+      {
+        "field": "normalized_policy_action_max_abs",
+        "maximum": 1.0,
+        "unit": "1",
+        "basis": "normalized_action_box[-1,1]_absolute_upper_bound"
+      },
+      {
+        "field": "normalized_policy_action_delta_rate_rms_per_s",
+        "maximum": 133.33333333333334,
+        "unit": "s^-1",
+        "basis": "two_normalized_action_units/control_period_seconds[0.015]"
+      },
+      {
+        "field": "normalized_policy_action_delta_rate_max_abs_per_s",
+        "maximum": 133.33333333333334,
+        "unit": "s^-1",
+        "basis": "two_normalized_action_units/control_period_seconds[0.015]"
+      },
+      {
+        "field": "generalized_actuator_torque_rms_n_m",
+        "maximum": 56.0461994303649,
+        "unit": "N*m",
+        "basis": "Humanoid-v5_rms_abs(gear*ctrl_limit)=56.0461994303649"
+      },
+      {
+        "field": "generalized_actuator_torque_max_abs_n_m",
+        "maximum": 120.0,
+        "unit": "N*m",
+        "basis": "Humanoid-v5_max_abs(gear*ctrl_limit)=120"
+      },
+      {
+        "field": "generalized_actuator_torque_normalized_rms",
+        "maximum": 1.0,
+        "unit": "1",
+        "basis": "per_joint_abs(qfrc_actuator)/abs(gear*ctrl_limit)_rms_upper_bound"
+      },
+      {
+        "field": "generalized_actuator_torque_normalized_max_abs",
+        "maximum": 1.0,
+        "unit": "1",
+        "basis": "per_joint_abs(qfrc_actuator)/abs(gear*ctrl_limit)_upper_bound"
+      },
+      {
+        "field": "forbidden_floor_contact_count",
+        "maximum": 0.0,
+        "unit": "active_contact_samples",
+        "basis": "static_stand_permits_floor_contact_only_for_left_foot_and_right_foot"
+      },
+      {
+        "field": "forbidden_floor_contact_fraction",
+        "maximum": 0.0,
+        "unit": "1",
+        "basis": "forbidden_floor_contact_samples/all_floor_contact_samples"
+      },
+      {
+        "field": "forbidden_floor_contact_step_fraction",
+        "maximum": 0.0,
+        "unit": "1",
+        "basis": "episode_steps_with_forbidden_floor_contact/observed_episode_steps"
+      },
+      {
+        "field": "forbidden_floor_contact_peak_force_n",
+        "maximum": 0.0,
+        "unit": "N",
+        "basis": "zero_force_required_when_forbidden_floor_contact_count_is_zero"
+      }
+    ],
+    "required_descriptive_metrics": [
+      {
+        "field": "floor_contact_peak_normal_force_n",
+        "unit": "N",
+        "basis": "direct_MuJoCo_peak_normal_force_over_all_floor_contacts",
+        "calibration_status": "not_calibrated_no_independent_neutral_controller"
+      },
+      {
+        "field": "joint_jerk_rms_rad_s3",
+        "unit": "rad/s^3",
+        "basis": "direct_qacc_finite_difference_over_control_period_episode_rms",
+        "calibration_status": "not_calibrated_no_independent_neutral_controller"
+      },
+      {
+        "field": "joint_jerk_max_abs_rad_s3",
+        "unit": "rad/s^3",
+        "basis": "direct_qacc_finite_difference_over_control_period_episode_max_abs",
+        "calibration_status": "not_calibrated_no_independent_neutral_controller"
+      }
+    ],
+    "naturalness_calibration_status": "not_calibrated_no_independent_neutral_controller"
+  },
+  "blocked_feasibility_requirements": {
+    "status": "blocked_missing_independently_justified_prebehavioral_thresholds",
+    "unthresholded_station_keeping_metrics": [
+      {
+        "field": "root_horizontal_displacement_max_m",
+        "unit": "m",
+        "basis": "max_norm_xy_of_direct_root_qpos_minus_episode_initial_root_qpos",
+        "threshold_status": "not_defined_requires_predata_support_region_basis"
+      },
+      {
+        "field": "root_linear_velocity_x_max_abs_m_s",
+        "unit": "m/s",
+        "basis": "episode_max_abs_direct_world_root_linear_velocity_x",
+        "threshold_status": "not_defined_requires_predata_axis_specific_basis"
+      },
+      {
+        "field": "root_linear_velocity_y_max_abs_m_s",
+        "unit": "m/s",
+        "basis": "episode_max_abs_direct_world_root_linear_velocity_y",
+        "threshold_status": "not_defined_requires_predata_axis_specific_basis"
+      },
+      {
+        "field": "root_linear_velocity_z_max_abs_m_s",
+        "unit": "m/s",
+        "basis": "episode_max_abs_direct_world_root_linear_velocity_z",
+        "threshold_status": "not_defined_requires_predata_axis_specific_basis"
+      }
+    ]
+  },
+  "episode_rule": {
+    "require_survived_full_horizon": true,
+    "maximum_collapse_fraction": 0.0,
+    "require_all_metric_thresholds": true
+  },
+  "checkpoint_rule": {
+    "required_evaluation_episodes": 20,
+    "minimum_conforming_episodes": 19
+  },
+  "study_rule": {
+    "required_independent_train_seeds": 5,
+    "minimum_conforming_checkpoints": 4
+  },
+  "uncertainty": {
+    "method": "exhaustive_nonparametric_seed_bootstrap/v1",
+    "confidence_level": 0.95,
+    "resample_size": 5,
+    "expected_resample_count": 3125,
+    "interval": "percentile_linear"
+  },
+  "automatic_promotion": false
+}

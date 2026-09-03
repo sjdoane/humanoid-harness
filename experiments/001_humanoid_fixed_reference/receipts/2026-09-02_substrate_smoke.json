@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "evidence_class": "interface_check",
+  "claim": "The declared Gymnasium Humanoid-v5 substrate reset and completed one zero-action step on the target Mac.",
+  "limits": [
+    "No reference-conditioned tracker was present.",
+    "No oracle was evaluated.",
+    "No learned behavior or task competence was measured."
+  ],
+  "action_shape": [
+    17
+  ],
+  "config": {
+    "env_id": "Humanoid-v5",
+    "exclude_current_positions_from_observation": true,
+    "frame_skip": 5,
+    "reset_noise_scale": 0.01,
+    "terminate_when_unhealthy": false
+  },
+  "control_period_seconds": 0.015,
+  "frame_skip": 5,
+  "gymnasium_version": "1.3.0",
+  "model_sha256": "85816f372c826d2094b4a598918233bd9c5843b2439119eece2733bdc2e0d073",
+  "mujoco_version": "3.12.0",
+  "next_observation_finite": true,
+  "observation_finite": true,
+  "observation_shape": [
+    348
+  ],
+  "qpos_shape": [
+    24
+  ],
+  "qvel_shape": [
+    23
+  ],
+  "reward_finite": true,
+  "seed": 20260902,
+  "terminated_after_zero_action": false,
+  "timestep_seconds": 0.003,
+  "truncated_after_zero_action": false
+}

@@ -1,0 +1,57 @@
+[project]
+name = "humanoid-harness"
+version = "0.1.0"
+description = "Research harness for phase-aware reference-oracle composition on Gymnasium MuJoCo Humanoid"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+authors = [{ name = "Samuel Doane" }]
+dependencies = [
+    "numpy>=2.5,<3",
+    "pydantic>=2.13,<3",
+]
+
+[project.scripts]
+humanoid-fixed-reference = "oracle_composition.experiments.cli:main"
+humanoid-static-study-summary = "oracle_composition.experiments.study_summary:main"
+
+[project.optional-dependencies]
+gym = [
+    "gymnasium[mujoco]>=1.3,<2",
+    "mujoco>=3.12,<4",
+]
+train = [
+    "stable-baselines3>=2.9,<3",
+    "torch>=2.14,<3",
+]
+dev = [
+    "pytest>=9.1,<10",
+    "pytest-cov>=7.1,<8",
+    "ruff>=0.16,<0.17",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oracle_composition"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"uv.lock" = "oracle_composition/_runtime/uv.lock"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "gym: requires the Gymnasium MuJoCo extras",
+    "slow: measured training or multi-episode evaluation",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["archive", "research/evidence/legacy_policy_harness_kg"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]
