@@ -1,0 +1,1024 @@
+{
+  "admission": {
+    "controller_compatibility_established": false,
+    "dynamics_feasibility_established": false,
+    "gymnasium_joint_mapping_established": false,
+    "normalized_motion_emitted": false,
+    "retargeting_performed": false,
+    "source_bytes_transformed": false,
+    "training_admission_granted": false
+  },
+  "audit_hash_scope": "SHA-256 of canonical UTF-8 JSON for every top-level field except audit_payload_sha256",
+  "audit_payload_sha256": "dd6584597b5a192ebb4562c6adbcf02d8874b6fd721b0836f97c25559ac4ddaf",
+  "claim_boundary": "Source-format diagnostics only. A pass does not establish Gymnasium Humanoid joint mapping, root-frame conversion, cadence compatibility, retargeting, controller compatibility, kinematic quality, dynamics feasibility, or behavior.",
+  "generated_by": "oracle_composition.sources.deepmimic/v1",
+  "kind": "deepmimic_humanoid3d_source_format_audit",
+  "motions": [
+    {
+      "checks": {
+        "bounded_exact_json_pass": true,
+        "duration_pass": true,
+        "frame_count_and_width_pass": true,
+        "quaternion_norm_pass": false,
+        "quaternion_sign_continuity_pass": false
+      },
+      "duration": {
+        "maximum_frame_seconds": 0.0166660007,
+        "minimum_frame_seconds": 0.0,
+        "positive_nonterminal_frames": true,
+        "terminal_frame_seconds": 0.0,
+        "total_seconds": 3.0332121273999997
+      },
+      "frame_count": 183,
+      "frame_width": 44,
+      "loop": "none",
+      "manifest_binding_pass": true,
+      "path": "raw/humanoid3d_getup_facedown.txt",
+      "quaternion_fields": [
+        {
+          "field": "root",
+          "frame_slice": [
+            4,
+            8
+          ],
+          "maximum_absolute_norm_error": 6.562606014171024e-11,
+          "maximum_absolute_norm_error_frame": 101,
+          "maximum_norm": 1.0000000000593343,
+          "maximum_norm_frame": 56,
+          "minimum_adjacent_normalized_dot": 0.9991372961568251,
+          "minimum_adjacent_normalized_dot_pair": [
+            119,
+            120
+          ],
+          "minimum_norm": 0.9999999999343739,
+          "minimum_norm_frame": 101,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "chest",
+          "frame_slice": [
+            8,
+            12
+          ],
+          "maximum_absolute_norm_error": 5.2770010583458316e-11,
+          "maximum_absolute_norm_error_frame": 113,
+          "maximum_norm": 1.00000000005277,
+          "maximum_norm_frame": 113,
+          "minimum_adjacent_normalized_dot": 0.9996401371968768,
+          "minimum_adjacent_normalized_dot_pair": [
+            161,
+            162
+          ],
+          "minimum_norm": 0.9999999999478288,
+          "minimum_norm_frame": 123,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "neck",
+          "frame_slice": [
+            12,
+            16
+          ],
+          "maximum_absolute_norm_error": 0.023408610683459008,
+          "maximum_absolute_norm_error_frame": 152,
+          "maximum_norm": 1.0142165892058885,
+          "maximum_norm_frame": 163,
+          "minimum_adjacent_normalized_dot": 0.9960536713280828,
+          "minimum_adjacent_normalized_dot_pair": [
+            162,
+            163
+          ],
+          "minimum_norm": 0.976591389316541,
+          "minimum_norm_frame": 152,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": false,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_hip",
+          "frame_slice": [
+            16,
+            20
+          ],
+          "maximum_absolute_norm_error": 5.6693760797088544e-11,
+          "maximum_absolute_norm_error_frame": 108,
+          "maximum_norm": 1.0000000000566938,
+          "maximum_norm_frame": 108,
+          "minimum_adjacent_normalized_dot": 0.9988966150913211,
+          "minimum_adjacent_normalized_dot_pair": [
+            106,
+            107
+          ],
+          "minimum_norm": 0.9999999999462309,
+          "minimum_norm_frame": 157,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_ankle",
+          "frame_slice": [
+            21,
+            25
+          ],
+          "maximum_absolute_norm_error": 0.02119944079116698,
+          "maximum_absolute_norm_error_frame": 151,
+          "maximum_norm": 1.0000000000516984,
+          "maximum_norm_frame": 127,
+          "minimum_adjacent_normalized_dot": 0.9979055104633618,
+          "minimum_adjacent_normalized_dot_pair": [
+            125,
+            126
+          ],
+          "minimum_norm": 0.978800559208833,
+          "minimum_norm_frame": 151,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": false,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_shoulder",
+          "frame_slice": [
+            25,
+            29
+          ],
+          "maximum_absolute_norm_error": 6.983902345325532e-11,
+          "maximum_absolute_norm_error_frame": 130,
+          "maximum_norm": 1.000000000069839,
+          "maximum_norm_frame": 130,
+          "minimum_adjacent_normalized_dot": 0.9975907478793486,
+          "minimum_adjacent_normalized_dot_pair": [
+            11,
+            12
+          ],
+          "minimum_norm": 0.9999999999345971,
+          "minimum_norm_frame": 153,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_hip",
+          "frame_slice": [
+            30,
+            34
+          ],
+          "maximum_absolute_norm_error": 6.510769701151276e-11,
+          "maximum_absolute_norm_error_frame": 110,
+          "maximum_norm": 1.0000000000564022,
+          "maximum_norm_frame": 139,
+          "minimum_adjacent_normalized_dot": 0.9986359417859633,
+          "minimum_adjacent_normalized_dot_pair": [
+            108,
+            109
+          ],
+          "minimum_norm": 0.9999999999348923,
+          "minimum_norm_frame": 110,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_ankle",
+          "frame_slice": [
+            35,
+            39
+          ],
+          "maximum_absolute_norm_error": 0.010022197067382055,
+          "maximum_absolute_norm_error_frame": 181,
+          "maximum_norm": 1.0002676080310802,
+          "maximum_norm_frame": 159,
+          "minimum_adjacent_normalized_dot": 0.9982469760081721,
+          "minimum_adjacent_normalized_dot_pair": [
+            125,
+            126
+          ],
+          "minimum_norm": 0.989977802932618,
+          "minimum_norm_frame": 181,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_shoulder",
+          "frame_slice": [
+            39,
+            43
+          ],
+          "maximum_absolute_norm_error": 7.194067563887074e-11,
+          "maximum_absolute_norm_error_frame": 91,
+          "maximum_norm": 1.0000000000719407,
+          "maximum_norm_frame": 91,
+          "minimum_adjacent_normalized_dot": -0.9997382202702,
+          "minimum_adjacent_normalized_dot_pair": [
+            4,
+            5
+          ],
+          "minimum_norm": 0.9999999999366337,
+          "minimum_norm_frame": 124,
+          "negative_adjacent_normalized_dot_count": 1,
+          "negative_adjacent_normalized_dot_pairs": [
+            [
+              4,
+              5
+            ]
+          ],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": false,
+          "zero_norm_frames": []
+        }
+      ],
+      "source_bytes": 169673,
+      "source_format_pass": false,
+      "source_sha256": "1bd1a96e9175f65eb66e10f225473b4467bd70c68e283f4006b2ab090e337c0b",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_getup_facedown.txt"
+    },
+    {
+      "checks": {
+        "bounded_exact_json_pass": true,
+        "duration_pass": true,
+        "frame_count_and_width_pass": true,
+        "quaternion_norm_pass": true,
+        "quaternion_sign_continuity_pass": true
+      },
+      "duration": {
+        "maximum_frame_seconds": 0.0166660007,
+        "minimum_frame_seconds": 0.0,
+        "positive_nonterminal_frames": true,
+        "terminal_frame_seconds": 0.0,
+        "total_seconds": 3.7665161582
+      },
+      "frame_count": 227,
+      "frame_width": 44,
+      "loop": "none",
+      "manifest_binding_pass": true,
+      "path": "raw/humanoid3d_getup_faceup.txt",
+      "quaternion_fields": [
+        {
+          "field": "root",
+          "frame_slice": [
+            4,
+            8
+          ],
+          "maximum_absolute_norm_error": 6.777978178718058e-11,
+          "maximum_absolute_norm_error_frame": 161,
+          "maximum_norm": 1.0000000000677798,
+          "maximum_norm_frame": 161,
+          "minimum_adjacent_normalized_dot": 0.9987330696689459,
+          "minimum_adjacent_normalized_dot_pair": [
+            98,
+            99
+          ],
+          "minimum_norm": 0.9999999999414236,
+          "minimum_norm_frame": 111,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "chest",
+          "frame_slice": [
+            8,
+            12
+          ],
+          "maximum_absolute_norm_error": 5.074096698365338e-11,
+          "maximum_absolute_norm_error_frame": 196,
+          "maximum_norm": 1.000000000050741,
+          "maximum_norm_frame": 196,
+          "minimum_adjacent_normalized_dot": 0.9997300187380694,
+          "minimum_adjacent_normalized_dot_pair": [
+            49,
+            50
+          ],
+          "minimum_norm": 0.9999999999515784,
+          "minimum_norm_frame": 14,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "neck",
+          "frame_slice": [
+            12,
+            16
+          ],
+          "maximum_absolute_norm_error": 5.1748383356198246e-11,
+          "maximum_absolute_norm_error_frame": 74,
+          "maximum_norm": 1.0000000000517484,
+          "maximum_norm_frame": 74,
+          "minimum_adjacent_normalized_dot": 0.9997541216493022,
+          "minimum_adjacent_normalized_dot_pair": [
+            186,
+            187
+          ],
+          "minimum_norm": 0.999999999948855,
+          "minimum_norm_frame": 73,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_hip",
+          "frame_slice": [
+            16,
+            20
+          ],
+          "maximum_absolute_norm_error": 6.313238820609968e-11,
+          "maximum_absolute_norm_error_frame": 103,
+          "maximum_norm": 1.000000000060643,
+          "maximum_norm_frame": 130,
+          "minimum_adjacent_normalized_dot": 0.9985369960080982,
+          "minimum_adjacent_normalized_dot_pair": [
+            157,
+            158
+          ],
+          "minimum_norm": 0.9999999999368676,
+          "minimum_norm_frame": 103,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_ankle",
+          "frame_slice": [
+            21,
+            25
+          ],
+          "maximum_absolute_norm_error": 5.0540682750011e-11,
+          "maximum_absolute_norm_error_frame": 88,
+          "maximum_norm": 1.000000000050495,
+          "maximum_norm_frame": 225,
+          "minimum_adjacent_normalized_dot": 0.9986448123690642,
+          "minimum_adjacent_normalized_dot_pair": [
+            129,
+            130
+          ],
+          "minimum_norm": 0.9999999999494593,
+          "minimum_norm_frame": 88,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_shoulder",
+          "frame_slice": [
+            25,
+            29
+          ],
+          "maximum_absolute_norm_error": 5.466260777353682e-11,
+          "maximum_absolute_norm_error_frame": 171,
+          "maximum_norm": 1.0000000000482239,
+          "maximum_norm_frame": 63,
+          "minimum_adjacent_normalized_dot": 0.9992104087794026,
+          "minimum_adjacent_normalized_dot_pair": [
+            134,
+            135
+          ],
+          "minimum_norm": 0.9999999999453374,
+          "minimum_norm_frame": 171,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_hip",
+          "frame_slice": [
+            30,
+            34
+          ],
+          "maximum_absolute_norm_error": 6.001665830979164e-11,
+          "maximum_absolute_norm_error_frame": 38,
+          "maximum_norm": 1.0000000000600167,
+          "maximum_norm_frame": 38,
+          "minimum_adjacent_normalized_dot": 0.9986780494399938,
+          "minimum_adjacent_normalized_dot_pair": [
+            28,
+            29
+          ],
+          "minimum_norm": 0.9999999999467061,
+          "minimum_norm_frame": 58,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_ankle",
+          "frame_slice": [
+            35,
+            39
+          ],
+          "maximum_absolute_norm_error": 5.2576609732568613e-11,
+          "maximum_absolute_norm_error_frame": 85,
+          "maximum_norm": 1.0000000000497162,
+          "maximum_norm_frame": 194,
+          "minimum_adjacent_normalized_dot": 0.9970685766193585,
+          "minimum_adjacent_normalized_dot_pair": [
+            17,
+            18
+          ],
+          "minimum_norm": 0.9999999999474234,
+          "minimum_norm_frame": 85,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_shoulder",
+          "frame_slice": [
+            39,
+            43
+          ],
+          "maximum_absolute_norm_error": 5.6524340763530745e-11,
+          "maximum_absolute_norm_error_frame": 138,
+          "maximum_norm": 1.0000000000565243,
+          "maximum_norm_frame": 138,
+          "minimum_adjacent_normalized_dot": 0.9995899654068346,
+          "minimum_adjacent_normalized_dot_pair": [
+            103,
+            104
+          ],
+          "minimum_norm": 0.9999999999461205,
+          "minimum_norm_frame": 173,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        }
+      ],
+      "source_bytes": 210461,
+      "source_format_pass": true,
+      "source_sha256": "5936c32d51dad9b0cd5e61df681079d160436cdce845c312f200d7a347c4040d",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_getup_faceup.txt"
+    },
+    {
+      "checks": {
+        "bounded_exact_json_pass": true,
+        "duration_pass": true,
+        "frame_count_and_width_pass": true,
+        "quaternion_norm_pass": true,
+        "quaternion_sign_continuity_pass": true
+      },
+      "duration": {
+        "maximum_frame_seconds": 0.033332,
+        "minimum_frame_seconds": 0.0,
+        "positive_nonterminal_frames": true,
+        "terminal_frame_seconds": 0.0,
+        "total_seconds": 0.799968
+      },
+      "frame_count": 25,
+      "frame_width": 44,
+      "loop": "wrap",
+      "manifest_binding_pass": true,
+      "path": "raw/humanoid3d_run.txt",
+      "quaternion_fields": [
+        {
+          "field": "root",
+          "frame_slice": [
+            4,
+            8
+          ],
+          "maximum_absolute_norm_error": 4.061295744151039e-11,
+          "maximum_absolute_norm_error_frame": 4,
+          "maximum_norm": 1.0000000000378984,
+          "maximum_norm_frame": 7,
+          "minimum_adjacent_normalized_dot": 0.9954538670460155,
+          "minimum_adjacent_normalized_dot_pair": [
+            11,
+            12
+          ],
+          "minimum_norm": 0.999999999959387,
+          "minimum_norm_frame": 4,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "chest",
+          "frame_slice": [
+            8,
+            12
+          ],
+          "maximum_absolute_norm_error": 4.925726493354432e-11,
+          "maximum_absolute_norm_error_frame": 8,
+          "maximum_norm": 1.0000000000492573,
+          "maximum_norm_frame": 8,
+          "minimum_adjacent_normalized_dot": 0.9987668482466341,
+          "minimum_adjacent_normalized_dot_pair": [
+            3,
+            4
+          ],
+          "minimum_norm": 0.9999999999571598,
+          "minimum_norm_frame": 7,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "neck",
+          "frame_slice": [
+            12,
+            16
+          ],
+          "maximum_absolute_norm_error": 0.0,
+          "maximum_absolute_norm_error_frame": 0,
+          "maximum_norm": 1.0,
+          "maximum_norm_frame": 0,
+          "minimum_adjacent_normalized_dot": 1.0,
+          "minimum_adjacent_normalized_dot_pair": [
+            0,
+            1
+          ],
+          "minimum_norm": 1.0,
+          "minimum_norm_frame": 0,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_hip",
+          "frame_slice": [
+            16,
+            20
+          ],
+          "maximum_absolute_norm_error": 5.6764815070664554e-11,
+          "maximum_absolute_norm_error_frame": 21,
+          "maximum_norm": 1.0000000000567648,
+          "maximum_norm_frame": 21,
+          "minimum_adjacent_normalized_dot": 0.9842914424431651,
+          "minimum_adjacent_normalized_dot_pair": [
+            11,
+            12
+          ],
+          "minimum_norm": 0.9999999999647176,
+          "minimum_norm_frame": 15,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_ankle",
+          "frame_slice": [
+            21,
+            25
+          ],
+          "maximum_absolute_norm_error": 5.0837889453703156e-11,
+          "maximum_absolute_norm_error_frame": 20,
+          "maximum_norm": 1.000000000049801,
+          "maximum_norm_frame": 8,
+          "minimum_adjacent_normalized_dot": 0.9677233836032058,
+          "minimum_adjacent_normalized_dot_pair": [
+            5,
+            6
+          ],
+          "minimum_norm": 0.9999999999491621,
+          "minimum_norm_frame": 20,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_shoulder",
+          "frame_slice": [
+            25,
+            29
+          ],
+          "maximum_absolute_norm_error": 5.7159832422826184e-11,
+          "maximum_absolute_norm_error_frame": 21,
+          "maximum_norm": 1.0000000000571598,
+          "maximum_norm_frame": 21,
+          "minimum_adjacent_normalized_dot": 0.9841848372101231,
+          "minimum_adjacent_normalized_dot_pair": [
+            1,
+            2
+          ],
+          "minimum_norm": 0.9999999999558552,
+          "minimum_norm_frame": 12,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_hip",
+          "frame_slice": [
+            30,
+            34
+          ],
+          "maximum_absolute_norm_error": 5.6764815070664554e-11,
+          "maximum_absolute_norm_error_frame": 9,
+          "maximum_norm": 1.0000000000567648,
+          "maximum_norm_frame": 9,
+          "minimum_adjacent_normalized_dot": 0.9868949712525638,
+          "minimum_adjacent_normalized_dot_pair": [
+            1,
+            2
+          ],
+          "minimum_norm": 0.9999999999647176,
+          "minimum_norm_frame": 3,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_ankle",
+          "frame_slice": [
+            35,
+            39
+          ],
+          "maximum_absolute_norm_error": 5.0837889453703156e-11,
+          "maximum_absolute_norm_error_frame": 8,
+          "maximum_norm": 1.000000000049801,
+          "maximum_norm_frame": 20,
+          "minimum_adjacent_normalized_dot": 0.9677233836032058,
+          "minimum_adjacent_normalized_dot_pair": [
+            17,
+            18
+          ],
+          "minimum_norm": 0.9999999999491621,
+          "minimum_norm_frame": 8,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_shoulder",
+          "frame_slice": [
+            39,
+            43
+          ],
+          "maximum_absolute_norm_error": 5.7159832422826184e-11,
+          "maximum_absolute_norm_error_frame": 9,
+          "maximum_norm": 1.0000000000571598,
+          "maximum_norm_frame": 9,
+          "minimum_adjacent_normalized_dot": 0.9571679903029056,
+          "minimum_adjacent_normalized_dot_pair": [
+            11,
+            12
+          ],
+          "minimum_norm": 0.9999999999558552,
+          "minimum_norm_frame": 0,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        }
+      ],
+      "source_bytes": 23284,
+      "source_format_pass": true,
+      "source_sha256": "2cbe488023b243e5769299158ce7c78875ec4b701a2ffe6c0beeaf83d16ca87b",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_run.txt"
+    },
+    {
+      "checks": {
+        "bounded_exact_json_pass": true,
+        "duration_pass": true,
+        "frame_count_and_width_pass": true,
+        "quaternion_norm_pass": true,
+        "quaternion_sign_continuity_pass": true
+      },
+      "duration": {
+        "maximum_frame_seconds": 0.033332,
+        "minimum_frame_seconds": 0.0,
+        "positive_nonterminal_frames": true,
+        "terminal_frame_seconds": 0.0,
+        "total_seconds": 1.266616
+      },
+      "frame_count": 39,
+      "frame_width": 44,
+      "loop": "wrap",
+      "manifest_binding_pass": true,
+      "path": "raw/humanoid3d_walk.txt",
+      "quaternion_fields": [
+        {
+          "field": "root",
+          "frame_slice": [
+            4,
+            8
+          ],
+          "maximum_absolute_norm_error": 7.055852511150817e-07,
+          "maximum_absolute_norm_error_frame": 12,
+          "maximum_norm": 1.0000007055852511,
+          "maximum_norm_frame": 12,
+          "minimum_adjacent_normalized_dot": 0.9980482403543657,
+          "minimum_adjacent_normalized_dot_pair": [
+            18,
+            19
+          ],
+          "minimum_norm": 0.9999993102757622,
+          "minimum_norm_frame": 38,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "chest",
+          "frame_slice": [
+            8,
+            12
+          ],
+          "maximum_absolute_norm_error": 4.4861360060099997e-07,
+          "maximum_absolute_norm_error_frame": 18,
+          "maximum_norm": 1.0000004349329055,
+          "maximum_norm_frame": 13,
+          "minimum_adjacent_normalized_dot": 0.9980236728394731,
+          "minimum_adjacent_normalized_dot_pair": [
+            18,
+            19
+          ],
+          "minimum_norm": 0.9999995513863994,
+          "minimum_norm_frame": 18,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "neck",
+          "frame_slice": [
+            12,
+            16
+          ],
+          "maximum_absolute_norm_error": 0.0,
+          "maximum_absolute_norm_error_frame": 0,
+          "maximum_norm": 1.0,
+          "maximum_norm_frame": 0,
+          "minimum_adjacent_normalized_dot": 1.0,
+          "minimum_adjacent_normalized_dot_pair": [
+            0,
+            1
+          ],
+          "minimum_norm": 1.0,
+          "minimum_norm_frame": 0,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_hip",
+          "frame_slice": [
+            16,
+            20
+          ],
+          "maximum_absolute_norm_error": 5.105233698010636e-07,
+          "maximum_absolute_norm_error_frame": 26,
+          "maximum_norm": 1.0000005105233698,
+          "maximum_norm_frame": 26,
+          "minimum_adjacent_normalized_dot": 0.9983092250391902,
+          "minimum_adjacent_normalized_dot_pair": [
+            22,
+            23
+          ],
+          "minimum_norm": 0.9999995134783817,
+          "minimum_norm_frame": 11,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_ankle",
+          "frame_slice": [
+            21,
+            25
+          ],
+          "maximum_absolute_norm_error": 4.986483757019045e-07,
+          "maximum_absolute_norm_error_frame": 6,
+          "maximum_norm": 1.0000004986483757,
+          "maximum_norm_frame": 6,
+          "minimum_adjacent_normalized_dot": 0.9953251099009637,
+          "minimum_adjacent_normalized_dot_pair": [
+            23,
+            24
+          ],
+          "minimum_norm": 0.999999578088911,
+          "minimum_norm_frame": 36,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "right_shoulder",
+          "frame_slice": [
+            25,
+            29
+          ],
+          "maximum_absolute_norm_error": 5.40603853904642e-07,
+          "maximum_absolute_norm_error_frame": 24,
+          "maximum_norm": 1.000000540603854,
+          "maximum_norm_frame": 24,
+          "minimum_adjacent_normalized_dot": 0.9934741979809014,
+          "minimum_adjacent_normalized_dot_pair": [
+            18,
+            19
+          ],
+          "minimum_norm": 0.9999994806978652,
+          "minimum_norm_frame": 31,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_hip",
+          "frame_slice": [
+            30,
+            34
+          ],
+          "maximum_absolute_norm_error": 5.105233698010636e-07,
+          "maximum_absolute_norm_error_frame": 7,
+          "maximum_norm": 1.0000005105233698,
+          "maximum_norm_frame": 7,
+          "minimum_adjacent_normalized_dot": 0.9961772416845062,
+          "minimum_adjacent_normalized_dot_pair": [
+            18,
+            19
+          ],
+          "minimum_norm": 0.9999995134783817,
+          "minimum_norm_frame": 30,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_ankle",
+          "frame_slice": [
+            35,
+            39
+          ],
+          "maximum_absolute_norm_error": 4.986483757019045e-07,
+          "maximum_absolute_norm_error_frame": 25,
+          "maximum_norm": 1.0000004986483757,
+          "maximum_norm_frame": 25,
+          "minimum_adjacent_normalized_dot": 0.9953251099009637,
+          "minimum_adjacent_normalized_dot_pair": [
+            4,
+            5
+          ],
+          "minimum_norm": 0.999999578088911,
+          "minimum_norm_frame": 17,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        },
+        {
+          "field": "left_shoulder",
+          "frame_slice": [
+            39,
+            43
+          ],
+          "maximum_absolute_norm_error": 5.40603853904642e-07,
+          "maximum_absolute_norm_error_frame": 5,
+          "maximum_norm": 1.000000540603854,
+          "maximum_norm_frame": 5,
+          "minimum_adjacent_normalized_dot": 0.9686580785868414,
+          "minimum_adjacent_normalized_dot_pair": [
+            18,
+            19
+          ],
+          "minimum_norm": 0.9999994806978652,
+          "minimum_norm_frame": 12,
+          "negative_adjacent_normalized_dot_count": 0,
+          "negative_adjacent_normalized_dot_pairs": [],
+          "norm_tolerance_pass": true,
+          "quaternion_order": "wxyz",
+          "sign_continuity_pass": true,
+          "zero_norm_frames": []
+        }
+      ],
+      "source_bytes": 36185,
+      "source_format_pass": true,
+      "source_sha256": "32d082c3599bc40aac50b1afa196ff1e2cf3842bb40f0541ab088845f6328a41",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_walk.txt"
+    }
+  ],
+  "policy": {
+    "frame_width": 44,
+    "max_manifest_bytes": 1048576,
+    "max_source_bytes": 8388608,
+    "maximum_absolute_frame_value": 1000000.0,
+    "maximum_frame_duration_seconds": 60.0,
+    "maximum_frames": 100000,
+    "minimum_frames": 2,
+    "minimum_nonterminal_duration_seconds": 1e-06,
+    "normalization_scope": "temporary diagnostic dot products only; source bytes and source values unchanged",
+    "quaternion_norm_tolerance": 0.02,
+    "quaternion_order": "wxyz",
+    "quaternion_sign_discontinuity_rule": "adjacent normalized dot < 0"
+  },
+  "schema_version": 1,
+  "source_manifest": {
+    "path": "source_manifest.json",
+    "sha256": "53c4e74907e8a9b9ec37b3c8f8abe1cdb4f7147e403dbe92b54576506c771cfa",
+    "source_commit": "1f915c52fcd4b95b5f5f15b759ae91bd81e9a801",
+    "source_repository": "https://github.com/xbpeng/DeepMimic"
+  },
+  "summary": {
+    "failed_paths": [
+      "raw/humanoid3d_getup_facedown.txt"
+    ],
+    "motion_count": 4,
+    "source_format_fail_count": 1,
+    "source_format_pass_count": 3
+  }
+}

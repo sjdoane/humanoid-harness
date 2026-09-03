@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/xbpeng/DeepMimic",
+  "source_commit": "1f915c52fcd4b95b5f5f15b759ae91bd81e9a801",
+  "source_commit_date_utc": "2025-11-27T16:14:13Z",
+  "registered_date": "2026-09-02",
+  "license": {
+    "spdx_id": "MIT",
+    "copyright": "Copyright (c) 2018 Xue Bin Peng",
+    "repository_path": "research/source_motions/deepmimic_humanoid3d/LICENSE",
+    "upstream_git_blob_sha1": "3416f5117c4d99048a8d82fc4e98a6f960b8aebc"
+  },
+  "legacy_provenance": {
+    "repository_label": "RewardSculptor",
+    "repository_commit": "c1779779f20f418a5ddf78576fdb689895f1e108",
+    "repository_policy": "read_only",
+    "source_directory": "examples/reference_datasets/deepmimic"
+  },
+  "files": [
+    {
+      "path": "raw/humanoid3d_getup_facedown.txt",
+      "bytes": 169673,
+      "sha256": "1bd1a96e9175f65eb66e10f225473b4467bd70c68e283f4006b2ab090e337c0b",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_getup_facedown.txt"
+    },
+    {
+      "path": "raw/humanoid3d_getup_faceup.txt",
+      "bytes": 210461,
+      "sha256": "5936c32d51dad9b0cd5e61df681079d160436cdce845c312f200d7a347c4040d",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_getup_faceup.txt"
+    },
+    {
+      "path": "raw/humanoid3d_run.txt",
+      "bytes": 23284,
+      "sha256": "2cbe488023b243e5769299158ce7c78875ec4b701a2ffe6c0beeaf83d16ca87b",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_run.txt"
+    },
+    {
+      "path": "raw/humanoid3d_walk.txt",
+      "bytes": 36185,
+      "sha256": "32d082c3599bc40aac50b1afa196ff1e2cf3842bb40f0541ab088845f6328a41",
+      "source_url": "https://raw.githubusercontent.com/xbpeng/DeepMimic/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801/data/motions/humanoid3d_walk.txt"
+    }
+  ],
+  "claim_boundary": "Source archive only; no Gymnasium Humanoid joint mapping, retargeting, controller compatibility, dynamics feasibility, or behavioral evidence."
+}
