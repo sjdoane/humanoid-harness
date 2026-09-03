@@ -57,6 +57,7 @@ from . import exploratory_phase as phase_module
 from . import oracle_exploration_design as design_module
 from . import protected_evaluator as evaluator_module
 from . import protected_runtime as protected_runtime_module
+from .artifact_io import publish_bytes_without_overwrite, publish_json_without_overwrite
 from .exploratory_phase import (
     BoundedPhaseConfig,
     BoundedPhaseMatcher,
@@ -650,42 +651,15 @@ def load_oracle_exploration_manifest(path: Path) -> OracleExplorationExecutionMa
 
 
 def emit_bytes_without_overwrite(path: Path, encoded: bytes) -> Path:
-    """Publish exact bytes through an atomic no-overwrite link."""
+    """Publish exact bytes through one descriptor-bound path."""
 
-    if not isinstance(encoded, bytes) or not encoded:
-        raise ExperimentContractError("published artifact bytes must be nonempty")
-    lexical = Path(path)
-    if lexical.name in {"", ".", ".."}:
-        raise ExperimentContractError("published artifact must have one filename")
-    lexical.parent.mkdir(parents=True, exist_ok=True)
-    resolved_parent = lexical.parent.resolve()
-    if not resolved_parent.is_dir():
-        raise ExperimentContractError("published artifact parent must be a directory")
-    resolved = resolved_parent / lexical.name
-    descriptor, pending_name = tempfile.mkstemp(
-        prefix=f".{resolved.name}.", suffix=".pending", dir=resolved.parent
-    )
-    pending = Path(pending_name)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.link(pending, resolved)
-        except FileExistsError as exc:
-            raise ExperimentContractError(
-                f"refusing to overwrite existing file: {resolved}"
-            ) from exc
-    finally:
-        pending.unlink(missing_ok=True)
-    return resolved
+    return publish_bytes_without_overwrite(path, encoded).path
 
 
 def emit_json_without_overwrite(path: Path, value: object) -> Path:
     """Publish a complete JSON artifact and refuse replacement."""
 
-    return emit_bytes_without_overwrite(path, _pretty_json(value))
+    return publish_json_without_overwrite(path, value).path
 
 
 def emit_manifest_candidate(

@@ -22,6 +22,19 @@ This experiment does not compare a generated oracle with a manual oracle.
 Generated-versus-manual composition belongs to a later matched experiment after
 both prerequisites pass.
 
+The work is split by claim:
+
+| stage | asset | claim ceiling |
+|---|---|---|
+| Experiment 002A | Existing local `348 + 8 x 45` checkpoint; matched-observation numeric-window probe | This exact checkpoint's composed control depends on numeric reference input at the sampled observations |
+| Experiment 002B | Newly admitted stable time-varying tracker; matched behavioral ablations | Correct reference input is behaviorally useful for the admitted tracker family |
+
+Experiment 002A does not install the wider typed-oracle ABI below. That ABI has
+minimum width `726` at `H = 8`, while the existing checkpoint accepts exactly
+`708` values. Changing its architecture would create a new tracker rather than
+an ablation. The executable 002A boundary is recorded in
+[`002A_MATCHED_OBSERVATION_REFERENCE_PROBE.md`](002A_MATCHED_OBSERVATION_REFERENCE_PROBE.md).
+
 ## Architecture and timing
 
 ```text
@@ -198,7 +211,7 @@ call the result closed loop.
 | Arm | Policy-visible numeric window | Matched-state target / closed-loop target |
 |---|---|---|
 | `C_exact` | Exact oracle window | Common cached snapshot / arm-local untransformed `W_gt,exact[t][1]` |
-| `C_constant_frame_input` | Repetition of one frozen frame index inside the same compound artifact; no stationary or standing meaning is implied | Common cached snapshot / arm-local untransformed `W_gt,constant[t][1]` |
+| `C_zero_input` | Canonical positive-zero `H x 45` window; deliberately invalid as a reference artifact and used only as a controller-input intervention | Common cached snapshot / arm-local untransformed `W_gt,zero[t][1]` |
 | `C_shuffle_input` | Exact whole-artifact seeded permutation, then windowed | Common cached snapshot / arm-local untransformed `W_gt,shuffle[t][1]` |
 | `C_shift_input` | Exact frozen nonzero cyclic frame shift, then windowed | Common cached snapshot / arm-local untransformed `W_gt,shift[t][1]` |
 
@@ -211,9 +224,8 @@ per-step `OracleResult` trace: program/reference identity, query index, mode,
 phase/frame/offset/dwell clocks, window and mask, transition, and latch state.
 It proves byte equality between the untransformed result consumed by the wrapper
 and the target consumed by the evaluator. This prevents downstream
-state-dependent divergence from being mistaken for a common target. The
-constant-frame transform is derived from a declared frame inside the same
-compound ground-truth artifact, not an unrelated stand artifact. A future
+state-dependent divergence from being mistaken for a common target. The zero
+arm is an input intervention, not a neutral or standing command. A future
 `neutral` or `stand` label requires separately admitted stationary velocity,
 support, and contact semantics.
 
@@ -224,7 +236,8 @@ Before any evaluation, reject the four-arm block unless:
   their frozen contracts and initial conditions rather than post-divergence
   realized trace bytes;
 - all transformed inputs derive from the same admitted ground-truth reference;
-- constant-frame bytes are valid under the 45D schema;
+- zero-input bytes are canonical positive `float64` zeros and never admitted as
+  reference bytes;
 - shuffle is a complete permutation, is not the identity, and changes temporal
   adjacency;
 - shift is nonzero, changes bytes, and is not a symmetry of the sequence;
@@ -316,8 +329,8 @@ No long training claim is needed for these gates. Use the real instrumented
    complete five-substep contact capture. This is execution and full-horizon
    liveness evidence, not a tracking-success result.
 4. **Four-arm derivation:** reproduce all transform bytes from their seeds;
-   reject a static reference, identity shuffle, zero/equivalent shift, invalid
-   constant-frame quaternion, or changed ground-truth target.
+   reject a static reference, identity shuffle, zero/equivalent shift,
+   non-canonical zero bytes, or changed ground-truth target.
 5. **Same-checkpoint replay:** load one saved PPO checkpoint across all four
    matched-state interventions; prove that only policy-input reference bytes
    differ and test action sensitivity. In a separate closed-loop replay, prove

@@ -250,10 +250,73 @@ class MinariHumanoidProjectionReceipt:
 
 @dataclass(frozen=True, slots=True)
 class MinariHumanoidProjection:
-    """Projected reference plus its exact Tier-K provenance receipt."""
+    """Validated episode observations, projected reference, and Tier-K receipt."""
 
+    episode_observations: np.ndarray
     reference: ReferenceArtifact
     receipt: MinariHumanoidProjectionReceipt
+
+    def verify(self) -> None:
+        """Reconcile the retained observation bytes, projection, and receipt."""
+
+        if not isinstance(self.receipt, MinariHumanoidProjectionReceipt):
+            raise MinariHumanoidImportError("projection receipt has the wrong type")
+        if (
+            not isinstance(self.receipt.episode_id, int)
+            or isinstance(self.receipt.episode_id, bool)
+            or not 0 <= self.receipt.episode_id < MAX_EPISODES
+            or not isinstance(self.receipt.episode_total_steps, int)
+            or isinstance(self.receipt.episode_total_steps, bool)
+            or not 1 <= self.receipt.episode_total_steps <= MAX_EPISODE_STEPS
+        ):
+            raise MinariHumanoidImportError("projection receipt has invalid episode dimensions")
+        observations = self.episode_observations
+        expected_shape = (
+            self.receipt.episode_total_steps + 1,
+            MINARI_HUMANOID_OBSERVATION_WIDTH,
+        )
+        if (
+            not isinstance(observations, np.ndarray)
+            or observations.dtype.str != np.dtype("<f8").str
+            or observations.shape != expected_shape
+            or not observations.flags.c_contiguous
+            or observations.flags.writeable
+            or not np.isfinite(observations).all()
+        ):
+            raise MinariHumanoidImportError(
+                "retained episode observations violate the immutable projection contract"
+            )
+        if _array_sha256(observations) != self.receipt.observations_sha256:
+            raise MinariHumanoidImportError("retained episode observation hash mismatch")
+        ignored = np.ascontiguousarray(observations[:, 45:])
+        if _array_sha256(ignored) != self.receipt.ignored_observation_fields_sha256:
+            raise MinariHumanoidImportError("ignored observation-field hash mismatch")
+
+        self.reference.verify()
+        identity = self.reference.identity
+        expected_artifact_id = (
+            f"minari/{MINARI_HUMANOID_DATASET_ID}/episode-"
+            f"{self.receipt.episode_id}/projected-45d/v1"
+        )
+        expected_reference = observations[:, HUMANOID_V5_OBSERVATION_TO_REFERENCE_INDICES]
+        observed_reference = np.asarray(self.reference.values, dtype=np.float64)
+        if not np.array_equal(observed_reference, expected_reference):
+            raise MinariHumanoidImportError(
+                "reference values do not match the retained observation projection"
+            )
+        if (
+            identity.artifact_id != expected_artifact_id
+            or identity.artifact_id != self.receipt.reference_artifact_id
+            or identity.content_sha256 != self.receipt.reference_content_sha256
+            or identity.schema_sha256 != HUMANOID_REFERENCE_SCHEMA.sha256
+            or identity.schema_sha256 != self.receipt.reference_schema_sha256
+            or identity.n_frames != observations.shape[0]
+            or identity.n_frames != self.receipt.reference_frames
+            or self.receipt.projection_mapping_sha256 != _projection_mapping_sha256()
+        ):
+            raise MinariHumanoidImportError(
+                "projection reference identity differs from its receipt"
+            )
 
 
 def _canonical_json(value: object) -> bytes:
@@ -390,6 +453,28 @@ def _stat_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
     )
 
 
+def _hash_exact_stream(
+    stream: BinaryIO,
+    *,
+    byte_count: int,
+    field: str,
+    phase: str,
+) -> str:
+    """Hash exactly the admitted byte count and reject short or growing inputs."""
+
+    digest = hashlib.sha256()
+    remaining = byte_count
+    while remaining:
+        chunk = stream.read(min(1024 * 1024, remaining))
+        if not chunk:
+            raise MinariHumanoidImportError(f"{field} became shorter during {phase}")
+        digest.update(chunk)
+        remaining -= len(chunk)
+    if stream.read(1):
+        raise MinariHumanoidImportError(f"{field} grew during {phase}")
+    return digest.hexdigest()
+
+
 @contextmanager
 def _verified_binary_file(
     path: Path,
@@ -427,13 +512,15 @@ def _verified_binary_file(
             raise MinariHumanoidImportError(
                 f"{field} byte size mismatch: expected {expected_bytes}, observed {before.st_size}"
             )
-        digest = hashlib.sha256()
-        while chunk := stream.read(1024 * 1024):
-            digest.update(chunk)
+        observed_sha256 = _hash_exact_stream(
+            stream,
+            byte_count=before.st_size,
+            field=field,
+            phase="initial verification",
+        )
         after_hash = os.fstat(stream.fileno())
         if _stat_identity(after_hash) != _stat_identity(before):
             raise MinariHumanoidImportError(f"{field} changed while it was hashed")
-        observed_sha256 = digest.hexdigest()
         if observed_sha256 != expected_sha256:
             raise MinariHumanoidImportError(
                 f"{field} SHA-256 mismatch: expected {expected_sha256}, observed {observed_sha256}"
@@ -444,13 +531,16 @@ def _verified_binary_file(
         if _stat_identity(after_read) != _stat_identity(before):
             raise MinariHumanoidImportError(f"{field} changed while it was read")
         stream.seek(0)
-        verification_digest = hashlib.sha256()
-        while chunk := stream.read(1024 * 1024):
-            verification_digest.update(chunk)
+        verification_sha256 = _hash_exact_stream(
+            stream,
+            byte_count=before.st_size,
+            field=field,
+            phase="final verification",
+        )
         after_verification = os.fstat(stream.fileno())
         if _stat_identity(after_verification) != _stat_identity(before):
             raise MinariHumanoidImportError(f"{field} changed during final verification")
-        if verification_digest.hexdigest() != expected_sha256:
+        if verification_sha256 != expected_sha256:
             raise MinariHumanoidImportError(f"{field} bytes changed while it was read")
     finally:
         stream.close()
@@ -902,7 +992,15 @@ def _import_minari_humanoid_episode(
         reference_schema_sha256=reference.identity.schema_sha256,
         reference_frames=reference.identity.n_frames,
     )
-    return MinariHumanoidProjection(reference=reference, receipt=receipt)
+    immutable_observations = np.frombuffer(
+        observations.tobytes(order="C"),
+        dtype=np.dtype("<f8"),
+    ).reshape(observations.shape)
+    return MinariHumanoidProjection(
+        episode_observations=immutable_observations,
+        reference=reference,
+        receipt=receipt,
+    )
 
 
 def import_minari_humanoid_episode(

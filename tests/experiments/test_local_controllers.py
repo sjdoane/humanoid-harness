@@ -189,6 +189,11 @@ def test_residual_inference_uses_c_order_window_normalization_and_hidden_path(
     values["policy::mlp_extractor.policy_net.0.bias"][7] = -0.1
     values["policy::mlp_extractor.policy_net.2.weight"][9, 7] = 0.5
     values["policy::action_net.weight"][2, 9] = 0.4
+    values["policy::mlp_extractor.value_net.0.weight"][12, combined_index] = 0.3
+    values["policy::mlp_extractor.value_net.0.bias"][12] = -0.05
+    values["policy::mlp_extractor.value_net.2.weight"][13, 12] = 0.4
+    values["policy::value_net.weight"][0, 13] = 0.5
+    values["policy::value_net.bias"][0] = 0.1
     _write_npz(path, values)
 
     infer, receipt = _load_residual(path)
@@ -196,16 +201,99 @@ def test_residual_inference_uses_c_order_window_normalization_and_hidden_path(
     window = np.zeros((REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH), dtype=np.float64)
     window[2, 4] = 2.5
     observed = infer(observation, window)
+    facts = infer.inference_facts(observation, window)
     normalized = np.float32((2.5 - 0.5) / np.sqrt(4.0 + 1e-8))
     first = max(np.float32(0.0), np.float32(0.2) * normalized + np.float32(-0.1))
     second = max(np.float32(0.0), np.float32(0.5) * first)
     expected_signal = np.float32(0.4) * second
+    value_first = max(np.float32(0.0), np.float32(0.3) * normalized + np.float32(-0.05))
+    value_second = max(np.float32(0.0), np.float32(0.4) * value_first)
+    expected_value = np.float32(0.5) * value_second + np.float32(0.1)
 
     assert observed[2] == pytest.approx(float(expected_signal), rel=0.0, abs=1e-8)
     np.testing.assert_array_equal(np.delete(observed, 2), np.zeros(ACTION_WIDTH - 1))
     assert np.all(observed >= -1.0)
     assert np.all(observed <= 1.0)
+    assert facts.critic_value == pytest.approx(float(expected_value), rel=0.0, abs=1e-8)
+    assert facts.policy_input_shape == (708,)
+    assert facts.policy_input_dtype == "<f4"
+    assert facts.actor_input_sha256 == facts.policy_input_sha256
+    assert facts.critic_input_sha256 == facts.policy_input_sha256
+    assert facts.actor_output_shape == (ACTION_WIDTH,)
+    assert facts.actor_output_dtype == "<f4"
+    assert len(facts.actor_output_sha256) == 64
+    assert facts.critic_output_shape == (1, 1)
+    assert facts.critic_output_dtype == "<f4"
+    assert len(facts.critic_output_sha256) == 64
+    assert len(facts.controller_state_sha256) == 64
+    assert facts == infer.inference_facts(observation, window)
     assert receipt.residual_scale == RESIDUAL_SCALE
+
+
+def test_residual_policy_input_is_exact_contiguous_float32_and_window_sensitive(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "residual.npz"
+    values = _residual_values()
+    values["obs_rms_mean"][0] = 1.0
+    values["obs_rms_var"][0] = 4.0
+    values["clip_obs"][0] = 0.25
+    _write_npz(path, values)
+
+    infer, _receipt = _load_residual(path)
+    observation = np.zeros(OBSERVATION_WIDTH, dtype=np.float64)
+    window_a = np.zeros((REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH), dtype=np.float64)
+    window_b = window_a.copy()
+    window_b[-1, -1] = 1.0
+
+    policy_input = infer.policy_input(observation, window_a)
+    facts_a = infer.inference_facts(observation, window_a)
+    facts_b = infer.inference_facts(observation, window_b)
+
+    assert policy_input.dtype.str == "<f4"
+    assert policy_input.flags.c_contiguous
+    assert policy_input.shape == (708,)
+    assert policy_input[0] == np.float32(-0.25)
+    assert np.max(np.abs(policy_input)) <= np.float32(0.25)
+    assert facts_a.policy_input_sha256 != facts_b.policy_input_sha256
+
+
+def test_residual_controller_detects_loaded_state_mutation(tmp_path: Path) -> None:
+    path = tmp_path / "residual.npz"
+    _write_npz(path, _residual_values())
+    infer, _receipt = _load_residual(path)
+    observation = np.zeros(OBSERVATION_WIDTH, dtype=np.float64)
+    window = np.zeros((REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH), dtype=np.float64)
+
+    assert not infer._mean.flags.writeable
+    with pytest.raises(ValueError):
+        infer._mean.setflags(write=True)
+    with pytest.raises(FrozenInstanceError):
+        infer._clip = 0.01  # type: ignore[misc]
+
+    with torch.no_grad():
+        infer._policy.action_net.bias[0].add_(1.0)
+    with pytest.raises(ExperimentContractError, match="state changed"):
+        infer.inference_facts(observation, window)
+
+
+def test_residual_callable_remains_actor_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "residual.npz"
+    _write_npz(path, _residual_values())
+    infer, _receipt = _load_residual(path)
+
+    def critic_must_not_run(_observation: torch.Tensor) -> torch.Tensor:
+        raise AssertionError("ordinary action inference invoked the critic")
+
+    monkeypatch.setattr(infer._policy, "predict_values", critic_must_not_run)
+    action = infer(
+        np.zeros(OBSERVATION_WIDTH, dtype=np.float64),
+        np.zeros((REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH), dtype=np.float64),
+    )
+    assert action.shape == (ACTION_WIDTH,)
 
 
 @pytest.mark.parametrize("expected", ["0" * 63, "A" * 64, "z" * 64, ""])

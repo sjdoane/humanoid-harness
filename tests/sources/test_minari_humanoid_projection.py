@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -157,8 +159,15 @@ def test_projects_exact_45d_order_and_emits_non_admitted_tier_k_receipt(
     observations, kwargs = _fixture(tmp_path)
 
     result = import_minari_humanoid_episode(**kwargs)
+    result.verify()
 
     expected = observations[:, HUMANOID_V5_OBSERVATION_TO_REFERENCE_INDICES]
+    assert np.array_equal(result.episode_observations, observations)
+    assert result.episode_observations.dtype.str == "<f8"
+    assert result.episode_observations.flags.c_contiguous
+    assert not result.episode_observations.flags.writeable
+    with pytest.raises(ValueError):
+        result.episode_observations.setflags(write=True)
     assert np.array_equal(np.asarray(result.reference.values), expected)
     assert result.reference.identity.n_frames == EPISODE_STEPS + 1
     receipt = result.receipt.to_dict()
@@ -182,6 +191,33 @@ def test_projects_exact_45d_order_and_emits_non_admitted_tier_k_receipt(
     assert receipt["projection_indices"] == list(HUMANOID_V5_OBSERVATION_TO_REFERENCE_INDICES)
     assert receipt["reference_content_sha256"] == result.reference.identity.content_sha256
     assert len(result.receipt.sha256) == 64
+
+
+def test_projection_verify_rejects_mutable_or_receipt_mismatched_observations(
+    tmp_path: Path,
+) -> None:
+    _observations_value, kwargs = _fixture(tmp_path)
+    result = import_minari_humanoid_episode(**kwargs)
+
+    with pytest.raises(MinariHumanoidImportError, match="immutable projection contract"):
+        replace(result, episode_observations=result.episode_observations.copy()).verify()
+
+    tampered_values = result.episode_observations.copy()
+    tampered_values[0, 45] += 1.0
+    tampered = np.frombuffer(tampered_values.tobytes(order="C"), dtype="<f8").reshape(
+        tampered_values.shape
+    )
+    with pytest.raises(MinariHumanoidImportError, match="observation hash mismatch"):
+        replace(result, episode_observations=tampered).verify()
+
+
+def test_projection_verify_rejects_reference_identity_receipt_mismatch(tmp_path: Path) -> None:
+    _observations_value, kwargs = _fixture(tmp_path)
+    result = import_minari_humanoid_episode(**kwargs)
+    mismatched_receipt = replace(result.receipt, reference_content_sha256="0" * 64)
+
+    with pytest.raises(MinariHumanoidImportError, match="reference identity"):
+        replace(result, receipt=mismatched_receipt).verify()
 
 
 def test_mapping_swaps_only_abdomen_y_z_positions_and_velocities() -> None:
@@ -464,3 +500,29 @@ def test_verified_file_rejects_fifo_without_blocking(tmp_path: Path) -> None:
         ),
     ):
         pytest.fail("FIFO must be rejected before read")
+
+
+def test_exact_stream_hash_rejects_short_and_growing_inputs() -> None:
+    with pytest.raises(MinariHumanoidImportError, match="grew"):
+        minari_source._hash_exact_stream(
+            io.BytesIO(b"ab"),
+            byte_count=1,
+            field="test file",
+            phase="test verification",
+        )
+    with pytest.raises(MinariHumanoidImportError, match="shorter"):
+        minari_source._hash_exact_stream(
+            io.BytesIO(b"a"),
+            byte_count=2,
+            field="test file",
+            phase="test verification",
+        )
+    assert (
+        minari_source._hash_exact_stream(
+            io.BytesIO(b"ab"),
+            byte_count=2,
+            field="test file",
+            phase="test verification",
+        )
+        == hashlib.sha256(b"ab").hexdigest()
+    )

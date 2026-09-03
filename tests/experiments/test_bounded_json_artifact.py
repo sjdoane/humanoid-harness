@@ -93,3 +93,50 @@ def test_file_hasher_rejects_path_replacement_during_hash(tmp_path: Path, monkey
     monkeypatch.setattr(fixed_reference.os, "read", read_and_replace)
     with pytest.raises(ExperimentContractError, match="changed while it was hashed"):
         sha256_file(path)
+
+
+def test_file_hasher_rejects_path_replacement_before_open(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "input.bin"
+    path.write_bytes(b"first")
+    replacement = tmp_path / "replacement.bin"
+    replacement.write_bytes(b"other")
+    original_open = os.open
+    replaced = False
+
+    def open_after_replace(target: object, flags: int, *args: object, **kwargs: object) -> int:
+        nonlocal replaced
+        if Path(target) == path and not replaced:
+            replaced = True
+            replacement.replace(path)
+        return original_open(target, flags, *args, **kwargs)
+
+    monkeypatch.setattr(fixed_reference.os, "open", open_after_replace)
+    with pytest.raises(ExperimentContractError, match="changed before it was hashed"):
+        sha256_file(path)
+
+
+def test_file_hasher_enforces_frozen_byte_bound(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "input.bin"
+    path.write_bytes(b"a")
+    with pytest.raises(ExperimentContractError, match="positive integer"):
+        sha256_file(path, maximum_bytes=0)
+    with pytest.raises(ExperimentContractError, match="bounded size limit"):
+        path.write_bytes(b"ab")
+        sha256_file(path, maximum_bytes=1)
+
+    path.write_bytes(b"a")
+    original_read = os.read
+    grew = False
+
+    def read_then_grow(descriptor: int, size: int) -> bytes:
+        nonlocal grew
+        chunk = original_read(descriptor, size)
+        if chunk and not grew:
+            grew = True
+            with path.open("ab") as stream:
+                stream.write(b"b")
+        return chunk
+
+    monkeypatch.setattr(fixed_reference.os, "read", read_then_grow)
+    with pytest.raises(ExperimentContractError, match="grew while it was hashed"):
+        sha256_file(path, maximum_bytes=1)

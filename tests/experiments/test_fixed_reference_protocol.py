@@ -312,20 +312,20 @@ def test_static_reference_is_rejected_for_causal_use_but_dynamic_reference_passe
 
 def test_evaluation_conditions_hold_ground_truth_fixed_and_vary_only_policy_input() -> None:
     exact = _condition("C_exact", SHA_D, SHA_A)
-    constant = _condition("C_constant_frame_input", SHA_E, SHA_B)
+    zero = _condition("C_zero_input", SHA_E, SHA_B)
     shuffled = _condition("C_shuffle_input", SHA_F, SHA_C)
     shifted = _condition("C_shift_input", SHA_1, SHA_2)
-    manifests = (exact, constant, shuffled, shifted)
+    manifests = (exact, zero, shuffled, shifted)
     assert_matched_evaluation_manifests(manifests)
 
     with pytest.raises(ExperimentContractError, match="evaluation_seeds"):
         assert_matched_evaluation_manifests(
-            (exact, constant, replace(shuffled, evaluation_seeds=(11001, 11003)), shifted)
+            (exact, zero, replace(shuffled, evaluation_seeds=(11001, 11003)), shifted)
         )
     with pytest.raises(ExperimentContractError, match="evaluation_seeds"):
         assert_matched_evaluation_manifests(
             (
-                replace(constant, evaluation_seeds=(11001, 11003)),
+                replace(zero, evaluation_seeds=(11001, 11003)),
                 shuffled,
                 shifted,
                 exact,
@@ -339,35 +339,33 @@ def test_evaluation_conditions_hold_ground_truth_fixed_and_vary_only_policy_inpu
         assert_matched_evaluation_manifests(
             (
                 exact,
-                constant,
-                replace(
-                    shuffled, policy_input_reference_sha256=constant.policy_input_reference_sha256
-                ),
+                zero,
+                replace(shuffled, policy_input_reference_sha256=zero.policy_input_reference_sha256),
                 shifted,
             )
         )
     with pytest.raises(ExperimentContractError, match="common ground-truth"):
         assert_matched_evaluation_manifests(
-            (replace(exact, policy_input_reference_sha256=SHA_A), constant, shuffled, shifted)
+            (replace(exact, policy_input_reference_sha256=SHA_A), zero, shuffled, shifted)
         )
     with pytest.raises(ExperimentContractError, match="must change the policy-input"):
         assert_matched_evaluation_manifests(
             (
                 exact,
-                replace(constant, policy_input_reference_sha256=SHA_D),
+                replace(zero, policy_input_reference_sha256=SHA_D),
                 shuffled,
                 shifted,
             )
         )
     with pytest.raises(ExperimentContractError, match="ground_truth_reference_sha256"):
         assert_matched_evaluation_manifests(
-            (exact, constant, shuffled, replace(shifted, ground_truth_reference_sha256=SHA_2))
+            (exact, zero, shuffled, replace(shifted, ground_truth_reference_sha256=SHA_2))
         )
     with pytest.raises(ExperimentContractError, match="distinct transform receipt"):
         assert_matched_evaluation_manifests(
             (
                 exact,
-                constant,
+                zero,
                 shuffled,
                 replace(shifted, policy_input_transform_receipt_sha256=SHA_C),
             )
@@ -376,7 +374,7 @@ def test_evaluation_conditions_hold_ground_truth_fixed_and_vary_only_policy_inpu
         assert_matched_evaluation_manifests((exact, shuffled))
     with pytest.raises(ExperimentContractError, match="condition IDs"):
         assert_matched_evaluation_manifests(
-            (exact, constant, shuffled, replace(shifted, condition_id="C_unknown"))
+            (exact, zero, shuffled, replace(shifted, condition_id="C_unknown"))
         )
 
 

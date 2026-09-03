@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -47,6 +48,26 @@ def _parser() -> argparse.ArgumentParser:
         "inspect", help="show identity, coverage, and event counts"
     )
     inspect_trace.add_argument("path", type=Path)
+
+    tracker = commands.add_parser("tracker", help="inspect reference-conditioned control")
+    tracker_commands = tracker.add_subparsers(dest="tracker_command", required=True)
+    probe = tracker_commands.add_parser(
+        "probe-reference-use",
+        help="run the local matched-observation numeric-reference sensitivity probe",
+    )
+    cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    cache = cache_root / "humanoid-harness"
+    data = cache / "minari" / "mujoco" / "humanoid" / "expert-v0" / "data"
+    models = cache / "local_models"
+    probe.add_argument("--hdf5", type=Path, default=data / "main_data.hdf5")
+    probe.add_argument("--metadata", type=Path, default=data / "metadata.json")
+    probe.add_argument("--base-controller", type=Path, default=models / "minari_bc_v0.npz")
+    probe.add_argument(
+        "--residual-controller",
+        type=Path,
+        default=models / "reference_residual_ppo_v0.npz",
+    )
+    probe.add_argument("--output", type=Path, required=True)
 
     ui = commands.add_parser("ui", help="serve the read-only local evidence UI")
     ui.add_argument("--host", default="127.0.0.1")
@@ -109,6 +130,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "diagnostic_coverage": trace.diagnostic_coverage,
                 "artifact_bindings": [binding.to_dict() for binding in trace.artifact_bindings],
             }
+        elif args.command == "tracker":
+            from .experiments.reference_causal_probe import run_reference_causal_probe
+
+            result = run_reference_causal_probe(
+                hdf5_path=args.hdf5,
+                metadata_path=args.metadata,
+                base_controller_path=args.base_controller,
+                residual_controller_path=args.residual_controller,
+                output_path=args.output,
+            ).to_dict()
         else:
             from .ui.server import serve
 

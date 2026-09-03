@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from oracle_composition.cli import main
 from oracle_composition.traces import (
@@ -145,3 +146,34 @@ def test_unified_cli_inspects_trace_identity(tmp_path: Path, capsys) -> None:
     assert output["trace_id"] == "trace/cli/v1"
     assert output["sample_count"] == 1
     assert len(output["sha256"]) == 64
+
+
+def test_unified_cli_dispatches_reference_use_probe(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    from oracle_composition.experiments import reference_causal_probe
+
+    observed: dict[str, Path] = {}
+
+    def run_probe(**kwargs):
+        observed.update(kwargs)
+        return SimpleNamespace(to_dict=lambda: {"mechanistic_gate_passed": True})
+
+    monkeypatch.setattr(reference_causal_probe, "run_reference_causal_probe", run_probe)
+    output_path = tmp_path / "probe.json"
+    code = main(
+        [
+            "--json",
+            "tracker",
+            "probe-reference-use",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["mechanistic_gate_passed"] is True
+    assert observed["output_path"] == output_path
+    assert observed["hdf5_path"].name == "main_data.hdf5"

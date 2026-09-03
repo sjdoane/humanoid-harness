@@ -39,7 +39,7 @@ MATCHED_STATE_CAUSAL_INPUT_PROTOCOL_ID = "matched_state_numeric_reference_interv
 CAUSAL_INPUT_CONDITION_IDS = frozenset(
     {
         "C_exact",
-        "C_constant_frame_input",
+        "C_zero_input",
         "C_shuffle_input",
         "C_shift_input",
     }
@@ -1044,14 +1044,19 @@ class ResourceCalibrationReceipt:
             _positive_int(self.peak_resident_bytes, field="peak_resident_bytes")
 
 
-def sha256_file(path: Path) -> str:
-    """Hash one regular-file snapshot through a no-follow descriptor."""
+def sha256_file(path: Path, *, maximum_bytes: int | None = None) -> str:
+    """Hash one bounded regular-file snapshot through a no-follow descriptor."""
 
     resolved = Path(path)
     descriptor: int | None = None
     digest = hashlib.sha256()
+    if maximum_bytes is not None and (
+        not isinstance(maximum_bytes, int) or isinstance(maximum_bytes, bool) or maximum_bytes < 1
+    ):
+        raise ExperimentContractError("maximum_bytes must be a positive integer")
     try:
-        if stat.S_ISLNK(resolved.lstat().st_mode):
+        path_before = resolved.lstat()
+        if stat.S_ISLNK(path_before.st_mode):
             raise ExperimentContractError(f"artifact must not be a symlink: {resolved}")
         flags = os.O_RDONLY
         flags |= getattr(os, "O_CLOEXEC", 0)
@@ -1061,16 +1066,36 @@ def sha256_file(path: Path) -> str:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
             raise ExperimentContractError(f"artifact is not a regular file: {resolved}")
-        while chunk := os.read(descriptor, 1024 * 1024):
-            digest.update(chunk)
-        after = os.fstat(descriptor)
-        descriptor_identity = (
+        before_identity = (
             before.st_dev,
             before.st_ino,
             before.st_size,
             before.st_mtime_ns,
             before.st_ctime_ns,
         )
+        path_before_identity = (
+            path_before.st_dev,
+            path_before.st_ino,
+            path_before.st_size,
+            path_before.st_mtime_ns,
+            path_before.st_ctime_ns,
+        )
+        if path_before_identity != before_identity:
+            raise ExperimentContractError(f"artifact changed before it was hashed: {resolved}")
+        if maximum_bytes is not None and before.st_size > maximum_bytes:
+            raise ExperimentContractError(
+                f"artifact exceeds bounded size limit {maximum_bytes}: {resolved}"
+            )
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                raise ExperimentContractError(f"artifact became shorter while hashed: {resolved}")
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise ExperimentContractError(f"artifact grew while it was hashed: {resolved}")
+        after = os.fstat(descriptor)
         after_identity = (
             after.st_dev,
             after.st_ino,
@@ -1086,7 +1111,7 @@ def sha256_file(path: Path) -> str:
             path_after.st_mtime_ns,
             path_after.st_ctime_ns,
         )
-        if descriptor_identity != after_identity or descriptor_identity != path_identity:
+        if before_identity != after_identity or before_identity != path_identity:
             raise ExperimentContractError(f"artifact changed while it was hashed: {resolved}")
     except ExperimentContractError:
         raise

@@ -29,6 +29,7 @@ from oracle_composition.tracking import (
     validate_humanoid_actuator_abi,
 )
 
+from .artifact_io import publish_json_without_overwrite
 from .fixed_reference import (
     CANONICAL_EXECUTION_CALLABLE_AUTHORITY,
     NONAUTHORITATIVE_EXECUTION_CALLABLE_AUTHORITY,
@@ -215,29 +216,9 @@ def _write_complete_file(path: Path, payload: object) -> None:
 
 
 def emit_json_without_overwrite(path: Path, payload: object) -> None:
-    """Atomically publish one JSON file and refuse to replace existing work."""
+    """Publish one descriptor-bound JSON file and refuse replacement."""
 
-    path = path.resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".pending",
-        dir=path.parent,
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(_pretty_json(payload))
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.link(temporary, path)
-        except FileExistsError as exc:
-            raise ExperimentContractError(f"refusing to overwrite existing file: {path}") from exc
-        except OSError as exc:
-            raise ExperimentContractError(f"cannot publish JSON file {path}: {exc}") from exc
-    finally:
-        temporary.unlink(missing_ok=True)
+    publish_json_without_overwrite(path, payload)
 
 
 def _validated_runs_dir(runs_dir: Path) -> Path:

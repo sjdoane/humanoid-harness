@@ -14,6 +14,7 @@ dependencies = [
 humanoid-harness = "oracle_composition.cli:main"
 humanoid-fixed-reference = "oracle_composition.experiments.cli:main"
 humanoid-oracle-exploration = "oracle_composition.experiments.oracle_exploration_runner:main"
+humanoid-reference-probe = "oracle_composition.experiments.reference_causal_probe:main"
 humanoid-static-study-summary = "oracle_composition.experiments.study_summary:main"
 
 [project.optional-dependencies]

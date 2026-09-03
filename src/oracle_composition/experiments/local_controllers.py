@@ -11,6 +11,7 @@ import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
 import gymnasium as gym
@@ -19,7 +20,7 @@ import stable_baselines3
 import torch
 from stable_baselines3.common.policies import ActorCriticPolicy
 
-from .fixed_reference import ExperimentContractError
+from .fixed_reference import ExperimentContractError, sha256_file
 
 LOCAL_BEHAVIOR_CLONING_SHA256 = "ce2aa3a1358609f09509d7f352475a7b517c6d11858ff76419b18a187cb3adf3"
 LOCAL_REFERENCE_RESIDUAL_SHA256 = "6916bf6778dd3044bca5feae22897b7d582e7389871a728549f791112d90fc22"
@@ -143,6 +144,225 @@ class LocalControllerReceipt:
             allow_nan=False,
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceResidualInferenceFacts:
+    """Exact actor and critic outputs for one normalized policy input."""
+
+    policy_input_sha256: str
+    policy_input_shape: tuple[int, ...]
+    policy_input_dtype: str
+    actor_input_sha256: str
+    critic_input_sha256: str
+    controller_state_sha256: str
+    deterministic_action: tuple[float, ...]
+    actor_output_sha256: str
+    actor_output_shape: tuple[int, ...]
+    actor_output_dtype: str
+    critic_value: float
+    critic_output_sha256: str
+    critic_output_shape: tuple[int, ...]
+    critic_output_dtype: str
+
+
+class _HashDigest(Protocol):
+    def update(self, value: bytes) -> None: ...
+
+
+def _update_array_hash(
+    digest: _HashDigest,
+    *,
+    name: str,
+    value: np.ndarray,
+) -> None:
+    resolved = np.ascontiguousarray(value)
+    header = json.dumps(
+        {
+            "dtype": resolved.dtype.str,
+            "name": name,
+            "shape": list(resolved.shape),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest.update(len(header).to_bytes(8, "little"))
+    digest.update(header)
+    digest.update(resolved.tobytes(order="C"))
+
+
+def _residual_state_sha256(
+    policy: ActorCriticPolicy,
+    mean: np.ndarray,
+    variance: np.ndarray,
+    clip: float,
+) -> str:
+    digest = hashlib.sha256(b"local_reference_residual_state/v1\0")
+    for name, tensor in sorted(policy.state_dict().items()):
+        _update_array_hash(
+            digest,
+            name=f"policy::{name}",
+            value=tensor.detach().cpu().contiguous().numpy(),
+        )
+    _update_array_hash(digest, name="obs_rms_mean", value=mean)
+    _update_array_hash(digest, name="obs_rms_var", value=variance)
+    _update_array_hash(
+        digest,
+        name="clip_obs",
+        value=np.asarray([clip], dtype="<f8"),
+    )
+    return digest.hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class LocalReferenceResidualController:
+    """Reference-conditioned policy with an inspectable shared input path."""
+
+    _policy: ActorCriticPolicy
+    _mean: np.ndarray
+    _variance: np.ndarray
+    _clip: float
+    _state_sha256: str
+
+    def assert_integrity(self) -> str:
+        """Reverify the exact loaded policy and normalizer state."""
+
+        observed = _residual_state_sha256(
+            self._policy,
+            self._mean,
+            self._variance,
+            self._clip,
+        )
+        if not hmac.compare_digest(observed, self._state_sha256):
+            raise ExperimentContractError("loaded residual controller state changed")
+        return observed
+
+    def policy_input(
+        self,
+        observation: np.ndarray,
+        reference_window: np.ndarray,
+    ) -> np.ndarray:
+        """Return the exact normalized float32 bytes seen by actor and critic."""
+
+        resolved_observation = _numeric_vector(
+            observation,
+            shape=(OBSERVATION_WIDTH,),
+            field="observation",
+        )
+        resolved_window = _numeric_vector(
+            reference_window,
+            shape=(REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH),
+            field="reference_window",
+        )
+        combined = np.concatenate((resolved_observation, resolved_window.ravel()))
+        normalized = np.clip(
+            (combined - self._mean) / np.sqrt(self._variance + 1e-8),
+            -self._clip,
+            self._clip,
+        ).astype("<f4")
+        if normalized.shape != (REFERENCE_CONDITIONED_WIDTH,) or not np.isfinite(normalized).all():
+            raise ExperimentContractError("normalized residual policy input is invalid")
+        return np.ascontiguousarray(normalized)
+
+    def inference_facts(
+        self,
+        observation: np.ndarray,
+        reference_window: np.ndarray,
+    ) -> ReferenceResidualInferenceFacts:
+        """Evaluate the deterministic actor and critic from the same input bytes."""
+
+        controller_state_sha256 = self.assert_integrity()
+        normalized = self.policy_input(observation, reference_window)
+        actor_inputs: list[torch.Tensor] = []
+        critic_inputs: list[torch.Tensor] = []
+
+        def capture_actor(_module: torch.nn.Module, inputs: tuple[object, ...]) -> None:
+            if len(inputs) == 1 and isinstance(inputs[0], torch.Tensor):
+                actor_inputs.append(inputs[0].detach().cpu().contiguous())
+
+        def capture_critic(_module: torch.nn.Module, inputs: tuple[object, ...]) -> None:
+            if len(inputs) == 1 and isinstance(inputs[0], torch.Tensor):
+                critic_inputs.append(inputs[0].detach().cpu().contiguous())
+
+        actor_handle = self._policy.mlp_extractor.policy_net[0].register_forward_pre_hook(
+            capture_actor
+        )
+        critic_handle = self._policy.mlp_extractor.value_net[0].register_forward_pre_hook(
+            capture_critic
+        )
+        try:
+            with torch.inference_mode():
+                action, _state = self._policy.predict(normalized, deterministic=True)
+                tensor = torch.from_numpy(normalized).unsqueeze(0)
+                value = self._policy.predict_values(tensor)
+        finally:
+            actor_handle.remove()
+            critic_handle.remove()
+        if len(actor_inputs) != 1 or len(critic_inputs) != 1:
+            raise ExperimentContractError(
+                "residual actor and critic must each consume one inspectable input"
+            )
+        expected_tensor = torch.from_numpy(normalized).unsqueeze(0)
+        if not torch.equal(actor_inputs[0], expected_tensor) or not torch.equal(
+            critic_inputs[0], expected_tensor
+        ):
+            raise ExperimentContractError(
+                "residual actor or critic consumed bytes that differ from the policy input"
+            )
+        actor_output = np.ascontiguousarray(np.asarray(action))
+        critic_output = np.ascontiguousarray(value.detach().cpu().numpy())
+        observed_action = np.asarray(actor_output, dtype=np.float64)
+        observed_value = np.asarray(critic_output, dtype=np.float64)
+        if (
+            observed_action.shape != (ACTION_WIDTH,)
+            or not np.isfinite(observed_action).all()
+            or np.any(observed_action < -1.0)
+            or np.any(observed_action > 1.0)
+        ):
+            raise ExperimentContractError("residual inference returned an invalid action")
+        if observed_value.shape != (1, 1) or not np.isfinite(observed_value).all():
+            raise ExperimentContractError("residual critic returned an invalid value")
+        input_sha256 = hashlib.sha256(normalized.tobytes(order="C")).hexdigest()
+        return ReferenceResidualInferenceFacts(
+            policy_input_sha256=input_sha256,
+            policy_input_shape=tuple(int(value) for value in normalized.shape),
+            policy_input_dtype=normalized.dtype.str,
+            actor_input_sha256=hashlib.sha256(
+                actor_inputs[0].numpy().tobytes(order="C")
+            ).hexdigest(),
+            critic_input_sha256=hashlib.sha256(
+                critic_inputs[0].numpy().tobytes(order="C")
+            ).hexdigest(),
+            controller_state_sha256=controller_state_sha256,
+            deterministic_action=tuple(float(value) for value in observed_action),
+            actor_output_sha256=hashlib.sha256(actor_output.tobytes(order="C")).hexdigest(),
+            actor_output_shape=tuple(int(value) for value in actor_output.shape),
+            actor_output_dtype=actor_output.dtype.str,
+            critic_value=float(observed_value[0, 0]),
+            critic_output_sha256=hashlib.sha256(critic_output.tobytes(order="C")).hexdigest(),
+            critic_output_shape=tuple(int(value) for value in critic_output.shape),
+            critic_output_dtype=critic_output.dtype.str,
+        )
+
+    def __call__(
+        self,
+        observation: np.ndarray,
+        reference_window: np.ndarray,
+    ) -> np.ndarray:
+        """Return the deterministic unscaled residual action."""
+
+        normalized = self.policy_input(observation, reference_window)
+        with torch.inference_mode():
+            action, _state = self._policy.predict(normalized, deterministic=True)
+        observed = np.asarray(action, dtype=np.float64)
+        if (
+            observed.shape != (ACTION_WIDTH,)
+            or not np.isfinite(observed).all()
+            or np.any(observed < -1.0)
+            or np.any(observed > 1.0)
+        ):
+            raise ExperimentContractError("residual inference returned an invalid action")
+        return observed
 
 
 class LocalBehaviorCloningController(torch.nn.Module):
@@ -363,7 +583,7 @@ def _numeric_vector(value: object, *, shape: tuple[int, ...], field: str) -> np.
 
 
 def _loader_source_sha256() -> str:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return sha256_file(Path(__file__), maximum_bytes=2 * 1024 * 1024)
 
 
 def _receipt(
@@ -491,7 +711,7 @@ def load_local_reference_residual_controller(
     path: Path,
     *,
     expected_sha256: str = LOCAL_REFERENCE_RESIDUAL_SHA256,
-) -> tuple[Callable[[np.ndarray, np.ndarray], np.ndarray], LocalControllerReceipt]:
+) -> tuple[LocalReferenceResidualController, LocalControllerReceipt]:
     """Load the local residual actor and return its unscaled dimensionless action.
 
     The caller owns composition: multiply the returned ``[-1, 1]`` residual by
@@ -513,37 +733,16 @@ def load_local_reference_residual_controller(
         raise ExperimentContractError("residual_scale must equal 0.08")
 
     policy = _build_residual_policy(values)
-    mean = values["obs_rms_mean"]
-    variance = values["obs_rms_var"]
+    mean = np.frombuffer(values["obs_rms_mean"].tobytes(order="C"), dtype="<f8")
+    variance = np.frombuffer(values["obs_rms_var"].tobytes(order="C"), dtype="<f8")
     clip = float(values["clip_obs"][0])
-
-    def infer(observation: np.ndarray, reference_window: np.ndarray) -> np.ndarray:
-        resolved_observation = _numeric_vector(
-            observation,
-            shape=(OBSERVATION_WIDTH,),
-            field="observation",
-        )
-        resolved_window = _numeric_vector(
-            reference_window,
-            shape=(REFERENCE_HORIZON_STEPS, REFERENCE_WIDTH),
-            field="reference_window",
-        )
-        combined = np.concatenate((resolved_observation, resolved_window.ravel()))
-        normalized = np.clip(
-            (combined - mean) / np.sqrt(variance + 1e-8),
-            -clip,
-            clip,
-        ).astype(np.float32)
-        action, _state = policy.predict(normalized, deterministic=True)
-        observed = np.asarray(action, dtype=np.float64)
-        if (
-            observed.shape != (ACTION_WIDTH,)
-            or not np.isfinite(observed).all()
-            or np.any(observed < -1.0)
-            or np.any(observed > 1.0)
-        ):
-            raise ExperimentContractError("residual inference returned an invalid action")
-        return observed.copy()
+    controller = LocalReferenceResidualController(
+        _policy=policy,
+        _mean=mean,
+        _variance=variance,
+        _clip=clip,
+        _state_sha256=_residual_state_sha256(policy, mean, variance, clip),
+    )
 
     receipt = _receipt(
         Path(path),
@@ -560,7 +759,7 @@ def load_local_reference_residual_controller(
             "caller_multiplies_by_residual_scale_before_composition"
         ),
     )
-    return infer, receipt
+    return controller, receipt
 
 
 __all__ = [
@@ -574,6 +773,8 @@ __all__ = [
     "RESIDUAL_SCALE",
     "LocalBehaviorCloningController",
     "LocalControllerReceipt",
+    "LocalReferenceResidualController",
+    "ReferenceResidualInferenceFacts",
     "load_local_behavior_cloning_controller",
     "load_local_reference_residual_controller",
 ]

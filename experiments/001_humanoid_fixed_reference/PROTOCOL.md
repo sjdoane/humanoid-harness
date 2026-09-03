@@ -114,7 +114,7 @@ checkpoints, saved states, policy recurrent state, evaluator, and deterministic
 actions:
 
 1. `C_exact`;
-2. `C_constant_frame_input` from one declared frame in the same artifact;
+2. `C_zero_input` as canonical positive-zero numeric input, never as an admitted reference;
 3. `C_shuffle_input` from a seeded complete frame permutation; and
 4. `C_shift_input` from a frozen nonzero cyclic time shift.
 
