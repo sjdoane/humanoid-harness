@@ -1,0 +1,775 @@
+{
+  "paper": {
+    "id": "2602.03973",
+    "arxiv_id": "2602.03973",
+    "doi": "10.48550/arXiv.2602.03973",
+    "title": "VLS: Steering Pretrained Robot Policies via Vision-Language Models",
+    "authors": [
+      "Shuo Liu",
+      "Ishneet Sukhvinder Singh",
+      "Yiqing Xu",
+      "Jiafei Duan",
+      "Ranjay Krishna"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2602.03973v1",
+    "source_version": "arXiv v1, submitted 2026-02-03 19:50:16 UTC; sole public revision verified 2026-08-30; versioned PDF SHA-256 8cb3c52f2ca3504b3876bdcef960ba51c69763055aa63fe52eff38b3d3c6ebd3; TeX-source archive SHA-256 9f485671e7c2f34b38100bc7c5b884822af0d534e35b61e88674dd120ec4c2ba. Official project source pinned to Vision-Language-Steering/webpage commit 110c5aa937db24f17fe69af2b28887edaea6d557. Official code inspected at untagged main commit b6e87edc217a2a7682caadba285677fc79eb6f81, committed 2026-03-29; the paper does not bind its reported runs to that post-paper commit."
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "VLS provides source-located evidence for compiling an observation-language condition into staged differentiable PyTorch reward programs, driving a closed-loop reward-stage machine, and evaluating the resulting steering under OOD perturbations. This is useful precursor and boundary evidence for human-steerable executable reward design. It is not an admissible RL-Sculptor task reward or reference oracle because its rewards score partially denoised action proposals, its mechanisms modify the controller's inference sampler, and it does not revise either allowed artifact from independent evaluation feedback.",
+    "not_evidence_for": [
+      "An immutable reference trajectory, reference selection policy, playback clock, composition grammar, transition clip, recovery reference, or reference-conditioned policy observation",
+      "A task reward consumed by policy training rather than an inference-time action-guidance potential",
+      "A fixed controller runtime merely because the base policy parameters remain frozen",
+      "An outer metrics-to-oracle or metrics-to-task-reward revision loop",
+      "Interactive human feedback, human preference learning, or demonstrated translation of a human correction into either allowed RL-Sculptor artifact",
+      "Safe, deterministic, bounded, side-effect-free, or content-addressed execution of generated reward code",
+      "Matched inference compute across methods, statistical significance, or cross-seed reliability",
+      "An exact end-to-end reproduction identity for the paper's experiments",
+      "RL-Sculptor implementation of VLS"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "vls:grounded_keypoint_scaffold",
+      "name": "Observation-language grounding into 3D keypoints",
+      "description": "A VLM identifies task-relevant objects and regions; SAM produces object masks; DINOv2 supplies dense semantic features; masked pixels are reprojected with depth; and object-centric feature-plus-position point clouds are clustered into task-relevant 3D keypoints P.",
+      "tags": [
+        "vision_language_grounding",
+        "sam",
+        "dinov2",
+        "rgbd",
+        "3d_keypoints"
+      ],
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "id": "vls:stagewise_guidance_reward_compiler",
+      "name": "Stage-wise differentiable guidance-reward compiler",
+      "description": "The VLM decomposes the OOD task into S sequential stages and emits for each stage a scalar PyTorch function R_s over an action proposal and grounded keypoints. The emitted function is differentiated with respect to the action proposal; the VLM remains a non-differentiable off-graph generator.",
+      "tags": [
+        "programmatic_reward",
+        "vlm_generated_code",
+        "stage_reward",
+        "action_space_gradient",
+        "human_steering"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "vls:hybrid_denoising_steering",
+      "name": "Hybrid gradient and particle denoising steering",
+      "description": "At inference, B noisy action proposals receive early pairwise repulsion for diversity, stage-reward gradients during denoising, multiple stochastic inner refinements, and periodic Feynman-Kac multinomial resampling with reward-derived weights. The first final particle is returned as the action chunk.",
+      "tags": [
+        "inference_time_control",
+        "gradient_guidance",
+        "rbf_diversity",
+        "feynman_kac",
+        "particle_resampling",
+        "controller_runtime_change"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E08"
+      ]
+    },
+    {
+      "id": "vls:adaptive_guidance_schedule",
+      "name": "Reward-relative adaptive guidance strength",
+      "description": "For each stage, VLS compares the current chunk's final-denoising reward with the first chunk's reward and uses a sigmoid-scaled lambda_max to modulate how strongly reward gradients alter later action chunks.",
+      "tags": [
+        "closed_loop_control",
+        "adaptive_guidance",
+        "reward_feedback",
+        "action_chunk"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "vls:schmitt_stage_dispatch",
+      "name": "Schmitt-trigger reward-stage dispatch",
+      "description": "Two stage-reward thresholds classify execution as advance, maintain, or reinforce. On a switching event, a VLM interprets the outcome and chooses the next stage reward or continued application of the current reward with updated guidance.",
+      "tags": [
+        "hysteresis",
+        "stage_machine",
+        "reward_threshold",
+        "retry",
+        "physical_uncertainty"
+      ],
+      "evidence_ids": [
+        "E07"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "inner_refinement_updates",
+      "value": {
+        "diffusion_policy": 4,
+        "flow_matching_policy": 1
+      },
+      "units": "updates per denoising step",
+      "context": "Algorithm 1 sets the MCMC-like inner update count by base-policy family.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "libero_pro_suites",
+      "value": [
+        "Goal",
+        "Spatial",
+        "Long-10",
+        "Object"
+      ],
+      "units": null,
+      "context": "LIBERO-PRO task and position perturbations are applied to four LIBERO suites.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "libero_pro_tasks_per_suite",
+      "value": 10,
+      "units": "tasks per suite",
+      "context": "Table I evaluation scope.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "libero_pro_episodes_per_task_perturbation",
+      "value": 20,
+      "units": "episodes",
+      "context": "Each task in each suite is evaluated for task and position perturbations.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "libero_pro_overall_success_rate",
+      "value": {
+        "pi_0_5_lerobot": 23.69,
+        "pi_0_5_lerobot_plus_vls": 36.81,
+        "absolute_gain": 13.12
+      },
+      "units": "percent / percentage points",
+      "context": "Overall mean across task- and position-perturbation suite columns.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "libero_pro_group_success_rate",
+      "value": {
+        "task_base": 23.13,
+        "task_vls": 38.5,
+        "position_base": 24.25,
+        "position_vls": 35.13
+      },
+      "units": "percent",
+      "context": "Task- and position-perturbation averages for the frozen LeRobot pi_0.5 comparison.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "calvin_episodes_per_task",
+      "value": 600,
+      "units": "episodes",
+      "context": "Figure 3 comparison of VLS, DynaGuide, ITPS, and the base diffusion policy; error bars are standard deviation.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "calvin_vls_success_rate",
+      "value": {
+        "movable_objects": 94,
+        "articulated_parts": 87,
+        "reported_relative_gain_movable": 7.4,
+        "reported_relative_gain_articulated": 9.6
+      },
+      "units": "percent and fold gain",
+      "context": "Three movable-object tasks and eight articulated-part tasks in Figure 3.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "component_ablation_protocol",
+      "value": {
+        "episodes_per_task": 50,
+        "sample_batch_size_K": 10
+      },
+      "units": "episodes and particles",
+      "context": "Full VLS versus removal of gradient guidance, FK resampling, or RBF diversity.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "gradient_ablation",
+      "value": {
+        "without_gradient_success_rate": 17.3,
+        "full_vls_success_rate": 88,
+        "without_gradient_episode_length": 178.6,
+        "full_vls_episode_length": 61
+      },
+      "units": "percent and environment steps",
+      "context": "Figure 4 left; removing the reward gradient produces the largest component drop.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "full_vls_k10_inference_time",
+      "value": 1189,
+      "units": "milliseconds",
+      "context": "Figure 4 left at K=10; the paper does not identify the measurement hardware.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "particle_count_runtime_sweep",
+      "value": {
+        "K": [
+          1,
+          2,
+          5,
+          10
+        ],
+        "success_rate_percent": [
+          88,
+          88,
+          90,
+          90
+        ],
+        "episode_length_steps": [
+          73.0,
+          58.0,
+          57.8,
+          55.9
+        ],
+        "inference_time_ms": [
+          665,
+          799,
+          953,
+          1239
+        ]
+      },
+      "units": "particles, percent, environment steps, milliseconds",
+      "context": "door_left, 50 episodes; Figure 4 right exposes the compute-performance tradeoff.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "real_robot_trial_and_scoring_protocol",
+      "value": {
+        "trials_per_task": 20,
+        "correct_object_grasp_credit": 0.5,
+        "full_task_credit": 1.0
+      },
+      "units": "trials and fractional score",
+      "context": "Franka Emika evaluation; the plotted success rate is graded rather than binary completion.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "real_robot_aggregate_success_rate",
+      "value": {
+        "in_distribution_base": 50,
+        "in_distribution_vls": 69,
+        "out_of_distribution_base": 42,
+        "out_of_distribution_vls": 69
+      },
+      "units": "percent",
+      "context": "Frozen pi_0.5 versus VLS under the Figure 5 partial-credit metric.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "novel_mug_success_rate",
+      "value": {
+        "base": 0,
+        "vls": 40
+      },
+      "units": "percent",
+      "context": "Most challenging reported object-shift case in the Franka evaluation.",
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "vls:frozen_parameters_not_fixed_controller",
+      "name": "Frozen parameters do not preserve the controller runtime",
+      "description": "VLS leaves base-policy weights unchanged but injects new gradients, particle interactions, resampling, stage logic, and variable compute into action generation. This is an inference-time controller change, so it is outside Sam's fixed trainer/controller boundary unless declared as a separate experiment family.",
+      "tags": [
+        "scope_boundary",
+        "fixed_trainer",
+        "controller_runtime",
+        "confound"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E05",
+        "E08"
+      ]
+    },
+    {
+      "id": "vls:inference_latency",
+      "name": "Particle and inner-update inference overhead",
+      "description": "The authors identify batch sampling, MCMC updates, and FK resampling as a latency limitation. The door_left sweep rises from 665 ms at K=1 to 1239 ms at K=10 while success changes from 88% to 90%.",
+      "tags": [
+        "latency",
+        "compute_tradeoff",
+        "deployment"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "vls:reward_validity_gap",
+      "name": "Generated guidance rewards lack an independent validity gate",
+      "description": "The VLM-generated reward is treated as a differentiable surrogate for condition likelihood, but v1 provides no calibration, adversarial test, physical-scene validity gate, or reward-independent audit of the emitted program. Progress-aware reward generation is deferred to future work.",
+      "tags": [
+        "reward_misspecification",
+        "vlm_dependence",
+        "independent_evaluation",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E13",
+        "E15"
+      ]
+    },
+    {
+      "id": "vls:adaptive_guidance_contract_gap",
+      "name": "Adaptive-guidance scale and normalization are not one exact public contract",
+      "description": "Paper Equation 10 leaves lambda_max and the reward scale/domain unspecified, making its direction sensitive to reward sign. The later code snapshot instead normalizes a negative first-chunk reward and applies a parameterized decreasing sigmoid with separate slope and midpoint defaults, so the paper and code do not bind one exact schedule.",
+      "tags": [
+        "underspecified_equation",
+        "paper_code_difference",
+        "reward_scale",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E16"
+      ]
+    },
+    {
+      "id": "vls:missing_experiment_identity",
+      "name": "Public paper and release do not bind an exact experiment runtime",
+      "description": "The v1 text promises appendix implementation details, but the source excludes four heading-only appendix files. VLM and checkpoint revisions, prompt bytes, camera calibration, simulator/runtime versions, thresholds, seeds, and result artifacts are not bound to the untagged post-paper code commit.",
+      "tags": [
+        "missing_appendix",
+        "versioning",
+        "reproducibility",
+        "run_manifest"
+      ],
+      "evidence_ids": [
+        "E15",
+        "E18"
+      ]
+    },
+    {
+      "id": "vls:evaluation_uncertainty_and_partial_credit",
+      "name": "Incomplete uncertainty reporting and graded hardware outcome",
+      "description": "LIBERO-PRO and real-robot results report point estimates without a seed hierarchy, confidence intervals, or hypothesis tests. CALVIN states standard-deviation bars over 600 episodes per task but gives no numeric dispersion table. The hardware metric awards half credit for a correct grasp, so its 69% aggregate is not binary task completion.",
+      "tags": [
+        "statistics",
+        "partial_credit",
+        "metric_definition",
+        "evaluation_gap"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "id": "vls:unsafe_generated_code_execution",
+      "name": "Released reward loader executes insufficiently constrained generated Python",
+      "description": "The post-paper code labels a helper exec_safe but allows import statements, blocks only the substring '__', and calls Python exec on generated text. Replacing exec/eval names and running dummy tensors does not sandbox file, network, process, or other side effects, so this path is incompatible with RL-Sculptor's executable-reward safety contract.",
+      "tags": [
+        "code_execution",
+        "generated_reward",
+        "sandboxing",
+        "security_boundary"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "vls:libero_pro_ood_evaluation",
+      "name": "LIBERO-PRO task and position perturbation evaluation",
+      "description": "Four suites with ten tasks each receive task and position perturbations, with 20 episodes per task. The frozen LeRobot pi_0.5 rises from 23.69% to 36.81% overall with VLS, including 23.13% to 38.50% on task perturbations and 24.25% to 35.13% on position perturbations.",
+      "tags": [
+        "simulation",
+        "libero_pro",
+        "ood_task_shift",
+        "ood_position_shift",
+        "success_rate"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "vls:calvin_steering_evaluation",
+      "name": "CALVIN steering-method comparison",
+      "description": "Across 600 episodes per task, VLS is compared with the same base diffusion policy, DynaGuide, and ITPS. VLS reports 94% mean success on movable objects and 87% on articulated parts, 15-25 percentage points above prior steering methods according to the figure caption.",
+      "tags": [
+        "simulation",
+        "calvin",
+        "steering_baseline",
+        "success_rate"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "vls:component_and_runtime_ablation",
+      "name": "Guidance-component and particle-count ablation",
+      "description": "Fifty-episode evaluations remove gradient guidance, FK resampling, or RBF diversity at K=10 and sweep K on door_left. Removing gradients drops success from 88% to 17.3%; increasing K from 1 to 10 moves success from 88% to 90% while latency grows from 665 to 1239 ms.",
+      "tags": [
+        "ablation",
+        "gradient_guidance",
+        "feynman_kac",
+        "rbf_diversity",
+        "latency"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "vls:franka_ood_evaluation",
+      "name": "Franka in-distribution and OOD deployment",
+      "description": "Each task receives 20 trials with half credit for correct-object grasp and full credit for completion. The plotted aggregate rises from 50% to 69% in distribution and 42% to 69% OOD; for a novel mug, the base scores 0% and VLS 40%.",
+      "tags": [
+        "real_robot",
+        "franka",
+        "appearance_shift",
+        "position_shift",
+        "object_shift",
+        "partial_credit"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2602.03973",
+      "relation": "INTRODUCES",
+      "target": "vls:grounded_keypoint_scaffold",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "INTRODUCES",
+      "target": "vls:stagewise_guidance_reward_compiler",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "INTRODUCES",
+      "target": "vls:hybrid_denoising_steering",
+      "evidence_ids": [
+        "E05",
+        "E08"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "INTRODUCES",
+      "target": "vls:adaptive_guidance_schedule",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "INTRODUCES",
+      "target": "vls:schmitt_stage_dispatch",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "vls:grounded_keypoint_scaffold",
+      "relation": "SUPPORTS",
+      "target": "vls:stagewise_guidance_reward_compiler",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "vls:stagewise_guidance_reward_compiler",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:ood_observation_language_and_3d_keypoints",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "vls:stagewise_guidance_reward_compiler",
+      "relation": "COMPOSES",
+      "target": "concept:sequential_differentiable_guidance_rewards",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "vls:hybrid_denoising_steering",
+      "relation": "USES",
+      "target": "vls:stagewise_guidance_reward_compiler",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "vls:hybrid_denoising_steering",
+      "relation": "REQUIRES",
+      "target": "concept:frozen_generative_robot_policy",
+      "evidence_ids": [
+        "E02",
+        "E05"
+      ]
+    },
+    {
+      "source": "vls:adaptive_guidance_schedule",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:relative_stage_reward_feedback",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "vls:schmitt_stage_dispatch",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:two_threshold_reward_hysteresis",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "vls:schmitt_stage_dispatch",
+      "relation": "ADDRESSES",
+      "target": "concept:physical_execution_uncertainty",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "vls:hybrid_denoising_steering",
+      "relation": "EVALUATES_ON",
+      "target": "vls:libero_pro_ood_evaluation",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "vls:hybrid_denoising_steering",
+      "relation": "EVALUATES_ON",
+      "target": "vls:calvin_steering_evaluation",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "vls:hybrid_denoising_steering",
+      "relation": "EVALUATES_ON",
+      "target": "vls:component_and_runtime_ablation",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "EVALUATES_ON",
+      "target": "vls:franka_ood_evaluation",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "2602.03973",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:DynaGuide_and_ITPS_inference_time_steering",
+      "evidence_ids": [
+        "E10"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2602.03973v1",
+      "locator": "Bibliographic header, comments, DOI, and submission history",
+      "claim": "The record identifies arXiv 2602.03973v1, the five authors, 11 pages, DOI 10.48550/arXiv.2602.03973, and submission at 2026-02-03 19:50:16 UTC; no later revision is listed.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S3.SS3",
+      "locator": "Sections I and III-C; Equations 4-5",
+      "claim": "VLS keeps base-policy parameters frozen but reshapes the diffusion noise prediction or flow-matching velocity field at inference using an OOD-conditioned action gradient.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.SS1.SSS1",
+      "locator": "Section IV-A1, OOD Input Grounding",
+      "claim": "A VLM identifies relevant objects, SAM produces masks, DINOv2 produces dense features, depth reprojects masked pixels, and clustering yields task-relevant 3D keypoints.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.SS1.SSS2",
+      "locator": "Section IV-A2, Programmatic Reward Generation; Equation 7",
+      "claim": "The VLM decomposes the task into sequential stages and emits stage-specific scalar PyTorch reward functions made from differentiable tensor operations; gradients are taken with respect to action proposals while the VLM stays off graph.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.SS2",
+      "locator": "Section IV-B, Equations 8-9",
+      "claim": "VLS combines early pairwise proposal repulsion, reward-gradient denoising refinement, multiple stochastic inner updates, and reward-weighted Feynman-Kac particle resampling.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.SS3.SSS1",
+      "locator": "Section IV-C1, Equation 10",
+      "claim": "The paper adapts guidance strength from the current chunk's final-denoising stage reward divided by the first chunk's reward, scaled by an unspecified lambda_max through a sigmoid.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.SS3.SSS2",
+      "locator": "Section IV-C2, Equation 11",
+      "claim": "Unspecified high and low reward thresholds dispatch advance, maintain, or reinforce; on a switching event a VLM chooses the next reward stage or continued current-stage guidance.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S4.I1",
+      "locator": "Algorithm 1",
+      "claim": "The algorithm specifies four inner refinements for diffusion policies and one for flow matching, combines RBF, reward-gradient, and FK steps, updates guidance and stage, and returns particle zero as the action chunk.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S5.T1",
+      "locator": "Table I and caption",
+      "claim": "Four ten-task LIBERO suites are evaluated for task and position perturbations with 20 episodes per task. Frozen LeRobot pi_0.5 scores 23.69% overall and 36.81% with VLS; task means are 23.13% and 38.50%, and position means are 24.25% and 35.13%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S5.F3",
+      "locator": "Figure 3 and Section V-B",
+      "claim": "Across 600 episodes per task, VLS reports 94% mean success on movable objects and 87% on articulated parts, described as 7.4-fold and 9.6-fold over the base policy and 15-25 percentage points above prior steering methods.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S5.F4",
+      "locator": "Figure 4 and Section V-B",
+      "claim": "At K=10 and 50 episodes per task, no-gradient success is 17.3% versus 88% for full VLS, with 178.6 versus 61 average steps; full-VLS latency is 1189 ms. On door_left, K values 1, 2, 5, and 10 yield success 88%, 88%, 90%, and 90% and latency 665, 799, 953, and 1239 ms.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S5.F5",
+      "locator": "Figure 5 and Section V-B",
+      "claim": "Each Franka task uses 20 trials; correct-object grasp earns 50% and full completion 100%. The plotted aggregate is 50% versus 69% in distribution and 42% versus 69% OOD; the novel-mug case is 0% for the base and 40% for VLS.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2602.03973v1#S6",
+      "locator": "Section VI, Conclusion and Limitation",
+      "claim": "The authors identify computational latency from batch sampling, MCMC runs, and FK resampling and leave progress-aware reward generation and inference efficiency for future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/pdf/2602.03973v1",
+      "locator": "Complete versioned 11-page PDF; bytes retrieved 2026-08-30",
+      "claim": "The reviewed PDF has SHA-256 8cb3c52f2ca3504b3876bdcef960ba51c69763055aa63fe52eff38b3d3c6ebd3.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://export.arxiv.org/e-print/2602.03973v1",
+      "locator": "Complete v1 source archive; rss_steerdp/main.tex appendix block; 00README.json; rss_steerdp/appendix/*.tex",
+      "claim": "The source archive has SHA-256 9f485671e7c2f34b38100bc7c5b884822af0d534e35b61e88674dd120ec4c2ba. main.tex comments out all appendix inputs, 00README.json marks them ignored, and the four appendix files contain only subsection headings despite text promises of implementation, task, baseline, and derivation details.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/Vision-Language-Steering/code/blob/b6e87edc217a2a7682caadba285677fc79eb6f81/configs/config.yaml#L24-L52",
+      "locator": "Official code commit b6e87ed, configs/config.yaml lines 24-52; core/pi05_steer.py lines 241-288; main.py lines 545-614",
+      "claim": "The later release defaults to guide scale 80, MCMC steps 4, sigmoid slope 25 and midpoint 0.75, Schmitt thresholds 0.8 and 0.6, and FK lambda 10 with five-step resampling. Its policy code normalizes negative reward relative to the first chunk and applies a decreasing parameterized sigmoid, rather than directly instantiating paper Equation 10.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/Vision-Language-Steering/code/blob/b6e87edc217a2a7682caadba285677fc79eb6f81/utils/guidance_utils.py#L28-L114",
+      "locator": "Official code commit b6e87ed, utils/guidance_utils.py lines 28-114",
+      "claim": "The reward loader explicitly allows imports, rejects only code containing the substring '__', replaces exec and eval names with no-ops, then calls Python exec on generated text and validates resulting callables only with dummy tensors.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/Vision-Language-Steering/code/tree/b6e87edc217a2a7682caadba285677fc79eb6f81",
+      "locator": "Complete untagged official code tree at b6e87ed; commit date 2026-03-29; README, configs/policy.yaml, ablations/*.yaml, requirements.txt, and refs inspected 2026-08-30",
+      "claim": "The official implementation was added after arXiv v1 and has no release tag. It contains current and ablation configurations plus dependency revisions, but uses local or mutable checkpoint identifiers and supplies no immutable run manifest or result bundle tying this commit, prompts, VLM API revisions, checkpoints, and evaluated runs to the paper.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/Vision-Language-Steering/webpage/tree/110c5aa937db24f17fe69af2b28887edaea6d557",
+      "locator": "Official project-page source snapshot 110c5aa; index.html and VLS.pdf",
+      "claim": "The pinned official project source links the arXiv paper and official code and presents the same VLS mechanism and evaluation claims; it does not supply an experiment manifest binding those artifacts.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

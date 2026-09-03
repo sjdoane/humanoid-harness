@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-02",
+  "installation": {
+    "executable": "user-level praxist console script",
+    "isolated_environment": "user-level uv tool environment",
+    "package": "praxist",
+    "reported_version": "0.5.0",
+    "source_url": "https://github.com/sapientinc/PRAXIST.git",
+    "source_commit": "437292c7e1f414d87a4b742a23ae4ae3f66ef744",
+    "python_version": "3.12.14",
+    "openai_codex_version": "0.147.0",
+    "openai_codex_cli_bin_version": "0.147.0",
+    "codex_relay_version": "0.5.5"
+  },
+  "host": {
+    "operating_system": "macOS",
+    "architecture": "arm64"
+  },
+  "configuration": {
+    "profile": "codex-native",
+    "runtime_ref": "agent_runtime:codex_sdk",
+    "model_provider_ref": "model_provider:openai_compatible",
+    "model": "gpt-5.6-luna",
+    "authentication": "Codex-native saved-login mode; no credential recorded",
+    "product_usage": "denied",
+    "user_agreement": {
+      "accepted": true,
+      "accepted_at": "2026-09-02T22:42:35Z"
+    }
+  },
+  "verification": {
+    "doctor_ok": true,
+    "model_catalog_ok": true,
+    "selected_model_reported": true,
+    "installed_skills": "10/10",
+    "launch_attempted": false
+  },
+  "patch_boundary": {
+    "reason": "Preserve CODEX_INTERNAL_ORIGINATOR_OVERRIDE during sanitized Codex SDK launches",
+    "upstream_pull_request": "https://github.com/sapientinc/PRAXIST/pull/2",
+    "base_tag": "0.5.0",
+    "base_tag_commit": "92b785381ee13f9ea1435ba52024493c90db35ee"
+  }
+}

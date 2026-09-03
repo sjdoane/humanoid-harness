@@ -1,0 +1,822 @@
+{
+  "paper": {
+    "id": "2608.07746",
+    "arxiv_id": "2608.07746",
+    "doi": "10.48550/arXiv.2608.07746",
+    "title": "LUCID: Latent-Skill Unified Control via Imagined Dynamics for Long-Horizon Humanoid Loco-Manipulation",
+    "authors": [
+      "Cheng Guo",
+      "Mingzhe Ni",
+      "Angelo Cangelosi",
+      "Arash Ajoudani"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2608.07746v1",
+    "source_version": "arXiv v1, submitted 2026-08-07; latest public version verified 2026-08-30. PDF SHA-256 17642a8dfebb8400d0c8ee115a0484fe1748f48581578478829c534c7b47f6ed; source-archive SHA-256 c72c0fa3575c6453f76772ad9d446f2ce22b43f4e65c9da677103bf540394836. No paper-specific project, code, checkpoint, dataset, or included supplement is linked in v1."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "LUCID supplies a current, source-located example of a state-based phase oracle turning demonstrations into a structured skill interface, a staged task reward, and learned closed-loop skill composition over a frozen low-level controller; its coupled training stack also defines a precise fixed-trainer boundary for Sam's experiments.",
+    "not_evidence_for": [
+      "automatic discovery, ranking, splicing, or verification of reference motions",
+      "an oracle-only or task-reward-only intervention under a fixed trainer",
+      "natural-language or human-preference steering",
+      "VIBE integration or a frozen foundation whole-body tracker",
+      "vision-based control, real-robot transfer, or cross-embodiment generality",
+      "availability of reproducible code, checkpoints, or full supplementary details",
+      "RL-Sculptor implementation of LUCID"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "lucid.structured_oracle_interface",
+      "name": "Oracle-labeled structured latent interface",
+      "description": "During LLC training, a state-and-goal oracle assigns the current interaction phase. Its one-hot semantic anchor is concatenated with Gaussian within-skill variation and normalized; after training, the HLC selects the resulting structured latent.",
+      "tags": [
+        "phase_oracle",
+        "semantic_skill_anchor",
+        "reference_composition",
+        "latent_interface"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "lucid.interaction_curriculum",
+      "name": "Interaction-aware LLC curriculum",
+      "description": "The LLC warm-starts through carry, rearrangement, and retreat-and-chaining stages. Only the goal-conditioned task reward and reference-state initialization change between stages, coupling reward design to the sampled starting-state distribution.",
+      "tags": [
+        "task_reward",
+        "reference_state_initialization",
+        "curriculum",
+        "skill_chaining"
+      ],
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "id": "lucid.frozen_llc",
+      "name": "Frozen structured-latent low-level controller",
+      "description": "An ASE-derived PPO controller maps proprioceptive, object, task-guidance, and structured-latent inputs to joint-level PD targets; it is frozen before HLC/world-model learning.",
+      "tags": [
+        "low_level_controller",
+        "frozen_component",
+        "ppo",
+        "pd_targets"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E10"
+      ]
+    },
+    {
+      "id": "lucid.macro_dynamics_model",
+      "name": "Skill-level macro-dynamics world model",
+      "description": "Given compact task state plus a structured skill latent and guidance command, separate heads predict residual continuous-state change, binary task-progress flags, and continuation probability after the frozen LLC executes one macro action.",
+      "tags": [
+        "world_model",
+        "macro_transition",
+        "task_progress",
+        "continuation"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "lucid.imagined_hlc",
+      "name": "High-level skill policy trained in imagination",
+      "description": "A goal-conditioned actor-critic starts short imagined rollouts from real replay states, optimizes task-progress returns discounted by predicted continuation, and alternates with simulator collection and world-model updates.",
+      "tags": [
+        "hierarchical_rl",
+        "imagined_rollout",
+        "actor_critic",
+        "closed_loop_skill_composition"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E10"
+      ]
+    },
+    {
+      "id": "lucid.oracle_bc_warm_start",
+      "name": "Annealed geometry-oracle warm start",
+      "description": "The categorical HLC action is initially behavior-cloned from geometry-oracle labels in replay; the coefficient decays to zero, so the oracle initializes exploration rather than fixing the final skill sequence.",
+      "tags": [
+        "oracle",
+        "behavior_cloning",
+        "warm_start",
+        "annealing"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "llc_reward_components",
+      "value": "r_t^D + lambda_G r_t^G",
+      "units": null,
+      "context": "LLC objective combines adversarial imitation and goal-conditioned task reward while the oracle supplies phase latents.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "adversarial_reward",
+      "value": "-log(1-D(phi_t))",
+      "units": null,
+      "context": "Non-saturating imitation reward from robot/object transition features.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "structured_latent_contract",
+      "value": "normalize([one_hot(c_t); sigma_z * epsilon_t]), D_z >= N",
+      "units": null,
+      "context": "One semantic anchor per skill with within-skill Gaussian variation.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "llc_curriculum_stages",
+      "value": [
+        "carry",
+        "rearrangement",
+        "retreat_and_chaining"
+      ],
+      "units": "stages",
+      "context": "Successive LLC curricula; only task reward and RSI change between stages.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "simulator_rate",
+      "value": 60,
+      "units": "Hz",
+      "context": "Isaac Gym simulation rate.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "llc_rate",
+      "value": 30,
+      "units": "Hz",
+      "context": "Low-level controller action rate.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "macro_action_period",
+      "value": 20,
+      "units": "LLC steps",
+      "context": "HLC holds each skill/guidance decision while the frozen LLC executes.",
+      "evidence_ids": [
+        "E6",
+        "E10"
+      ]
+    },
+    {
+      "name": "imagination_horizon",
+      "value": 12,
+      "units": "macro steps",
+      "context": "HLC/world-model imagined rollout horizon.",
+      "evidence_ids": [
+        "E7",
+        "E10"
+      ]
+    },
+    {
+      "name": "hlc_sequence_length",
+      "value": 32,
+      "units": "macro steps",
+      "context": "Reported training sequence length.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "hlc_batch_size",
+      "value": 64,
+      "units": "sequences",
+      "context": "Reported HLC/world-model batch size.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "parallel_training_environments",
+      "value": 8192,
+      "units": "environments",
+      "context": "Joint HLC/world-model training.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "llc_training_hardware",
+      "value": 2,
+      "units": "NVIDIA RTX 4090 GPUs",
+      "context": "Reported LLC training hardware; runtime and energy are not reported.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "humanoid_rigid_bodies",
+      "value": 15,
+      "units": "rigid bodies",
+      "context": "Single Isaac Gym humanoid embodiment.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "humanoid_pd_joints",
+      "value": 28,
+      "units": "joints",
+      "context": "PD-controlled action joints.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "id_training_tasks",
+      "value": 62,
+      "units": "tasks",
+      "context": "HITR-derived in-distribution split.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "ood_tasks",
+      "value": 20,
+      "units": "tasks",
+      "context": "Held-out task split.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "standard_chain_length",
+      "value": 2,
+      "units": "objects",
+      "context": "Standard benchmark and LLC chaining curriculum horizon.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "maximum_evaluation_chain_length",
+      "value": 5,
+      "units": "objects",
+      "context": "Longer-chain evaluation extension.",
+      "evidence_ids": [
+        "E9",
+        "E12"
+      ]
+    },
+    {
+      "name": "success_placement_threshold",
+      "value": 0.2,
+      "units": "m",
+      "context": "Each object must finish within this target distance for SR_k.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "evaluation_seeds",
+      "value": 3,
+      "units": "seeds",
+      "context": "Mean plus sample standard deviation evaluation protocol.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "lucid_id_sr2",
+      "value": 73.4,
+      "units": "%",
+      "context": "Two-object full-chain success, mean over three seeds; sample standard deviation 3.0 points.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "lucid_ood_sr2",
+      "value": 68.4,
+      "units": "%",
+      "context": "OOD two-object full-chain success, mean over three seeds; sample standard deviation 3.8 points.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "lucid_id_average_placement_error",
+      "value": 0.32,
+      "units": "m",
+      "context": "ID final object-to-goal error, sample standard deviation 0.02 m.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "lucid_ood_average_placement_error",
+      "value": 0.52,
+      "units": "m",
+      "context": "OOD final object-to-goal error, sample standard deviation 0.05 m.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "sparse_wm_vs_model_free_sr2",
+      "value": {
+        "id": [
+          73.5,
+          59.3
+        ],
+        "ood": [
+          63.1,
+          42.8
+        ]
+      },
+      "units": "%",
+      "context": "LUCID world-model versus model-free HLC under sparse reward.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "lucid_dense_vs_sparse_ood_sr2",
+      "value": {
+        "dense": 50.2,
+        "sparse": 63.1,
+        "difference_dense_minus_sparse": -12.9
+      },
+      "units": "percentage points",
+      "context": "OOD reward-density ablation.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "structured_vs_unstructured_sr2",
+      "value": {
+        "id": [
+          74.2,
+          0.0
+        ],
+        "ood": [
+          66.4,
+          0.0
+        ]
+      },
+      "units": "%",
+      "context": "Structured versus unstructured frozen LLC/HLC pair ablation.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "sustained_lift_threshold",
+      "value": 0.4,
+      "units": "mean fraction of time",
+      "context": "Three structured commands and no unstructured commands exceed this threshold.",
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "lucid.privileged_state_limit",
+      "name": "Privileged-state dependence",
+      "description": "The policy and world model use simulator state; visual control is left to future work.",
+      "tags": [
+        "privileged_state",
+        "sim_only",
+        "perception_gap"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "lucid.scope_limit",
+      "name": "Limited task, object, and embodiment diversity",
+      "description": "Evidence comes from one 15-body, 28-joint simulated humanoid and HITR-derived rearrangement tasks; broader tasks and real transfer are untested.",
+      "tags": [
+        "external_validity",
+        "embodiment",
+        "real_world_gap"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E10",
+        "E15"
+      ]
+    },
+    {
+      "id": "lucid.long_chain_decay",
+      "name": "Success decays with chain length",
+      "description": "The authors report roughly 56% prefix success at three objects and 21% at five objects despite more graceful degradation than baselines.",
+      "tags": [
+        "long_horizon",
+        "compounding_error",
+        "failure_recovery"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "lucid.baseline_handoff_confound",
+      "name": "Favorable baseline handoff resets",
+      "description": "Baseline adapters reset only the humanoid to a favorable pose at each subtask handoff; success/placement comparisons favor baselines, while completion time is not directly comparable.",
+      "tags": [
+        "evaluation_confound",
+        "baseline_adapter",
+        "time_metric"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "lucid.dense_reward_ood_drop",
+      "name": "Dense shaping reduces OOD success",
+      "description": "Dense LUCID obtains 50.2% OOD SR2 versus 63.1% for sparse LUCID, a 12.9-point drop.",
+      "tags": [
+        "reward_shaping",
+        "ood_generalization",
+        "overfitting"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "lucid.fixed_trainer_violation",
+      "name": "Coupled system changes violate fixed-trainer isolation",
+      "description": "LUCID modifies and trains the LLC interface, curricula, RSI, rewards, HLC, world model, replay, and optimizer schedule; its gains cannot be attributed to Sam's oracle or task-reward knob alone.",
+      "tags": [
+        "fixed_trainer",
+        "causal_attribution",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E7"
+      ]
+    },
+    {
+      "id": "lucid.public_asset_gap",
+      "name": "Missing public implementation and supplement",
+      "description": "The nine-page v1 repeatedly cites supplementary sections that are absent from its source package, and the record exposes no paper-specific code, checkpoints, project, or data release.",
+      "tags": [
+        "reproducibility",
+        "missing_supplement",
+        "code_unavailable"
+      ],
+      "evidence_ids": [
+        "E17",
+        "E18"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "lucid.two_object_benchmark",
+      "name": "Shared ID/OOD two-object comparison",
+      "description": "Across 62 ID and 20 OOD tasks, LUCID reports SR2 of 73.4% and 68.4%, versus 39.8% and 37.0% for the strongest mean baseline; placement error is also lowest.",
+      "tags": [
+        "prefix_success",
+        "placement_error",
+        "id_ood",
+        "three_seeds"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E10",
+        "E11",
+        "E16"
+      ]
+    },
+    {
+      "id": "lucid.world_model_ablation",
+      "name": "World-model and reward-density ablation",
+      "description": "World-model variants beat model-free HLCs in all four ID/OOD by sparse/dense SR2 comparisons; dense shaping has little ID benefit and lower OOD transfer.",
+      "tags": [
+        "ablation",
+        "world_model",
+        "model_free_baseline",
+        "reward_density"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "lucid.structured_interface_ablation",
+      "name": "Structured versus unstructured latent ablation",
+      "description": "Structured pairs report 74.2% ID and 66.4% OOD SR2, while unstructured pairs report 0% SR2 on both; both interfaces remain command-decodable, so task alignment rather than decodability alone is implicated.",
+      "tags": [
+        "ablation",
+        "latent_structure",
+        "behavior_controllability",
+        "task_alignment"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "lucid.long_chain_extension",
+      "name": "Three-to-five-object prefix-success extension",
+      "description": "LUCID is evaluated beyond its two-object training chain and reports about 56% SR3 and 21% SR5; exact plotted values beyond the prose approximations are not tabulated.",
+      "tags": [
+        "long_horizon",
+        "extrapolation",
+        "prefix_success"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2608.07746",
+      "relation": "INTRODUCES",
+      "target": "lucid.structured_oracle_interface",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "INTRODUCES",
+      "target": "lucid.macro_dynamics_model",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "lucid.structured_oracle_interface",
+      "relation": "CONDITIONS_ON",
+      "target": "state_and_goal_phase_oracle",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "lucid.structured_oracle_interface",
+      "relation": "COMPOSES",
+      "target": "locomotion_fetch_transport_release_transit",
+      "evidence_ids": [
+        "E4",
+        "E14"
+      ]
+    },
+    {
+      "source": "lucid.interaction_curriculum",
+      "relation": "USES",
+      "target": "stage_specific_task_reward_and_reference_state_initialization",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "lucid.macro_dynamics_model",
+      "relation": "REQUIRES",
+      "target": "lucid.frozen_llc",
+      "evidence_ids": [
+        "E2",
+        "E6"
+      ]
+    },
+    {
+      "source": "lucid.imagined_hlc",
+      "relation": "USES",
+      "target": "real_replay_starts_and_imagined_macro_transitions",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "lucid.imagined_hlc",
+      "relation": "OPTIMIZES",
+      "target": "ordered_multi_object_task_progress",
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "source": "lucid.oracle_bc_warm_start",
+      "relation": "SUPPORTS",
+      "target": "early_categorical_skill_discovery",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "EVALUATES_ON",
+      "target": "HITR_derived_ID_OOD_multi_object_rearrangement",
+      "evidence_ids": [
+        "E9",
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "CONTRASTS_WITH",
+      "target": "scripted_handoffs_and_model_free_high_level_policies",
+      "evidence_ids": [
+        "E2",
+        "E11",
+        "E16"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "REPORTS",
+      "target": "dense_reward_OOD_transfer_drop",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "MOTIVATES",
+      "target": "versioned_task_aligned_oracle_phase_interface",
+      "evidence_ids": [
+        "E3",
+        "E4",
+        "E14"
+      ]
+    },
+    {
+      "source": "paper:2608.07746",
+      "relation": "CONTRASTS_WITH",
+      "target": "fixed_trainer_oracle_only_experiment",
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E7"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2608.07746",
+      "locator": "Submission history and citation block",
+      "claim": "arXiv v1 was submitted on 7 August 2026 and remained the only public version when verified on 30 August 2026.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2608.07746v1",
+      "locator": "Figure 1 and Section 4 Method, opening paragraph",
+      "claim": "LUCID trains an ASE-derived latent-conditioned LLC, freezes it, then jointly trains a goal-conditioned HLC and macro-dynamics world model.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS2",
+      "locator": "Section 4.2, Equation 1 and Section 4.2.1, Equation 2",
+      "claim": "The LLC objective combines adversarial imitation and goal-conditioned task reward; the state-and-goal oracle selects the current phase skill.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS2.SSS2",
+      "locator": "Section 4.2.2 Structured latent space, Equation 3",
+      "claim": "Each semantic skill receives a one-hot anchor and remaining latent dimensions encode Gaussian within-skill variation; the HLC selects this latent after LLC freezing.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS2.SSS3",
+      "locator": "Section 4.2.3 Interaction-aware curriculum, Equation 4",
+      "claim": "The three LLC stages are carry, rearrangement, and retreat-and-chaining; only task reward and reference-state initialization change between stages.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS3",
+      "locator": "Section 4.3 Macro-Dynamics World Model, Equations 5-6",
+      "claim": "One macro action contains structured latent plus guidance; after frozen-LLC execution, the world model predicts residual continuous state, binary flags, and continuation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS4",
+      "locator": "Section 4.4, Equations 7-9 and Algorithm 1",
+      "claim": "Training alternates real simulator collection, replay-based world-model updates, and short imagined actor-critic rollouts started from real replay states.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S4.SS4",
+      "locator": "Algorithm 1 and immediately following paragraphs",
+      "claim": "A geometry-based oracle behavior-clones the categorical HLC component early; its coefficient is annealed to zero and oracle labels are used only while that coefficient is positive.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS1.SSS1",
+      "locator": "Section 5.1.1 Dataset",
+      "claim": "The benchmark has 62 ID training tasks, 20 OOD tasks, standard two-object chains, an extension through five objects, and OMOMO/SAMP reference motions for LLC training.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS2",
+      "locator": "Sections 5.1.2 Metrics and 5.2 Implementation Details",
+      "claim": "The paper specifies 0.2 m placement success, three seeds, a 15-body/28-joint humanoid, 60 Hz simulation, 30 Hz LLC, 20-step macro actions, 12-step imagination, sequence 32, batch 64, 8192 environments, and two RTX 4090s for LLC training.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS3.SSS1",
+      "locator": "Table 1 and Section 5.3.1 Quantitative evaluation",
+      "claim": "LUCID reports 73.4% ID and 68.4% OOD SR2 with 0.32 m and 0.52 m APE, outperforming the compared baseline means.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS3.SSS3",
+      "locator": "Section 5.3.3 Extended multi-objects tasks and Figure 3",
+      "claim": "In prose, the authors report approximately 56% SR3 and 21% SR5; exact longer-chain values are not tabulated.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS4.SSS1",
+      "locator": "Table 2 and Section 5.4.1 On world model effectiveness",
+      "claim": "World-model variants outperform model-free HLCs in all sparse/dense ID/OOD SR2 cells, while dense LUCID OOD SR2 is 12.9 points below sparse LUCID.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS4.SSS2",
+      "locator": "Figure 6, Table 3, and Section 5.4.2 On structured latent interface",
+      "claim": "Structured LLC/HLC pairs achieve 74.2% ID and 66.4% OOD SR2 versus zero SR2 for unstructured pairs; three structured commands and no unstructured command exceed the 0.4 sustained-lift threshold.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S6",
+      "locator": "Section 6 Conclusion",
+      "claim": "The authors identify privileged state and limited task, object, and embodiment diversity; vision and real-world transfer remain future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2608.07746v1#S5.SS1.SSS3",
+      "locator": "Section 5.1.3 Baselines",
+      "claim": "Baseline adapters reset the humanoid to a favorable pose at each handoff, so success/APE comparisons favor baselines and completion times are not directly comparable.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://export.arxiv.org/e-print/2608.07746v1",
+      "locator": "Source archive SHA-256 c72c0fa3575c6453f76772ad9d446f2ce22b43f4e65c9da677103bf540394836; 00README.json and AnonymousSubmission2027.tex; PDF SHA-256 17642a8dfebb8400d0c8ee115a0484fe1748f48581578478829c534c7b47f6ed, 9 pages",
+      "claim": "The v1 package contains the main nine-page submission but no supplementary file, although the main text repeatedly delegates oracle, reward, architecture, loss, and update details to supplementary sections.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/abs/2608.07746",
+      "locator": "v1 abstract record and source-package top-level metadata, verified 2026-08-30",
+      "claim": "No paper-specific code, project, checkpoint, or data-release URL is active in the public v1 record; the TeX source contains only a commented generic code-link template.",
+      "evidence_type": "publisher_metadata"
+    }
+  ]
+}

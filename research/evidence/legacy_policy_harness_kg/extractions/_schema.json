@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RL-Sculptor paper extraction",
+  "type": "object",
+  "required": [
+    "paper",
+    "decision_relevance",
+    "mechanisms",
+    "parameters",
+    "failure_modes",
+    "evaluation",
+    "relations",
+    "evidence"
+  ],
+  "properties": {
+    "paper": {
+      "type": "object",
+      "required": ["id", "title", "authors", "year", "primary_url", "source_version"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[0-9]{4}\\.[0-9]{4,5}$"},
+        "arxiv_id": {"type": ["string", "null"]},
+        "doi": {"type": ["string", "null"]},
+        "title": {"type": "string"},
+        "authors": {"type": "array", "items": {"type": "string"}},
+        "year": {"type": "integer"},
+        "primary_url": {"type": "string"},
+        "source_version": {"type": "string"},
+        "publication_status": {"enum": ["active", "withdrawn", "retracted", "superseded"]}
+      }
+    },
+    "decision_relevance": {
+      "type": "object",
+      "required": ["tier", "knobs", "why_admitted", "not_evidence_for"],
+      "properties": {
+        "tier": {"enum": ["anchor", "core", "supporting", "baseline"]},
+        "knobs": {
+          "type": "array",
+          "items": {"enum": ["reference_composition", "task_reward", "human_steering", "evaluation", "fixed_trainer"]}
+        },
+        "why_admitted": {"type": "string"},
+        "not_evidence_for": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "mechanisms": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "value", "units", "context", "evidence_ids"],
+        "properties": {
+          "name": {"type": "string"},
+          "value": {},
+          "units": {"type": ["string", "null"]},
+          "context": {"type": "string"},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "failure_modes": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "evaluation": {"type": "array", "items": {"$ref": "#/$defs/entity"}},
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "relation", "target", "evidence_ids"],
+        "properties": {
+          "source": {"type": "string"},
+          "relation": {
+            "enum": ["INTRODUCES", "EXTENDS", "USES", "CONDITIONS_ON", "COMPOSES", "TRACKS", "OPTIMIZES", "ADDRESSES", "EVALUATES_ON", "REPORTS", "REQUIRES", "SUPPORTS", "CONTRASTS_WITH", "MOTIVATES"]
+          },
+          "target": {"type": "string"},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source_url", "locator", "claim", "evidence_type"],
+        "properties": {
+          "id": {"type": "string"},
+          "source_url": {"type": "string"},
+          "locator": {"type": "string"},
+          "claim": {"type": "string"},
+          "evidence_type": {"enum": ["paper_text", "paper_table", "paper_figure", "supplement", "official_code", "official_project", "publisher_metadata"]}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": ["id", "name", "description", "tags", "evidence_ids"],
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "evidence_ids": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

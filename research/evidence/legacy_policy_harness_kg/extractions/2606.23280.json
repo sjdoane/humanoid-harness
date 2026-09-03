@@ -1,0 +1,1002 @@
+{
+  "paper": {
+    "id": "2606.23280",
+    "arxiv_id": "2606.23280",
+    "doi": "10.48550/arXiv.2606.23280",
+    "title": "Causal Reward World Models: Zero-shot Reward Design for Automated Skill Generation",
+    "authors": [
+      "Yang Yang",
+      "Yuchuang Tong",
+      "Zhengtao Zhang",
+      "Xu Ding",
+      "Ning Yang",
+      "Yifan Zhang",
+      "Haipeng Li",
+      "Kehu Yang",
+      "Miao Xin"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.23280v1",
+    "source_version": "arXiv v1, submitted 2026-06-22 12:57:17 UTC; sole public revision verified 2026-08-30; versioned PDF SHA-256 29f76671a6bca94b998e668c4bc7ec032034ca30ec5cdaea316519b2321c06ae; TeX-source archive SHA-256 1b470403a069f9e592669f970e998454889dee3b3ae1eb7ca1a5b232d13b78f4. Official project repository pinned to commit beb848695831adf2549157174512e0155f65bcf4 (2026-06-30), whose page marks code and Hugging Face artifacts as coming soon and whose complete tree contains no CRWM implementation, model, or dataset."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "CRWM directly authors executable task-reward code while formalizing the environment and policy learner as fixed inputs. It supplies a reusable causal-prior interface, an observation-availability gate, held-out reward-generation ablations, and an objective offline reward-alignment test; these are directly relevant to Sam's task-reward knob and fixed-trainer evidence boundary.",
+    "not_evidence_for": [
+      "Reference-motion selection, segmentation, ordering, composition, transition, recovery, certification, or an OGMP oracle",
+      "A reference-conditioned actor or critic, immutable playback clock, or improvement to Sam's reference-composition knob",
+      "An improvement under Sam's exact frozen scene, observations, actions, dynamics, foundation controller, tracking reward, optimizer, and budget",
+      "Zero target-environment computation: ESI=0 excludes fixed-batch candidate evaluation and the 4200-run offline construction phase",
+      "Exact recovery of full physical causal dynamics or causal identifiability outside the paper's normalized component pool",
+      "Generalization to target tasks whose physical primitives are absent from the global component pool",
+      "Online real-robot policy optimization, dual-hand sim-to-real control, or dynamics-feasibility certification",
+      "Safe, deterministic, bounded, or side-effect-free execution of LLM-generated Python reward code",
+      "Exact reproduction from public code, weights, data, prompts plus runtime, or simulator dependency pins",
+      "Human-language steering, preference-conditioned reward revision, or a recursive agentic harness",
+      "RL-Sculptor implementation of CRWM"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "crwm.fixed_world_reward_design_contract",
+      "name": "Fixed-world automated reward design contract",
+      "description": "The paper separates the MDP M=(S,A,T), reward space R, policy learner pi_M, and non-differentiable policy fitness F; only the candidate task reward r is optimized in r*=argmax F(pi_M(r)).",
+      "tags": [
+        "task_reward",
+        "fixed_trainer",
+        "objective_fitness",
+        "formal_interface"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "crwm.hierarchical_interventional_dataset",
+      "name": "Macro-micro reward intervention dataset",
+      "description": "Eureka and URDP first propose 3-8 physical reward components per task. Names are normalized into a shared structural-variable pool; sampled component-weight vectors train policies, producing macro records of weights and final fitness plus micro records of per-step physical-variable trajectories.",
+      "tags": [
+        "offline_pretraining",
+        "reward_weight_intervention",
+        "macro_micro_data",
+        "component_normalization"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E09"
+      ]
+    },
+    {
+      "id": "crwm.coarse_structural_prior",
+      "name": "Causal-foundation-model structural prior",
+      "description": "LimiX maps macro reward-weight/fitness data to a directed raw effect matrix. The topology becomes M_prior, while absolute effects normalized by the matrix maximum become edge-wise confidences M_conf for later calibration.",
+      "tags": [
+        "causal_prior",
+        "limix",
+        "edge_confidence",
+        "coarse_structure"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "crwm.explicit_mechanism_decoupling",
+      "name": "Explicit Mechanism Decoupling",
+      "description": "A learnable DAG-regularized reward skeleton M_inv is multiplicatively modulated by an MLP-produced transient matrix M_trans(s) to form M_inst(s)=M_inv*(1+M_trans(s)); transition reconstruction uses M_inst, but only converged M_inv is retained for reward generation.",
+      "tags": [
+        "state_dependent_topology",
+        "transient_interaction",
+        "causal_skeleton",
+        "dagma"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E06"
+      ]
+    },
+    {
+      "id": "crwm.confidence_aware_soft_fusion",
+      "name": "Confidence-Aware Soft Fusion",
+      "description": "The Frobenius penalty gamma*||M_conf*(M_inv-M_prior)||^2 preserves high-confidence prior edges more strongly while allowing micro-trajectory reconstruction to correct low-confidence hallucinations; ALM jointly balances reconstruction, acyclicity, and prior calibration.",
+      "tags": [
+        "soft_prior",
+        "confidence_weighting",
+        "structural_calibration",
+        "augmented_lagrangian"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E06"
+      ]
+    },
+    {
+      "id": "crwm.graph_to_prompt_serialization",
+      "name": "Adaptive causal-topology serialization",
+      "description": "Absolute learned edge weights are split by one-dimensional 2-means into noise and signal clusters; the midpoint of the two centroids thresholds active edges, which are serialized as source-target-effect triplets for an LLM system prompt.",
+      "tags": [
+        "graph_serialization",
+        "two_means",
+        "adaptive_threshold",
+        "prompt_interface"
+      ],
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "id": "crwm.causal_pruning_reward_synthesis",
+      "name": "Causal-pruned one-pass reward synthesis",
+      "description": "The target-task description, raw observation space, and serialized topology condition one LLM call. The prompt permits only components with a causal path to score, sets identified spurious terms to zero, omits components whose required variables are absent, and emits executable Python reward code.",
+      "tags": [
+        "executable_reward",
+        "causal_pruning",
+        "observation_contract",
+        "zero_shot_generation"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_and_public_artifact_pin",
+      "value": {
+        "arxiv_version": "2606.23280v1",
+        "submitted_utc": "2026-06-22T12:57:17Z",
+        "pdf_sha256": "29f76671a6bca94b998e668c4bc7ec032034ca30ec5cdaea316519b2321c06ae",
+        "tex_source_sha256": "1b470403a069f9e592669f970e998454889dee3b3ae1eb7ca1a5b232d13b78f4",
+        "official_project_commit": "beb848695831adf2549157174512e0155f65bcf4",
+        "official_project_tree": "02ed58abec3fe62c38db726b1d1761477449dc37",
+        "official_algorithm_code": null,
+        "official_model_or_dataset_release": null
+      },
+      "units": null,
+      "context": "Exact public paper bytes and official project snapshot reviewed on 2026-08-30. The pinned repository has 60 blobs, all project-page assets or frontend files; its Code and HuggingFace buttons remain placeholders.",
+      "evidence_ids": [
+        "E01",
+        "E19"
+      ]
+    },
+    {
+      "name": "task_reward_component_count",
+      "value": {
+        "minimum": 3,
+        "maximum": 8
+      },
+      "units": "physical reward components per task",
+      "context": "Eureka and URDP extract the initial physically meaningful components before cross-task name normalization.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "macro_intervention_sampling",
+      "value": {
+        "default_N": 30,
+        "sensitivity_values": [
+          10,
+          20,
+          30
+        ],
+        "weight_sampling": "uniform"
+      },
+      "units": "reward-weight configurations per reward-function specification",
+      "context": "The paper states that weight vectors are uniformly sampled but does not report their bounds or exact sampling distribution.",
+      "evidence_ids": [
+        "E03",
+        "E10"
+      ]
+    },
+    {
+      "name": "dagma_acyclicity_settings",
+      "value": {
+        "alpha": 1,
+        "lambda_initial": 0.1,
+        "lambda_schedule": "updated in the ALM outer loop"
+      },
+      "units": null,
+      "context": "Acyclicity regularizes only the retained M_inv skeleton, not the full time-lagged dynamics; lambda is initialized rather than held fixed.",
+      "evidence_ids": [
+        "E05",
+        "E10"
+      ]
+    },
+    {
+      "name": "soft_fusion_weight",
+      "value": {
+        "default_gamma": 1.0,
+        "sensitivity_values": [
+          0.1,
+          1.0,
+          5.0
+        ]
+      },
+      "units": null,
+      "context": "Weight on confidence-aware deviation from the coarse prior; gamma=1.0 is reported best in the sensitivity study.",
+      "evidence_ids": [
+        "E06",
+        "E10"
+      ]
+    },
+    {
+      "name": "active_edge_extraction",
+      "value": {
+        "clustering": "one-dimensional 2-means on absolute M_inv* entries",
+        "threshold": "(noise centroid + signal centroid) / 2",
+        "serialized_fields": [
+          "source",
+          "target",
+          "causal effect"
+        ]
+      },
+      "units": null,
+      "context": "Deterministic graph-to-prompt interface after CRWM distillation, conditional on clustering initialization details that v1 does not specify.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "foundation_models",
+      "value": {
+        "main_llm_label": "deepseek-v3-2-251201",
+        "main_causal_foundation_model": "LimiX",
+        "llm_api_revision_or_sampling_seed": null,
+        "limix_checkpoint_revision": null
+      },
+      "units": null,
+      "context": "All main LLM-driven methods use the same named model and all CRWM experiments use LimiX; the paper does not pin provider endpoints, checkpoints, sampling settings, or seeds.",
+      "evidence_ids": [
+        "E11",
+        "E19"
+      ]
+    },
+    {
+      "name": "dexterity_zero_shot_protocol",
+      "value": {
+        "total_tasks": 20,
+        "pretraining_tasks": 14,
+        "held_out_tasks": 6,
+        "held_out_task_names": [
+          "ShadowHandKettle",
+          "ShadowHandCatchAbreast",
+          "ShadowHandCatchOver2Underarm",
+          "ShadowHandDoorCloseOutward",
+          "ShadowHandPen",
+          "ShadowHandLiftUnderarm"
+        ],
+        "candidate_rewards_per_generation_round": 16,
+        "deployment_ESI": 0
+      },
+      "units": null,
+      "context": "Fixed candidate rewards are generated before evaluation; evaluations that do not mutate rewards or prompts are defined not to increase ESI.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "offline_crwm_construction_cost",
+      "value": {
+        "pretraining_tasks": 14,
+        "reward_function_specifications": 140,
+        "weight_configurations_per_specification": 30,
+        "policy_training_runs": 4200,
+        "policy_training_iterations_per_run": 3000,
+        "hardware": "8 NVIDIA A800 GPUs",
+        "parallel_runs_per_batch": 80,
+        "wall_clock_hours_per_batch": 1,
+        "estimated_batches": 50
+      },
+      "units": null,
+      "context": "One-time data-collection cost reported separately from deployment ESI; the arithmetic implies about 50 reported batch-hours before unreported distillation overhead.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "held_out_dexterity_selected_results",
+      "value": {
+        "CRWM_average_success_rate": 0.85,
+        "CatchOver2Underarm_success_rate": 0.92,
+        "LiftUnderarm_success_rate": 0.87,
+        "CRWM_ESI": 0,
+        "URDP_ESI_range": [
+          1,
+          4
+        ],
+        "Eureka_ESI": 4
+      },
+      "units": "success-rate fraction and evolutionary search iterations",
+      "context": "Average CRWM SR comes from the ablation section; the two task values and baseline iteration counts come from the main six-task comparison.",
+      "evidence_ids": [
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "name": "held_out_ablation_average_success_rates",
+      "value": {
+        "CRWM": 0.85,
+        "without_structural_prior": 0.36,
+        "without_EMD": 0.35,
+        "without_soft_fusion": 0.38,
+        "Causal_ARD_with_LLM_inferred_prior": 0.09
+      },
+      "units": "mean success-rate fraction over six tasks",
+      "context": "Same Causal-ARD pipeline with the named structural intervention removed or replaced.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "maniskill2_cross_domain_success_rates",
+      "value": {
+        "PickCube": 0.64,
+        "OpenCabinetDoor_as_named_in_results_text": 0.89,
+        "TurnFaucet": 0.8,
+        "ESI": 0,
+        "crwm_pretraining_tasks": 20
+      },
+      "units": "success-rate fraction",
+      "context": "CRWM is rebuilt from all 20 Dexterity tasks and applied only where target variables already exist in the component pool. Figure 8 and the task appendix instead call the 0.89 task OpenCabinetDrawer/OpenCabinetDrawer-v1.",
+      "evidence_ids": [
+        "E09",
+        "E13"
+      ]
+    },
+    {
+      "name": "real_world_offline_alignment_protocol",
+      "value": {
+        "robot": "CASBOT W1 mobile manipulator",
+        "tasks": [
+          "PickCube",
+          "LiftUnderarm",
+          "Scissors"
+        ],
+        "successful_trajectories_per_task": 25,
+        "failed_trajectories_per_task": 25,
+        "paper_reported_success_failure_pairs": 625,
+        "metric": "pairwise distinguishability accuracy / AUC"
+      },
+      "units": null,
+      "context": "Human-teleoperated kinematic trajectories evaluate reward ordering without downstream policy optimization. The paper does not clarify whether 625 pairs is per task or total across three tasks.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "real_world_offline_alignment_auc",
+      "value": {
+        "ZS_LLM": {
+          "PickCube_percent": 62.5,
+          "LiftUnderarm_percent": 47.9,
+          "Scissors_percent": 51.3,
+          "mean_percent": 53.9
+        },
+        "CRWM": {
+          "PickCube_percent": 99.6,
+          "LiftUnderarm_percent": 95.3,
+          "Scissors_percent": 94.5,
+          "mean_percent": 96.5
+        }
+      },
+      "units": "AUC percent",
+      "context": "Offline reward-alignment comparison on successful versus failed teleoperated trajectories.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "baseline_reward_failure_prevalence",
+      "value": {
+        "Eureka": {
+          "optimization_collapse_percent": 21.2,
+          "specification_gaming_percent": 10.4
+        },
+        "URDP": {
+          "optimization_collapse_percent": 12.6,
+          "specification_gaming_percent": 4.7
+        }
+      },
+      "units": "percent of generated reward functions",
+      "context": "Paper-reported audit across 20 Dexterity tasks; the table does not report a CRWM rate, sample count, adjudication rule, or uncertainty interval.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "dag_acyclicity_partial_ablation",
+      "value": {
+        "CRWM": {
+          "Kettle": 0.88,
+          "CatchAbreast": 0.65,
+          "CatchOver2Underarm": 0.92
+        },
+        "without_DAG": {
+          "Kettle": 0.81,
+          "CatchAbreast": 0.61,
+          "CatchOver2Underarm": 0.82
+        }
+      },
+      "units": "success-rate fraction",
+      "context": "Supplementary Table S-D is captioned as a six-task ablation but prints values for only three tasks.",
+      "evidence_ids": [
+        "E20"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "crwm.failure.optimization_collapse",
+      "name": "Optimization collapse from noisy reward correlates",
+      "description": "The paper's LiftUnderarm example adds instantaneous object velocity as a semantically plausible but causally ambiguous high-frequency term; training reward and success then remain near zero. Baseline prevalence is reported as 21.2% for Eureka and 12.6% for URDP.",
+      "tags": [
+        "reward_noise",
+        "spurious_component",
+        "training_collapse",
+        "reported_failure"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "crwm.failure.specification_gaming",
+      "name": "Specification gaming from proxy reward",
+      "description": "The paper's Scissors example rewards scissors_open, allowing the policy to hold the scissors slightly open and accumulate reward without completing the task. Baseline prevalence is reported as 10.4% for Eureka and 4.7% for URDP.",
+      "tags": [
+        "reward_hacking",
+        "proxy_objective",
+        "task_misalignment",
+        "reported_failure"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "crwm.failure.component_pool_coverage",
+      "name": "Zero-shot transfer is bounded by the component pool",
+      "description": "CRWM can recombine only normalized physical variables already represented in its global pool. A target needing absent primitives, including fluid or deformable-object variables, requires pool expansion and additional task data before inference.",
+      "tags": [
+        "closed_ontology",
+        "coverage_boundary",
+        "out_of_vocabulary",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E17"
+      ]
+    },
+    {
+      "id": "crwm.failure.amortized_cost_accounting",
+      "name": "Zero deployment iterations hide large amortized cost",
+      "description": "ESI counts only feedback-driven post-generation refinement. CRWM's ESI=0 therefore excludes 4200 offline policy-training runs and also excludes evaluation of a fixed 16-candidate target-task batch when those results do not alter prompts or rewards.",
+      "tags": [
+        "compute_accounting",
+        "zero_shot_definition",
+        "offline_cost",
+        "candidate_evaluation"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E16"
+      ]
+    },
+    {
+      "id": "crwm.failure.causal_recovery_scope",
+      "name": "Theory does not establish physical causal recovery",
+      "description": "The supplementary analysis studies a locally linear oracle and assumes zero-mean transient modulation independent of the previous state even though the implemented modulator is state-conditioned. The authors explicitly limit the result to an approximation-gap argument and disclaim exact or lossless recovery of full physical dynamics.",
+      "tags": [
+        "causal_identification",
+        "theory_assumption",
+        "locally_linear",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "crwm.failure.real_robot_scope",
+      "name": "Real-world evidence is reward alignment, not control",
+      "description": "CASBOT trajectories are human-teleoperated and scored offline to avoid dynamics gaps and hardware risk; no policy is optimized or deployed on hardware. The authors also report no dual-hand real-world validation.",
+      "tags": [
+        "offline_evaluation",
+        "sim_to_real",
+        "physical_robot",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E17"
+      ]
+    },
+    {
+      "id": "crwm.failure.protocol_reporting_gap",
+      "name": "Selection, uncertainty, and naming are under-specified",
+      "description": "v1 does not state how 16 generated rewards are aggregated or selected for reported SR, policy/random-seed counts, uncertainty intervals, or significance tests. It also names the 0.89 ManiSkill task OpenCabinetDoor in text but OpenCabinetDrawer in the figure and appendix, and leaves the 625-pair scope ambiguous.",
+      "tags": [
+        "candidate_selection",
+        "random_seeds",
+        "uncertainty",
+        "reporting_ambiguity"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "id": "crwm.failure.reproduction_pin_gap",
+      "name": "No runnable implementation or complete runtime pin",
+      "description": "The paper omits the shared-pool dimension, MLP architecture, optimizer and stopping settings, weight-sampling bounds, exact LimiX checkpoint, simulator versions, policy hyperparameters, and LLM sampling configuration. The pinned official repository contains only project-page assets and no code, model, dataset, generated rewards, or environment lock.",
+      "tags": [
+        "missing_code",
+        "missing_data",
+        "runtime_versions",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E05",
+        "E10",
+        "E19"
+      ]
+    },
+    {
+      "id": "crwm.failure.executable_reward_safety_gap",
+      "name": "Generated Python is not an execution-safety contract",
+      "description": "Causal-ARD emits Python that the paper says can be directly executed by the underlying RL algorithm. The paper and public project document no sandbox, AST allowlist, purity or side-effect check, resource bound, output bound, or fail-closed pre-execution validator.",
+      "tags": [
+        "generated_python",
+        "execution_safety",
+        "validation_gap",
+        "untrusted_code"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E19"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "crwm.eval.dexterity_holdout",
+      "name": "Six-task Dexterity holdout",
+      "description": "A CRWM distilled on 14 of 20 Dexterity tasks guides 16 reward candidates per held-out task. The paper reports ESI=0, SR 0.92 on CatchOver2Underarm and 0.87 on LiftUnderarm, and an average full-method SR of 0.85 in the ablation section.",
+      "tags": [
+        "held_out_tasks",
+        "dexterity",
+        "success_rate",
+        "zero_shot"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "id": "crwm.eval.structural_ablation",
+      "name": "Causal-structure mechanism ablation",
+      "description": "Across the six holdouts, mean SR falls from 0.85 to 0.36 without the coarse prior, 0.35 without EMD, 0.38 with rigid rather than soft fusion, and 0.09 when the learned graph is replaced by an LLM-inferred semantic prior.",
+      "tags": [
+        "ablation",
+        "structural_prior",
+        "emd",
+        "soft_fusion"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "crwm.eval.conditional_cross_domain_transfer",
+      "name": "Component-covered ManiSkill2 transfer",
+      "description": "A CRWM rebuilt on all 20 Dexterity tasks is applied without target interaction or adaptation to three ManiSkill2 tasks selected because their reward variables already exist in the global pool; reported SRs are 0.64, 0.89, and 0.80.",
+      "tags": [
+        "cross_embodiment",
+        "cross_environment",
+        "maniskill2",
+        "conditional_coverage"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E13"
+      ]
+    },
+    {
+      "id": "crwm.eval.offline_real_reward_alignment",
+      "name": "Offline physical-trajectory reward alignment",
+      "description": "On three CASBOT tasks with 25 successful and 25 failed teleoperated trajectories each, pairwise reward ordering yields mean AUC 96.5% for CRWM-guided rewards versus 53.9% for ZS-LLM; this evaluates reward alignment independently of policy optimization.",
+      "tags": [
+        "independent_metric",
+        "auc",
+        "teleoperation",
+        "real_world_offline"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "crwm.eval.baseline_failure_audit",
+      "name": "Twenty-task baseline reward-failure audit",
+      "description": "The paper reports Optimization Collapse and Specification Gaming rates for Eureka and URDP across 20 Dexterity tasks, but Table II omits CRWM rates, denominators, adjudication criteria, confidence intervals, and a blinded annotation protocol.",
+      "tags": [
+        "failure_analysis",
+        "optimization_collapse",
+        "specification_gaming",
+        "protocol_gap"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "crwm.eval.partial_dag_ablation",
+      "name": "Partial DAGMA ablation",
+      "description": "Removing acyclicity lowers SR on Kettle from 0.88 to 0.81, CatchAbreast from 0.65 to 0.61, and CatchOver2Underarm from 0.92 to 0.82; despite a six-task caption, only these three tasks are tabulated.",
+      "tags": [
+        "dagma",
+        "acyclicity",
+        "ablation",
+        "partial_reporting"
+      ],
+      "evidence_ids": [
+        "E20"
+      ]
+    },
+    {
+      "id": "crwm.eval.public_artifact_audit",
+      "name": "Versioned public-artifact audit",
+      "description": "The exact arXiv v1 PDF and TeX source are hash-pinned. The exact official project commit is also pinned, but supplies only website assets while explicitly marking code and model/data links as coming soon.",
+      "tags": [
+        "artifact_identity",
+        "paper_hash",
+        "official_project",
+        "missing_implementation"
+      ],
+      "evidence_ids": [
+        "E01",
+        "E19"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.23280",
+      "relation": "INTRODUCES",
+      "target": "crwm.hierarchical_interventional_dataset",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "INTRODUCES",
+      "target": "crwm.explicit_mechanism_decoupling",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "INTRODUCES",
+      "target": "crwm.confidence_aware_soft_fusion",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "INTRODUCES",
+      "target": "crwm.causal_pruning_reward_synthesis",
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "source": "crwm.fixed_world_reward_design_contract",
+      "relation": "REQUIRES",
+      "target": "system:parameterized_mdp",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "crwm.hierarchical_interventional_dataset",
+      "relation": "REQUIRES",
+      "target": "policy_training_under_reward_weight_interventions",
+      "evidence_ids": [
+        "E03",
+        "E16"
+      ]
+    },
+    {
+      "source": "crwm.coarse_structural_prior",
+      "relation": "CONDITIONS_ON",
+      "target": "crwm.hierarchical_interventional_dataset",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "crwm.explicit_mechanism_decoupling",
+      "relation": "CONDITIONS_ON",
+      "target": "micro_structural_variable_transitions",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "crwm.confidence_aware_soft_fusion",
+      "relation": "SUPPORTS",
+      "target": "crwm.coarse_structural_prior",
+      "evidence_ids": [
+        "E04",
+        "E06"
+      ]
+    },
+    {
+      "source": "crwm.graph_to_prompt_serialization",
+      "relation": "USES",
+      "target": "distilled_reward_relevant_causal_skeleton",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "crwm.causal_pruning_reward_synthesis",
+      "relation": "CONDITIONS_ON",
+      "target": "crwm.graph_to_prompt_serialization",
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "source": "crwm.causal_pruning_reward_synthesis",
+      "relation": "OPTIMIZES",
+      "target": "artifact:task_reward_k",
+      "evidence_ids": [
+        "E02",
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "source": "crwm.causal_pruning_reward_synthesis",
+      "relation": "REQUIRES",
+      "target": "fixed_observation_contract_and_component_pool_coverage",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:dexterity_20_maniskill2_3_and_casbot_offline_3",
+      "evidence_ids": [
+        "E11",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "REPORTS",
+      "target": "crwm.eval.structural_ablation",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "REPORTS",
+      "target": "crwm.eval.offline_real_reward_alignment",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "CONTRASTS_WITH",
+      "target": "paper:2310.12931",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.23280",
+      "relation": "CONTRASTS_WITH",
+      "target": "baseline:URDP_iterative_reward_design",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "crwm.graph_to_prompt_serialization",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.versioned_reward_causal_prior",
+      "evidence_ids": [
+        "E07",
+        "E09"
+      ]
+    },
+    {
+      "source": "crwm.causal_pruning_reward_synthesis",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.validated_executable_task_reward",
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E19"
+      ]
+    },
+    {
+      "source": "crwm.eval.offline_real_reward_alignment",
+      "relation": "SUPPORTS",
+      "target": "system:independent_evaluator",
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.23280v1",
+      "locator": "Version header, submission history, versioned PDF, and official TeX-source archive retrieved 2026-08-30",
+      "claim": "The title, nine authors, arXiv identifier, v1 timestamp, sole public revision, and exact reviewed PDF/source hashes identify the public paper artifact.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S3",
+      "locator": "Section III, Automated Reward Design, Equation 2",
+      "claim": "The formal ARD problem separates MDP M, permissible reward space R, reward-conditioned policy learner pi_M, and objective policy fitness F, with reward r as the optimized artifact.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S4.SS1",
+      "locator": "Section IV-A, Hierarchical Data Collection, Figure 3",
+      "claim": "Eureka/URDP extract 3-8 components; sampled reward weights train policies; macro data record weights and fitness; micro data record normalized structural-variable trajectories rather than raw observations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S4.SS1",
+      "locator": "Section IV-A, Structural Prior Extraction, Equation 3",
+      "claim": "LimiX produces M_raw; M_prior retains its directed topology and M_conf normalizes absolute causal-effect magnitude by the matrix maximum.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S4.SS2",
+      "locator": "Section IV-B, Equations 4-6 and Algorithm 1",
+      "claim": "Joint optimization reconstructs micro transitions with a state-modulated instantaneous topology, regularizes retained M_inv for acyclicity, and uses ALM; EMD multiplicatively gates the transient MLP by M_inv.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S4.SS2",
+      "locator": "Section IV-B, Equation 7 and surrounding Soft Fusion text",
+      "claim": "Confidence-Aware Soft Fusion weights deviation from M_prior by M_conf and gamma, allowing low-confidence prior edges to change more than high-confidence edges; alpha is set to one for DAGMA.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S4.SS3",
+      "locator": "Section IV-C, Figure 5 and Algorithm 1 lines 12-16",
+      "claim": "One-dimensional 2-means thresholds absolute CRWM edges, serializes active source-target-effect triplets, and conditions a one-pass LLM call that returns Python reward code.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A2.SS1",
+      "locator": "Appendix B-A, complete causal-guided system prompt; Section IV-C executable-output paragraph",
+      "claim": "The prompt admits only components with a causal path to score, sets other coefficients to zero, treats edge weights as coefficient priors, adapts abstract names to observation variables, and omits embodiment-specific components absent from the target observation space.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A2.SS2",
+      "locator": "Appendix B-B, name normalization, global pool, compositional coverage, and cross-task voting",
+      "claim": "Task-specific component names map into one zero-padded d-dimensional pool; transfer recombines existing variables, and absent primitives require pool expansion plus additional task data.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A2.SS3",
+      "locator": "Appendix B-C, Table III and Figures 14-15",
+      "claim": "N defaults to 30 and is tested at 20 and 10; lambda starts at 0.1 and is updated by ALM; gamma defaults to 1.0 and is tested at 0.1, 1.0, and 5.0.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S5.SS4",
+      "locator": "Sections V-C and V-D, Figure 6",
+      "claim": "The Dexterity study uses a 14/6 split and 16 generated candidates; fixed-set evaluation that does not refine rewards is defined as ESI=0; two reported CRWM task SRs are 0.92 and 0.87, while iterative baselines use 1-4 ESIs.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S5.SS5",
+      "locator": "Section V-E and Figure 7",
+      "claim": "Mean held-out SR is 0.85 for full CRWM, 0.36 without the prior, 0.35 without EMD, 0.38 with rigid fusion, and 0.09 with an LLM-inferred topology under the same Causal-ARD procedure.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S5.SS6",
+      "locator": "Section V-F and Figure 8",
+      "claim": "A CRWM trained on all 20 Dexterity tasks transfers only to component-covered ManiSkill2 targets and reports SR 0.64, 0.89, and 0.80 with ESI=0; the results text and figure disagree on Door versus Drawer naming.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S5.SS7",
+      "locator": "Section V-G, Figure 9, and Table I",
+      "claim": "Three CASBOT tasks use 25 successful and 25 failed teleoperated trajectories each for offline reward ordering; CRWM reports per-task AUC 99.6%, 95.3%, and 94.5% versus ZS-LLM 62.5%, 47.9%, and 51.3%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2606.23280v1#S6",
+      "locator": "Section VI, Table II, plus Section I examples",
+      "claim": "Across 20 Dexterity tasks, Eureka and URDP baseline rewards are reported to exhibit Optimization Collapse at 21.2% and 12.6% and Specification Gaming at 10.4% and 4.7%; LiftUnderarm velocity and Scissors-open are the motivating examples.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A2.SS4",
+      "locator": "Appendix B-D, Table IV",
+      "claim": "CRWM construction uses 14 tasks, about 140 reward specifications, 30 weight configurations each, 4200 policy runs of 3000 iterations, eight A800 GPUs, 80 parallel runs, about one hour per batch, and 50 estimated batches.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A3",
+      "locator": "Appendix C, Limitations and Discussion",
+      "claim": "The authors identify large upfront pretraining cost, component-pool-bounded generalization, and absent dual-hand real-world validation as limitations.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A2.SS2a",
+      "locator": "Supplementary S-B.2, Assumption 1 and Theorem 1",
+      "claim": "The approximation analysis assumes locally linear transitions and zero-mean transient modulation independent of the previous state; it argues only that dynamic modulation can reduce static excess risk and explicitly disclaims exact recovery of complete physical causal dynamics.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/Yy12136/CRWM/tree/beb848695831adf2549157174512e0155f65bcf4",
+      "locator": "Official repository commit beb848695831adf2549157174512e0155f65bcf4, complete non-truncated tree 02ed58abec3fe62c38db726b1d1761477449dc37; index.html lines 66-74",
+      "claim": "The official page labels Code and HuggingFace as coming soon. The pinned tree contains 60 blobs consisting of HTML/CSS/JavaScript, images, videos, a sample PDF, and ffmpeg.exe, with no CRWM algorithm code, checkpoint, dataset, generated reward, environment, test, or runtime lock.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2606.23280v1#A4",
+      "locator": "Supplementary S-D, Table S-D",
+      "claim": "The DAGMA ablation table reports full versus no-DAG SR on Kettle, CatchAbreast, and CatchOver2Underarm only, despite describing the evaluation as six unseen tasks.",
+      "evidence_type": "supplement"
+    }
+  ]
+}

@@ -1,0 +1,1162 @@
+{
+  "paper": {
+    "id": "2403.10506",
+    "arxiv_id": "2403.10506",
+    "doi": "10.15607/RSS.2024.XX.061",
+    "title": "HumanoidBench: Simulated Humanoid Benchmark for Whole-Body Locomotion and Manipulation",
+    "authors": [
+      "Carmelo Sferrazza",
+      "Dun-Ming Huang",
+      "Xingyu Lin",
+      "Youngwoon Lee",
+      "Pieter Abbeel"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2403.10506v2",
+    "source_version": "arXiv v2, 2024-06-18; latest public arXiv version verified 2026-08-30. Published in Robotics: Science and Systems XX, DOI 10.15607/RSS.2024.XX.061. Official code evidence pinned to release v0.2.0, commit b917f7aa0890682e98ba5aa3f635fcd781d84936, 2024-07-01."
+  },
+  "decision_relevance": {
+    "tier": "baseline",
+    "knobs": [
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "HumanoidBench provides a public executable whole-body task surface, exact state/action/reward/termination contracts, flat-policy baselines, and source-located failure traces. It also shows that changing the action/controller through hand blocking or a pretrained reaching hierarchy materially changes learning, which defines a fixed-trainer boundary for Sam's two-knob harness.",
+    "not_evidence_for": [
+      "reference-dataset selection, sequencing, composition, oracle guards, transitions, or recovery",
+      "automatic generation, repair, search, or ranking of executable task rewards",
+      "an independent objective evaluator for a changed task reward, because reported episode return reuses the training reward and success bars are qualitative",
+      "a reference-only intervention under a fixed observation, action, controller, reward, and budget contract",
+      "a fixed-trainer causal comparison between flat and hierarchical policies, because the hierarchy changes the high-level action interface and adds separate controller pretraining",
+      "multimodal policy performance despite implemented camera and tactile observations",
+      "hardware deployment, sim-to-real success, or real-world task validity",
+      "RL-Sculptor implementation of HumanoidBench"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "humanoidbench.benchmark_runtime",
+      "name": "Executable whole-body benchmark runtime",
+      "description": "HumanoidBench packages MuJoCo robot/task environments around a primary Unitree H1 body with two Shadow Hands. The paper defines 27 task families with task-specific reset state, observation additions, dense or sparse reward, termination, and horizon.",
+      "tags": [
+        "benchmark",
+        "mujoco",
+        "whole_body_control",
+        "fixed_runtime"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E06",
+        "E12",
+        "E20"
+      ]
+    },
+    {
+      "id": "humanoidbench.state_action_contract",
+      "name": "State-based 61-dimensional joint-target contract",
+      "description": "The reported benchmark policies receive privileged proprioceptive and task-object state and issue 61 normalized joint-position targets at 50 Hz. The robot-only state is 151-dimensional; object state is task-dependent and additional.",
+      "tags": [
+        "state_observation",
+        "position_control",
+        "action_contract",
+        "fixed_trainer"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E12"
+      ]
+    },
+    {
+      "id": "humanoidbench.task_reward_suite",
+      "name": "Hand-authored dense and sparse task-reward suite",
+      "description": "Task rewards compose shared tolerance-based posture and control-effort terms with task-specific distances, velocities, contacts, stage logic, and sparse completion bonuses. The formulas are environment definitions, not outputs of a reward-search method.",
+      "tags": [
+        "task_reward",
+        "dense_reward",
+        "sparse_bonus",
+        "executable_environment"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "humanoidbench.return_target_reporting",
+      "name": "Training-reward return with qualitative success target",
+      "description": "The learning curves sum the environment reward across each episode, average curves over three seeds, shade one standard deviation, and compare return to task-specific dashed lines that the paper calls qualitative measures of success.",
+      "tags": [
+        "episodic_return",
+        "qualitative_success",
+        "three_seeds",
+        "evaluation_coupling"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E07",
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "id": "humanoidbench.flat_baseline_matrix",
+      "name": "Flat-policy algorithm benchmark",
+      "description": "DreamerV3, TD-MPC2, SAC, and a four-task PPO subset are trained directly against the benchmark state/action/reward interface. Approximately equal wall time yields 10 million environment steps for DreamerV3 and SAC but 2 million for TD-MPC2.",
+      "tags": [
+        "dreamerv3",
+        "td_mpc2",
+        "sac",
+        "ppo",
+        "wall_time_budget"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E16",
+        "E18"
+      ]
+    },
+    {
+      "id": "humanoidbench.action_dimension_ablation",
+      "name": "Hand-action dimensionality ablation",
+      "description": "The paper compares the full 61-dimensional action with a 19-dimensional action that fixes all 42 hand actuators to zero while retaining the 151-dimensional observation and hand mass. The reduced action learns faster on walk and shows a similar trend on push.",
+      "tags": [
+        "action_ablation",
+        "hand_actuation",
+        "dimensionality",
+        "new_experiment_family"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E08"
+      ]
+    },
+    {
+      "id": "humanoidbench.hierarchical_setpoint_baseline",
+      "name": "Frozen reaching-policy hierarchy",
+      "description": "For push and package, a DreamerV3 or TD-MPC2 high-level policy emits one-hand or two-hand Cartesian reaching targets to a frozen PPO low-level policy. The low-level policies are separately pretrained in simplified MuJoCo MJX environments with force perturbations.",
+      "tags": [
+        "hierarchical_rl",
+        "frozen_low_level_policy",
+        "cartesian_setpoints",
+        "controller_change"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E17"
+      ]
+    },
+    {
+      "id": "humanoidbench.versioned_code_release",
+      "name": "Pinned official benchmark release",
+      "description": "Official release v0.2.0 at commit b917f7aa0890682e98ba5aa3f635fcd781d84936 contains environment code, learner adapters, pretrained reaching weights, training logs, and pinned core simulator dependencies.",
+      "tags": [
+        "official_code",
+        "version_pin",
+        "reproducibility",
+        "implementation_boundary"
+      ],
+      "evidence_ids": [
+        "E20",
+        "E21"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "benchmark_task_count",
+      "value": 27,
+      "units": "task families",
+      "context": "Paper benchmark suite before expanding named simple/hard task variants into separate environment IDs.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "locomotion_task_count",
+      "value": 12,
+      "units": "task families",
+      "context": "Locomotion portion of the 27-task suite.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "whole_body_manipulation_task_count",
+      "value": 15,
+      "units": "task families",
+      "context": "Manipulation portion of the 27-task suite.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "robot_state_observation_dimension_with_two_hands",
+      "value": 151,
+      "units": "dimensions",
+      "context": "Generalized robot positions and velocities only; task-specific environment state is additional.",
+      "evidence_ids": [
+        "E04",
+        "E12"
+      ]
+    },
+    {
+      "name": "action_dimension_with_two_hands",
+      "value": 61,
+      "units": "dimensions",
+      "context": "Normalized joint-target action: 19 body dimensions plus 21 per Shadow Hand.",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E12"
+      ]
+    },
+    {
+      "name": "action_range",
+      "value": [
+        -1,
+        1
+      ],
+      "units": "normalized action",
+      "context": "Reported normalized action interval for every action coordinate.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "control_frequency",
+      "value": 50,
+      "units": "Hz",
+      "context": "Position-control frequency in the reported benchmark; torque control is supported but not used for the paper results.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "body_degrees_of_freedom",
+      "value": 25,
+      "units": "DoF",
+      "context": "Unitree H1 body including floating base.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "two_hand_degrees_of_freedom",
+      "value": 50,
+      "units": "DoF",
+      "context": "Two Shadow Hands in the primary robot configuration.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "task_horizon_range",
+      "value": [
+        500,
+        1000
+      ],
+      "units": "control steps",
+      "context": "Task-dependent episode limit across the benchmark.",
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "name": "simulation_timestep",
+      "value": 0.002,
+      "units": "seconds",
+      "context": "MuJoCo physics timestep used for the simulator-performance report.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "default_cpu_simulation_throughput",
+      "value": 1050,
+      "units": "frames per second",
+      "context": "Reported single-CPU throughput for the default full model.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "whole_body_tactile_taxels",
+      "value": 448,
+      "units": "taxels",
+      "context": "Each taxel provides three-dimensional contact-force readings; tactile inputs were not used by the reported policies.",
+      "evidence_ids": [
+        "E03",
+        "E11"
+      ]
+    },
+    {
+      "name": "flat_baseline_algorithms",
+      "value": [
+        "DreamerV3",
+        "TD-MPC2",
+        "SAC",
+        "PPO"
+      ],
+      "units": null,
+      "context": "PPO is evaluated only on walk, kitchen, door, and package.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "reported_random_seed_count",
+      "value": 3,
+      "units": "random seeds",
+      "context": "Learning curves and return tables report mean and standard deviation over three seeds; seed identities are not stated in the paper.",
+      "evidence_ids": [
+        "E05",
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "name": "flat_training_wall_time",
+      "value": 48,
+      "units": "hours approximately",
+      "context": "Per algorithm/task run budget in the main text; throughput differences yield different environment-step counts.",
+      "evidence_ids": [
+        "E07",
+        "E18"
+      ]
+    },
+    {
+      "name": "flat_training_environment_steps",
+      "value": {
+        "DreamerV3": 10000000,
+        "TD-MPC2": 2000000,
+        "SAC": 10000000
+      },
+      "units": "environment steps",
+      "context": "Final budgets used in Appendix C-C; PPO has no corresponding full-suite budget because it runs only on a subset.",
+      "evidence_ids": [
+        "E07",
+        "E18"
+      ]
+    },
+    {
+      "name": "ppo_parallel_environment_count",
+      "value": 4,
+      "units": "environments",
+      "context": "Stable-Baselines3 flat PPO setup.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "dreamerv3_update_to_data_ratio",
+      "value": 64,
+      "units": "updates per data unit",
+      "context": "DreamerV3 medium configuration exception reported in Appendix C-A.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "td_mpc2_configuration",
+      "value": "5M",
+      "units": "model configuration",
+      "context": "Named TD-MPC2 configuration in Appendix C-A.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "hand_action_dimensions_fixed_in_ablation",
+      "value": 42,
+      "units": "action dimensions",
+      "context": "All hand actuators are fixed to zero.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "reduced_action_dimension",
+      "value": 19,
+      "units": "dimensions",
+      "context": "Body-only action in the blocked-hands ablation; observation remains 151-dimensional and hand mass remains.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "default_height_reward_parameters",
+      "value": {
+        "lower_bound": 1.65,
+        "upper_bound": "infinity",
+        "margin": 0.4125
+      },
+      "units": "meters",
+      "context": "Default arguments for the shared head-height tolerance.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "default_upright_reward_parameters",
+      "value": {
+        "lower_bound": 0.9,
+        "upper_bound": "infinity",
+        "margin": 1.9
+      },
+      "units": null,
+      "context": "Default arguments for the shared torso-upright tolerance.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "control_effort_tolerance_margin",
+      "value": 10,
+      "units": "actuation units",
+      "context": "Shared small-control term e averages a zero-centered tolerance over action components and scales it as 0.2 times four plus the mean.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "push_reward_coefficients",
+      "value": {
+        "success_bonus": 1000,
+        "goal_distance_penalty": -1,
+        "hand_distance_penalty": -0.1
+      },
+      "units": "reward per step",
+      "context": "Default push reward coefficients.",
+      "evidence_ids": [
+        "E14",
+        "E22"
+      ]
+    },
+    {
+      "name": "push_success_distance",
+      "value": 0.05,
+      "units": "meters",
+      "context": "Box-to-destination distance threshold for reward bonus, success signal, and episode termination.",
+      "evidence_ids": [
+        "E14",
+        "E22"
+      ]
+    },
+    {
+      "name": "push_episode_horizon",
+      "value": 500,
+      "units": "control steps",
+      "context": "Maximum push episode length.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "package_reward_coefficients",
+      "value": {
+        "goal_distance_penalty": -3,
+        "two_hand_distance_penalty": -0.1,
+        "stable_scale": 1,
+        "capped_height_scale": 1,
+        "success_bonus": 1000
+      },
+      "units": "reward per step",
+      "context": "Package reward combines dense distances, posture, capped object height, and terminal success bonus.",
+      "evidence_ids": [
+        "E15",
+        "E23"
+      ]
+    },
+    {
+      "name": "package_success_distance",
+      "value": 0.1,
+      "units": "meters",
+      "context": "Package-to-destination distance threshold for success bonus, success field, and termination.",
+      "evidence_ids": [
+        "E15",
+        "E23"
+      ]
+    },
+    {
+      "name": "package_episode_horizon",
+      "value": 1000,
+      "units": "control steps",
+      "context": "Maximum package episode length.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "kitchen_sparse_reward_maximum",
+      "value": 4,
+      "units": "completed subtasks",
+      "context": "The only purely discrete sparse benchmark reward; the reported flat baselines score zero.",
+      "evidence_ids": [
+        "E05",
+        "E15",
+        "E18"
+      ]
+    },
+    {
+      "name": "kitchen_episode_horizon",
+      "value": 500,
+      "units": "control steps",
+      "context": "Maximum kitchen episode length.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "one_hand_reaching_pretraining_steps",
+      "value": 2000000000,
+      "units": "environment steps",
+      "context": "Low-level PPO reaching-policy pretraining in simplified MuJoCo MJX.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "one_hand_reaching_pretraining_time",
+      "value": 36,
+      "units": "hours",
+      "context": "Reported one-hand low-level policy training time.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "two_hand_reaching_pretraining_steps",
+      "value": 4000000000,
+      "units": "environment steps",
+      "context": "Low-level PPO reaching-policy pretraining in simplified MuJoCo MJX.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "two_hand_reaching_pretraining_time",
+      "value": 60,
+      "units": "hours",
+      "context": "Reported two-hand low-level policy training time.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "reaching_pretraining_parallel_environments",
+      "value": 32768,
+      "units": "parallel environments",
+      "context": "Shared one-hand and two-hand MuJoCo MJX pretraining scale.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "reaching_pretraining_rollout_length",
+      "value": 16,
+      "units": "steps per environment",
+      "context": "PureJaxRL PPO exception reported in Appendix C-B.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "reaching_pretraining_entropy_coefficient",
+      "value": 0.001,
+      "units": null,
+      "context": "PureJaxRL PPO exception reported in Appendix C-B.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "selected_average_returns_at_final_budget",
+      "value": {
+        "walk": {
+          "DreamerV3": "800.2 +/- 158.7",
+          "TD-MPC2": "782.0 +/- 109.2",
+          "SAC": "31.7 +/- 24.0",
+          "target": 700
+        },
+        "push": {
+          "DreamerV3": "-1251.9 +/- 659.8",
+          "TD-MPC2": "-258.7 +/- 66.5",
+          "SAC": "-97.9 +/- 147.0",
+          "target": 700
+        },
+        "kitchen": {
+          "DreamerV3": "0.0 +/- 0.0",
+          "TD-MPC2": "0.0 +/- 0.0",
+          "SAC": "0.0 +/- 0.0",
+          "target": 4
+        },
+        "package": {
+          "DreamerV3": "-18015.2 +/- 9477.7",
+          "TD-MPC2": "-3655.6 +/- 1055.0",
+          "SAC": "-6718.3 +/- 607.0",
+          "target": 1500
+        }
+      },
+      "units": "episode reward return",
+      "context": "Selected Table V rows; DreamerV3 and SAC are at 10M steps, TD-MPC2 at 2M, with three-seed mean and standard deviation.",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "name": "flat_push_maximum_return",
+      "value": {
+        "DreamerV3": "1000.0 +/- 0.0",
+        "TD-MPC2": "1000.0 +/- 0.0",
+        "SAC": "352.8 +/- 31.5",
+        "target": 700
+      },
+      "units": "episode reward return",
+      "context": "Table VI maximum-return row; contrasted with the negative Table V average-return row.",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "name": "official_code_release",
+      "value": {
+        "tag": "v0.2.0",
+        "commit": "b917f7aa0890682e98ba5aa3f635fcd781d84936",
+        "package_version": "0.2",
+        "release_commit_date": "2024-07-01"
+      },
+      "units": null,
+      "context": "Immutable public implementation snapshot used for supplementary code evidence.",
+      "evidence_ids": [
+        "E20",
+        "E21"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "humanoidbench.failure.highbar_contact_hold",
+      "name": "Highbar contact-holding local behavior",
+      "description": "The H1 conservatively maintains bar contact to avoid termination but fails to execute the required whole-body rotation, despite a dense reward.",
+      "tags": [
+        "reported_failure",
+        "highbar",
+        "short_horizon",
+        "termination_avoidance"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.door_partial_completion",
+      "name": "Door latch without whole-body pull",
+      "description": "The policy turns the door hatch but does not learn the coordinated arm pull and backward body motion needed to open and traverse the door.",
+      "tags": [
+        "reported_failure",
+        "door",
+        "partial_completion",
+        "whole_body_coordination"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.hurdle_conservative_collision",
+      "name": "Hurdle collision instead of jumping",
+      "description": "The policy learns the requested forward velocity but adopts stable collision poses at the hurdle and does not explore the higher-reward jump.",
+      "tags": [
+        "reported_failure",
+        "hurdle",
+        "exploration",
+        "reward_exploitation"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.action_dimensionality",
+      "name": "Unused hand actions impede learning",
+      "description": "Adding 42 hand actions substantially lowers walk and push performance even where dexterous motion is unnecessary; fixing them to zero accelerates learning while observations and mass remain.",
+      "tags": [
+        "reported_failure",
+        "action_dimension",
+        "exploration_space",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.package_skill_support_gap",
+      "name": "Reaching prior does not cover lifting",
+      "description": "The hierarchical package policy gets closer to pickup but struggles to lift because the low-level reaching policy never experienced lifting during pretraining.",
+      "tags": [
+        "reported_failure",
+        "package",
+        "hierarchical_rl",
+        "skill_coverage"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.reward_metric_coupling",
+      "name": "Training reward is also the headline evaluator",
+      "description": "The reported episode return sums the same environment reward optimized during training, and the dashed success lines are qualitative. Therefore a changed task reward changes the headline metric itself unless an external evaluator is frozen; this final sentence is a harness implication, not an author claim.",
+      "tags": [
+        "evaluation_gap",
+        "reward_return",
+        "metric_coupling",
+        "harness_implication"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E07",
+        "E13"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.budget_non_equivalence",
+      "name": "Equal wall time produces unequal sample budgets",
+      "description": "Approximately 48 hours corresponds to 10M environment steps for DreamerV3 and SAC but 2M for TD-MPC2, so the reported cross-algorithm comparison is not matched by environment interactions.",
+      "tags": [
+        "evaluation_caveat",
+        "wall_time",
+        "sample_budget",
+        "algorithm_comparison"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E18"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.statistical_scope",
+      "name": "Three-seed descriptive statistics only",
+      "description": "Curves and tables use three seeds and standard deviations. The paper does not identify the seed values, report confidence intervals, or perform hypothesis tests.",
+      "tags": [
+        "evaluation_caveat",
+        "three_seeds",
+        "uncertainty",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.unmeasured_modalities",
+      "name": "Vision and tactile support are not benchmarked",
+      "description": "The environment implements two head cameras and whole-body tactile sensing, but the paper evaluates only privileged state observations and leaves multimodal evaluation to future work.",
+      "tags": [
+        "evidence_boundary",
+        "vision",
+        "tactile",
+        "state_only"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E11"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.simulation_fidelity",
+      "name": "Modified hand morphology and simulation-only evidence",
+      "description": "The authors remove the Shadow Hands' forearms and explicitly call the resulting morphology not currently realistic. The paper does not report hardware transfer or real-world benchmark performance.",
+      "tags": [
+        "evidence_boundary",
+        "simulation",
+        "morphology",
+        "no_sim_to_real"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E11"
+      ]
+    },
+    {
+      "id": "humanoidbench.failure.return_aggregation_wording",
+      "name": "Average-versus-maximum return wording ambiguity",
+      "description": "Appendix C-C says it reports mean and standard deviation of maximum episode returns, then captions Table V as average returns and Table VI as maximum returns. The table captions identify the two metrics most precisely.",
+      "tags": [
+        "source_ambiguity",
+        "average_return",
+        "maximum_return",
+        "reporting"
+      ],
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "humanoidbench.eval.task_suite",
+      "name": "Twenty-seven-task whole-body evaluation suite",
+      "description": "Twelve locomotion and fifteen manipulation task families span 500-1000 control-step horizons under a shared H1-plus-hands action interface and task-specific object observations, rewards, resets, and termination.",
+      "tags": [
+        "benchmark",
+        "27_tasks",
+        "locomotion",
+        "manipulation"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "id": "humanoidbench.eval.flat_baselines",
+      "name": "Flat DreamerV3, TD-MPC2, SAC, and PPO benchmark",
+      "description": "The paper reports three-seed learning curves for DreamerV3, TD-MPC2, and SAC on the suite and runs PPO on walk, kitchen, door, and package. Most final average-return rows remain below the qualitative task targets.",
+      "tags": [
+        "flat_policy",
+        "three_seeds",
+        "reward_return",
+        "baseline"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E07",
+        "E18"
+      ]
+    },
+    {
+      "id": "humanoidbench.eval.selected_return_results",
+      "name": "Selected final-budget average and maximum returns",
+      "description": "Table V reports final average return and Table VI maximum return. Walk is above target for DreamerV3 and TD-MPC2 in Table V; push has negative averages for all three flat baselines while DreamerV3 and TD-MPC2 each have a 1000 maximum; all kitchen rows are zero.",
+      "tags": [
+        "measured_result",
+        "average_return",
+        "maximum_return",
+        "target"
+      ],
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "id": "humanoidbench.eval.hand_action_ablation",
+      "name": "Full, no-hand, and blocked-hand action comparison",
+      "description": "On walk and push, the paper compares full hands, robot without hands, and a full robot whose 42 hand actuators are fixed. The blocked-hand action learns faster, isolating action dimensionality while retaining observation and hand mass.",
+      "tags": [
+        "ablation",
+        "action_space",
+        "walk",
+        "push"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "humanoidbench.eval.hierarchical_comparison",
+      "name": "Flat versus frozen-reaching hierarchy",
+      "description": "On push and package, the paper compares direct joint-action policies with high-level policies using separately pretrained one-hand or two-hand reaching controllers. Push improves strongly; package improves less and still fails to lift.",
+      "tags": [
+        "ablation",
+        "hierarchical_rl",
+        "push",
+        "package",
+        "controller_change"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "humanoidbench.eval.failure_trace_protocol",
+      "name": "Qualitative behavior-level failure inspection",
+      "description": "The paper names and illustrates highbar contact holding, door partial completion, and hurdle collision as distinct failure behaviors behind low reward.",
+      "tags": [
+        "qualitative_evaluation",
+        "failure_trace",
+        "behavior"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2403.10506",
+      "relation": "INTRODUCES",
+      "target": "benchmark:HumanoidBench_27_task_suite",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2403.10506",
+      "relation": "USES",
+      "target": "runtime:MuJoCo_Unitree_H1_two_Shadow_Hands",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "2403.10506",
+      "relation": "EVALUATES_ON",
+      "target": "suite:12_locomotion_15_manipulation_tasks",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "humanoidbench.flat_baseline_matrix",
+      "relation": "OPTIMIZES",
+      "target": "metric:episodic_environment_reward_return",
+      "evidence_ids": [
+        "E05",
+        "E07"
+      ]
+    },
+    {
+      "source": "humanoidbench.task_reward_suite",
+      "relation": "SUPPORTS",
+      "target": "metric:episodic_environment_reward_return",
+      "evidence_ids": [
+        "E05",
+        "E13"
+      ]
+    },
+    {
+      "source": "humanoidbench.return_target_reporting",
+      "relation": "REPORTS",
+      "target": "result:three_seed_average_and_maximum_return",
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "source": "humanoidbench.action_dimension_ablation",
+      "relation": "CONTRASTS_WITH",
+      "target": "contract:full_61D_joint_action",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "humanoidbench.hierarchical_setpoint_baseline",
+      "relation": "CONDITIONS_ON",
+      "target": "controller:frozen_MJX_reaching_policy",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "humanoidbench.hierarchical_setpoint_baseline",
+      "relation": "CONTRASTS_WITH",
+      "target": "controller:flat_61D_joint_policy",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "humanoidbench.versioned_code_release",
+      "relation": "SUPPORTS",
+      "target": "benchmark:HumanoidBench_v0.2.0",
+      "evidence_ids": [
+        "E20",
+        "E21"
+      ]
+    },
+    {
+      "source": "2403.10506",
+      "relation": "REPORTS",
+      "target": "failure:highbar_door_hurdle_behavior",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2403.10506",
+      "relation": "MOTIVATES",
+      "target": "concept:structured_priors_for_high_dimensional_humanoid_exploration",
+      "evidence_ids": [
+        "E07",
+        "E09"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2403.10506",
+      "locator": "arXiv record, submission history",
+      "claim": "The paper was submitted 2024-03-15 and last revised as v2 on 2024-06-18; v2 is the latest public arXiv version as verified 2026-08-30.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://www.roboticsproceedings.org/rss20/p061.html",
+      "locator": "Robotics: Science and Systems XX paper record",
+      "claim": "The work was published at RSS 2024 with DOI 10.15607/RSS.2024.XX.061.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S3",
+      "locator": "Section III, Simulated Humanoid Robot Environment",
+      "claim": "The primary benchmark uses MuJoCo, Unitree H1, and two modified Shadow Hands; supports state, two-camera vision, and 448-taxel tactile observations; benchmarks state input; and uses a 61-dimensional action at 50 Hz.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S3.T2",
+      "locator": "Table II, Humanoid robot specifications with and without hands",
+      "claim": "With two hands the robot-only observation is 151-dimensional, action is 61-dimensional, body DoF is 25, and two-hand DoF is 50; without hands observation/action are 51/19.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S3.F4",
+      "locator": "Figures 4 and 5 captions",
+      "claim": "Curves average three seeds with standard-deviation shading; episode return sums per-step reward; dashed lines qualitatively indicate success; kitchen is purely sparse with maximum four.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S4",
+      "locator": "Section IV and Sections IV-A-IV-B",
+      "claim": "HumanoidBench contains 27 task families: 12 locomotion and 15 whole-body manipulation tasks, with objectives enumerated by the paper.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S5",
+      "locator": "Sections V-A and V-B, Baselines and Results",
+      "claim": "The paper evaluates DreamerV3, TD-MPC2, SAC, and a four-task PPO subset for approximately 48 hours; different algorithms reach different step counts; most remain below qualitative success targets, especially on long-horizon manipulation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S5.SS3",
+      "locator": "Section V-C, With Hands vs. Alternative Configurations",
+      "claim": "Fixing 42 hand-action dimensions reduces action size from 61 to 19 while retaining 151-dimensional observation and hand mass, and learns faster on walk with a similar push trend.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S5.SS4",
+      "locator": "Section V-D, Flat vs. Hierarchical Reinforcement Learning",
+      "claim": "Push and package use frozen one-hand/two-hand reaching policies beneath a high-level policy; low-level pretraining uses simplified feet-only collision models, no hands, link perturbations, 32,768 environments, 2B/4B steps and 36/60 hours; push improves strongly while package still struggles to lift.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S5.SS5",
+      "locator": "Section V-E, Common Failures",
+      "claim": "The paper reports highbar contact holding without rotation, door latch actuation without coordinated pulling, and hurdle collision without jumping.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2403.10506v2#S6",
+      "locator": "Section VI, Conclusion and Future Work",
+      "claim": "The experiments cover state-based environments only; multimodal evaluation, more realistic assets, and sim-to-real study are future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A2",
+      "locator": "Appendix B-A-B-C, Observation Space, Action Space, Simulation Performance",
+      "claim": "The appendix specifies 151 robot-state dimensions, normalized 61-dimensional position actions, 0.002-second simulation timestep, 1050 FPS default throughput, and task-dependent environment-state additions.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A2.SS5",
+      "locator": "Appendix B-E, Task Specification shared definitions",
+      "claim": "Shared reward primitives define the tolerance function, default head-height and upright parameters, small-control term, and stable standing product used across task rewards.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A2.SS5.SSS13",
+      "locator": "Appendix B-E13, push",
+      "claim": "Push uses a 1000 success bonus at box-goal distance below 0.05, unit goal-distance penalty, 0.1 hand-distance penalty, 500-step horizon, and termination on success.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A2.SS5",
+      "locator": "Appendix B-E23-B-E24, kitchen and package",
+      "claim": "Kitchen rewards completed subtasks over 500 steps; package combines exact distance, posture, height, and 1000 success terms, terminates below 0.1 goal distance, and has a 1000-step horizon.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A3.SS1",
+      "locator": "Appendix C-A, Baseline Implementation Details",
+      "claim": "Flat baselines use JaxRL Minimal SAC, Stable-Baselines3 PPO with four environments, DreamerV3 medium with UTD 64, and TD-MPC2 5M, otherwise named-code defaults.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A3.SS2",
+      "locator": "Appendix C-B, Reaching Policy Implementation Details",
+      "claim": "Low-level reaching uses PureJaxRL PPO defaults except the environment count, 16 steps per environment, and entropy coefficient 0.001.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A3.T5",
+      "locator": "Appendix C-C, Table V, Average returns",
+      "claim": "Table V reports exact average return at 10M DreamerV3/SAC or 2M TD-MPC2 steps with standard deviation and task target across 31 named task variants.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2403.10506v2#A3.T6",
+      "locator": "Appendix C-C, Table VI, Maximum returns",
+      "claim": "Table VI reports maximum returns; the push row is 1000.0 +/- 0.0 for DreamerV3 and TD-MPC2 and 352.8 +/- 31.5 for SAC against target 700.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/carlosferrazza/humanoid-bench/tree/b917f7aa0890682e98ba5aa3f635fcd781d84936",
+      "locator": "Official code release v0.2.0, commit b917f7aa0890682e98ba5aa3f635fcd781d84936",
+      "claim": "The pinned official repository contains benchmark environments, DreamerV3/TD-MPC2/SAC/PPO adapters, pretrained reaching-policy data, paper logs, and run commands.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/carlosferrazza/humanoid-bench/blob/b917f7aa0890682e98ba5aa3f635fcd781d84936/setup.py",
+      "locator": "setup.py at official commit b917f7a",
+      "claim": "The pinned release identifies package version 0.2 and exact core dependencies, including MuJoCo and MuJoCo MJX 3.1.6.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/carlosferrazza/humanoid-bench/blob/b917f7aa0890682e98ba5aa3f635fcd781d84936/humanoid_bench/envs/push.py#L76-L103",
+      "locator": "push.py lines 76-103 at official commit b917f7a",
+      "claim": "The pinned push implementation computes the documented reward and exposes a success field from the same 0.05-meter terminal predicate used by its reward bonus and termination.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/carlosferrazza/humanoid-bench/blob/b917f7aa0890682e98ba5aa3f635fcd781d84936/humanoid_bench/envs/package.py#L91-L154",
+      "locator": "package.py lines 91-154 at official commit b917f7a",
+      "claim": "The pinned package implementation computes the documented reward and exposes a success field from the same 0.1-meter terminal predicate used by its reward bonus and termination.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

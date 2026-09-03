@@ -1,0 +1,1019 @@
+{
+  "paper": {
+    "id": "2306.08647",
+    "arxiv_id": "2306.08647",
+    "doi": null,
+    "title": "Language to Rewards for Robotic Skill Synthesis",
+    "authors": [
+      "Wenhao Yu",
+      "Nimrod Gileadi",
+      "Chuyuan Fu",
+      "Sean Kirmani",
+      "Kuang-Huei Lee",
+      "Montserrat Gonzalez Arenas",
+      "Hao-Tien Lewis Chiang",
+      "Tom Erez",
+      "Leonard Hasenclever",
+      "Jan Humplik",
+      "Brian Ichter",
+      "Ted Xiao",
+      "Peng Xu",
+      "Andy Zeng",
+      "Tingnan Zhang",
+      "Nicolas Heess",
+      "Dorsa Sadigh",
+      "Jie Tan",
+      "Yuval Tassa",
+      "Fei Xia"
+    ],
+    "year": 2023,
+    "primary_url": "https://proceedings.mlr.press/v229/yu23a.html",
+    "source_version": "CoRL 2023 final, PMLR 229:374-404; PDF SHA-256 5088126171bc422d33b6cccd0169e371db11ecce79ff6355b22d81a9b095dbae; arXiv:2306.08647v2"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper gives a source-located language-to-executable-reward interface, a two-stage structured compiler, repeated candidate evaluation, and multi-turn language correction while treating the downstream robot optimizer as fixed within each embodiment. These mechanisms directly inform Sam's task-reward and steering contracts.",
+    "not_evidence_for": [
+      "Reference-dataset composition, oracle synthesis, mode transitions, or OGMP behavior",
+      "Improved learned-policy training under PPO, SONIC, VIBE, or any other fixed RL trainer",
+      "Free-form reward-program synthesis beyond a predefined residual/API vocabulary",
+      "A reward-only causal effect across embodiments with identical scene, observations, actions, dynamics, and controller",
+      "Quantified real-world reliability, safety, calibration, or hardware success rate",
+      "A complete public reproduction of the manipulator, real-robot, or moonwalk results",
+      "Safe execution of model-generated Python"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "l2r2023.language_reward_interface",
+      "name": "Language-to-reward interface",
+      "description": "Human instructions and corrections are translated into reward parameters and weights rather than directly into low-level actions or a sequence of fixed skills.",
+      "tags": [
+        "task_reward",
+        "human_steering",
+        "language_interface"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E03",
+        "E10"
+      ]
+    },
+    {
+      "id": "l2r2023.motion_descriptor",
+      "name": "Structured Motion Descriptor",
+      "description": "A first GPT-4 call expands a potentially vague instruction into a morphology-specific natural-language template with typed choices, numeric slots, and optional fields.",
+      "tags": [
+        "human_steering",
+        "structured_intermediate",
+        "prompt_compiler"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "id": "l2r2023.reward_coder",
+      "name": "Constrained Reward Coder",
+      "description": "A second GPT-4 call maps the structured motion description to Python calls from a predefined reward API; the prompt supplies API documentation, one response-format example, and rules.",
+      "tags": [
+        "task_reward",
+        "code_generation",
+        "bounded_api"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "id": "l2r2023.parameterized_residual_reward",
+      "name": "Parameterized residual reward",
+      "description": "The controller objective is a negative weighted sum of normalized residuals. The residual library and norms are predefined; the LLM composes terms and changes parameters and weights, including zeroing a term.",
+      "tags": [
+        "task_reward",
+        "reward_composition",
+        "residual_cost"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E14"
+      ]
+    },
+    {
+      "id": "l2r2023.mjpc_motion_controller",
+      "name": "Fixed MJPC motion controller",
+      "description": "At each control step, MuJoCo MPC optimizes an action sequence for the current generated reward, executes the current action, observes the next state, and replans; iLQG is used for locomotion and Predictive Sampling for manipulation.",
+      "tags": [
+        "fixed_trainer",
+        "model_predictive_control",
+        "receding_horizon"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "l2r2023.interactive_language_revision",
+      "name": "Interactive language revision",
+      "description": "Users observe synthesized motion and issue natural-language corrections or follow-on commands; the upstream translator revises the reward specification while the low-level optimizer remains the execution backend.",
+      "tags": [
+        "human_steering",
+        "closed_loop",
+        "iterative_reward_design"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "l2r2023.repeated_candidate_evaluation",
+      "name": "Repeated candidate evaluation",
+      "description": "For every task and method, ten generated responses are each evaluated in MJPC fifty times; success and best-of-N pass-rate curves separate code-generation variability from controller variability.",
+      "tags": [
+        "evaluation",
+        "candidate_sampling",
+        "repeated_trials"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E15"
+      ]
+    },
+    {
+      "id": "l2r2023.real_robot_regularization",
+      "name": "Hardware-specific steady-motion regularizer",
+      "description": "The real-manipulator version adds a hand-designed residual that penalizes high end-effector and joint speed, fast object motion, gripper/object speed mismatch, and inappropriate gripper state because unconstrained simulated MPC found motions beyond the hardware.",
+      "tags": [
+        "task_reward",
+        "sim_to_real",
+        "hardware_boundary"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "id": "l2r2023.public_barkour_release",
+      "name": "Pinned Barkour-only public release",
+      "description": "At commit 4a3a20f, package version 0.0.1 exposes one Barkour task configuration, two-stage/direct/low-level prompt variants, and an MJPC parameter bridge; it is not a release of every embodiment reported in the paper.",
+      "tags": [
+        "official_code",
+        "partial_release",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E16",
+        "E17",
+        "E18",
+        "E19",
+        "E21",
+        "E22"
+      ]
+    },
+    {
+      "id": "l2r2023.release_code_execution",
+      "name": "Confirmed local execution of generated code",
+      "description": "The public macOS fallback warns that code is untrusted, asks the user to confirm, compiles it, and runs it with the local interpreter; output parameters are subsequently key-filtered and float-cast, but confirmation does not sandbox the code itself.",
+      "tags": [
+        "official_code",
+        "security_boundary",
+        "generated_code"
+      ],
+      "evidence_ids": [
+        "E21",
+        "E22",
+        "E23"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_artifact",
+      "value": {
+        "venue": "Proceedings of the 7th Conference on Robot Learning",
+        "pmlr_volume": 229,
+        "pages": "374-404",
+        "arxiv_version": "2306.08647v2",
+        "pdf_sha256": "5088126171bc422d33b6cccd0169e371db11ecce79ff6355b22d81a9b095dbae"
+      },
+      "units": null,
+      "context": "Exact final paper bytes and bibliographic version reviewed.",
+      "evidence_ids": [
+        "E01"
+      ]
+    },
+    {
+      "name": "official_code_artifact",
+      "value": {
+        "repository": "google-deepmind/language_to_reward_2023",
+        "commit": "4a3a20f9c8705e3a3ded4d218d9c129303d9682e",
+        "commit_date": "2024-08-14T13:54:49+01:00",
+        "package_version": "0.0.1",
+        "pinned_on": "2026-08-30"
+      },
+      "units": null,
+      "context": "Exact public code revision inspected; release behavior is kept separate from paper claims.",
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "name": "reward_equation",
+      "value": "R(s,a) = -sum_{i=0}^M w_i * n_i(r_i(s,a,psi_i))",
+      "units": null,
+      "context": "w_i is non-negative; n_i is twice differentiable, non-negative, and minimized at zero; residual r_i is optimal at zero.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "translator_stages",
+      "value": [
+        "Motion Descriptor",
+        "Reward Coder"
+      ],
+      "units": "stages",
+      "context": "Sequential language-to-structured-description-to-code pipeline.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "reward_coder_prompt_components",
+      "value": 3,
+      "units": "components",
+      "context": "Reward API descriptions, one example response format, and constraints/rules.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "reported_llm",
+      "value": "GPT-4",
+      "units": null,
+      "context": "Underlying LLM in all paper experiments; no immutable model snapshot is specified.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "simulated_task_categories",
+      "value": {
+        "total": 17,
+        "quadruped": 9,
+        "dexterous_manipulator": 8
+      },
+      "units": "task categories",
+      "context": "Reported evaluation suite.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "generated_responses_per_task_method",
+      "value": 10,
+      "units": "responses",
+      "context": "LLM samples evaluated for every task-method pair.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "mjpc_trials_per_generated_response",
+      "value": 50,
+      "units": "trials",
+      "context": "Repeated controller evaluations for each generated reward-code response.",
+      "evidence_ids": [
+        "E08",
+        "E15"
+      ]
+    },
+    {
+      "name": "task_categories_with_higher_success",
+      "value": "11/17",
+      "units": "task categories",
+      "context": "Paper comparison against alternative methods.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "reported_rounded_task_coverage",
+      "value": {
+        "language_to_rewards_percent": 90,
+        "code_as_policies_percent": 50
+      },
+      "units": "percent of designed tasks",
+      "context": "Rounded abstract claim; not an exact integer task count or confidence interval.",
+      "evidence_ids": [
+        "E01"
+      ]
+    },
+    {
+      "name": "robot_degrees_of_freedom",
+      "value": {
+        "quadruped": 12,
+        "dexterous_manipulator": 27,
+        "manipulator_arm": 7,
+        "shadow_hand": 20
+      },
+      "units": "degrees of freedom",
+      "context": "Simulated embodiments used in the task suite.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "planner_by_embodiment",
+      "value": {
+        "legged_locomotion": "iLQG",
+        "manipulation": "Predictive Sampling"
+      },
+      "units": null,
+      "context": "Planner choice is fixed by experiment class, not generated by the LLM.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "quadruped_prompt_bounds",
+      "value": {
+        "phase_offset": [
+          0,
+          1
+        ],
+        "air_ratio": [
+          0,
+          1
+        ]
+      },
+      "units": "normalized fraction",
+      "context": "Phase difference 0.5 denotes opposite position in the gait cycle.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "default_execute_plan_duration",
+      "value": 2,
+      "units": "seconds",
+      "context": "Default exposed by both paper reward-coder APIs.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "quadruped_default_residual_weights",
+      "value": {
+        "com_xy_position": 0.3,
+        "com_height": 1.0,
+        "base_yaw": 0.3,
+        "base_pitch": 0.6,
+        "base_roll": 0.1,
+        "forward_velocity": 0.1,
+        "sideways_velocity": 0.1,
+        "yaw_speed": 0.1,
+        "foot_local_x": 1,
+        "foot_local_y": 1,
+        "foot_local_z": 2
+      },
+      "units": "paper objective weights",
+      "context": "Foot-related terms are repeated for all four feet.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "manipulator_default_residual_weights",
+      "value": {
+        "object_pair_distance": 5,
+        "target_xy_labeled_row": 5,
+        "target_height_labeled_row": 10,
+        "target_orientation": null,
+        "joint_target": 10
+      },
+      "units": "paper objective weights",
+      "context": "The source table appears to swap XY and height formulas and does not print the orientation weight.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "real_robot_regularizer_thresholds",
+      "value": {
+        "end_effector_speed": 0.3,
+        "joint_speed": 0.7,
+        "end_effector_object_distance": 0.1
+      },
+      "units": "mixed SI units as defined by source residual",
+      "context": "Hardware-specific steady-motion residual; velocity coefficients and gripper logic are also hand-designed.",
+      "evidence_ids": [
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "name": "public_release_llm_call",
+      "value": {
+        "model_alias": "gpt-4",
+        "temperature": 0.3,
+        "retry_if_contains": [
+          "CHOICE",
+          "NUM"
+        ],
+        "motion_descriptor_history": true,
+        "reward_coder_history": false
+      },
+      "units": null,
+      "context": "Pinned public-code behavior, not a frozen API/model snapshot and not necessarily the exact service implementation used for every paper result.",
+      "evidence_ids": [
+        "E20",
+        "E21",
+        "E24"
+      ]
+    },
+    {
+      "name": "public_release_mjpc_dependency",
+      "value": "c5c7ead065b7f4034ab265a13023231900dbfaa7",
+      "units": "git commit",
+      "context": "MJPC revision recommended by the release README.",
+      "evidence_ids": [
+        "E18"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "l2r2023.failure.manual_morphology_templates",
+      "name": "Manual morphology templates",
+      "description": "Each robot morphology requires a manually designed structured description template, limiting plug-and-play transfer.",
+      "tags": [
+        "scalability",
+        "manual_design"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.language_expressivity",
+      "name": "Language-only expressivity limit",
+      "description": "Tasks with hard-to-verbalize style targets such as walking gracefully are difficult to specify through the paper's interaction channel.",
+      "tags": [
+        "human_steering",
+        "underspecification"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.bounded_reward_vocabulary",
+      "name": "Bounded reward vocabulary",
+      "description": "Predefined residuals improve translation stability but sacrifice flexibility; the reported system cannot express time-varying rewards without redesigning its prompt and API.",
+      "tags": [
+        "task_reward",
+        "expressivity",
+        "time_varying_reward"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.controller_variance",
+      "name": "Controller variance despite a correct reward",
+      "description": "Dynamic or precise tasks, including biped standing and upright banana, show higher MJPC outcome variance even when the generated reward is judged correct.",
+      "tags": [
+        "evaluation",
+        "controller",
+        "stochasticity"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.manipulator_table_ambiguity",
+      "name": "Manipulator reward-table ambiguity",
+      "description": "The final paper's manipulator table appears to pair the target-XY label with a z residual and the target-height label with an xy residual, and it omits the orientation term's default weight.",
+      "tags": [
+        "reproducibility",
+        "paper_ambiguity"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.release_model_mismatch",
+      "name": "Published/released robot-model mismatch",
+      "description": "The paper's moonwalk used an older MuJoCo model with unrealistically strong actuators; the official README says moonwalking is impossible in the released model.",
+      "tags": [
+        "reproducibility",
+        "simulator_model",
+        "hardware_realism"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.partial_mutable_release",
+      "name": "Partial and mutable release",
+      "description": "The pinned code exposes only Barkour; the `gpt-4` service alias and `openai` Python dependency are not content-addressed, so the release does not pin the exact language-model behavior or reproduce the full paper suite.",
+      "tags": [
+        "official_code",
+        "reproducibility",
+        "dependency_pin"
+      ],
+      "evidence_ids": [
+        "E17",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.untrusted_local_execution",
+      "name": "Untrusted local code execution",
+      "description": "The macOS fallback obtains confirmation and then runs model-generated Python with the local interpreter. Later JSON key filtering protects MJPC parameter installation but does not prevent arbitrary actions during code execution.",
+      "tags": [
+        "security",
+        "generated_code",
+        "macos"
+      ],
+      "evidence_ids": [
+        "E21",
+        "E22",
+        "E23"
+      ]
+    },
+    {
+      "id": "l2r2023.failure.evaluation_uncertainty_gap",
+      "name": "Evaluation uncertainty gap",
+      "description": "The paper reports repeated rollouts and pass-rate curves but not confidence intervals, hypothesis tests, an immutable evaluator artifact, or a quantified multi-task hardware reliability study.",
+      "tags": [
+        "evaluation",
+        "uncertainty",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E11"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "l2r2023.eval.simulated_task_suite",
+      "name": "Seventeen-category simulated suite",
+      "description": "Nine quadruped categories and eight dexterous-manipulator categories cover semantic heading, poses, limbs, locomotion styles, object interaction, reorientation, and articulated objects, with expected behavior listed separately.",
+      "tags": [
+        "evaluation",
+        "simulation",
+        "task_suite"
+      ],
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "id": "l2r2023.eval.pipeline_repetition",
+      "name": "Ten-by-fifty end-to-end repetition",
+      "description": "Each task-method pair receives ten LLM outputs; every output is evaluated in MJPC fifty times, exposing both reward-generation and controller variability.",
+      "tags": [
+        "evaluation",
+        "repeated_trials",
+        "stability"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E15"
+      ]
+    },
+    {
+      "id": "l2r2023.eval.baseline_comparison",
+      "name": "Structured translator ablation and primitive-policy baseline",
+      "description": "The full two-stage system is compared with direct Reward Coder output and Code-as-Policies using three hand-designed primitive skills per embodiment.",
+      "tags": [
+        "evaluation",
+        "ablation",
+        "baseline"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E08"
+      ]
+    },
+    {
+      "id": "l2r2023.eval.pass_rate",
+      "name": "Best-of-N task pass rate",
+      "description": "The fraction of tasks solved when the system may generate N pieces of code and select the best one is used to summarize candidate stability and asymptotic task coverage.",
+      "tags": [
+        "evaluation",
+        "pass_at_k",
+        "candidate_selection"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "l2r2023.eval.real_manipulator",
+      "name": "Two-task real-manipulator demonstration",
+      "description": "The system demonstrates object pushing and grasping using perception-derived object state, an AprilTag table frame, and a hardware-specific regularizer; no aggregate hardware success rate is reported.",
+      "tags": [
+        "evaluation",
+        "real_robot",
+        "demonstration"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "l2r2023.eval.multi_turn_steering",
+      "name": "Two multi-turn steering demonstrations",
+      "description": "Four language turns shape a quadruped moonwalk and four turns sequence an apple-in-drawer behavior; the examples establish interface feasibility but not user-level reliability.",
+      "tags": [
+        "evaluation",
+        "human_steering",
+        "qualitative"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2306.08647",
+      "relation": "INTRODUCES",
+      "target": "l2r2023.language_reward_interface",
+      "evidence_ids": [
+        "E02",
+        "E03"
+      ]
+    },
+    {
+      "source": "paper:2306.08647",
+      "relation": "INTRODUCES",
+      "target": "l2r2023.motion_descriptor",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "paper:2306.08647",
+      "relation": "INTRODUCES",
+      "target": "l2r2023.reward_coder",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "l2r2023.language_reward_interface",
+      "relation": "COMPOSES",
+      "target": "l2r2023.motion_descriptor",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "l2r2023.language_reward_interface",
+      "relation": "COMPOSES",
+      "target": "l2r2023.reward_coder",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "l2r2023.reward_coder",
+      "relation": "USES",
+      "target": "l2r2023.parameterized_residual_reward",
+      "evidence_ids": [
+        "E02",
+        "E03",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "source": "l2r2023.mjpc_motion_controller",
+      "relation": "OPTIMIZES",
+      "target": "l2r2023.parameterized_residual_reward",
+      "evidence_ids": [
+        "E02",
+        "E04"
+      ]
+    },
+    {
+      "source": "l2r2023.interactive_language_revision",
+      "relation": "CONDITIONS_ON",
+      "target": "observed_robot_behavior",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "l2r2023.interactive_language_revision",
+      "relation": "SUPPORTS",
+      "target": "l2r2023.language_reward_interface",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "paper:2306.08647",
+      "relation": "EVALUATES_ON",
+      "target": "l2r2023.eval.simulated_task_suite",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "paper:2306.08647",
+      "relation": "REPORTS",
+      "target": "l2r2023.eval.pipeline_repetition",
+      "evidence_ids": [
+        "E08",
+        "E15"
+      ]
+    },
+    {
+      "source": "paper:2306.08647",
+      "relation": "REPORTS",
+      "target": "l2r2023.eval.pass_rate",
+      "evidence_ids": [
+        "E01",
+        "E09"
+      ]
+    },
+    {
+      "source": "l2r2023.eval.baseline_comparison",
+      "relation": "CONTRASTS_WITH",
+      "target": "code_as_policies_fixed_primitives",
+      "evidence_ids": [
+        "E06",
+        "E08"
+      ]
+    },
+    {
+      "source": "l2r2023.eval.baseline_comparison",
+      "relation": "CONTRASTS_WITH",
+      "target": "direct_instruction_to_reward_code",
+      "evidence_ids": [
+        "E06",
+        "E08"
+      ]
+    },
+    {
+      "source": "l2r2023.real_robot_regularization",
+      "relation": "ADDRESSES",
+      "target": "simulated_motion_beyond_hardware_capability",
+      "evidence_ids": [
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "source": "l2r2023.public_barkour_release",
+      "relation": "SUPPORTS",
+      "target": "l2r2023.motion_descriptor",
+      "evidence_ids": [
+        "E19",
+        "E20",
+        "E21"
+      ]
+    },
+    {
+      "source": "l2r2023.public_barkour_release",
+      "relation": "SUPPORTS",
+      "target": "l2r2023.reward_coder",
+      "evidence_ids": [
+        "E19",
+        "E21",
+        "E22"
+      ]
+    },
+    {
+      "source": "l2r2023.public_barkour_release",
+      "relation": "CONTRASTS_WITH",
+      "target": "l2r2023.failure.release_model_mismatch",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "source": "l2r2023.release_code_execution",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.typed_reward_manifest_compiler",
+      "evidence_ids": [
+        "E21",
+        "E22",
+        "E23"
+      ]
+    },
+    {
+      "source": "l2r2023.language_reward_interface",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.human_correction_to_reward_diff",
+      "evidence_ids": [
+        "E03",
+        "E10"
+      ]
+    },
+    {
+      "source": "l2r2023.repeated_candidate_evaluation",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.fixed_evaluator_candidate_matrix",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E15"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a.html",
+      "locator": "PMLR bibliographic record and abstract",
+      "claim": "The final paper appears in PMLR volume 229, pages 374-404, and reports rounded task coverage of 90% for Language to Rewards versus 50% for Code-as-Policies.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 3.1, Equation 2, PDF page 3",
+      "claim": "The reward is a negative weighted sum of predefined residual terms under non-negative weights and differentiable norms; LLMs modulate parameters and weights.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 3.2 and Figure 2, PDF pages 3-5",
+      "claim": "The translator is decomposed into a structured Motion Descriptor and a Reward Coder whose prompt contains API descriptions, an example response, and constraints.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 3.3, PDF page 5",
+      "claim": "MJPC replans actions in a receding-horizon loop; the paper uses iLQG for locomotion and Predictive Sampling for manipulation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.1 and Figure 3, PDF page 5",
+      "claim": "All experiments use GPT-4; the simulated robots are a 12-DoF quadruped and a 27-DoF manipulator comprising a 7-DoF arm and 20-DoF hand.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.2 and Appendix A.3, PDF pages 5 and 14",
+      "claim": "Baselines are Reward Coder without Motion Descriptor and Code-as-Policies with three hand-designed primitive skills per embodiment.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.3 and Appendix A.2, PDF pages 5 and 13-14",
+      "claim": "The suite has nine quadruped and eight manipulator task categories; Appendix A.2 lists instructions and expected behavior, including explicit thresholds for several manipulation tasks.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.4, PDF pages 6-7",
+      "claim": "Each task-method pair uses ten generated responses and fifty MJPC evaluations per response; the full method has higher success in 11 of 17 categories, while a direct coder often omits enabling subgoals such as reaching the drawer handle.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.4 and Figure 4, PDF pages 6-7",
+      "claim": "Best-of-N pass-rate curves are used to describe task coverage and stability as more generated reward programs are available.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.5 and Figure 5, PDF page 7",
+      "claim": "Two four-turn examples revise a moonwalk and sequence an apple-in-drawer task through language feedback.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 4.7 and Figure 7, PDF page 8",
+      "claim": "The real-robot system uses F-VLM, point-cloud state estimation, an AprilTag table frame, and a hardware-specific regularizer; pushing and grasping are demonstrated.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Section 5, Limitations and Future Work, PDF page 8",
+      "claim": "Limitations include manually designed morphology templates, hard-to-verbalize tasks, a predefined reward vocabulary, and lack of time-varying rewards.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Appendix A.4, PDF pages 15-20",
+      "claim": "Full prompts expose morphology-specific templates, API signatures, phase and air-ratio bounds, code constraints, and a two-second default plan duration.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Appendices A.5-A.6, Tables 1-2, PDF pages 20-21",
+      "claim": "The appendix gives residual libraries and default weights; the manipulator table has an apparent XY/height label-formula mismatch and no printed orientation weight, and the real-robot residual supplies explicit thresholds.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://proceedings.mlr.press/v229/yu23a/yu23a.pdf",
+      "locator": "Appendix A.7, PDF pages 21-23",
+      "claim": "Fifty trials are reported per generated reward; dynamic or precise tasks such as biped standing and upright banana have higher controller variance.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/commit/4a3a20f9c8705e3a3ded4d218d9c129303d9682e",
+      "locator": "Exact official repository commit, committed 2024-08-14 and pinned 2026-08-30",
+      "claim": "The inspected official-code artifact is commit 4a3a20f9c8705e3a3ded4d218d9c129303d9682e.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/pyproject.toml#L5-L37",
+      "locator": "pyproject.toml lines 5-37 at pinned commit",
+      "claim": "The package version is 0.0.1 and its project dependencies include an unversioned OpenAI Python package.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/README.md#L15-L47",
+      "locator": "README lines 15-47 at pinned commit",
+      "claim": "The README pins MJPC commit c5c7ead065b7f4034ab265a13023231900dbfaa7 and states that the released robot model cannot reproduce the paper's moonwalk because the paper used unrealistically strong actuators.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/task_configs.py#L28-L43",
+      "locator": "task_configs.py lines 28-43 at pinned commit",
+      "claim": "The public task registry contains only Barkour and three prompt modes: thinker-coder, coder-only, and low-level.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/user_interaction.py#L31-L38",
+      "locator": "user_interaction.py lines 31-38 at pinned commit",
+      "claim": "The release selects the mutable gpt-4 model alias.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/platforms/barkour/prompts/prompt_thinker_coder.py#L142-L195",
+      "locator": "prompt_thinker_coder.py lines 142-195 and process_code.py lines 29-47 at pinned commit",
+      "claim": "The release performs two sequential LLM calls, extracts model-produced Python, executes it through a parameter bridge, and installs the resulting MJPC task parameters and weights.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/platforms/barkour/barkour_execution.py#L29-L136",
+      "locator": "barkour_execution.py lines 29-136 at pinned commit",
+      "claim": "Generated code is inserted into a Python template; emitted JSON parameters are applied only for known keys and are cast to float.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/confirmation_safe_executor.py#L16-L114",
+      "locator": "confirmation_safe_executor.py lines 16-114 at pinned commit",
+      "claim": "The macOS fallback explicitly warns that code is untrusted, asks for confirmation, then compiles and executes it with the local Python interpreter rather than a sandbox.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E24",
+      "source_url": "https://github.com/google-deepmind/language_to_reward_2023/blob/4a3a20f9c8705e3a3ded4d218d9c129303d9682e/src/language_to_reward_2023/conversation.py#L27-L48",
+      "locator": "conversation.py lines 27-48 at pinned commit",
+      "claim": "The release uses temperature 0.3 and retries outputs that still contain the CHOICE or NUM template placeholders.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

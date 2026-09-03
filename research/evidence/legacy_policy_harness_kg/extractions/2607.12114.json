@@ -1,0 +1,745 @@
+{
+  "paper": {
+    "id": "2607.12114",
+    "arxiv_id": "2607.12114",
+    "doi": "10.48550/arXiv.2607.12114",
+    "title": "GaitSpan: Growing Humanoid Locomotion from Walking to Running",
+    "authors": [
+      "Kwan-Yee Lin",
+      "Zilin Wang",
+      "Janelle J. Liu",
+      "Stella X. Yu"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2607.12114v1",
+    "source_version": "arXiv v1, submitted 2026-07-13; official project page checked 2026-08-30"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It supplies an executable event-level reward family for dynamic locomotion and a soft composition mechanism worth translating into an oracle hypothesis, while its ablations expose why controller-changing and reward-changing interventions must be separated.",
+    "not_evidence_for": [
+      "A reward-only or oracle-only gain under Sam's fixed trainer",
+      "An external reference-dataset oracle or OGMP state machine",
+      "A recursive agentic harness or continual reseeding loop",
+      "A causal benefit from H-SLIP alone across the full command range",
+      "Quantitative real-world reliability",
+      "Compatibility with an arbitrary foundation controller that lacks the required phase and seed-policy interfaces"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "gaitspan.seed_residual_expansion",
+      "name": "Frozen-seed residual expansion",
+      "description": "A frozen walking policy generates structured base actions; a trainable residual adds state- and command-dependent corrections before joint-target clipping.",
+      "tags": [
+        "frozen_seed",
+        "residual_policy",
+        "whole_body_control",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "id": "gaitspan.gaitwave",
+      "name": "GaitWave hierarchical rhythm composition",
+      "description": "The same frozen seed is queried under multiple sinusoidal phase scales, and a command-conditioned 2/4/8-bin memory softly composes the resulting action waves.",
+      "tags": [
+        "rhythm",
+        "phase_scaling",
+        "soft_composition",
+        "reference_composition_hypothesis"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E8"
+      ]
+    },
+    {
+      "id": "gaitspan.h_slip",
+      "name": "H-SLIP dynamic-stride reward",
+      "description": "Three virtual-leg levels reward contact-conditioned compression and rebound, controlled touchdown, and flight, with rebound gated by command tracking and an added stance-slip penalty.",
+      "tags": [
+        "task_reward",
+        "contact",
+        "slip",
+        "flight",
+        "virtual_leg"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "id": "gaitspan.self_anchored_regularization",
+      "name": "Self-anchored expansion regularization",
+      "description": "Low-speed seed anchoring, residual compactness, phase-bin self-similarity, and temporal action consistency preserve walking structure while new gaits are learned.",
+      "tags": [
+        "regularization",
+        "skill_retention",
+        "phase",
+        "out_of_scope"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E10"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "phase_scales",
+      "value": [
+        1,
+        1.25,
+        1.5,
+        2
+      ],
+      "units": "phase multipliers",
+      "context": "Canonical GaitWave seed-policy queries.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "anchor_coefficient_target",
+      "value": [
+        1,
+        0.25,
+        0.1,
+        0.05
+      ],
+      "units": null,
+      "context": "Regularization target corresponding to the four phase scales, stronger at low velocity.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "hierarchical_memory_resolutions",
+      "value": [
+        2,
+        4,
+        8
+      ],
+      "units": "bins",
+      "context": "Parallel command-speed resolutions.",
+      "evidence_ids": [
+        "E3",
+        "E8"
+      ]
+    },
+    {
+      "name": "softmax_temperature",
+      "value": 0.08,
+      "units": null,
+      "context": "Temperature-scaled command-conditioned blending.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "physics_rate",
+      "value": 200,
+      "units": "Hz",
+      "context": "Isaac Gym training.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "control_rate",
+      "value": 50,
+      "units": "Hz",
+      "context": "Policy/control cadence.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "parallel_environments",
+      "value": 4096,
+      "units": "environments",
+      "context": "Isaac Gym training.",
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "name": "episode_duration",
+      "value": 20,
+      "units": "s",
+      "context": "Training episode length.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "command_resampling_interval",
+      "value": 10,
+      "units": "s",
+      "context": "Training command duration.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "standing_command_probability",
+      "value": 0.2,
+      "units": "probability",
+      "context": "Training command sampler.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "high_speed_sampling_bias_schedule",
+      "value": {
+        "start_exponent": 1,
+        "end_exponent": 2.6,
+        "schedule_fraction": 0.95,
+        "concentrated_speed_mps": 2.2
+      },
+      "units": null,
+      "context": "Linear ramp over the first 95% of training.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "actor_critic_entropy_learning_rate",
+      "value": 0.0003,
+      "units": null,
+      "context": "FastSAC actor, critic, and entropy learning rates.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "fastsac_replay_and_updates",
+      "value": {
+        "buffer_size": 1024,
+        "batch_size": 8192,
+        "updates_per_step": 8,
+        "policy_update_interval_steps": 4
+      },
+      "units": null,
+      "context": "FastSAC optimization.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "fastsac_discount",
+      "value": 0.97,
+      "units": null,
+      "context": "Discount factor.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "fastsac_polyak_tau",
+      "value": 0.125,
+      "units": null,
+      "context": "Target-network Polyak coefficient.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "distributional_critic",
+      "value": {
+        "atoms": 101,
+        "support_min": -20,
+        "support_max": 20,
+        "hidden_sizes": [
+          512,
+          768
+        ],
+        "precision": "bf16"
+      },
+      "units": null,
+      "context": "FastSAC critic and network settings.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "selected_reward_weights",
+      "value": {
+        "linear_velocity_tracking": 3,
+        "angular_velocity_tracking": 0.15,
+        "feet_phase": 1.2,
+        "flight_time": 3.6,
+        "global_slip": 4.8,
+        "local_slip_upper": 3.6,
+        "local_slip_lower": 3.6
+      },
+      "units": "weight in per-step sum w_i * dt * r_i",
+      "context": "General reward table; negative posture and regularization terms are separately tabulated.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "robot_configurations",
+      "value": {
+        "booster_t1_dof": [
+          23,
+          29
+        ],
+        "booster_k1_dof": [
+          22
+        ],
+        "unitree_g1_dof": [
+          23,
+          29
+        ]
+      },
+      "units": "DoF",
+      "context": "Five configurations across three humanoid families.",
+      "evidence_ids": [
+        "E6",
+        "E12"
+      ]
+    },
+    {
+      "name": "training_iterations_by_robot",
+      "value": {
+        "booster_t1": 100000,
+        "booster_k1": 100000,
+        "unitree_g1": 50000
+      },
+      "units": "iterations",
+      "context": "Robot-specific training configurations.",
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "gaitspan.seed_coverage_limit",
+      "name": "Seed coverage bottleneck",
+      "description": "A weak or narrow walking seed constrains the behavior family that can emerge.",
+      "tags": [
+        "seed_quality",
+        "coverage",
+        "limitation"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "gaitspan.non_recursive_growth",
+      "name": "One-step growth only",
+      "description": "The study expands walking once into jogging/running-like behavior; it does not fold learned behavior back into a new seed or test closed-loop recursive growth.",
+      "tags": [
+        "continual_learning",
+        "recursion",
+        "limitation"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "gaitspan.component_imbalance",
+      "name": "Single-component imbalance",
+      "description": "GaitWave alone yields limited flight and weak extreme-speed expressiveness; H-SLIP alone produces flight but sharply degrades OOD command tracking.",
+      "tags": [
+        "ablation",
+        "tracking",
+        "flight",
+        "ood"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "gaitspan.composition_boundary_failures",
+      "name": "Coarse or hard composition failure",
+      "description": "A global coefficient predictor leaks high-speed deviations into walking, while hard command partitions cause abrupt boundary artifacts.",
+      "tags": [
+        "composition",
+        "mode_transition",
+        "boundary_artifact"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "gaitspan.skill_overwrite",
+      "name": "Fine-tuning overwrites stable walking",
+      "description": "Direct fine-tuning degrades low-speed behavior without reliably producing sustained high-speed flight; from-scratch variants fail to recover a coherent gait family.",
+      "tags": [
+        "catastrophic_forgetting",
+        "fine_tuning",
+        "training_from_scratch"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "gaitspan.under_specified_reward",
+      "name": "Under-specified H-SLIP implementation",
+      "description": "Equation 2 uses an undefined dynamic gate, while sigma_track, sigma_td, contact thresholds, and several internal event weights are not numerically specified in v1.",
+      "tags": [
+        "task_reward",
+        "reproducibility",
+        "missing_parameter"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "id": "gaitspan.evaluation_uncertainty_gap",
+      "name": "Evaluation uncertainty gap",
+      "description": "The paper reports curves and qualitative deployments but does not state evaluation rollout counts, independent training seeds, confidence intervals, or aggregate real-world success.",
+      "tags": [
+        "evaluation",
+        "uncertainty",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E7",
+        "E14"
+      ]
+    },
+    {
+      "id": "gaitspan.fixed_trainer_confound",
+      "name": "Bundled intervention outside the fixed trainer",
+      "description": "The reported system jointly changes policy architecture, seed queries, residual learning, objective terms, sampling, and regularization, so it does not estimate either of Sam's two knobs in isolation.",
+      "tags": [
+        "causal_confounding",
+        "fixed_trainer",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E8"
+      ]
+    },
+    {
+      "id": "gaitspan.code_unavailable",
+      "name": "Official code unavailable at extraction",
+      "description": "The official project page linked to LeCAR-Lab/GaitSpan, but that target returned 404 on 2026-08-30, preventing code-level verification.",
+      "tags": [
+        "official_code",
+        "reproducibility",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "gaitspan.sim_to_sim_five_configs",
+      "name": "Five-configuration Isaac Gym to MuJoCo evaluation",
+      "description": "Policies are trained in Isaac Gym and evaluated in MuJoCo on Booster T1 23/29 DoF, Booster K1 22 DoF, and Unitree G1 23/29 DoF.",
+      "tags": [
+        "sim_to_sim",
+        "isaac_gym",
+        "mujoco",
+        "multi_embodiment"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E12"
+      ]
+    },
+    {
+      "id": "gaitspan.metric_suite",
+      "name": "Tracking, flight, and energy metrics",
+      "description": "Tracking error compares commanded and executed base velocity, flight time measures no-foot-contact duration, and energy integrates joint torque-velocity products.",
+      "tags": [
+        "evaluation",
+        "velocity_tracking",
+        "flight_time",
+        "energy"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "gaitspan.baseline_comparison",
+      "name": "Seed, multi-expert, and human-demonstration baselines",
+      "description": "The study compares the frozen walking seed, energy-shaped multi-experts, and AMP human-motion priors over in-distribution and OOD commands.",
+      "tags": [
+        "baseline",
+        "multi_expert",
+        "amp",
+        "ood"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "gaitspan.factorized_ablations",
+      "name": "Component and skill-expansion ablations",
+      "description": "Ablations compare vanilla residual, GaitWave-only, H-SLIP-only, full GaitSpan, scratch variants, direct fine-tuning, and detailed composition/virtual-leg designs.",
+      "tags": [
+        "ablation",
+        "gaitwave",
+        "h_slip",
+        "training_strategy"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "id": "gaitspan.real_world_qualitative",
+      "name": "Qualitative zero-shot real-world deployments",
+      "description": "The official page shows Booster T1, Booster K1, and Unitree G1 on grass, rocks, gravel, sand, slopes, payloads, and low-friction perturbations, without aggregate outcome statistics.",
+      "tags": [
+        "real_world",
+        "qualitative",
+        "terrain",
+        "perturbation"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2607.12114",
+      "relation": "INTRODUCES",
+      "target": "gaitspan.gaitwave",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "paper:2607.12114",
+      "relation": "INTRODUCES",
+      "target": "gaitspan.h_slip",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "source": "gaitspan.gaitwave",
+      "relation": "REQUIRES",
+      "target": "gaitspan.frozen_walking_seed",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "source": "gaitspan.gaitwave",
+      "relation": "CONDITIONS_ON",
+      "target": "velocity_command",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "gaitspan.gaitwave",
+      "relation": "COMPOSES",
+      "target": "phase_scaled_seed_action_waves",
+      "evidence_ids": [
+        "E3",
+        "E8"
+      ]
+    },
+    {
+      "source": "gaitspan.h_slip",
+      "relation": "OPTIMIZES",
+      "target": "compression_rebound_touchdown_flight_and_slip",
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "source": "gaitspan.total_objective",
+      "relation": "USES",
+      "target": "gaitspan.h_slip",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "gaitspan.total_objective",
+      "relation": "USES",
+      "target": "gaitspan.self_anchored_regularization",
+      "evidence_ids": [
+        "E5",
+        "E10"
+      ]
+    },
+    {
+      "source": "paper:2607.12114",
+      "relation": "EVALUATES_ON",
+      "target": "five_humanoid_configurations",
+      "evidence_ids": [
+        "E6",
+        "E12"
+      ]
+    },
+    {
+      "source": "paper:2607.12114",
+      "relation": "REPORTS",
+      "target": "gaitspan.factorized_ablations",
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "source": "gaitspan.h_slip",
+      "relation": "MOTIVATES",
+      "target": "harness.task_reward_candidate",
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "source": "gaitspan.gaitwave",
+      "relation": "MOTIVATES",
+      "target": "harness.soft_reference_composition_hypothesis",
+      "evidence_ids": [
+        "E3",
+        "E11"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2607.12114v1",
+      "locator": "arXiv v1 metadata and submission history",
+      "claim": "GaitSpan v1 was submitted 13 July 2026 by Kwan-Yee Lin, Zilin Wang, Janelle J. Liu, and Stella X. Yu.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S3.E1",
+      "locator": "Section 3, Equation 1 and Figure 2",
+      "claim": "The final action combines composed frozen-seed action waves with a trainable residual and clips the joint target.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S3.SS2",
+      "locator": "Section 3.2",
+      "claim": "GaitWave phase-scales sinusoidal seed observations and softly blends command-conditioned coefficients from a multi-resolution memory.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S3.E2",
+      "locator": "Section 3.3, Equation 2",
+      "claim": "H-SLIP combines three-level virtual-leg compression/rebound with touchdown, flight, and stance-slip terms.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S3.E3",
+      "locator": "Section 3.3, Equation 3",
+      "claim": "The total objective combines a standard task reward, H-SLIP, and self-anchored regularization.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S4",
+      "locator": "Section 4, Robots, Implementations, and Metrics",
+      "claim": "The evaluation covers five humanoid configurations, Isaac Gym training, MuJoCo sim-to-sim, and tracking/flight/energy metrics.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S4.SS2",
+      "locator": "Sections 4.2-4.3 and Figures 4-6",
+      "claim": "Baselines and ablations show complementary tracking and flight behavior for GaitWave and H-SLIP and failures for scratch/fine-tune variants.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2607.12114v1#A4.SS3",
+      "locator": "Appendix D.3, General Training Setup",
+      "claim": "The supplement specifies phase scales, anchor weights, memory resolutions, simulator rates, sampling, and FastSAC hyperparameters.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2607.12114v1#A4.T1",
+      "locator": "Appendix D.3, Tables 1-2",
+      "claim": "The supplement tabulates general reward weights and domain-randomization ranges.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2607.12114v1#A4.SS1",
+      "locator": "Appendix D.1, Equations 4-10",
+      "claim": "Self-anchoring comprises low-speed seed proximity, residual compactness, phase-bin prototypes, and temporal action consistency.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2607.12114v1#A3.SS1",
+      "locator": "Appendix C.1, Figures 13-15",
+      "claim": "Detailed ablations describe global-map leakage, hard-partition boundary artifacts, and shortcomings of one- and two-level SLIP shaping.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2607.12114v1#A4.T3",
+      "locator": "Appendix D.4, Table 3",
+      "claim": "Robot-specific configurations include training iterations and embodiment settings.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2607.12114v1#S6",
+      "locator": "Section 6, Limitations",
+      "claim": "The authors state dependence on seed quality and coverage and identify one-step rather than recursive skill growth.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://gaitspan2026.github.io/",
+      "locator": "Gait Emergence, Sustained Gait, and Universality sections",
+      "claim": "The official project page presents qualitative real-world terrain, payload, low-friction, and multi-embodiment demonstrations.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/LeCAR-Lab/GaitSpan/",
+      "locator": "Official project-page Code target; HTTP 404 observed 2026-08-30",
+      "claim": "The linked official repository was unavailable at extraction time, so code-level reproduction details could not be verified.",
+      "evidence_type": "official_code"
+    }
+  ]
+}
+

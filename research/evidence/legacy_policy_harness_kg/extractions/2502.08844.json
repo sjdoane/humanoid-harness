@@ -1,0 +1,1053 @@
+{
+  "paper": {
+    "id": "2502.08844",
+    "arxiv_id": "2502.08844",
+    "doi": "10.48550/arXiv.2502.08844",
+    "title": "MuJoCo Playground",
+    "authors": [
+      "Kevin Zakka",
+      "Baruch Tabanpour",
+      "Qiayuan Liao",
+      "Mustafa Haiderbhai",
+      "Samuel Holt",
+      "Jing Yuan Luo",
+      "Arthur Allshire",
+      "Erik Frey",
+      "Koushil Sreenath",
+      "Lueder A. Kahrs",
+      "Carmelo Sferrazza",
+      "Yuval Tassa",
+      "Pieter Abbeel"
+    ],
+    "year": 2025,
+    "primary_url": "https://arxiv.org/html/2502.08844v1",
+    "source_version": "arXiv v1, submitted 2025-02-12; official project-linked google-deepmind/mujoco_playground pinned at 8a4b4642d8eba8a80ac99ed125cb62c16e1457ad (package 0.2.0) and inspected 2026-08-30; its README identifies google/brax learner.py at 1ed3be220c9fdc9ef17c5cf80b1fa6ddc4fb34fa as the paper's exact learning script; no environment-code or checkpoint commit identity is claimed"
+  },
+  "decision_relevance": {
+    "tier": "baseline",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "MuJoCo Playground exposes a broad MJX/Brax policy-training substrate with source-located reward formulas, fixed MDP and PPO contracts, five-seed reward and throughput protocols, component timing, and small hardware trials; its PickCube progress gate is an executable reward candidate, while the remaining environment and trainer choices define confounds that Sam must freeze.",
+    "not_evidence_for": [
+      "Reference clip selection, sequencing, composition, transition guards, recovery logic, or an executable reference oracle",
+      "Automated generation, repair, ranking, or iterative improvement of task-reward programs",
+      "A clean separation between mutable task reward and frozen tracking reward in the locomotion reward",
+      "Superiority of one task reward under a reward-independent evaluator",
+      "An independent objective evaluator for the suite-wide training-return curves",
+      "Matched-compute causal comparisons between the paper's curriculum, randomization, controller, network, or PPO choices",
+      "Broad sim-to-real reliability beyond the reported qualitative and small-sample hardware trials",
+      "Identity between the pinned 2026 public environment code and the code or checkpoints used for arXiv v1"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mujoco_playground.on_device_training_stack",
+      "name": "On-device MJX robot-learning stack",
+      "description": "MJX advances many environment instances on GPU, optional Madrona rendering produces pixel observations on device, and Brax PPO or SAC trains policies without moving the agent-environment loop off device.",
+      "tags": [
+        "fixed_trainer",
+        "MJX",
+        "GPU_simulation",
+        "batch_rendering",
+        "Brax"
+      ],
+      "evidence_ids": [
+        "E1",
+        "E3"
+      ]
+    },
+    {
+      "id": "mujoco_playground.locomotion_mdp_contract",
+      "name": "Explicit locomotion MDP and controller contract",
+      "description": "The locomotion family fixes actor and privileged-critic inputs, absolute or relative joint-position actions, PD torque mapping, domain randomization, termination, reward terms, network architecture, PPO hyperparameters, and deployment cadence.",
+      "tags": [
+        "fixed_trainer",
+        "observation_contract",
+        "action_contract",
+        "PD_control",
+        "PPO"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E5",
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "id": "mujoco_playground.phase_shaped_humanoid_gait",
+      "name": "Phase-shaped humanoid gait",
+      "description": "Each foot has a fixed phase clock cycling from -pi to pi; the actor observes its sine and cosine, and a reward term tracks phase-indexed desired foot height.",
+      "tags": [
+        "phase_clock",
+        "gait_shaping",
+        "actor_conditioning",
+        "tracking_reward",
+        "not_reference_composition"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "mujoco_playground.progress_gated_dense_reward",
+      "name": "Positive-progress-gated dense reward",
+      "description": "Pixel PickCube clips dense reward to positive improvement over the best previous dense score while retaining sparse lift and goal terms and terminating on completion.",
+      "tags": [
+        "task_reward",
+        "progress_reward",
+        "reward_shaping",
+        "sparse_reward"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "mujoco_playground.sim_to_real_randomization_curriculum",
+      "name": "Task-specific sim-to-real randomization and curriculum",
+      "description": "Tasks randomize sensor, dynamics, geometry, visual, latency, and task parameters and use staged curricula or fine-tuning before zero-shot deployment; the exact variables differ by task.",
+      "tags": [
+        "fixed_trainer",
+        "domain_randomization",
+        "curriculum",
+        "sim_to_real"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E8",
+        "E10",
+        "E12"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "environment_families",
+      "value": [
+        "DM Control Suite",
+        "locomotion",
+        "manipulation"
+      ],
+      "units": null,
+      "context": "The three top-level environment categories in arXiv v1.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "locomotion_actor_observation_contract",
+      "value": {
+        "shared": [
+          "body_frame_projected_gravity",
+          "base_linear_velocity",
+          "base_angular_velocity",
+          "joint_positions",
+          "joint_velocities",
+          "previous_action"
+        ],
+        "optional_joystick": "user_command",
+        "humanoid_addition": "sine_and_cosine_of_each_foot_phase"
+      },
+      "units": null,
+      "context": "Policy observations for locomotion; the critic receives additional privileged signals.",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "name": "humanoid_phase_clock",
+      "value": {
+        "range": [
+          -3.141592653589793,
+          3.141592653589793
+        ],
+        "per_foot": true,
+        "actor_encoding": [
+          "sin_phase",
+          "cos_phase"
+        ],
+        "reward_target": "desired_foot_height_as_function_of_phase"
+      },
+      "units": "radians",
+      "context": "Fixed gait clock and phase reward; no clip selector or transition oracle is defined.",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "name": "locomotion_action_and_pd_control",
+      "value": {
+        "joystick_action": "q_des_t = q_default + k_a * a_t",
+        "other_task_action": "q_des_t = q_des_t_minus_1 + k_a * a_t",
+        "torque_mapping": "tau = k_p * (q_des - q) - k_d * qdot"
+      },
+      "units": null,
+      "context": "Joint-position actions and low-level PD controller used by the locomotion environments.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "locomotion_reward_contract",
+      "value": {
+        "terms": [
+          "linear_velocity_tracking",
+          "angular_velocity_tracking",
+          "feet_airtime",
+          "feet_clearance",
+          "feet_phase",
+          "feet_slip",
+          "orientation",
+          "joint_torque",
+          "joint_position",
+          "action_rate",
+          "energy_consumption",
+          "pose_deviation",
+          "termination_penalty",
+          "stand_still_penalty",
+          "linear_velocity_z_penalty",
+          "angular_velocity_xy_penalty"
+        ],
+        "aggregation": "r_total = sum_i w_i * r_i",
+        "final_nonnegative_clip": true,
+        "numeric_weights_tabulated": false
+      },
+      "units": null,
+      "context": "Table VI defines term expressions but does not provide one universal numerical coefficient vector.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "locomotion_actor_critic_architecture",
+      "value": {
+        "actor_hidden_layers": [
+          512,
+          256,
+          128
+        ],
+        "critic_hidden_layers": [
+          512,
+          256,
+          128
+        ],
+        "activation": "Swish",
+        "asymmetric_critic": true,
+        "critic_extra_inputs": [
+          "uncorrupted_actor_signals",
+          "contact_forces",
+          "perturbation_forces",
+          "joint_torques"
+        ]
+      },
+      "units": null,
+      "context": "Architecture described in the locomotion appendix; task-specific PPO tables override some layer sizes.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "default_locomotion_brax_ppo",
+      "value": {
+        "num_timesteps": 100000000,
+        "num_evals": 10,
+        "reward_scaling": 1.0,
+        "normalize_observations": true,
+        "action_repeat": 1,
+        "unroll_length": 20,
+        "num_minibatches": 32,
+        "num_updates_per_batch": 4,
+        "discounting": 0.97,
+        "learning_rate": 0.0003,
+        "entropy_cost": 0.01,
+        "num_envs": 8192,
+        "batch_size": 256,
+        "max_grad_norm": 1.0,
+        "default_policy_hidden_layers": [
+          128,
+          128,
+          128,
+          128
+        ]
+      },
+      "units": null,
+      "context": "Default locomotion PPO configuration in Appendix E.2, Table XV.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "g1_joystick_brax_ppo",
+      "value": {
+        "num_timesteps": 400000000,
+        "num_evals": 16,
+        "num_resets_per_eval": 1,
+        "reward_scaling": 0.1,
+        "unroll_length": 32,
+        "num_updates_per_batch": 5,
+        "discounting": 0.98,
+        "learning_rate": 0.0001,
+        "entropy_cost": 0,
+        "num_envs": 32768,
+        "batch_size": 1024,
+        "clipping_epsilon": 0.2,
+        "policy_hidden_layers": [
+          512,
+          256,
+          64
+        ],
+        "value_hidden_layers": [
+          256,
+          256,
+          256,
+          256
+        ],
+        "value_observation_key": "privileged_state"
+      },
+      "units": null,
+      "context": "Unitree G1 joystick-specific PPO configuration in Appendix E.2, Table XX.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "simulation_replication_protocol",
+      "value": {
+        "seeds": 5,
+        "state_based_device": "single NVIDIA A100",
+        "pixel_based_device": "single NVIDIA RTX 4090",
+        "reported_axes": [
+          "reward_vs_environment_steps",
+          "reward_vs_wallclock_time",
+          "steps_per_second"
+        ]
+      },
+      "units": null,
+      "context": "DM Control, locomotion and manipulation use five seeds on A100; the two Madrona pixel examples use five seeds on RTX 4090.",
+      "evidence_ids": [
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "name": "selected_locomotion_ppo_throughput",
+      "value": {
+        "G1Joystick": [
+          106093,
+          131
+        ],
+        "BerkeleyHumanoidJoystickFlatTerrain": [
+          120145,
+          484
+        ],
+        "Go1JoystickFlatTerrain": [
+          417451,
+          2955
+        ]
+      },
+      "units": "steps per second [reported center, plus_or_minus interval]",
+      "context": "One A100 and five seeds; Table VII describes the plus/minus value as a 95th-percentile confidence interval.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "locomotion_hardware_cadence",
+      "value": {
+        "policy_frequency_hz": 50,
+        "estimator_frequency_hz_range": [
+          500,
+          2000
+        ],
+        "policy_runtime": "ONNX Runtime"
+      },
+      "units": null,
+      "context": "Real-world locomotion execution and model-based estimation frequencies.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "leap_reorientation_training_contract",
+      "value": {
+        "cube_edge_cm": 7,
+        "actions": 16,
+        "action_type": "relative_joint_positions",
+        "simulation_target_tolerance_rad": 0.1,
+        "real_target_tolerance_rad": 0.4,
+        "minimum_goal_separation_deg": 90,
+        "stuck_timeout_s": 30,
+        "cube_position_noise_cm": 2,
+        "cube_rotation_noise_rad": 0.1,
+        "base_training_steps": 200000000,
+        "finetuning_steps": 100000000,
+        "pose_injection_probability": 0.1,
+        "deployment_policy_hz": 20
+      },
+      "units": null,
+      "context": "LEAP cube reorientation simulation, fine-tuning and deployment contract.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "leap_hardware_rotation_trials",
+      "value": {
+        "trials": 10,
+        "consecutive_rotations": [
+          3,
+          27,
+          8,
+          2,
+          15,
+          3,
+          4,
+          1,
+          3,
+          5
+        ],
+        "median": 3.5,
+        "mean": 7.1
+      },
+      "units": "successful rotations before failure",
+      "context": "Real-world LEAP evaluation; trials end on cube drop or prolonged stall.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "franka_block_reorientation_contract_and_results",
+      "value": {
+        "success_position_tolerance_cm": 3,
+        "success_rotation_tolerance_deg": 10,
+        "policy_action_dimension": 7,
+        "policy_action_type": "joint_torque",
+        "control_frequency_hz": 200,
+        "simulation_torque_bound_nm_per_joint": 8,
+        "action_delay_steps": [
+          1,
+          3
+        ],
+        "observation_delay_steps": [
+          6,
+          12
+        ],
+        "episode_simulation_steps": 3000,
+        "action_repeat": 4,
+        "training_wallclock_min": 10,
+        "training_hardware": "16 NVIDIA A100 GPUs",
+        "hardware_trials": 35,
+        "success_percent_mean_and_95ci": [
+          85.7,
+          12.2
+        ],
+        "position_error_cm_mean_and_95ci": [
+          5.28,
+          3.26
+        ],
+        "rotation_error_deg_mean_and_95ci": [
+          3.32,
+          1.59
+        ]
+      },
+      "units": null,
+      "context": "Non-prehensile yoga-block reorientation training and 35-trial hardware evaluation.",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "name": "pixel_pick_cube_contract_reward_and_results",
+      "value": {
+        "rgb_resolution": [
+          64,
+          64,
+          3
+        ],
+        "action_dimension": 3,
+        "actions": [
+          "Y_cartesian_increment",
+          "Z_cartesian_increment",
+          "binary_gripper"
+        ],
+        "dense_reward": "clip(sum_i r_t_i - max(r_1,...,r_t_minus_1), 0)",
+        "sparse_terms": [
+          "lift_cube",
+          "bring_cube_to_target"
+        ],
+        "gripper_delay_steps": [
+          0,
+          5
+        ],
+        "environment_step_ms": 50,
+        "maximum_gripper_delay_s": 0.25,
+        "num_timesteps": 5000000,
+        "num_envs": 1024,
+        "training_wallclock_min": 10,
+        "training_hardware": "one NVIDIA RTX 4090",
+        "deployment_frequency_hz": 15,
+        "hardware_trials": 12,
+        "hardware_successes": 12,
+        "real_lift_threshold_cm": 10,
+        "start_position_y_range_cm": 20
+      },
+      "units": null,
+      "context": "Restricted-plane, single-camera Panda PickCube task and reward; small real-world trial set.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "pixel_pipeline_throughput_breakdown",
+      "value": {
+        "runs": 5,
+        "device": "NVIDIA RTX 4090",
+        "CartpoleBalance_fps": {
+          "physics": 1370000,
+          "physics_and_pixels": 403000,
+          "physics_pixels_inference": 341000,
+          "full_ppo_training": 31300
+        },
+        "PandaPickCubeCartesian_fps": {
+          "physics": 64000,
+          "physics_and_pixels": 36900,
+          "physics_pixels_inference": 36000,
+          "full_ppo_training": 15600
+        },
+        "policy_update_fraction": {
+          "CartpoleBalance": 0.91,
+          "PandaPickCubeCartesian": 0.57
+        }
+      },
+      "units": null,
+      "context": "Component timing separates physics, rendering, inference and policy-update costs.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "reported_mjx_limits",
+      "value": {
+        "jit_compilation_minutes": [
+          1,
+          3
+        ],
+        "contact_cost_scales_with": "possible_contacts_not_active_contacts",
+        "madrona_vision_stage": "early"
+      },
+      "units": null,
+      "context": "Limitations attributed to JAX static shapes and the maturity of the v1 vision path.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "official_code_pins",
+      "value": {
+        "project_repository": "google-deepmind/mujoco_playground",
+        "project_commit": "8a4b4642d8eba8a80ac99ed125cb62c16e1457ad",
+        "project_package_version": "0.2.0",
+        "paper_learning_repository": "google/brax",
+        "paper_learner_commit": "1ed3be220c9fdc9ef17c5cf80b1fa6ddc4fb34fa",
+        "inspected_date": "2026-08-30",
+        "paper_binds_environment_commit": false,
+        "paper_binds_checkpoint_hashes": false
+      },
+      "units": null,
+      "context": "Exact public inspection pins. The current project README identifies the Brax learner commit as the paper script but does not bind the paper environment or checkpoints to the 2026 project snapshot.",
+      "evidence_ids": [
+        "E16",
+        "E17",
+        "E18"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "mujoco_playground.manual_reward_specification_gap",
+      "name": "Manual reward specification gap",
+      "description": "The authors motivate rapid iteration by observing that reward design is hard to automate and optimized policies can behave irregularly; Playground shortens retraining but does not implement an automatic reward-correction loop.",
+      "tags": [
+        "task_reward",
+        "reward_specification",
+        "manual_iteration",
+        "capability_boundary"
+      ],
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "id": "mujoco_playground.reward_coupled_suite_evaluation",
+      "name": "Reward-coupled suite evaluation",
+      "description": "The broad simulation studies plot each task's training reward against steps or time, so those curves cannot independently establish that a revised reward improved objective task behavior.",
+      "tags": [
+        "evaluation",
+        "training_return",
+        "reward_independence",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "id": "mujoco_playground.small_or_qualitative_hardware_evidence",
+      "name": "Small or qualitative hardware evidence",
+      "description": "Locomotion transfers are demonstrated qualitatively, while the quantified manipulation results use 10, 35, and 12 hardware trials with no common matched baseline across tasks.",
+      "tags": [
+        "hardware",
+        "small_sample",
+        "external_validity",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "id": "mujoco_playground.leap_cube_wedge_and_finger_interlock",
+      "name": "LEAP cube wedge and finger interlock",
+      "description": "The most frequent LEAP failure wedges the cube between fingers and palm and stalls the policy; physical flex can also interlock the index finger and thumb.",
+      "tags": [
+        "manipulation",
+        "contact_geometry",
+        "hardware_flex",
+        "stall"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "mujoco_playground.block_workspace_and_force_limit_failure",
+      "name": "Block workspace and force-limit failure",
+      "description": "The block policy can push the object outside the reachable workspace; early policies also moved it fast enough to trip the robot's force limit, after which torque penalties were added.",
+      "tags": [
+        "manipulation",
+        "workspace",
+        "force_limit",
+        "reward_revision"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "mujoco_playground.jax_static_shape_cost",
+      "name": "JAX compilation and possible-contact cost",
+      "description": "JIT compilation takes 1-3 minutes and contact computation scales with the number of possible rather than active contacts because JAX requires static shapes.",
+      "tags": [
+        "fixed_trainer",
+        "JAX",
+        "compilation",
+        "contact_scaling"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "mujoco_playground.rough_cross_simulator_benchmark",
+      "name": "Rough cross-simulator throughput comparison",
+      "description": "The renderer comparison aligns only hardware and timestep; the paper explicitly says inherent simulator differences prevent a fully controlled performance benchmark.",
+      "tags": [
+        "evaluation",
+        "throughput",
+        "confounding",
+        "cross_simulator"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "mujoco_playground.precision_and_code_drift",
+      "name": "Precision and public-code drift",
+      "description": "The paper's architecture prose states 512-256-128 actor and critic layers while its default locomotion PPO table lists a 128-128-128-128 policy; the current official snapshot also warns that Ampere TF32 can destabilize training, that its JAX PPO script differs slightly from the pinned Brax paper script, and that its renderer/backend surface postdates arXiv v1.",
+      "tags": [
+        "reproducibility",
+        "TF32",
+        "code_version",
+        "fixed_trainer"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E5",
+        "E6",
+        "E17",
+        "E18"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "mujoco_playground.five_seed_reward_curve_protocol",
+      "name": "Five-seed reward curve protocol",
+      "description": "DM Control, locomotion, manipulation, and the two pixel examples report reward against environment steps and wall-clock time over five seeds on a named GPU class.",
+      "tags": [
+        "simulation",
+        "five_seeds",
+        "sample_efficiency",
+        "wallclock",
+        "training_return"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "id": "mujoco_playground.environment_throughput_panel",
+      "name": "Per-environment training-throughput panel",
+      "description": "Tables report PPO steps per second for every locomotion and manipulation environment and PPO/SAC steps per second for DM Control, using five seeds on one A100.",
+      "tags": [
+        "throughput",
+        "compute",
+        "A100",
+        "five_seeds"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "mujoco_playground.pixel_component_profile",
+      "name": "Pixel-pipeline component profile",
+      "description": "Five RTX 4090 runs separate physics, rendering, inference, and policy-update cost for CartpoleBalance and PandaPickCubeCartesian.",
+      "tags": [
+        "vision",
+        "profiling",
+        "rendering",
+        "policy_update",
+        "RTX_4090"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "mujoco_playground.leap_consecutive_rotation_trials",
+      "name": "LEAP consecutive-rotation trials",
+      "description": "Ten hardware trials count successful target rotations before drop or stall and report all trial values plus median and mean.",
+      "tags": [
+        "hardware",
+        "LEAP_hand",
+        "consecutive_success",
+        "failure_trace"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "mujoco_playground.franka_block_pose_trials",
+      "name": "Franka block pose trials",
+      "description": "Thirty-five hardware trials report success, position error, and rotation error as medians and means with 95% confidence intervals.",
+      "tags": [
+        "hardware",
+        "Franka",
+        "success_rate",
+        "pose_error",
+        "confidence_interval"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "mujoco_playground.franka_pick_cube_trials",
+      "name": "Restricted-plane PickCube trials",
+      "description": "Twelve real-world trials all lift the cube at least 10 cm, with one camera, a Y-Z action plane, and a 20 cm initial-position range.",
+      "tags": [
+        "hardware",
+        "vision",
+        "small_sample",
+        "restricted_workspace"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "mujoco_playground.qualitative_locomotion_transfer",
+      "name": "Qualitative locomotion sim-to-real demonstrations",
+      "description": "Go1 joystick, stance, and get-up policies and three humanoid joystick policies are shown on real surfaces and perturbations, but the paper gives no common quantitative hardware metric or trial count.",
+      "tags": [
+        "hardware",
+        "locomotion",
+        "qualitative_evidence",
+        "sim_to_real"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2502.08844",
+      "relation": "INTRODUCES",
+      "target": "mujoco_playground.on_device_training_stack",
+      "evidence_ids": [
+        "E1",
+        "E3"
+      ]
+    },
+    {
+      "source": "mujoco_playground.on_device_training_stack",
+      "relation": "USES",
+      "target": "MJX_Madrona_and_Brax",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "mujoco_playground.locomotion_mdp_contract",
+      "relation": "CONDITIONS_ON",
+      "target": "proprioception_command_phase_and_privileged_critic_signals",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "source": "mujoco_playground.phase_shaped_humanoid_gait",
+      "relation": "CONDITIONS_ON",
+      "target": "per_foot_sine_cosine_phase_clock",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "source": "mujoco_playground.locomotion_mdp_contract",
+      "relation": "OPTIMIZES",
+      "target": "weighted_nonnegative_clipped_locomotion_reward",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "mujoco_playground.progress_gated_dense_reward",
+      "relation": "OPTIMIZES",
+      "target": "positive_improvement_over_best_prior_dense_score_plus_sparse_completion",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "mujoco_playground.sim_to_real_randomization_curriculum",
+      "relation": "USES",
+      "target": "sensor_dynamics_visual_latency_and_task_randomization",
+      "evidence_ids": [
+        "E5",
+        "E8",
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "source": "2502.08844",
+      "relation": "EVALUATES_ON",
+      "target": "DM_Control_locomotion_manipulation_and_pixel_task_suite",
+      "evidence_ids": [
+        "E3",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "source": "2502.08844",
+      "relation": "REPORTS",
+      "target": "small_sample_and_qualitative_hardware_transfers",
+      "evidence_ids": [
+        "E9",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "source": "2502.08844",
+      "relation": "MOTIVATES",
+      "target": "pinned_fixed_MDP_trainer_precision_seed_and_compute_contract_for_Sam_harness",
+      "evidence_ids": [
+        "E4",
+        "E5",
+        "E6",
+        "E13",
+        "E15",
+        "E17"
+      ]
+    },
+    {
+      "source": "2502.08844",
+      "relation": "MOTIVATES",
+      "target": "reward_independent_task_safety_and_stability_evaluator",
+      "evidence_ids": [
+        "E2",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "source": "2502.08844",
+      "relation": "USES",
+      "target": "google_brax_learner_1ed3be220c9fdc9ef17c5cf80b1fa6ddc4fb34fa",
+      "evidence_ids": [
+        "E17",
+        "E18"
+      ]
+    },
+    {
+      "source": "official_code_google_deepmind_mujoco_playground_8a4b4642d8eba8a80ac99ed125cb62c16e1457ad",
+      "relation": "CONTRASTS_WITH",
+      "target": "arxiv_v1_Madrona_environment_stack",
+      "evidence_ids": [
+        "E3",
+        "E17"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2502.08844v1",
+      "locator": "arXiv metadata and abstract; submitted 12 February 2025",
+      "claim": "The active v1 record names the paper, thirteen authors, and an MJX-based open-source framework spanning quadrupeds, humanoids, dexterous hands, arms, state inputs, and pixel inputs.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section I, paragraphs defining the four-step sim-to-real recipe and time-to-robot",
+      "claim": "The authors describe reward design as difficult to automate and iterative because policies can obtain reward through irregular behavior; rapid retraining shortens the manual feedback cycle.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Sections II-III and Section IV opening",
+      "claim": "ArXiv v1 groups environments into DM Control, locomotion, and manipulation and integrates MJX physics, Madrona batch rendering, and RL training for state and pixel policies.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Appendix B.2.1 and Equation 1",
+      "claim": "The locomotion actor observation, per-foot phase encoding, absolute and relative joint-position action formulas, and PD torque map are defined.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Appendices B.2.2-B.2.4 and Table VI",
+      "claim": "Sensor, dynamics, and task randomization; sixteen reward terms and their weighted nonnegative aggregation; termination; asymmetric critic inputs; and the 512-256-128 Swish MLP are specified.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Appendix E.2, Tables XV and XX",
+      "claim": "Default locomotion and Unitree G1 joystick Brax PPO hyperparameters specify training steps, rollout and update structure, discount, optimizer rate, environment count, batch size, and network dimensions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Appendix B.5",
+      "claim": "Locomotion policies execute through ONNX Runtime at 50 Hz while a model-based estimator runs at 500-2000 Hz.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Appendix C.4",
+      "claim": "The LEAP task specifies target tolerances, 16 relative joint actions, privileged critic inputs, pose noise, 200M-step training plus 100M-step fine-tuning, 0.1 pose-injection probability, and 20 Hz deployment.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV-C.1 and Table I",
+      "claim": "Ten LEAP hardware trials report all consecutive-rotation counts, median 3.5, mean 7.1, and observed cube-wedging and finger-interlock failures.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV-C.2 and Appendix C.5",
+      "claim": "The block task defines 3 cm and 10 degree success thresholds, 200 Hz seven-joint torque control, 8 Nm simulation bounds, randomized action and observation delays, curriculum, 3000 simulation steps with action repeat four, and ten-minute training on sixteen A100 GPUs.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV-C.2, Table II, and Appendix C.5 summary",
+      "claim": "Thirty-five block trials report 85.7 plus or minus 12.2 percent mean success and pose errors with 95% confidence intervals; the authors also report workspace exits and force-limit pauses in early policies.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV-C.3, Appendix C.6, and Appendix E.3 Table XXVI",
+      "claim": "Pixel PickCube specifies the positive-progress dense-reward formula, sparse goals, 64x64 image, three-action restricted plane, visual randomization, 0-5-step gripper delay, five-million-step PPO setup, ten-minute training, 15 Hz deployment, and twelve successful hardware trials.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV and Appendices A.2-A.3, B.3-B.4, and C.2-C.3; Tables IV, VII, and IX",
+      "claim": "DM Control, locomotion, and manipulation report reward versus steps, reward versus wall-clock time, and throughput over five seeds on one A100; real locomotion is presented through qualitative transfer demonstrations.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section IV-D.1 and Appendix D, especially Tables X-XI",
+      "claim": "Five RTX 4090 runs separate pixel pipeline physics, rendering, inference, and PPO-update costs; the authors explicitly characterize the cross-simulator renderer comparison as rough rather than fully controlled.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2502.08844v1",
+      "locator": "Section VI",
+      "claim": "Reported limitations are 1-3 minute JIT compilation, static-shape computation proportional to possible contacts, and early-stage Madrona vision training.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://playground.mujoco.org/",
+      "locator": "Official project landing page, paper and code links; inspected 30 August 2026",
+      "claim": "The official project page links arXiv 2502.08844 and the public google-deepmind/mujoco_playground repository as the framework's paper and code.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/google-deepmind/mujoco_playground/tree/8a4b4642d8eba8a80ac99ed125cb62c16e1457ad",
+      "locator": "Official repository commit 8a4b4642d8eba8a80ac99ed125cb62c16e1457ad; README and pyproject.toml; inspected 30 August 2026",
+      "claim": "The pinned snapshot declares package 0.2.0, documents a later MJWarp-capable backend surface, warns that Ampere TF32 can destabilize training, and says the current JAX PPO script differs slightly from the paper script.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/google/brax/blob/1ed3be220c9fdc9ef17c5cf80b1fa6ddc4fb34fa/brax/training/learner.py",
+      "locator": "Brax learner.py at commit 1ed3be220c9fdc9ef17c5cf80b1fa6ddc4fb34fa, linked by the pinned Playground README as the exact paper learning script",
+      "claim": "The paper's official repository resolves its exact learning-script reference to an immutable Brax commit; it does not similarly identify the experiment environment commit or checkpoint hashes.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

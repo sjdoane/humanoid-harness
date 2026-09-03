@@ -1,0 +1,578 @@
+{
+  "paper": {
+    "id": "2410.01030",
+    "arxiv_id": "2410.01030",
+    "doi": "10.1109/IROS60139.2025.11246602",
+    "title": "Preferenced Oracle Guided Multi-mode Policies for Dynamic Bipedal Loco-Manipulation",
+    "authors": [
+      "Prashanth Ravichandar",
+      "Lokesh Krishna",
+      "Nikhil Sobanbabu",
+      "Quan Nguyen"
+    ],
+    "year": 2025,
+    "primary_url": "https://arxiv.org/html/2410.01030v3",
+    "source_version": "arXiv v3, revised 2025-10-08; cross-checked against the IROS 2025 publisher record and official project/code"
+  },
+  "decision_relevance": {
+    "tier": "anchor",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper gives a concrete closed-loop hybrid-automaton oracle and a separately parameterized mode-preference reward, then ablates the reward while retaining one recurrent PPO trainer. It is a direct design reference for Sam's oracle and reward interfaces.",
+    "not_evidence_for": [
+      "Automatic or agentic oracle construction",
+      "Automatic reward search or optimization",
+      "Natural-language steering",
+      "Reference-dataset composition",
+      "VIBE or vision-conditioned control",
+      "One policy shared across robot morphologies",
+      "A fixed MDP across morphology-transfer experiments",
+      "Sim-to-real loco-manipulation",
+      "Global-optimum guarantees"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "hybrid_oracle",
+      "name": "Closed-loop hybrid-automaton oracle",
+      "description": "The oracle Xi=(M,X,Lambda,f,S) maps robot/object/target/time feedback to a finite-horizon reference. Continuous reference dynamics operate within a mode; guarded switches change modes.",
+      "tags": ["oracle", "hybrid_automaton", "closed_loop", "reference_generator"],
+      "evidence_ids": ["E2", "E3", "E4"]
+    },
+    {
+      "id": "three_mode_abstraction",
+      "name": "Reach-manipulate-detach abstraction",
+      "description": "A shared three-mode graph generates coarse robot and object CoM references for soccer and box moving. References are linear interpolations and omit joint targets so joint-space behavior can emerge under simulated dynamics.",
+      "tags": ["reach", "manipulate", "detach", "coarse_reference"],
+      "evidence_ids": ["E4"]
+    },
+    {
+      "id": "bounded_exploration",
+      "name": "Oracle-bounded policy exploration",
+      "description": "PPO optimizes task return while reference-error terminations restrict visited robot/object states to configured permissible bounds around the oracle trajectory during training.",
+      "tags": ["ppo", "state_bound", "termination", "guided_exploration"],
+      "evidence_ids": ["E2", "E6"]
+    },
+    {
+      "id": "mode_preference_reward",
+      "name": "History-dependent mode preference reward",
+      "description": "The reward is -1 whenever the current mode rank is below the maximum rank previously reached in the episode and 0 otherwise; the experiment weights the indicator by -5.0.",
+      "tags": ["reward", "preference", "rank", "history_dependent", "sparse"],
+      "evidence_ids": ["E5", "E6", "E16"]
+    },
+    {
+      "id": "soft_transition_recovery",
+      "name": "Softly penalized backward transitions",
+      "description": "Backward recovery edges remain legal instead of being deleted. A regression is penalized for its lower-rank dwell time, encouraging return to the best rank already reached while preserving perturbation recovery.",
+      "tags": ["recovery", "mode_transition", "robustness", "soft_constraint"],
+      "evidence_ids": ["E6", "E16"]
+    },
+    {
+      "id": "single_recurrent_policy",
+      "name": "Single recurrent multi-mode policy",
+      "description": "One recurrent actor-critic learns all modes and transition maneuvers, outputs actuator PD targets, and observes proprioception, object/target-relative positions, and reference phase.",
+      "tags": ["single_policy", "lstm", "pd_targets", "phase_conditioning"],
+      "evidence_ids": ["E6", "E10"]
+    },
+    {
+      "id": "oracle_free_inference",
+      "name": "Oracle-free inference",
+      "description": "After training, policies run without the oracle and with reference-based terminations deactivated; the oracle is a training guide rather than a deployed high-level controller.",
+      "tags": ["inference", "training_only", "deployment_boundary"],
+      "evidence_ids": ["E11"]
+    },
+    {
+      "id": "recipe_level_morphology_transfer",
+      "name": "Recipe-level morphology transfer",
+      "description": "The same three-mode oracle class and reported reward definition/weights are reused across HECTOR v1, Berkeley Humanoid, G1, and H1, but separate policies are trained and morphology-specific oracle/environment parameters change.",
+      "tags": ["morphology", "transfer", "separate_policies", "configuration"],
+      "evidence_ids": ["E7", "E11", "E15"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "oracle_reference_horizon",
+      "value": 1.0,
+      "units": "s",
+      "context": "Finite receding reference horizon t_H.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "oracle_modes",
+      "value": ["reach", "manipulate", "detach"],
+      "units": null,
+      "context": "Three-mode abstraction for both uni-object tasks.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "mode_ranks",
+      "value": {"reach": 0, "manipulate": 1, "detach": 2},
+      "units": null,
+      "context": "User-authored preferred direction for the sparse history-dependent penalty.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "raw_preference_reward",
+      "value": {"rank_below_episode_max": -1, "otherwise": 0},
+      "units": null,
+      "context": "Definition in Sec. IV-C before experiment weighting.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "preference_indicator_weight",
+      "value": -5.0,
+      "units": null,
+      "context": "Task reward coefficient used in Table II and released soccer configuration.",
+      "evidence_ids": ["E5", "E14"]
+    },
+    {
+      "name": "base_tracking_reward_weights",
+      "value": {"position": 0.3, "orientation": 0.3, "linear_velocity": 0.15, "angular_velocity": 0.15},
+      "units": null,
+      "context": "Weights for robot-base reference tracking.",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "name": "object_task_reward_weights",
+      "value": {"proximity": 0.5, "position": 1.0, "linear_velocity": 1.0, "rest_penalty": -0.5},
+      "units": null,
+      "context": "Object proximity applies in manipulate mode; position/velocity in detach mode; rest penalty in reach mode.",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "name": "ball_rest_speed_threshold",
+      "value": 0.05,
+      "units": "speed units reported by simulator; paper does not restate units",
+      "context": "Threshold for the ball-rest penalty in reach mode.",
+      "evidence_ids": ["E5", "E14"]
+    },
+    {
+      "name": "regularization_reward_weights",
+      "value": {"torque_magnitude": 0.1, "torque_rate": 0.1, "joint_velocity": 0.1, "default_joint_position": -0.1},
+      "units": null,
+      "context": "Regularization used for Berkeley Humanoid, G1, and H1; HECTOR simulation runs omit regularization.",
+      "evidence_ids": ["E5", "E7"]
+    },
+    {
+      "name": "permissible_robot_reference_error",
+      "value": {"x": 0.4, "y": 0.4, "z": 0.2},
+      "units": "m",
+      "context": "Reference-error termination bounds used during training.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "permissible_object_reference_error",
+      "value": {"x": 0.4},
+      "units": "m",
+      "context": "Only the object x bound is explicitly reported in the paper text.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "soccer_drag_model",
+      "value": "F_drag = -0.5 * v_ball^2",
+      "units": null,
+      "context": "Simulation drag force used for realistic ball-robot dynamics.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "actor_critic_architecture",
+      "value": {"recurrent_cells": 1, "recurrent_hidden_units": 128, "mlp_hidden_units": [200, 100], "released_rnn_type": "LSTM", "released_activation": "ELU"},
+      "units": null,
+      "context": "Both actor and critic use the recurrent-plus-MLP architecture.",
+      "evidence_ids": ["E6", "E14"]
+    },
+    {
+      "name": "released_soccer_mode_thresholds",
+      "value": {"reach": 0.4, "detach": 0.4},
+      "units": "m",
+      "context": "Official soccer experiment configuration; numerical guards are supplementary code evidence rather than paper-text parameters.",
+      "evidence_ids": ["E13", "E14"]
+    },
+    {
+      "name": "released_soccer_oracle_speed_by_robot",
+      "value": {"Berkeley_Humanoid": 0.8, "Unitree_G1": 1.0, "Unitree_H1": 1.0},
+      "units": "m/s",
+      "context": "Morphology-specific oracle parameters in released experiment variants.",
+      "evidence_ids": ["E15"]
+    },
+    {
+      "name": "released_soccer_nominal_height_by_robot",
+      "value": {"Berkeley_Humanoid": 0.515, "Unitree_G1": 0.74, "Unitree_H1": 1.05},
+      "units": "m",
+      "context": "Morphology-specific base reference heights in released variants.",
+      "evidence_ids": ["E15"]
+    },
+    {
+      "name": "released_soccer_training_iterations",
+      "value": 10000,
+      "units": "iterations",
+      "context": "Maximum iterations in the official soccer configuration.",
+      "evidence_ids": ["E14"]
+    },
+    {
+      "name": "released_box_reach_threshold",
+      "value": "0.05 + sqrt(2) * box_height / 2",
+      "units": "m",
+      "context": "Flat-box environment scales the reach guard to box half-diagonal plus 0.05 m.",
+      "evidence_ids": ["E17"]
+    },
+    {
+      "name": "evaluation_episodes",
+      "value": 100,
+      "units": "episodes",
+      "context": "Soccer-kick quantitative comparison.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "evaluation_initial_joint_state_range",
+      "value": [-0.05, 0.05],
+      "units": null,
+      "context": "Randomization interval reported for evaluation; the paper does not state units in the sentence.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "soccer_kick_success_rates",
+      "value": {"multi_policy_baseline": 26.0, "single_policy_without_preference": 28.0, "single_policy_with_preference": 98.0},
+      "units": "%",
+      "context": "Success means ball reaches goal and robot stands in detached region.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "soccer_kick_fall_rates",
+      "value": {"multi_policy_baseline": 69.0, "single_policy_without_preference": 0.0, "single_policy_with_preference": 0.0},
+      "units": "%",
+      "context": "Fall is robot height below a threshold.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "soccer_kick_average_ball_contacts",
+      "value": {"multi_policy_baseline": 12.46, "single_policy_without_preference": 5.11, "single_policy_with_preference": 9.76},
+      "units": "contacts per episode",
+      "context": "Contacts counted during manipulate mode.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "mode_transition_probabilities",
+      "value": {"without_preference": {"reach_to_manipulate": 0.022, "manipulate_to_reach": 0.021}, "with_preference": {"reach_to_manipulate": 0.036, "manipulate_to_reach": 0.001}},
+      "units": "probability per counted transition",
+      "context": "Reported preference ablation for soccer-stop.",
+      "evidence_ids": ["E9"]
+    },
+    {
+      "name": "single_policy_parameter_ratio",
+      "value": 0.3,
+      "units": "times multi-policy learnable parameters",
+      "context": "Reported relative learnable-parameter count.",
+      "evidence_ids": ["E10"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "oracle_transition_exploitation",
+      "name": "Undesirable transition loop",
+      "description": "Without preference, a policy can kick the ball away, regress from manipulate to reach, chase it, and repeat instead of completing the intended sequence.",
+      "tags": ["local_optimum", "reward_hacking", "transition_loop"],
+      "evidence_ids": ["E3", "E6", "E9"]
+    },
+    {
+      "id": "fragile_multi_policy_handoff",
+      "name": "Fragile inter-policy transitions",
+      "description": "Three independently trained mode policies fail to hand off robustly; even after later-mode initialization randomization, the baseline falls in 69% of evaluated episodes.",
+      "tags": ["baseline", "handoff", "fall"],
+      "evidence_ids": ["E8", "E10"]
+    },
+    {
+      "id": "released_guard_partition_gap",
+      "name": "Unassigned soccer guard region",
+      "description": "The released soccer guards assign no destination when the ball is farther than the reach threshold while the robot is within the target threshold; the current mode therefore persists.",
+      "tags": ["code", "guard", "state_partition"],
+      "evidence_ids": ["E13"]
+    },
+    {
+      "id": "sim_only_validation",
+      "name": "Simulation-only loco-manipulation evidence",
+      "description": "The reported soccer and box results are simulation experiments; sim-to-real is stated as ongoing work.",
+      "tags": ["simulation", "external_validity", "sim_to_real"],
+      "evidence_ids": ["E11"]
+    },
+    {
+      "id": "limited_quantitative_breadth",
+      "name": "Narrow quantitative evaluation",
+      "description": "The main comparison uses 100 episodes on one soccer-kick setup and reports no confidence intervals, seed dispersion, or significance tests.",
+      "tags": ["evaluation", "uncertainty", "seeds"],
+      "evidence_ids": ["E8", "E9", "E10"]
+    },
+    {
+      "id": "partial_morphology_task_grid",
+      "name": "Partial task-by-robot coverage",
+      "description": "HECTOR is evaluated on soccer-stop and move-box without regularization; Berkeley, G1, and H1 are evaluated on soccer-kick and move-box with regularization. The study is not a full matched cross-morphology grid.",
+      "tags": ["morphology", "task_coverage", "confound"],
+      "evidence_ids": ["E7"]
+    },
+    {
+      "id": "recipe_not_fixed_mdp",
+      "name": "Recipe transfer is not fixed-MDP evidence",
+      "description": "Separate policies are trained, and released variants change oracle speed, nominal height, episode length, distances, and object dimensions; this does not isolate morphology under Sam's fixed-MDP contract.",
+      "tags": ["transfer", "configuration", "fixed_mdp"],
+      "evidence_ids": ["E7", "E15", "E17"]
+    },
+    {
+      "id": "underspecified_reproduction_defaults",
+      "name": "Unpinned defaults and normalization",
+      "description": "The paper delegates remaining PPO hyperparameters to Isaac Lab defaults without an exact version and does not report the normalizing constants used inside reward norms.",
+      "tags": ["reproducibility", "hyperparameters", "normalization"],
+      "evidence_ids": ["E5", "E6"]
+    },
+    {
+      "id": "mode_rank_typo",
+      "name": "Rank-change typo",
+      "description": "Sec. IV-C calls manipulate-to-reach a 2-to-1 change even though the stated mapping is reach 0, manipulate 1, detach 2; the equation and mapping indicate 1-to-0.",
+      "tags": ["paper_text", "typo", "rank"],
+      "evidence_ids": ["E6"]
+    },
+    {
+      "id": "no_outer_loop_design",
+      "name": "No oracle/reward search",
+      "description": "Humans author modes, guards, ranks, references, and reward weights; no outer-loop agent proposes or optimizes either design knob.",
+      "tags": ["scope", "manual_design", "outer_loop"],
+      "evidence_ids": ["E4", "E5", "E6"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "preference_reward_ablation",
+      "name": "Single-policy preference ablation",
+      "description": "Adding preference changes reported soccer-kick success from 28% to 98%, contacts from 5.11 to 9.76, and leaves falls at 0% over 100 episodes.",
+      "tags": ["ablation", "task_reward", "soccer_kick"],
+      "evidence_ids": ["E8", "E9"]
+    },
+    {
+      "id": "transition_distribution_evaluation",
+      "name": "Mode-transition distribution",
+      "description": "Preference shifts reach-to-manipulate probability from 0.022 to 0.036 and manipulate-to-reach from 0.021 to 0.001 in the reported soccer-stop analysis.",
+      "tags": ["transition_matrix", "preference", "soccer_stop"],
+      "evidence_ids": ["E9"]
+    },
+    {
+      "id": "single_vs_multi_policy_baseline",
+      "name": "Single-policy versus multi-policy baseline",
+      "description": "The single preferenced policy reaches 98% success and 0% falls versus 26% success and 69% falls for three separately trained mode policies switched by the oracle FSM.",
+      "tags": ["baseline", "single_policy", "multi_policy"],
+      "evidence_ids": ["E8", "E10"]
+    },
+    {
+      "id": "cross_morphology_qualitative_evaluation",
+      "name": "Cross-morphology task synthesis",
+      "description": "Separate policies exhibit different contact strategies on HECTOR v1, Berkeley Humanoid, G1, and H1 while reusing the oracle abstraction and reported reward recipe.",
+      "tags": ["morphology", "qualitative", "simulation"],
+      "evidence_ids": ["E7", "E11"]
+    },
+    {
+      "id": "oracle_free_policy_evaluation",
+      "name": "Oracle-free inference boundary",
+      "description": "Evaluation policies run independently of the oracle with reference-based terminations disabled, testing the learned policy rather than an online FSM-controller composition.",
+      "tags": ["inference", "deployment", "evaluation_contract"],
+      "evidence_ids": ["E11"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper_2410.01030",
+      "relation": "INTRODUCES",
+      "target": "mode_preference_reward",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "hybrid_oracle",
+      "relation": "COMPOSES",
+      "target": "three_mode_abstraction",
+      "evidence_ids": ["E3", "E4"]
+    },
+    {
+      "source": "hybrid_oracle",
+      "relation": "CONDITIONS_ON",
+      "target": "robot_object_target_time_feedback",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "source": "single_recurrent_policy",
+      "relation": "TRACKS",
+      "target": "coarse_oracle_reference",
+      "evidence_ids": ["E2", "E4", "E6"]
+    },
+    {
+      "source": "bounded_exploration",
+      "relation": "REQUIRES",
+      "target": "reference_error_termination_bounds",
+      "evidence_ids": ["E2", "E6"]
+    },
+    {
+      "source": "mode_preference_reward",
+      "relation": "ADDRESSES",
+      "target": "oracle_transition_exploitation",
+      "evidence_ids": ["E6", "E9"]
+    },
+    {
+      "source": "mode_preference_reward",
+      "relation": "OPTIMIZES",
+      "target": "preferred_mode_progression",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "soft_transition_recovery",
+      "relation": "SUPPORTS",
+      "target": "perturbation_recovery",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "single_recurrent_policy",
+      "relation": "CONTRASTS_WITH",
+      "target": "three_uni_mode_policy_baseline",
+      "evidence_ids": ["E8", "E10"]
+    },
+    {
+      "source": "recipe_level_morphology_transfer",
+      "relation": "EVALUATES_ON",
+      "target": "HECTOR_Berkeley_G1_H1",
+      "evidence_ids": ["E7", "E11"]
+    },
+    {
+      "source": "paper_2410.01030",
+      "relation": "EVALUATES_ON",
+      "target": "soccer_stop_soccer_kick_move_box",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "official_code_3f75cdb",
+      "relation": "REPORTS",
+      "target": "exact_guard_and_morphology_configuration",
+      "evidence_ids": ["E13", "E14", "E15", "E16", "E17"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2410.01030",
+      "locator": "Metadata and submission history: v3, 8 October 2025",
+      "claim": "The latest verified arXiv source is v3; it has the final title and four listed authors.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S2",
+      "locator": "Section II, equations (1a-c) and (2a-b)",
+      "claim": "The oracle supplies finite-horizon references and OGMP restricts policy trajectories to a rho-neighborhood during training.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S3",
+      "locator": "Section III, equation (3), Remarks 1-2, Figure 2",
+      "claim": "The oracle is formalized as a hybrid automaton; environment-policy coupling changes mode-transition probabilities and can create undesirable loops.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S4",
+      "locator": "Sections IV-A and IV-B; Figure 3",
+      "claim": "The tasks use reach, manipulate, and detach modes; feedback contains robot/object/target positions and time; the one-second CoM references are linear interpolations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S4.T2",
+      "locator": "Table II",
+      "claim": "The paper reports the exact task and regularization reward expressions and weights, including preference weight -5.0.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S4.SS3",
+      "locator": "Section IV-C, preference equation and Training details",
+      "claim": "The rank-history penalty preserves backward transitions for recovery; training uses recurrent PPO, phase observations, reported state bounds, and a soccer drag model.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S4.T1",
+      "locator": "Table I and Section V opening",
+      "claim": "Task and robot coverage is partial, and HECTOR is unregularized while Berkeley Humanoid, G1, and H1 are regularized.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S5.T3",
+      "locator": "Section V-B1 and Table III",
+      "claim": "Over 100 soccer-kick episodes, the reported success/contact/fall values are 26/12.46/69, 28/5.11/0, and 98/9.76/0 for the three compared policies.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S5.SS2.SSS2",
+      "locator": "Section V-B2 and Figure 7",
+      "claim": "Preference changes reach-to-manipulate and manipulate-to-reach transition probabilities and suppresses the exploitative loop.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S5.SS2.SSS3",
+      "locator": "Section V-B3 and Figure 8",
+      "claim": "The single policy outperforms three separately trained policies, whose handoffs are fragile, while using 0.3 times their learnable parameters.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2410.01030v3#S6",
+      "locator": "Section V opening and Section VI",
+      "claim": "Inference deactivates the oracle/reference terminations; validation is in simulation and sim-to-real is future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://indweller.github.io/ogmplm/",
+      "locator": "Header, abstract, approach, BibTeX",
+      "claim": "The official project identifies the IROS 2025 paper, code, video, pages, and DOI.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://github.com/DRCL-USC/ogmp_isaac/blob/3f75cdbfda59853155ff73c430ca58182b9fc3f9/exts/ogmp_isaac/ogmp_isaac/oracles/soccer/stop.py#L101-L128",
+      "locator": "StopSoccerOracle.check_transitions, lines 101-128, verified commit 3f75cdb",
+      "claim": "The released soccer oracle uses explicit distance regions and assignments for reach, manipulate, and detach transitions.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/DRCL-USC/ogmp_isaac/blob/3f75cdbfda59853155ff73c430ca58182b9fc3f9/exts/ogmp_isaac/config/soccer_base.yaml",
+      "locator": "environment_cfg and agent_cfg, verified commit 3f75cdb",
+      "claim": "The released soccer configuration pins reward weights, 0.4 m guards, termination bounds, and recurrent-policy architecture.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/DRCL-USC/ogmp_isaac/blob/3f75cdbfda59853155ff73c430ca58182b9fc3f9/exts/ogmp_isaac/config/soccer_vary.yaml",
+      "locator": "Variants v0-v2, verified commit 3f75cdb",
+      "claim": "Berkeley, G1, and H1 variants change episode length, start/target distances, oracle speed, and nominal height.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/DRCL-USC/ogmp_isaac/blob/3f75cdbfda59853155ff73c430ca58182b9fc3f9/exts/ogmp_isaac/ogmp_isaac/utils/rewards.py#L68-L70",
+      "locator": "rew_preference, lines 68-70, verified commit 3f75cdb",
+      "claim": "The released preference implementation penalizes every step whose current mode is below the maximum mode reached in the episode.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/DRCL-USC/ogmp_isaac/blob/3f75cdbfda59853155ff73c430ca58182b9fc3f9/exts/ogmp_isaac/ogmp_isaac/tasks/box/flat_box_env.py#L91-L95",
+      "locator": "FlatBoxEnv initialization, lines 91-95, verified commit 3f75cdb",
+      "claim": "The released flat-box task sets reach threshold to the box half-diagonal plus 0.05 m.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

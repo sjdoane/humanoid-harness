@@ -1,0 +1,1036 @@
+{
+  "paper": {
+    "id": "2606.01672",
+    "arxiv_id": "2606.01672",
+    "doi": "10.48550/arXiv.2606.01672",
+    "title": "RDA: Reward Design Agent for Reinforcement Learning",
+    "authors": [
+      "Hojoon Lee",
+      "Ajay Subramanian",
+      "Ben Abbatematteo",
+      "Vijay Veerabadran",
+      "Pedro Matias",
+      "Karl Ridgeway",
+      "Nitin Kamra"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.01672v1",
+    "source_version": "arXiv v1, submitted 2026-06-01; latest public arXiv version verified 2026-08-30; PDF SHA-256 6b93378f821f77497e2ad38d24826571af0f3ccd2c8282bc4f8c0c754ca0d256. The arXiv record says accepted to RLC 2026. Author project artifacts are pinned to commit 0b5c2ed3fed47084ae16b8bbbad23ffab0824301 (2026-05-13); that repository is not an end-to-end RDA implementation."
+  },
+  "decision_relevance": {
+    "tier": "anchor",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "RDA is direct evidence for iteratively editing executable task-reward code while holding a per-domain SAC/SimbaV2 learning setup fixed, using subtask-level visual trajectory diagnostics for search and a separate VLM plus benchmark success for reporting.",
+    "not_evidence_for": [
+      "reference-clip composition, mode discovery, phase-window automata, or closed-loop oracle logic",
+      "runtime policy conditioning on a subtask, reference phase, or playback clock; explicit subtask-state conditioning is future work",
+      "a reward-only comparison under identical policy initialization, because the full loop may warm-start from the previous best checkpoint",
+      "an immutable search rubric across iterations, because subtask reflection changes the text used for candidate scoring",
+      "safe, sandboxed, or side-effect-free execution of generated reward code",
+      "end-to-end reproducibility from the public repository, which releases reward fragments and media but not the RDA loop or trainer",
+      "human-calibrated or physically objective instruction alignment from the GPT-4.1 pointwise evaluator",
+      "real-robot transfer or portability across controllers, trainers, observation contracts, dynamics, scenes, or budgets",
+      "RL-Sculptor implementation of RDA"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "rda.reward_design_problem",
+      "name": "Fixed-learner reward-design objective",
+      "description": "The formal objective searches reward code R to maximize instruction score S(L(E,R),I) while the environment E, learning procedure L, instruction I, and scoring rule S are fixed for the problem instance.",
+      "tags": [
+        "task_reward",
+        "fixed_trainer",
+        "formal_interface",
+        "independent_score"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "rda.subtask_conditioned_reward_generation",
+      "name": "Subtask-conditioned executable reward generation",
+      "description": "GPT-5 decomposes the instruction using environment code and an image, then generates N environment-class reward functions as weighted sums of bounded subtask components, with explicit component logs and a terminal success bonus.",
+      "tags": [
+        "task_decomposition",
+        "executable_reward",
+        "environment_context",
+        "component_logging"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "id": "rda.visual_trajectory_diagnostics",
+      "name": "Subtask-level visual trajectory diagnostics",
+      "description": "For each candidate, the agent VLM evaluates three rollout trajectories using frames and named reward-component values, assigns each ordered subtask a score in {0,0.5,1}, and produces behavior descriptions and failure rationales.",
+      "tags": [
+        "trajectory_feedback",
+        "vlm_evaluator",
+        "subtask_score",
+        "failure_diagnosis"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E06",
+        "E09"
+      ]
+    },
+    {
+      "id": "rda.evolutionary_reward_search",
+      "name": "Visual-feedback evolutionary reward search",
+      "description": "Each reward candidate trains a policy; mean VLM subtask score selects the iteration winner; its summary can revise one subtask and seeds N targeted reward-code revisions; the best reward across five iterations is returned.",
+      "tags": [
+        "program_search",
+        "best_of_n",
+        "reflection",
+        "task_reward"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E07",
+        "E09"
+      ]
+    },
+    {
+      "id": "rda.best_checkpoint_warm_start",
+      "name": "Best-checkpoint policy warm-start",
+      "description": "Candidate training may initialize from the previous iteration's best policy checkpoint; the component ablation treats checkpoint loading as a distinct intervention before visual analysis and subtask decomposition are added.",
+      "tags": [
+        "policy_initialization",
+        "checkpoint_lineage",
+        "search_coupling",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "id": "rda.separate_reporting_evaluation",
+      "name": "Separate alignment and success reporting",
+      "description": "Search-time diagnostics use GPT-5 subtask scores, whereas reported alignment uses repeated pointwise GPT-4.1 video scores and reported success uses benchmark binary completion indicators.",
+      "tags": [
+        "evaluation",
+        "alignment_proxy",
+        "binary_success",
+        "separate_evaluator"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "id": "rda.public_reward_artifact_release",
+      "name": "Generated-reward artifact release",
+      "description": "The pinned author repository exposes sixteen environment-dependent reward-function text fragments (twelve ManiSkill compute_dense_reward functions and four HumanoidBench get_reward functions) and policy media, but not the RDA generation, validation, training, rollout-analysis, selection, or checkpoint implementation.",
+      "tags": [
+        "official_project",
+        "generated_reward",
+        "partial_release",
+        "implementation_boundary"
+      ],
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "reward_search_iterations",
+      "value": 5,
+      "units": "iterations",
+      "context": "Evolutionary iterations per reported RDA search.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "reward_candidates_per_iteration",
+      "value": {
+        "ManiSkill": 4,
+        "HumanoidBench": 8
+      },
+      "units": "reward programs",
+      "context": "Each candidate is paired with policy training under the domain's fixed training configuration.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "search_trajectories_per_candidate",
+      "value": 3,
+      "units": "episodes",
+      "context": "Rollout trajectories used for search-time visual analysis of each candidate; distinct from final reporting videos.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "search_subtask_score_levels",
+      "value": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "units": null,
+      "context": "Failure, partial success, and success levels in the trajectory-analysis prompt.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "subtask_revisions_per_iteration_maximum",
+      "value": 1,
+      "units": "subtasks",
+      "context": "Reflection may revise one subtask that contributed most to unintended behavior while preserving total subtask count J.",
+      "evidence_ids": [
+        "E04",
+        "E07"
+      ]
+    },
+    {
+      "name": "reward_component_normalization_range",
+      "value": [
+        0,
+        1
+      ],
+      "units": null,
+      "context": "Prompt contract for every component before applying an explicit weight and summing the scalar reward.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "agent_vlm_snapshot",
+      "value": "GPT-5 (2025-08-07)",
+      "units": null,
+      "context": "Model used for task decomposition, reward generation/reflection, and search-time trajectory analysis.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "agent_vlm_reasoning_effort",
+      "value": "medium",
+      "units": null,
+      "context": "Reasoning setting for the agent VLM.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "agent_vlm_images_per_query",
+      "value": 20,
+      "units": "images",
+      "context": "Search-time agent VLM image budget per query.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "policy_learning_algorithm",
+      "value": "Soft Actor-Critic",
+      "units": null,
+      "context": "Fixed RL algorithm used by RDA and matched baselines.",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E15"
+      ]
+    },
+    {
+      "name": "policy_network_architecture",
+      "value": "SimbaV2",
+      "units": null,
+      "context": "Fixed policy architecture used by RDA and matched baselines.",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E15"
+      ]
+    },
+    {
+      "name": "policy_environment_steps",
+      "value": {
+        "ManiSkill": 50000000,
+        "HumanoidBench": 10000000
+      },
+      "units": "environment steps",
+      "context": "Per-domain policy-training configuration; the lower HumanoidBench budget is attributed to CPU MuJoCo simulation speed.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "policy_update_steps",
+      "value": {
+        "ManiSkill": 250000,
+        "HumanoidBench": 625000
+      },
+      "units": "gradient updates",
+      "context": "Per-domain SAC update count.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "maximum_episode_steps",
+      "value": {
+        "ManiSkill": "task-dependent",
+        "HumanoidBench": 500
+      },
+      "units": "environment steps",
+      "context": "Maximum episode length in the supplementary hyperparameter table.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "training_environment_count",
+      "value": {
+        "ManiSkill_main_text": 2048,
+        "ManiSkill_supplement_table": 2000,
+        "HumanoidBench": 16
+      },
+      "units": "parallel environments",
+      "context": "The main text and supplementary table disagree on ManiSkill's environment count; both source-located values are retained.",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E16"
+      ]
+    },
+    {
+      "name": "discount_factor",
+      "value": {
+        "ManiSkill": 0.95,
+        "HumanoidBench": 0.98
+      },
+      "units": null,
+      "context": "Per-domain SAC discount factor.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "random_seeds_per_task",
+      "value": 3,
+      "units": "seeds",
+      "context": "Policy training and reported component ablations.",
+      "evidence_ids": [
+        "E08",
+        "E10",
+        "E13"
+      ]
+    },
+    {
+      "name": "reporting_vlm_snapshot",
+      "value": "GPT-4.1 (2025-04-14)",
+      "units": null,
+      "context": "Alignment evaluator kept distinct from GPT-5 to reduce generator/evaluator bias.",
+      "evidence_ids": [
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "name": "reporting_vlm_images_per_query",
+      "value": 50,
+      "units": "images",
+      "context": "Image budget for the GPT-4.1 evaluator.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "reporting_videos_per_policy",
+      "value": 5,
+      "units": "videos",
+      "context": "Videos paired with the task instruction for final alignment reporting.",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "reporting_queries_per_video",
+      "value": 4,
+      "units": "VLM queries",
+      "context": "Repeated pointwise scoring intended to reduce evaluator variance.",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "alignment_likert_scale",
+      "value": [
+        1,
+        5
+      ],
+      "units": "integer score",
+      "context": "Pointwise GPT-4.1 alignment rating; the paper divides the mean by five and calls the result normalized to [0,1].",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "alignment_evaluations_per_task",
+      "value": 60,
+      "units": "VLM scores",
+      "context": "Five videos times four queries times three trained seeds.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "benchmark_task_count",
+      "value": {
+        "ManiSkill": 12,
+        "HumanoidBench": 4
+      },
+      "units": "tasks",
+      "context": "Short-horizon tabletop and long-horizon whole-body manipulation evaluation suites.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "reported_compute_hardware",
+      "value": "NVIDIA A100",
+      "units": "GPU type",
+      "context": "Hardware stated for all experiments; accelerator count is not stated.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "reported_search_gpu_hours_per_task",
+      "value": {
+        "ManiSkill": "20-40",
+        "HumanoidBench": "240-360"
+      },
+      "units": "GPU-hours",
+      "context": "Reported complete-search compute range per task.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "maniskill_aggregate_rates",
+      "value": {
+        "RDA_alignment": 0.95,
+        "RDA_success": 0.9,
+        "Eureka_alignment": 0.87,
+        "Eureka_success": 0.87,
+        "human_dense_alignment": 0.68,
+        "human_dense_success": 0.74,
+        "human_sparse_alignment": 0.28,
+        "human_sparse_success": 0.17
+      },
+      "units": "rate",
+      "context": "Aggregate over twelve ManiSkill tasks.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "humanoidbench_aggregate_rates",
+      "value": {
+        "RDA_alignment": 0.7,
+        "RDA_success": 0.42,
+        "Eureka_alignment": 0.47,
+        "human_reward_alignment": 0.25,
+        "human_reward_success": 0.08
+      },
+      "units": "rate",
+      "context": "Aggregate over four HumanoidBench tasks; the body says RDA success is slightly below Eureka without stating Eureka's exact value in text.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "component_ablation_alignment_success",
+      "value": {
+        "Eureka": [
+          0.31,
+          0.5
+        ],
+        "plus_checkpoint": [
+          0.35,
+          0.55
+        ],
+        "plus_trajectory_analysis": [
+          0.82,
+          0.83
+        ],
+        "full_RDA": [
+          0.84,
+          1.0
+        ]
+      },
+      "units": "[alignment rate, success rate]",
+      "context": "Component ablation on PlugCharger and Humanoid Package, averaged over three random seeds.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "candidate_count_ablation_alignment_success",
+      "value": {
+        "1_candidate": [
+          0.46,
+          0.2
+        ],
+        "2_candidates": [
+          0.58,
+          0.51
+        ],
+        "8_candidates": [
+          0.84,
+          1.0
+        ]
+      },
+      "units": "[alignment rate, success rate]",
+      "context": "Scaling ablation showing performance and full policy-training cost rise with candidate count.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "public_generated_reward_fragments",
+      "value": 16,
+      "units": "text files",
+      "context": "Environment-dependent reward fragments in the pinned author repository; not an end-to-end RDA release.",
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "rda.failure.compute_scaling",
+      "name": "Full-policy-training cost per candidate",
+      "description": "The authors report that performance improves with more candidates, but every candidate requires a full RL training run; complete searches consume 20-40 GPU-hours per ManiSkill task and 240-360 per HumanoidBench task.",
+      "tags": [
+        "reported_limitation",
+        "compute_cost",
+        "candidate_scaling"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "id": "rda.failure.vlm_diagnostics",
+      "name": "VLM diagnostic limits",
+      "description": "The authors identify limited context, high inference cost, and imperfect fine-grained visual reasoning as constraints on diagnosis and reward revision.",
+      "tags": [
+        "reported_limitation",
+        "vlm",
+        "context_limit",
+        "visual_reasoning"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "rda.failure.subtask_reward_conflict",
+      "name": "Early-versus-late subtask reward conflict",
+      "description": "In Humanoid Basketball, catching reward suppresses exploration of the later throwing behavior; the paper proposes explicit runtime subtask-state conditioning as future work rather than an implemented mechanism.",
+      "tags": [
+        "reported_failure",
+        "credit_assignment",
+        "exploration",
+        "future_work"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "rda.failure.checkpoint_coupling",
+      "name": "Reward and policy-initialization coupling",
+      "description": "Optional warm-start from the previous best checkpoint changes policy initialization across reward generations; the checkpoint ablation changes alignment from 0.31 to 0.35 and success from 0.50 to 0.55, so full-loop effects are not reward-only under common initialization.",
+      "tags": [
+        "causal_caveat",
+        "policy_initialization",
+        "checkpoint_lineage",
+        "fixed_trainer"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "id": "rda.failure.alignment_proxy",
+      "name": "Uncalibrated pointwise alignment proxy",
+      "description": "Reported alignment is repeated GPT-4.1 pointwise scoring without a reported human-agreement study; dividing the integer 1-5 scale by five yields support [0.2,1] although the paper calls it normalized to [0,1].",
+      "tags": [
+        "evaluation_caveat",
+        "vlm_judge",
+        "calibration",
+        "normalization"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "rda.failure.mutable_search_rubric",
+      "name": "Mutable subtask selection rubric",
+      "description": "The scoring procedure remains fixed, but subtask reflection changes the text used for subsequent trajectory scoring; the paper does not specify rescoring all candidates under one immutable rubric before returning the best reward across iterations.",
+      "tags": [
+        "evaluation_caveat",
+        "mutable_rubric",
+        "candidate_selection",
+        "cross_iteration_comparison"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E07"
+      ]
+    },
+    {
+      "id": "rda.failure.source_inconsistencies",
+      "name": "Hyperparameter and iteration-reporting inconsistencies",
+      "description": "The main text reports 2048 ManiSkill environments while the supplement reports 2000; package prose and its figure caption disagree on iteration indices; and the stated per-iteration GPU-hours do not arithmetically yield the reported five-iteration total ranges.",
+      "tags": [
+        "reproducibility",
+        "source_conflict",
+        "hyperparameter",
+        "iteration_index"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "id": "rda.failure.release_and_validation_gap",
+      "name": "Generated-code validation and release gap",
+      "description": "The paper says candidate code is compiled and validated but specifies no isolation or validation checks; the pinned repository supplies dependent reward fragments and media, not the RDA search/training implementation needed to inspect or reproduce that boundary.",
+      "tags": [
+        "evidence_gap",
+        "code_execution",
+        "sandboxing",
+        "partial_release"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "rda.eval.protocol",
+      "name": "Separate VLM alignment and benchmark success protocol",
+      "description": "For each of three trained seeds, five videos receive four fixed-prompt GPT-4.1 scores on a 1-5 scale; sixty scores per task are averaged and divided by five. Success is the ManiSkill verifier or HumanoidBench terminal bonus interpreted as binary completion.",
+      "tags": [
+        "evaluation",
+        "alignment",
+        "success_rate",
+        "three_seeds"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "id": "rda.eval.maniskill_main",
+      "name": "ManiSkill aggregate comparison",
+      "description": "Across twelve tasks, RDA reports 0.95 alignment and 0.90 success, versus Eureka at 0.87 and 0.87, human dense at 0.68 and 0.74, and sparse at 0.28 and 0.17; RDA alone solves PlugCharger.",
+      "tags": [
+        "ManiSkill",
+        "main_result",
+        "task_reward",
+        "short_horizon"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "rda.eval.humanoidbench_main",
+      "name": "HumanoidBench aggregate comparison",
+      "description": "Across four tasks, RDA reports 0.70 alignment and 0.42 success; Eureka alignment is 0.47 and RDA success is described as slightly lower; human rewards report 0.25 alignment and 0.08 success.",
+      "tags": [
+        "HumanoidBench",
+        "main_result",
+        "long_horizon",
+        "instruction_alignment"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "rda.eval.component_ablation",
+      "name": "Checkpoint, trajectory, and subtask component ablation",
+      "description": "On PlugCharger and Package over three seeds, Eureka scores 0.31/0.50 alignment/success; checkpoint loading gives 0.35/0.55; trajectory analysis gives 0.82/0.83; full RDA with subtask decomposition gives 0.84/1.00.",
+      "tags": [
+        "ablation",
+        "trajectory_feedback",
+        "checkpoint",
+        "subtask_decomposition"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "rda.eval.candidate_scaling",
+      "name": "Reward-candidate count scaling",
+      "description": "Increasing candidates from one to two to eight changes alignment/success from 0.46/0.20 to 0.58/0.51 to 0.84/1.00, while requiring correspondingly more full policy trainings.",
+      "tags": [
+        "ablation",
+        "candidate_count",
+        "compute_scaling",
+        "best_of_n"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.01672",
+      "relation": "INTRODUCES",
+      "target": "rda.reward_design_problem",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "INTRODUCES",
+      "target": "rda.subtask_conditioned_reward_generation",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "INTRODUCES",
+      "target": "rda.visual_trajectory_diagnostics",
+      "evidence_ids": [
+        "E04",
+        "E06"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "INTRODUCES",
+      "target": "rda.evolutionary_reward_search",
+      "evidence_ids": [
+        "E04",
+        "E07"
+      ]
+    },
+    {
+      "source": "rda.reward_design_problem",
+      "relation": "REQUIRES",
+      "target": "concept:fixed_environment_learning_procedure_and_score",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "rda.subtask_conditioned_reward_generation",
+      "relation": "CONDITIONS_ON",
+      "target": "input:task_instruction_environment_code_and_image",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "rda.subtask_conditioned_reward_generation",
+      "relation": "COMPOSES",
+      "target": "artifact:executable_weighted_task_reward",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "rda.visual_trajectory_diagnostics",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:rollout_frames_and_reward_component_logs",
+      "evidence_ids": [
+        "E04",
+        "E06"
+      ]
+    },
+    {
+      "source": "rda.visual_trajectory_diagnostics",
+      "relation": "SUPPORTS",
+      "target": "rda.evolutionary_reward_search",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "rda.evolutionary_reward_search",
+      "relation": "OPTIMIZES",
+      "target": "artifact:task_reward_k",
+      "evidence_ids": [
+        "E02",
+        "E04"
+      ]
+    },
+    {
+      "source": "rda.evolutionary_reward_search",
+      "relation": "USES",
+      "target": "method:SAC_with_SimbaV2",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "rda.evolutionary_reward_search",
+      "relation": "USES",
+      "target": "rda.best_checkpoint_warm_start",
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "source": "rda.separate_reporting_evaluation",
+      "relation": "USES",
+      "target": "metric:GPT-4.1_pointwise_instruction_alignment",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "rda.separate_reporting_evaluation",
+      "relation": "USES",
+      "target": "metric:benchmark_binary_success",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:ManiSkill3_12_tasks",
+      "evidence_ids": [
+        "E08",
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:HumanoidBench_4_tasks",
+      "evidence_ids": [
+        "E08",
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "CONTRASTS_WITH",
+      "target": "method:Eureka_numerical_reward_statistics_reflection",
+      "evidence_ids": [
+        "E08",
+        "E15"
+      ]
+    },
+    {
+      "source": "2606.01672",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.immutable_executable_task_reward_artifact",
+      "evidence_ids": [
+        "E03",
+        "E05",
+        "E19"
+      ]
+    },
+    {
+      "source": "rda.best_checkpoint_warm_start",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.common_initialization_or_explicit_checkpoint_lineage",
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "source": "rda.public_reward_artifact_release",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.full_reward_runtime_manifest_and_validation_receipt",
+      "evidence_ids": [
+        "E03",
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.01672v1",
+      "locator": "arXiv v1 metadata/header; submitted 2026-06-01; comment 'Accepted to RLC'26'",
+      "claim": "The active v1 record gives the paper title, seven authors, submission date, and RLC 2026 acceptance note.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S3",
+      "locator": "Section 3, Definition 3.1 (Reward Design Problem)",
+      "claim": "The objective searches reward R to maximize S(L(E,R),I) for a fixed environment, learning procedure, instruction, and score function.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S4.SS1",
+      "locator": "Section 4.1, Initialization",
+      "claim": "RDA derives J ordered subtasks from the instruction and environment, generates N executable weighted reward programs, and says they are compiled and validated before search.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S4.SS2",
+      "locator": "Section 4.2, Policy training through Termination",
+      "claim": "Each candidate trains a policy, yields K visual/logged rollouts, receives subtask scores and rationales, is selected by mean score, and supplies best reward, summary, and optional checkpoint feedback for subsequent revisions.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S7.SS2",
+      "locator": "Supplement A.2, Reward Generation prompts",
+      "claim": "The reward prompt restricts code to existing environment fields, bounded [0,1] components, explicit weights, a summed scalar reward, a terminal bonus, and reward_-prefixed component logs.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S7.SS3",
+      "locator": "Supplement A.3, Trajectory Analysis prompts",
+      "claim": "Search-time analysis consumes frames and reward-component values, uses ordered subtask evaluation and scores {0,0.5,1}, and asks for behavior descriptions plus failure diagnoses.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S7.SS4",
+      "locator": "Supplement A.4-A.5, Subtask Reflection and Reward Reflection prompts",
+      "claim": "Subtask reflection may edit one subtask without changing list length, and reward reflection makes a targeted code modification using the revised list, previous reward, success, and trajectory summary.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.SS1",
+      "locator": "Section 5.1, Tasks, Training, Evaluation, and Baselines",
+      "claim": "The main setup uses GPT-5 medium, five iterations, SAC with SimbaV2, three seeds, 4/8 candidates, 50M/10M steps, 2048/16 environments, GPT-4.1 alignment, binary success, and matched Eureka settings.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S9.T1",
+      "locator": "Supplement C, Table 1 and compute paragraph",
+      "claim": "The table gives exact search, RL, agent-VLM, and evaluation-VLM parameters; the prose reports A100 hardware and 20-40 versus 240-360 GPU-hours per complete task search.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S10",
+      "locator": "Supplement D.1-D.2, Alignment Rate and Success Rate",
+      "claim": "Five videos per policy are queried four times with GPT-4.1 for sixty scores per three-seed task, integer 1-5 scores are divided by five, and success uses benchmark binary indicators.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.SS2",
+      "locator": "Section 5.2, Main Results",
+      "claim": "The paper reports aggregate RDA and baseline alignment/success on twelve ManiSkill and four HumanoidBench tasks, including reward-hacking behavior in the Eureka package policy.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.SS3",
+      "locator": "Section 5.3 and Figure 6, Humanoid Package evolution",
+      "claim": "RDA diagnoses torso pushing instead of bilateral hand contact, revises the subtask, and gates hand-contact and box-forward reward terms on bilateral contact.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.SS4",
+      "locator": "Section 5.4 and Figure 7, Ablation Study",
+      "claim": "Three-seed ablations quantify checkpoint, visual trajectory, subtask-decomposition, and candidate-count effects on alignment and success for PlugCharger and Package.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S6",
+      "locator": "Section 6, Limitations and Future Work",
+      "claim": "The authors report per-candidate RL cost, VLM context/inference/visual limits, and conflict between catching and later throwing rewards; explicit subtask-state conditioning is future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S11",
+      "locator": "Supplement E, Baseline Details",
+      "claim": "RDA and baselines share SAC/SimbaV2, environment-step, candidate, model, reasoning, and instruction settings; Eureka receives numerical reward statistics rather than RDA visual diagnostics.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.SS1",
+      "locator": "Section 5.1 (2048 ManiSkill environments) versus Supplement C Table 1 (2000)",
+      "claim": "The paper contains two different ManiSkill parallel-environment counts.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2606.01672v1#S5.F6.fig1",
+      "locator": "Section 5.3 prose adjacent to Figure 6 versus Figure 6 caption",
+      "claim": "Package prose says success after the second iteration and alignment 0.68 by iteration four, while the caption says success after the first and 0.68 at the fifth iteration.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/nitinkamra1992/reward-design-agent/tree/0b5c2ed3fed47084ae16b8bbbad23ffab0824301",
+      "locator": "Author project repository tree at commit 0b5c2ed3fed47084ae16b8bbbad23ffab0824301, dated 2026-05-13",
+      "claim": "The pinned tree contains sixteen reward text files plus project-page media and utilities, but no RDA generation, validation, policy-training, rollout-analysis, selection, or checkpoint implementation.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/nitinkamra1992/reward-design-agent/blob/0b5c2ed3fed47084ae16b8bbbad23ffab0824301/rewards/rda/h1hand-package-v0-1.txt",
+      "locator": "Pinned h1hand-package-v0-1.txt get_reward fragment",
+      "claim": "A released reward is a Python method fragment that depends on environment attributes, benchmark robot methods, NumPy, constants, and a success method; it is not standalone RDA code.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

@@ -1,0 +1,990 @@
+{
+  "paper": {
+    "id": "2310.12931",
+    "arxiv_id": "2310.12931",
+    "doi": "10.48550/arXiv.2310.12931",
+    "title": "Eureka: Human-Level Reward Design via Coding Large Language Models",
+    "authors": [
+      "Yecheng Jason Ma",
+      "William Liang",
+      "Guanzhi Wang",
+      "De-An Huang",
+      "Osbert Bastani",
+      "Dinesh Jayaraman",
+      "Yuke Zhu",
+      "Linxi Fan",
+      "Anima Anandkumar"
+    ],
+    "year": 2023,
+    "primary_url": "https://arxiv.org/html/2310.12931v2",
+    "source_version": "arXiv v2, 2024-04-30; latest public arXiv version verified 2026-08-30. Published at ICLR 2024, OpenReview IEduRUO55F. Official code evidence pinned to commit 9eee42808b52d8abc14845d1547bfde886403ccc (2024-05-03)."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "Eureka is direct evidence for searching executable task-reward code while the world model and PPO trainer remain fixed, using policy fitness and component-level learning traces as feedback; it also tests human reward initialization and textual steering.",
+    "not_evidence_for": [
+      "reference-dataset composition, mode discovery, state-machine synthesis, or closed-loop oracle design",
+      "safe or sandboxed execution of generated reward code",
+      "reward-only causality for the pen-spinning curriculum, which changes initialization and target schedule",
+      "generalization across controllers, optimizers, simulators, observation contracts, or training budgets",
+      "an untouched holdout metric, because task fitness F is used for both search and reporting",
+      "broad safety or alignment from the single 20-person Humanoid preference study",
+      "macOS or Apple-MPS compatibility of the NVIDIA Isaac Gym release",
+      "RL-Sculptor implementation of Eureka"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "eureka-reward-design-contract",
+      "name": "Fixed-world reward-design contract",
+      "description": "The reward design problem separates world model M=(S,A,T), learning algorithm A_M, candidate reward R, resulting policy, and scalar policy fitness F; the search objective is to maximize F(A_M(R)).",
+      "tags": [
+        "task_reward",
+        "fixed_trainer",
+        "independent_fitness",
+        "formal_interface"
+      ],
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "id": "eureka-environment-as-context",
+      "name": "Environment-as-context reward synthesis",
+      "description": "A coding LLM receives a task description and environment snippets exposing state/action variables, then emits TorchScript-compatible Python returning total reward and a dictionary of named components.",
+      "tags": [
+        "executable_reward",
+        "environment_context",
+        "torchscript",
+        "typed_interface"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E6",
+        "E14"
+      ]
+    },
+    {
+      "id": "eureka-evolutionary-search",
+      "name": "In-context evolutionary reward search",
+      "description": "Each iteration samples K independent reward programs, trains a policy for each executable program, ranks candidates by task fitness, mutates the best previous candidate using reflection, and preserves the best-so-far reward across iterations and random restarts.",
+      "tags": [
+        "program_search",
+        "best_of_k",
+        "random_restart",
+        "gradient_free"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4",
+        "E15"
+      ]
+    },
+    {
+      "id": "eureka-reward-reflection",
+      "name": "Component-level reward reflection",
+      "description": "The feedback prompt summarizes trajectories and max/mean/min values for named reward components and task fitness, allowing the LLM to change scales, functional forms, or components rather than relying on a scalar score alone.",
+      "tags": [
+        "reflection",
+        "component_diagnostics",
+        "policy_training_feedback",
+        "credit_assignment"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E6",
+        "E15"
+      ]
+    },
+    {
+      "id": "eureka-markov-prompt-state",
+      "name": "One-step reward history",
+      "description": "To fit the LLM context, the iterative prompt retains the initial system prompt plus only the most recent reward and reflection; earlier mutations are not preserved in the active dialogue.",
+      "tags": [
+        "context_management",
+        "markov_history",
+        "lineage_boundary"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E15"
+      ]
+    },
+    {
+      "id": "eureka-human-reward-initialization",
+      "name": "Human reward initialization",
+      "description": "A human-written reward can replace the first generated candidate, after which policy feedback and the standard mutation loop search for an improved reward.",
+      "tags": [
+        "task_reward_0",
+        "warm_start",
+        "human_input"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "id": "eureka-human-text-reflection",
+      "name": "Textual human steering",
+      "description": "For the Humanoid study, one reward is sampled per iteration and colloquial human text replaces automatic reflection, steering subsequent reward code without model updating or direct low-level policy commands.",
+      "tags": [
+        "human_steering",
+        "natural_language_feedback",
+        "reward_editing"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "eureka-release-execution-loop",
+      "name": "Generated-code training loop",
+      "description": "The pinned release extracts an LLM code block, injects the function into an Isaac Gym task module, launches PPO as a subprocess, parses TensorBoard metrics and tracebacks, and selects the highest task score.",
+      "tags": [
+        "official_code",
+        "code_execution",
+        "ppo_subprocess",
+        "research_release"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E15"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_backbone_model",
+      "value": "gpt-4-0314",
+      "units": null,
+      "context": "Backbone for all LLM reward-design algorithms unless specified otherwise.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "paper_random_restarts_per_environment",
+      "value": 5,
+      "units": "runs",
+      "context": "Independent Eureka searches per environment.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "paper_search_iterations_per_run",
+      "value": 5,
+      "units": "iterations",
+      "context": "Evolution iterations in the reported experiments.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "paper_candidates_per_iteration",
+      "value": 16,
+      "units": "reward programs",
+      "context": "Independent LLM samples per search iteration.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "intermediate_policy_runs_per_candidate",
+      "value": 1,
+      "units": "PPO runs",
+      "context": "Search-time evaluation with default task parameters.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "final_policy_runs_per_reward",
+      "value": 5,
+      "units": "PPO runs",
+      "context": "Final reward evaluation and baseline comparison.",
+      "evidence_ids": [
+        "E7",
+        "E10"
+      ]
+    },
+    {
+      "name": "reported_checkpoint_count",
+      "value": 10,
+      "units": "policy checkpoints",
+      "context": "Maximum task metric is selected from ten fixed-interval checkpoints for each approach.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "benchmark_task_count",
+      "value": 29,
+      "units": "tasks",
+      "context": "Nine Isaac Gym and twenty Dexterity tasks.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "benchmark_robot_morphologies",
+      "value": 10,
+      "units": "morphologies",
+      "context": "Reported benchmark diversity.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "tasks_at_or_above_human_reward",
+      "value": "83% (24/29 by reported per-suite counts)",
+      "units": "tasks",
+      "context": "All nine Isaac tasks and fifteen of twenty Dexterity tasks.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "average_normalized_improvement",
+      "value": 52,
+      "units": "percent",
+      "context": "Abstract aggregate after clipping each per-task normalized score to [0,3].",
+      "evidence_ids": [
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "name": "human_normalized_score_clip",
+      "value": [
+        0,
+        3
+      ],
+      "units": null,
+      "context": "Per-task clipping before the 29-task average used for the headline normalized improvement.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "no_reflection_score_reduction",
+      "value": 28.6,
+      "units": "percent",
+      "context": "Average normalized-score decrease over Isaac tasks when reward reflection is reduced to task-fitness snapshots.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "human_feedback_candidates_per_iteration",
+      "value": 1,
+      "units": "reward program",
+      "context": "Human-text experiment; text replaces automatic reflection.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "human_feedback_user_study_size",
+      "value": 20,
+      "units": "raters",
+      "context": "Graduate and undergraduate students not involved in the research.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "human_feedback_preferences",
+      "value": {
+        "Eureka": 5,
+        "Eureka-HF": 15
+      },
+      "units": "votes out of 20",
+      "context": "Random-order video comparison on one Humanoid behavior pair.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "human_feedback_forward_velocity",
+      "value": {
+        "Eureka": 7.53,
+        "Eureka-HF": 5.58
+      },
+      "units": "paper-reported forward-velocity units",
+      "context": "The preferred Eureka-HF behavior ran more slowly.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "dexterity_aggregate_run_count",
+      "value": 100,
+      "units": "RL runs",
+      "context": "Five runs for each method's final reward on twenty Dexterity tasks; used for aggregate metrics and 95% confidence intervals.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "reported_primary_compute",
+      "value": 8,
+      "units": "A100 GPUs",
+      "context": "Single station used for the experiments.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "reported_run_wall_time_upper_bound",
+      "value": 1,
+      "units": "day",
+      "context": "Each individual Eureka run took less than this bound on the eight-A100 station.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "reported_rl_run_memory_upper_bound",
+      "value": 8,
+      "units": "GB GPU memory",
+      "context": "Per Isaac Gym RL run in the authors' compute discussion.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "release_model_default",
+      "value": "gpt-4-0314",
+      "units": null,
+      "context": "Pinned official code configuration, not a claim that the snapshot remains callable.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "release_temperature_default",
+      "value": 1.0,
+      "units": null,
+      "context": "Pinned official code configuration.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "release_iteration_default",
+      "value": 1,
+      "units": "iterations",
+      "context": "Actual config.yaml default at the pinned commit; README advertises five.",
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "name": "release_sample_default",
+      "value": 3,
+      "units": "reward programs",
+      "context": "Actual config.yaml default at the pinned commit; README advertises sixteen.",
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "name": "release_ppo_iterations_default",
+      "value": 3000,
+      "units": "training iterations",
+      "context": "Pinned official code configuration for search-time candidate training.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "release_final_evaluations_default",
+      "value": 5,
+      "units": "runs",
+      "context": "Pinned official code configuration.",
+      "evidence_ids": [
+        "E16"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "eureka-non-executable-generation",
+      "name": "Invalid or suboptimal first-attempt code",
+      "description": "A generated reward may fail to execute or may optimize poorly. Sixteen-sample batches contained an executable candidate in the tested environments, but this is an empirical observation, not a validity guarantee.",
+      "tags": [
+        "code_error",
+        "sampling",
+        "no_guarantee"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "eureka-noisy-candidate-ranking",
+      "name": "Single-run search noise",
+      "description": "Intermediate candidates are ranked after one PPO run, whereas five runs are used only for the final reward; stochastic training can therefore change which reward is selected for mutation.",
+      "tags": [
+        "selection_noise",
+        "rl_variance",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "eureka-fitness-specification",
+      "name": "Fitness-function specification burden",
+      "description": "Automated search requires a human-definable task fitness F. Behaviors such as stable or natural gait can be difficult to specify, and optimizing F may not align with human intent.",
+      "tags": [
+        "objective_misalignment",
+        "fitness_required",
+        "reward_hacking"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E13"
+      ]
+    },
+    {
+      "id": "eureka-trainer-dependence",
+      "name": "Trainer-dependent reward quality",
+      "description": "Reward effectiveness depends on optimizer and hyperparameters. The benchmark held PPO fixed, and Eureka Dexterity curves were less smooth under hyperparameters tuned for human rewards.",
+      "tags": [
+        "fixed_trainer",
+        "optimizer_dependence",
+        "generalization_limit"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E7",
+        "E12"
+      ]
+    },
+    {
+      "id": "eureka-metric-reuse",
+      "name": "Search/evaluation metric reuse",
+      "description": "Fitness F is separate from the generated reward but selects candidates and reports final performance. The study does not provide an untouched holdout objective resistant to overfitting F.",
+      "tags": [
+        "metric_overfitting",
+        "holdout_gap",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E7"
+      ]
+    },
+    {
+      "id": "eureka-headline-aggregation",
+      "name": "Clipped aggregate and checkpoint maximum",
+      "description": "The 52% headline clips each task's normalized score to [0,3], and the main comparison averages maxima over ten checkpoints; both choices must be preserved when interpreting the aggregate.",
+      "tags": [
+        "aggregation",
+        "checkpoint_selection",
+        "reporting_boundary"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E10"
+      ]
+    },
+    {
+      "id": "eureka-compute-cost",
+      "name": "Policy-training search cost",
+      "description": "Reward search nests many policy trainings. The reported system used eight A100 GPUs, up to sixteen candidates at once, and less than one day per run on that station.",
+      "tags": [
+        "compute",
+        "scalability",
+        "gpu"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "eureka-human-study-scope",
+      "name": "Narrow human-steering evidence",
+      "description": "Human steering is evaluated on one simulated Humanoid pair with twenty student raters; the preferred behavior is slower, and the result is not a broad safety evaluation.",
+      "tags": [
+        "human_feedback",
+        "small_scope",
+        "safety_boundary"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "eureka-simulator-scope",
+      "name": "Simulator and real-world scope",
+      "description": "Most evidence uses one simulator and one RL algorithm; the paper lists a single MuJoCo Humanoid exception and only preliminary sim-to-real evidence.",
+      "tags": [
+        "simulation",
+        "sim2real",
+        "external_validity"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "eureka-unsandboxed-release",
+      "name": "Unsandboxed generated-code execution",
+      "description": "The official release writes generated Python into an environment module and launches it in PPO subprocesses; the release provides no sandbox, side-effect proof, or safe reward DSL.",
+      "tags": [
+        "code_execution",
+        "security_boundary",
+        "research_code"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "eureka-release-configuration-conflict",
+      "name": "Release default mismatch",
+      "description": "At the same pinned commit, README text says 5 iterations and 16 samples are defaults, while config.yaml sets 1 and 3. Reproduction requires an explicit resolved configuration.",
+      "tags": [
+        "reproducibility",
+        "configuration",
+        "version_pin"
+      ],
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "id": "eureka-platform-boundary",
+      "name": "NVIDIA/Linux release dependency",
+      "description": "The release was tested on Ubuntu 20.04/22.04 with Isaac Gym Preview 4; it provides no evidence for native macOS or Apple-MPS execution.",
+      "tags": [
+        "platform",
+        "isaac_gym",
+        "macos_boundary"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "eureka-benchmark-evaluation",
+      "name": "Fixed-PPO 29-task comparison",
+      "description": "Across nine Isaac and twenty Dexterity tasks, all final rewards use the same PPO implementation and task hyperparameters; Eureka is reported at or above human rewards on 83% of tasks with a clipped average normalized improvement of 52%.",
+      "tags": [
+        "benchmark",
+        "fixed_trainer",
+        "task_fitness"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "id": "eureka-evolution-ablation",
+      "name": "Evolution versus 32 first-attempt samples",
+      "description": "At an equal 32-candidate budget, two evolutionary iterations outperform drawing all candidates in the initial iteration on both benchmark suites.",
+      "tags": [
+        "ablation",
+        "evolution",
+        "sample_budget"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "eureka-reflection-ablation",
+      "name": "Component-reflection ablation",
+      "description": "Removing component-level reward reflection and retaining fitness snapshots reduces average normalized score by 28.6% over Isaac tasks, with larger reported deterioration on higher-dimensional tasks.",
+      "tags": [
+        "ablation",
+        "reflection",
+        "component_feedback"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "eureka-human-feedback-evaluation",
+      "name": "Humanoid text-steering preference study",
+      "description": "Fifteen of twenty users prefer the text-reflection behavior to baseline Eureka, while its forward velocity is 5.58 versus 7.53; this is one pairwise simulated behavior comparison.",
+      "tags": [
+        "human_steering",
+        "preference",
+        "humanoid"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "eureka-pen-spinning-curriculum",
+      "name": "Pen-spinning curriculum",
+      "description": "The same learned reward is used first for random pen reorientation and then to fine-tune a pretrained policy on a waypoint sequence; scratch and pretrained-only variants do not complete one cycle, so the result is not reward-only evidence.",
+      "tags": [
+        "curriculum",
+        "dexterity",
+        "causal_boundary"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "eureka-aggregate-uncertainty",
+      "name": "Dexterity aggregate uncertainty",
+      "description": "Mean, median, interquartile mean, and probability-of-improvement analyses use 100 runs with 95% confidence intervals across twenty Dexterity tasks.",
+      "tags": [
+        "statistical_evaluation",
+        "confidence_interval",
+        "dexterity"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "eureka-release-audit",
+      "name": "Paper/release identity audit",
+      "description": "The paper's 5-iteration, 16-sample search differs from config.yaml defaults of 1 and 3, and the README advertises the paper-scale values as defaults; exact reproduction requires a pinned override manifest.",
+      "tags": [
+        "release_audit",
+        "reproducibility",
+        "configuration"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E16",
+        "E17"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2310.12931",
+      "relation": "INTRODUCES",
+      "target": "eureka-reward-design-contract",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "INTRODUCES",
+      "target": "eureka-environment-as-context",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "INTRODUCES",
+      "target": "eureka-evolutionary-search",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "INTRODUCES",
+      "target": "eureka-reward-reflection",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "eureka-evolutionary-search",
+      "relation": "OPTIMIZES",
+      "target": "artifact:task_reward",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "source": "eureka-evolutionary-search",
+      "relation": "USES",
+      "target": "eureka-environment-as-context",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "eureka-evolutionary-search",
+      "relation": "CONDITIONS_ON",
+      "target": "metric:task_fitness_F",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "source": "eureka-evolutionary-search",
+      "relation": "REQUIRES",
+      "target": "trainer:policy_learning_algorithm_A_M",
+      "evidence_ids": [
+        "E2",
+        "E7"
+      ]
+    },
+    {
+      "source": "eureka-reward-reflection",
+      "relation": "CONDITIONS_ON",
+      "target": "evidence:reward_component_training_traces",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "eureka-human-reward-initialization",
+      "relation": "USES",
+      "target": "artifact:task_reward_0",
+      "evidence_ids": [
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "source": "eureka-human-text-reflection",
+      "relation": "CONDITIONS_ON",
+      "target": "input:human_text_feedback",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:isaac_gym_9_plus_dexterity_20",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "REPORTS",
+      "target": "eureka-benchmark-evaluation",
+      "evidence_ids": [
+        "E7",
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "REPORTS",
+      "target": "eureka-evolution-ablation",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "REPORTS",
+      "target": "eureka-reflection-ablation",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "REPORTS",
+      "target": "eureka-human-feedback-evaluation",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "SUPPORTS",
+      "target": "design:fixed_trainer_reward_comparison",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "eureka-release-execution-loop",
+      "relation": "REQUIRES",
+      "target": "platform:ubuntu_nvidia_isaac_gym_preview_4",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "CONTRASTS_WITH",
+      "target": "baseline:language_to_rewards",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "source": "paper:2310.12931",
+      "relation": "MOTIVATES",
+      "target": "harness:versioned_executable_task_reward_search",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E5"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/html/2310.12931v2",
+      "locator": "Header and abstract; arXiv v2 dated 30 April 2024",
+      "claim": "The exact analyzed public paper is arXiv 2310.12931v2 with the listed title and nine authors.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S2",
+      "locator": "Section 2, Definition 2.1",
+      "claim": "The formal reward-design problem separates world model M, learning algorithm A_M, reward R, policy and policy fitness F, with objective F(A_M(R)).",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S3.SS1",
+      "locator": "Section 3.1 and Algorithm 1",
+      "claim": "Eureka uses environment code and task text to sample executable reward programs, evaluate them by fitness, reflect on the best, and update the best-so-far reward.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S3.SS2",
+      "locator": "Section 3.2",
+      "claim": "The experiments use five independent runs, five search iterations and sixteen samples per iteration; the next iteration conditions on the prior best reward and its reflection.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S3.SS3",
+      "locator": "Section 3.3",
+      "claim": "Reward reflection tracks component and fitness values through policy training and is intended to provide credit assignment that depends on the chosen RL algorithm.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2310.12931v2#A1",
+      "locator": "Appendix A, Prompts 1-3",
+      "claim": "The generated reward must be TorchScript-compatible Python returning total reward plus a component dictionary and using only exposed environment attributes.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S4.SS2",
+      "locator": "Section 4 opening and Section 4.2",
+      "claim": "The benchmark uses gpt-4-0314, 29 tasks and 10 morphologies; final rewards share a fixed PPO implementation and task hyperparameters, use five runs, and report maxima over ten checkpoints.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S4.SS3",
+      "locator": "Section 4.3, Figures 4-7",
+      "claim": "The paper reports at-or-above-human reward performance on 83% of tasks, evolution and reflection ablations, and a pen-spinning curriculum whose success requires pretraining plus fine-tuning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2310.12931v2#S4.SS4",
+      "locator": "Section 4.4, Figure 9; Appendix D.3",
+      "claim": "Human rewards can initialize the loop; human text can replace reflection with one sample per iteration; 15 of 20 users prefer Eureka-HF despite lower reported forward velocity.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2310.12931v2#A4",
+      "locator": "Appendix D before D.1",
+      "claim": "The prompt retains one reward/reflection pair; intermediate rewards use one PPO run, final rewards use five; headline normalized scores are clipped to [0,3] per task.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2310.12931v2#A4.SS4",
+      "locator": "Appendix D.4",
+      "claim": "Experiments ran on eight A100 GPUs, each Eureka run took under one day, and the authors estimate four V100 GPUs with at most 8 GB per RL run can support the sixteen-candidate loop.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2310.12931v2#A6",
+      "locator": "Appendix F, Figures 10-12",
+      "claim": "Dexterity aggregate statistics use 100 RL runs and 95% confidence intervals; Eureka training curves are less smooth than human-reward curves under PPO tuned for the latter.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2310.12931v2#A8",
+      "locator": "Appendix H",
+      "claim": "The authors identify simulation scope, dependence on a human-definable fitness function, and evaluation on one fixed RL algorithm/simulator apart from limited exceptions as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/eureka-research/Eureka/blob/9eee42808b52d8abc14845d1547bfde886403ccc/eureka/eureka.py#L47-L200",
+      "locator": "Official code commit 9eee428, eureka/eureka.py lines 47-200",
+      "claim": "The release loads prompts, extracts generated Python, injects it into task code and launches PPO subprocesses for candidates.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/eureka-research/Eureka/blob/9eee42808b52d8abc14845d1547bfde886403ccc/eureka/eureka.py#L202-L348",
+      "locator": "Official code commit 9eee428, eureka/eureka.py lines 202-348",
+      "claim": "The release turns TensorBoard traces and errors into reflection, selects the maximum task score, keeps one reward/reflection pair in context and evaluates the best reward.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/eureka-research/Eureka/blob/9eee42808b52d8abc14845d1547bfde886403ccc/eureka/cfg/config.yaml#L11-L21",
+      "locator": "Official code commit 9eee428, eureka/cfg/config.yaml lines 11-21",
+      "claim": "Pinned config defaults are gpt-4-0314, temperature 1.0, one iteration, three samples, 3000 PPO iterations and five final evaluations.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/eureka-research/Eureka/blob/9eee42808b52d8abc14845d1547bfde886403ccc/README.md#L53-L73",
+      "locator": "Official code commit 9eee428, README lines 53-73",
+      "claim": "The README advertises sixteen samples and five iterations as defaults, conflicting with config.yaml at the same commit.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/eureka-research/Eureka/blob/9eee42808b52d8abc14845d1547bfde886403ccc/README.md#L24-L50",
+      "locator": "Official code commit 9eee428, README lines 24-50",
+      "claim": "The release was tested on Ubuntu 20.04 and 22.04 and depends on NVIDIA Isaac Gym Preview 4 and an OpenAI API key.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://openreview.net/forum?id=IEduRUO55F",
+      "locator": "OpenReview forum IEduRUO55F",
+      "claim": "Eureka was published at the Twelfth International Conference on Learning Representations (ICLR 2024).",
+      "evidence_type": "publisher_metadata"
+    }
+  ]
+}

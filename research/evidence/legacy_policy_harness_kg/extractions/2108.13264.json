@@ -1,0 +1,910 @@
+{
+  "paper": {
+    "id": "2108.13264",
+    "arxiv_id": "2108.13264",
+    "doi": "10.48550/arXiv.2108.13264",
+    "title": "Deep Reinforcement Learning at the Edge of the Statistical Precipice",
+    "authors": [
+      "Rishabh Agarwal",
+      "Max Schwarzer",
+      "Pablo Samuel Castro",
+      "Aaron Courville",
+      "Marc G. Bellemare"
+    ],
+    "year": 2021,
+    "primary_url": "https://arxiv.org/html/2108.13264v4",
+    "source_version": "arXiv v4, 2022-01-05 (latest public arXiv version verified 2026-08-30); published in NeurIPS 2021. Official rliable evidence is pinned to paper-era tag v1.0 at commit 48b62f5e15812aa872e345ba1bd9f685f05cd88f, 2021-10-14; setup.py declares package version 1.0.5. The paper does not identify the exact analysis-code commit, so identity with the code used for its figures is not claimed."
+  },
+  "decision_relevance": {
+    "tier": "baseline",
+    "knobs": [
+      "evaluation"
+    ],
+    "why_admitted": "The paper supplies a source-validated statistical protocol for comparing oracle or task-reward variants under one frozen trainer: retain the independent-run-by-task score matrix, keep checkpoint and normalization rules identical, report interval estimates and score distributions, and prefer IQM plus complementary effect summaries over point estimates alone.",
+    "not_evidence_for": [
+      "selection, sequencing, composition, transition guards, recovery, or any executable reference oracle",
+      "generation, repair, search, ranking, or execution of task-reward programs",
+      "changing the policy architecture, optimizer, controller, MDP, scene, observations, actions, dynamics, tracking reward, or matched training budget",
+      "the objectivity or reward-independence of a chosen task metric or its normalization anchors",
+      "a universal minimum number of runs; coverage depends on the estimator, task suite, score distribution, and estimand",
+      "reliable single-task bootstrap confidence intervals from three to five runs",
+      "deterministic reproduction from recording random-seed integers alone",
+      "identity between rliable tag v1.0 and the unpublished analysis-code snapshot used to generate every paper figure",
+      "RL-Sculptor implementation of rliable or any paper mechanism"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "statistical_precipice.run_task_score_matrix",
+      "name": "Independent run-by-task score matrix",
+      "description": "Evaluation starts from one scalar normalized score x_mn for each of N independent runs on each of M tasks. Scores are linearly normalized with two declared reference points before suite-level aggregation.",
+      "tags": [
+        "evaluation_contract",
+        "independent_runs",
+        "task_suite",
+        "normalization"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "statistical_precipice.stratified_bootstrap_ci",
+      "name": "Percentile stratified-bootstrap interval",
+      "description": "For a fixed task suite, runs are resampled with replacement independently within each task, the aggregate statistic is recomputed, and repeated bootstrap statistics approximate its sampling distribution. The paper uses 95% percentile intervals and validates coverage empirically.",
+      "tags": [
+        "bootstrap",
+        "confidence_interval",
+        "uncertainty",
+        "few_run_evaluation"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E17"
+      ]
+    },
+    {
+      "id": "statistical_precipice.run_score_profile",
+      "name": "Run-score performance profile",
+      "description": "The profile reports, over all run-task scores, the fraction exceeding every threshold tau and adds pointwise stratified-bootstrap confidence bands. It exposes heavy tails, multimodality, crossings, and threshold-dependent ordering hidden by a scalar aggregate.",
+      "tags": [
+        "performance_profile",
+        "tail_distribution",
+        "score_distribution",
+        "pointwise_interval"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E17"
+      ]
+    },
+    {
+      "id": "statistical_precipice.interquartile_mean",
+      "name": "Interquartile mean across runs and tasks",
+      "description": "IQM pools the run-task scores, removes the lowest and highest 25%, and averages the middle 50%. The paper reports smaller uncertainty and much lower finite-run bias than the median while retaining outlier robustness relative to the mean.",
+      "tags": [
+        "IQM",
+        "trimmed_mean",
+        "robust_metric",
+        "statistical_efficiency"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E18"
+      ]
+    },
+    {
+      "id": "statistical_precipice.complementary_effect_metrics",
+      "name": "Optimality gap and average probability of improvement",
+      "description": "Optimality gap caps scores at a declared target gamma and reports shortfall; probability of improvement averages task-wise Mann-Whitney probabilities that one algorithm beats another. These answer different questions and must accompany, not replace, the fuller score distribution.",
+      "tags": [
+        "optimality_gap",
+        "probability_of_improvement",
+        "effect_summary",
+        "metric_suite"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "id": "statistical_precipice.matched_end_performance_protocol",
+      "name": "Matched end-performance evaluation protocol",
+      "description": "The paper treats average performance in final training episodes as the relatively safe comparison target and shows that inserting maxima over checkpoints, runs, or hyperparameter configurations changes the estimand and creates positive selection bias.",
+      "tags": [
+        "protocol_invariance",
+        "checkpoint_selection",
+        "selection_bias",
+        "matched_comparison"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "statistical_precipice.rliable_v1_release",
+      "name": "Pinned rliable paper-era release",
+      "description": "Official tag v1.0 at commit 48b62f5e15812aa872e345ba1bd9f685f05cd88f implements stratified and independent bootstraps, interval estimates, profiles, IQM, mean, median, optimality gap, and probability of improvement; setup.py labels this package 1.0.5.",
+      "tags": [
+        "official_code",
+        "version_pin",
+        "rliable",
+        "implementation_boundary"
+      ],
+      "evidence_ids": [
+        "E17",
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "formalism_score_matrix",
+      "value": {
+        "task_axis": "M tasks",
+        "run_axis": "N independent runs per task",
+        "entry": "scalar normalized score x_mn"
+      },
+      "units": null,
+      "context": "Base data contract before aggregate evaluation; a fixed seed integer is not equated with an independent deterministic run.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "normalization_reference_points",
+      "value": 2,
+      "units": "reference points per task",
+      "context": "Per-task scores are linearly rescaled using two declared anchors; random=0 and average-human=1 is the Atari example, not a universal choice.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "claimed_practical_run_range",
+      "value": [
+        3,
+        10
+      ],
+      "units": "independent runs per task",
+      "context": "Range for which the paper describes its three-tool reporting workflow as practically applicable; this is not a universal coverage guarantee, and the paper separately reports undercoverage at three runs.",
+      "evidence_ids": [
+        "E03",
+        "E08"
+      ]
+    },
+    {
+      "name": "nominal_confidence_interval_coverage",
+      "value": 0.95,
+      "units": "fraction",
+      "context": "Default interval coverage used throughout the paper and the pinned rliable interval API.",
+      "evidence_ids": [
+        "E07",
+        "E17"
+      ]
+    },
+    {
+      "name": "stratified_bootstrap_resampling",
+      "value": {
+        "replacement": true,
+        "independent_within_each_task": true,
+        "bootstrap_shape": "N runs x M tasks",
+        "default_task_resampling": false
+      },
+      "units": null,
+      "context": "Run-only estimand for repeating the experiment on the same declared task suite; optional task resampling answers a different population-of-tasks question.",
+      "evidence_ids": [
+        "E07",
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "name": "validated_percentile_interval_run_count",
+      "value": 10,
+      "units": "runs per task",
+      "context": "On the Atari 100k DER coverage study, percentile intervals gave good interval estimates at N=10 for median and IQM; this is benchmark-specific evidence.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "three_run_interval_undercoverage",
+      "value": true,
+      "units": null,
+      "context": "The Atari 100k validation reports that three-run bootstrap intervals underestimate true 95% intervals and may need a higher nominal rate.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "aggregate_metric_bootstrap_repetitions",
+      "value": 50000,
+      "units": "bootstrap resamples",
+      "context": "Paper default unless otherwise specified; the pinned rliable get_interval_estimates API uses the same default.",
+      "evidence_ids": [
+        "E14",
+        "E17"
+      ]
+    },
+    {
+      "name": "profile_and_probability_bootstrap_repetitions",
+      "value": 2000,
+      "units": "bootstrap resamples",
+      "context": "Paper default for pointwise confidence bands and average probability of improvement; pinned rliable uses 2000 by default for performance profiles.",
+      "evidence_ids": [
+        "E14",
+        "E17"
+      ]
+    },
+    {
+      "name": "iqm_tail_trim_each_side",
+      "value": 0.25,
+      "units": "fraction of pooled run-task scores",
+      "context": "IQM is the 25% trimmed mean across all run-task scores.",
+      "evidence_ids": [
+        "E10",
+        "E18"
+      ]
+    },
+    {
+      "name": "iqm_fraction_retained",
+      "value": 0.5,
+      "units": "fraction of pooled run-task scores",
+      "context": "The mean is calculated over the middle half, equal to floor(NM/2) scores when every task has N runs.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "optimality_gap_default_gamma",
+      "value": 1,
+      "units": "normalized score",
+      "context": "Default target in the paper and pinned code; appropriate only when normalized score 1 is a declared meaningful target.",
+      "evidence_ids": [
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "name": "performance_profile_single_outlier_influence_bound",
+      "value": "1/(M*N)",
+      "units": "fraction at any threshold tau",
+      "context": "Maximum change to the run-score profile from one arbitrarily high outlier score.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "atari_100k_case_study_games",
+      "value": 26,
+      "units": "games",
+      "context": "Task count in the Atari 100k case study.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "atari_100k_training_steps",
+      "value": 100000,
+      "units": "environment steps per game",
+      "context": "Atari 100k training budget, described as about two to three hours of gameplay.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "case_study_independent_runs_per_configuration",
+      "value": 100,
+      "units": "runs per game and algorithm configuration",
+      "context": "Main case-study run bank used to simulate the few-run regime.",
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "name": "evaluation_episodes_per_run",
+      "value": 100,
+      "units": "post-training evaluation episodes",
+      "context": "A run score is the average return over these final post-training episodes.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "subsampled_run_count_range",
+      "value": [
+        3,
+        100
+      ],
+      "units": "runs",
+      "context": "The 100-run banks were resampled with replacement across this range to study estimator variability.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "sample_median_subsample_sets",
+      "value": 100000,
+      "units": "resampled run sets",
+      "context": "Number of resampled sets used to estimate expected sample medians and their sampling distributions.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "coverage_validation_outer_samples",
+      "value": 10000,
+      "units": "sets of K runs",
+      "context": "Sets sampled without replacement from the 200-run DER reference bank to measure empirical coverage.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "coverage_validation_reference_runs",
+      "value": 200,
+      "units": "runs per game",
+      "context": "Finite reference bank used as the approximation to the true aggregate statistic in the coverage study.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "median_run_count_for_small_uncertainty_on_atari_100k",
+      "value": [
+        50,
+        100
+      ],
+      "units": "runs per game",
+      "context": "Case-study estimate for median-score intervals, not a universal run-count prescription.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "median_lift_detection_run_counts",
+      "value": {
+        "25_percent_lift": 25,
+        "10_percent_lift": 100
+      },
+      "units": "runs",
+      "context": "SPR synthetic-lift stress test: median-based improvement was statistically defensible only at these run counts.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "zero_lift_possible_deviation_at_100_runs",
+      "value": 0.2,
+      "units": "fraction",
+      "context": "With two independently sampled SPR experiments and no true lift, deviations of 20% remained possible even at 100 runs.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "curl_maximum_evaluations",
+      "value": 10,
+      "units": "evaluation checkpoints",
+      "context": "CURL protocol selected the maximum performance over ten evaluations during training, creating positive selection bias relative to end-performance evaluation.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "sunrise_per_game_hyperparameter_maximum",
+      "value": {
+        "configurations": 8,
+        "runs_per_configuration": 3
+      },
+      "units": null,
+      "context": "SUNRISE selected the per-game maximum across eight hyperparameter configurations with three runs each.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "case_study_total_trained_and_evaluated_runs",
+      "value": 18200,
+      "units": "runs",
+      "context": "Six algorithm configurations over 26 games and 100 runs, plus 2600 additional DER runs for the coverage reference.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "pinned_rliable_release",
+      "value": {
+        "tag": "v1.0",
+        "commit": "48b62f5e15812aa872e345ba1bd9f685f05cd88f",
+        "commit_date": "2021-10-14",
+        "package_version": "1.0.5"
+      },
+      "units": null,
+      "context": "Paper-era official public code pin used for implementation evidence; the paper does not bind its figures to this commit.",
+      "evidence_ids": [
+        "E19"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "statistical_precipice.point_estimate_uncertainty",
+      "name": "Point estimates hide run-to-run uncertainty",
+      "description": "With few independent runs, a reported suite mean or median can materially overstate or understate expected performance and can reverse an algorithm ordering when the experiment is repeated.",
+      "tags": [
+        "point_estimate",
+        "sampling_variability",
+        "ranking_reversal"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "statistical_precipice.median_bias_inefficiency",
+      "name": "Median bias and statistical inefficiency",
+      "description": "The finite-run median of task means is biased, ignores score magnitudes away from at most two median tasks, and needed 50-100 Atari 100k runs for small uncertainty; IQM used more observations and produced narrower intervals.",
+      "tags": [
+        "median",
+        "finite_sample_bias",
+        "wide_interval",
+        "low_power"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E05",
+        "E10"
+      ]
+    },
+    {
+      "id": "statistical_precipice.mean_outlier_domination",
+      "name": "Mean dominated by outlier tasks",
+      "description": "Heavy-tailed normalized scores let a small number of very high-performing tasks dominate the suite mean, obscuring broad task performance.",
+      "tags": [
+        "mean",
+        "outlier",
+        "heavy_tail"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E12"
+      ]
+    },
+    {
+      "id": "statistical_precipice.maximum_selection_bias",
+      "name": "Maximum-based protocol selection bias",
+      "description": "Selecting the best checkpoint, run, or per-task hyperparameter result changes the evaluated algorithm and adds positive bias; the result is not comparable with standard end-performance evaluation.",
+      "tags": [
+        "best_checkpoint",
+        "maximum",
+        "selection_bias",
+        "protocol_mismatch"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "statistical_precipice.small_sample_bootstrap_undercoverage",
+      "name": "Bootstrap undercoverage with very few runs",
+      "description": "Three-run aggregate intervals underestimated nominal 95% uncertainty in the Atari coverage study, and per-task mean bootstrap intervals often remained below nominal coverage even with 30 runs. Aggregation does not erase the empirical-distribution assumption.",
+      "tags": [
+        "bootstrap",
+        "undercoverage",
+        "small_sample",
+        "single_task"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "id": "statistical_precipice.metric_and_normalization_sensitivity",
+      "name": "Metric and normalization choice changes conclusions",
+      "description": "Mean, median, IQM, optimality gap, and probability of improvement emphasize different parts of the score distribution; rankings can change, probability ignores effect magnitude, and incompatible normalization anchors make aggregates incomparable.",
+      "tags": [
+        "metric_choice",
+        "normalization",
+        "ranking_instability",
+        "effect_size"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E12",
+        "E21"
+      ]
+    },
+    {
+      "id": "statistical_precipice.seed_not_run_identity",
+      "name": "Recorded seeds do not guarantee deterministic runs",
+      "description": "Two 100-run DER sets using the same Python, NumPy, and JAX seeds had small correlation because GPU and framework nondeterminism remained; fixed seed labels are not proof of replay equivalence.",
+      "tags": [
+        "random_seed",
+        "nondeterminism",
+        "GPU",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "statistical_precipice.partial_reproducibility_scope",
+      "name": "Results-reproducibility tools are not a complete methods audit",
+      "description": "The paper distinguishes confidence in reported results from missing experimental-method details and states that uncertainty accounting is not a panacea; raw runs and a statistical library cannot certify a trainer, task metric, or implementation contract.",
+      "tags": [
+        "scope_boundary",
+        "results_reproducibility",
+        "methods_reproducibility",
+        "not_panacea"
+      ],
+      "evidence_ids": [
+        "E20"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "statistical_precipice.atari_100k_100_run_case_study",
+      "name": "Atari 100k 100-run case study",
+      "description": "The authors evaluated 100 independent runs per game and configuration over 26 games, averaged each run over 100 final evaluation episodes, and resampled three to 100 runs to measure point-estimator variability and bias.",
+      "tags": [
+        "Atari_100k",
+        "case_study",
+        "100_runs",
+        "resampling"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E13"
+      ]
+    },
+    {
+      "id": "statistical_precipice.synthetic_lift_stress_test",
+      "name": "Known-lift comparison stress test",
+      "description": "Two independently sampled SPR experiments were compared after one score matrix was inflated by a known 0%, 10%, or 25% lift, exposing how many runs median and IQM needed to recover the direction and effect size.",
+      "tags": [
+        "synthetic_effect",
+        "effect_recovery",
+        "median_vs_IQM"
+      ],
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "id": "statistical_precipice.bootstrap_coverage_validation",
+      "name": "Empirical coverage validation",
+      "description": "For varying K, the authors sampled 10,000 K-run sets without replacement from 200 DER runs and measured whether nominal 95% intervals covered the finite 200-run reference statistic, comparing percentile, basic, bias-corrected, and BCa methods.",
+      "tags": [
+        "coverage",
+        "percentile_bootstrap",
+        "calibration",
+        "DER"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "id": "statistical_precipice.cross_benchmark_reanalysis",
+      "name": "ALE, Procgen, and DM Control reanalysis",
+      "description": "The methodology was applied to Atari 200M, 16-task Procgen, and six-task DeepMind Control comparisons, revealing overlapping intervals, metric-dependent rankings, heavy-tail sensitivity, and low probabilities for several claimed improvements.",
+      "tags": [
+        "ALE",
+        "Procgen",
+        "DeepMind_Control",
+        "external_reanalysis"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "statistical_precipice.protocol_maximum_audit",
+      "name": "Maximum-based protocol audit",
+      "description": "The authors reapplied CURL- and SUNRISE-style maximum selection to a common DER baseline and showed that much of the apparent gain could be produced by the evaluation rule itself.",
+      "tags": [
+        "evaluation_protocol",
+        "checkpoint_selection",
+        "hyperparameter_selection",
+        "confound"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "statistical_precipice.public_runs_and_rliable",
+      "name": "Public raw runs and executable analysis library",
+      "description": "The paper released individual run data and rliable; the pinned paper-era tag exposes the paper's estimators and bootstrap defaults, but the paper does not bind every published figure to that exact commit.",
+      "tags": [
+        "raw_runs",
+        "official_code",
+        "reproducibility",
+        "version_boundary"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E17",
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2108.13264",
+      "relation": "USES",
+      "target": "statistical_precipice.run_task_score_matrix",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "USES",
+      "target": "statistical_precipice.stratified_bootstrap_ci",
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "INTRODUCES",
+      "target": "statistical_precipice.run_score_profile",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "SUPPORTS",
+      "target": "statistical_precipice.interquartile_mean",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "SUPPORTS",
+      "target": "statistical_precipice.complementary_effect_metrics",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "CONTRASTS_WITH",
+      "target": "evaluation:point_estimates_without_uncertainty",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "EVALUATES_ON",
+      "target": "suite:Atari_100k_ALE_Procgen_and_DeepMind_Control",
+      "evidence_ids": [
+        "E04",
+        "E12"
+      ]
+    },
+    {
+      "source": "statistical_precipice.matched_end_performance_protocol",
+      "relation": "ADDRESSES",
+      "target": "failure:maximum_checkpoint_run_or_hyperparameter_selection_bias",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "statistical_precipice.stratified_bootstrap_ci",
+      "relation": "REQUIRES",
+      "target": "contract:independent_run_matrix_on_one_declared_task_suite",
+      "evidence_ids": [
+        "E02",
+        "E07"
+      ]
+    },
+    {
+      "source": "statistical_precipice.complementary_effect_metrics",
+      "relation": "CONTRASTS_WITH",
+      "target": "metric:single_scalar_ranking",
+      "evidence_ids": [
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "source": "statistical_precipice.rliable_v1_release",
+      "relation": "SUPPORTS",
+      "target": "tool:rliable_tag_v1.0_commit_48b62f5e15812aa872e345ba1bd9f685f05cd88f",
+      "evidence_ids": [
+        "E17",
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "MOTIVATES",
+      "target": "system:independent_evaluator",
+      "evidence_ids": [
+        "E03",
+        "E06",
+        "E20"
+      ]
+    },
+    {
+      "source": "2108.13264",
+      "relation": "MOTIVATES",
+      "target": "contract:frozen_task_suite_normalization_checkpoint_rule_and_raw_run_receipt",
+      "evidence_ids": [
+        "E02",
+        "E06",
+        "E13",
+        "E21"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2108.13264v4",
+      "locator": "arXiv metadata and submission history",
+      "claim": "The latest public arXiv revision is v4, dated 2022-01-05; the record names the five authors and notes the NeurIPS 2021 Outstanding Paper Award.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 2, Formalism, opening three paragraphs",
+      "claim": "The formalism uses M tasks, N independent runs per task, scalar normalized scores x_mn, and linear per-task normalization based on two reference points; a run is not necessarily equivalent to fixing one seed.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 1, paragraphs 8-9 and Table 1",
+      "claim": "The three-part recommendation is stratified-bootstrap intervals, run-score performance profiles, and IQM with probability of improvement and optimality gap; the paper describes the workflow as applicable with three to ten runs per task.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 3, paragraphs 1-7 and Figures 2-3",
+      "claim": "Atari 100k has 26 games and 100,000 training steps; the case study used 100 independent runs per configuration, 100 final evaluation episodes per run, three-to-100-run resampling, and 100,000 subsample sets, finding high median variability, algorithm-dependent bias, and a 50-100-run range for small median uncertainty.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 3, synthetic-lift paragraph and Figure 4",
+      "claim": "In the SPR lift stress test, median-based improvement was defensible at 25 runs for a 25% lift and at 100 runs for a 10% lift; with zero lift, 20% deviations remained possible at 100 runs, while IQM required fewer runs.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 3, protocol-change paragraphs and Figure 5; Appendix A.4",
+      "claim": "Maximum-based evaluation is incomparable with end-performance evaluation and positively biased; CURL selected the maximum of ten evaluations, while SUNRISE selected per-game maxima across eight hyperparameter configurations with three runs each, and reapplying these rules explained much of the apparent gains over DER.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 4.1, Stratified Bootstrap Confidence Intervals",
+      "claim": "The proposed aggregate interval independently resamples N runs with replacement within each of M tasks, recomputes the statistic, and repeats to approximate its sampling distribution; the paper uses nominal 95% intervals.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Figure 6 and Section 4.1",
+      "claim": "Coverage was tested with 10,000 K-run sets sampled without replacement from 200 DER runs; percentile intervals performed best and gave good estimates at N=10 for median and IQM, while three-run intervals underestimated true 95% uncertainty.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 4.2, Equation 1 and Figure 7",
+      "claim": "Run-score profiles average indicators x_mn > tau across all M tasks and N runs, add pointwise bootstrap bands, are unbiased for the stated mixture tail distribution, and limit one outlier's influence at any threshold to 1/(MN).",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 4.3, IQM paragraphs; Figures 2, 4, 6, A.16-A.17",
+      "claim": "IQM trims 25% from each tail and averages the middle 50%, uses floor(NM/2) pooled scores, is less biased than median, and produced narrower intervals and better lift detection in the reported studies.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 4.3 and Appendix A.7, Equation A.2",
+      "claim": "Optimality gap uses a declared target gamma, set to 1.0 in the paper, while average probability of improvement averages task-wise Mann-Whitney probabilities; probability of improvement does not measure effect magnitude, and no single aggregate metric is sufficient.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 5, Figures 9-11",
+      "claim": "Reanalysis of 55-game Atari 200M, six-task DeepMind Control, and 16-task Procgen found overlapping intervals, metric-dependent ordering, outlier-dominated means, and only 40-50% probability that UCB-DrAC improved on PLR despite the original claim.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Appendix A.1 and A.2, Individual runs and Compute paragraphs",
+      "claim": "The authors released 100 runs per game for six Atari 100k configurations; the study trained and evaluated 18,200 runs including 2,600 extra DER runs used to approximate reference aggregate statistics.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Appendix A.3-A.5, Figures A.18-A.19 and Number of bootstrap re-samples",
+      "claim": "Single-task mean bootstrap intervals often undercovered even at 30 runs; aggregate stratified intervals approached nominal coverage with fewer runs; the paper used 50,000 resamples for aggregate metrics and 2,000 for pointwise bands and probability of improvement unless specified otherwise.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Appendix A.2, Figure A.13",
+      "claim": "Two 100-run DER sets using the same Python, NumPy, and JAX seeds had small correlation, demonstrating that GPU and framework nondeterminism prevents seed integers from guaranteeing identical runs.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Appendix A.5, Stratified bootstrap over tasks and runs and Figure A.22",
+      "claim": "With only one or two runs per task, resampling tasks as well as runs addresses sensitivity to the chosen task set and yields much wider uncertainty than run-only bootstrap on a fixed suite.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/google-research/rliable/blob/48b62f5e15812aa872e345ba1bd9f685f05cd88f/rliable/library.py",
+      "locator": "StratifiedBootstrap lines 25-122; get_interval_estimates lines 210-283; create_performance_profile lines 301-354",
+      "claim": "Pinned rliable v1.0 resamples run indices independently per task, optionally resamples tasks, defaults to percentile 95% intervals with 50,000 repetitions, and defaults performance profiles to pooled run-score distributions with 2,000 repetitions.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/google-research/rliable/blob/48b62f5e15812aa872e345ba1bd9f685f05cd88f/rliable/metrics.py",
+      "locator": "aggregate_mean lines 20-30; aggregate_median lines 33-43; aggregate_optimality_gap lines 46-58; aggregate_iqm lines 61-70; probability_of_improvement lines 73-95",
+      "claim": "Pinned code implements task-mean mean and median, optimality gap gamma minus mean(min(score,gamma)) with default gamma=1, 25% pooled trim for IQM, and task-averaged Mann-Whitney probability of improvement.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/google-research/rliable/tree/48b62f5e15812aa872e345ba1bd9f685f05cd88f",
+      "locator": "Git tag v1.0 at commit 48b62f5e15812aa872e345ba1bd9f685f05cd88f; setup.py lines 29-43",
+      "claim": "The paper-era official tag v1.0 resolves to commit 48b62f5e15812aa872e345ba1bd9f685f05cd88f dated 2021-10-14, and setup.py declares package version 1.0.5.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Section 6, Discussion, paragraphs 1-6",
+      "claim": "The paper distinguishes results reproducibility from methods reproducibility, says fixing seeds and dichotomous significance tests do not solve the problem, asks authors to publish all runs, and states that uncertainty accounting is not a panacea.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://arxiv.org/html/2108.13264v4",
+      "locator": "Appendix A.6, Choice of Normalization",
+      "claim": "The paper uses benchmark-specific normalization schemes and recommends Procgen min-max normalization over PPO normalization so comparisons do not depend on building upon PPO; normalization choice is part of the evaluation contract.",
+      "evidence_type": "supplement"
+    }
+  ]
+}

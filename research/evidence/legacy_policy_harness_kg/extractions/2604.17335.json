@@ -1,0 +1,723 @@
+{
+  "paper": {
+    "id": "2604.17335",
+    "arxiv_id": "2604.17335",
+    "doi": "10.48550/arXiv.2604.17335",
+    "title": "Learning Whole-Body Humanoid Locomotion via Motion Generation and Motion Tracking",
+    "authors": [
+      "Zewei Zhang",
+      "Kehan Wen",
+      "Michael Xu",
+      "Junzhe He",
+      "Chenhao Li",
+      "Takahiro Miki",
+      "Clemens Schwarke",
+      "Chong Zhang",
+      "Xue Bin Peng",
+      "Marco Hutter"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2604.17335v2",
+    "source_version": "arXiv v2, submitted 2026-07-12; e-print SHA-256 4c031fe7d58c41357d3c23b18e8576a5989a25c540d85149c4a89e38c06513a0. Official project-page repository audited at commit 0516ff422de21448ad74b430968ec3bb98e4d35e on 2026-08-30; no controller or training code linked."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper supplies a concrete learned closed-loop reference-policy interface, physically filtered reference-data pipeline, exact heading task reward, and a same-tracker fixed-versus-online reference ablation on perceptive humanoid terrain tasks.",
+    "not_evidence_for": [
+      "an oracle-only training gain under Sam's otherwise frozen parameterized MDP",
+      "plug-in compatibility with an arbitrary frozen foundation tracker",
+      "an OGMP linear phase-window automaton, predicate oracle, or branching state machine",
+      "dynamic feasibility of raw diffusion-generated kinematics",
+      "quantitative real-hardware reliability or outdoor generalization",
+      "RL-Sculptor implementation of learned online reference generation",
+      "reproducibility of unreported PPO, network, noise, and success-threshold details"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "wbl.reference_data_pipeline",
+      "name": "Physically filtered reference-data construction",
+      "description": "Human motions are reconstructed or sourced, contact-constrained-retargeted to Unitree G1, aligned with terrain, and refined by a DeepMimic-style tracker. Kinematic terrain augmentations are also tracked and re-recorded rather than admitted directly, expanding about five minutes to about one hour.",
+      "tags": [
+        "reference_dataset",
+        "retargeting",
+        "terrain_augmentation",
+        "physical_filter"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "id": "wbl.terrain_conditioned_generator",
+      "name": "Terrain-conditioned diffusion reference generator",
+      "description": "An MDM-style diffusion model maps target heading, a terrain height scan, and two past motion frames to a 25-frame, 0.5-second whole-body reference containing root, joint, and body-link features.",
+      "tags": [
+        "reference_composition",
+        "diffusion",
+        "terrain_conditioning",
+        "finite_horizon"
+      ],
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "id": "wbl.closed_loop_reference_policy",
+      "name": "Closed-loop receding-horizon reference policy",
+      "description": "During coupled control, the frozen generator conditions on the past two robot-state frames rather than feeding back its own predictions, uses two denoising steps, and is re-queried on a receding horizon; deployment updates the reference every 0.25 seconds.",
+      "tags": [
+        "closed_loop_reference",
+        "receding_horizon",
+        "robot_state_feedback",
+        "oracle_candidate"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "id": "wbl.reference_tracker_motion_filter",
+      "name": "Reference tracker as motion filter",
+      "description": "A PPO whole-body tracker observes reference state, proprioceptive history, and terrain scans, then emits 23 joint-position targets. After fine-tuning with generated references, it can suppress unsafe reference behavior and may partially override a traversal reference to reach a goal.",
+      "tags": [
+        "motion_tracking",
+        "ppo",
+        "safety_filter",
+        "controller_change"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E6",
+        "E11"
+      ]
+    },
+    {
+      "id": "wbl.heading_task_reward",
+      "name": "Target-heading task reward",
+      "description": "Fine-tuning adds 1.5 times base-frame velocity alignment with the target heading, normalized by base-speed magnitude, to the fixed imitation and regularization reward groups.",
+      "tags": [
+        "task_reward",
+        "heading_alignment",
+        "direction_command"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "id": "wbl.closed_loop_tracker_finetuning",
+      "name": "Frozen-generator tracker fine-tuning",
+      "description": "The generator remains frozen while PPO updates the tracker under randomized headings, added generator and observation noise, and a broader terrain distribution to absorb the generated-reference distribution shift.",
+      "tags": [
+        "rl_finetuning",
+        "distribution_shift",
+        "fixed_generator",
+        "outside_fixed_trainer"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E10"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "reference_dataset_duration",
+      "value": {
+        "initial_minutes_approx": 5,
+        "after_augmentation_hours_approx": 1
+      },
+      "units": null,
+      "context": "Reference data before and after terrain-aware motion augmentation and physical refinement.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "initial_skill_geometry_cm",
+      "value": {
+        "box_climb": 50,
+        "box_jump_down": 50,
+        "vault_hurdle": 35,
+        "stair_step_approx": 20
+      },
+      "units": "cm",
+      "context": "Representative terrain skills in the initial dataset, plus omnidirectional walking and turning.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "augmented_reference_geometry_cm",
+      "value": {
+        "box_and_jump_down": [
+          35,
+          75
+        ],
+        "vault_hurdle": [
+          25,
+          45
+        ],
+        "stair_step": [
+          15,
+          20
+        ]
+      },
+      "units": "cm ranges",
+      "context": "Offline reference dataset after kinematics-based terrain augmentation and tracking-policy refinement.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "tracker_pretraining_compute",
+      "value": {
+        "gpu_count": 1,
+        "gpu": "RTX 4090",
+        "algorithm": "PPO",
+        "simulator": "IsaacLab"
+      },
+      "units": null,
+      "context": "Reported whole-body tracker pre-training setup.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "tracker_reference_schema",
+      "value": {
+        "base_linear_velocity": 3,
+        "base_angular_velocity": 3,
+        "joint_position": 23,
+        "joint_velocity": 23,
+        "key_body_positions": [
+          9,
+          3
+        ]
+      },
+      "units": "dimensions",
+      "context": "Reference-state fields supplied to the tracker; key body positions are base-frame.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "tracker_proprioceptive_history_frames",
+      "value": 5,
+      "units": "frames",
+      "context": "Consecutive base-angular-velocity history; observations also contain projected gravity, joints, and the previous action.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "terrain_scan_shape",
+      "value": [
+        17,
+        11
+      ],
+      "units": "height samples",
+      "context": "Tracker terrain observation; the generator is also conditioned on terrain height scans.",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "name": "tracker_action_dimension",
+      "value": 23,
+      "units": "target joint positions",
+      "context": "Whole-body tracking-policy action.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "generator_prediction_window",
+      "value": {
+        "seconds": 0.5,
+        "frames": 25,
+        "conditioning_history_frames": 2
+      },
+      "units": null,
+      "context": "Future reference horizon and past-motion condition.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "generator_reference_schema",
+      "value": {
+        "root_position": 3,
+        "root_orientation_quaternion": 4,
+        "joint_positions": 23,
+        "body_link_positions": [
+          23,
+          3
+        ]
+      },
+      "units": "dimensions per frame",
+      "context": "Whole-body motion features predicted by the diffusion generator.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "generator_denoising_steps",
+      "value": 2,
+      "units": "steps",
+      "context": "Reduced-step setting used to limit onboard latency.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "fine_tuning_terrain_ranges_cm",
+      "value": {
+        "stair_step": [
+          15,
+          25
+        ],
+        "continuous_vault_hurdle": [
+          25,
+          55
+        ],
+        "boxes_and_pyramid_steps": [
+          30,
+          85
+        ]
+      },
+      "units": "cm ranges",
+      "context": "Tracker fine-tuning also varies target heading, width, yaw, and pitch.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "tracker_reward_groups",
+      "value": {
+        "pretraining": "r_mimic + r_reg",
+        "fine_tuning": "r_mimic + r_reg + r_task",
+        "task_heading": "1.5 * dot(v_b_base, d_b) / norm(v_b_base)",
+        "imitation_term_scales": {
+          "base_pose": 3,
+          "base_velocity": 1,
+          "joint_position": 2.5,
+          "joint_velocity": 0.5,
+          "body_position_base": 2,
+          "body_position_global": 1
+        },
+        "regularization_coefficients": {
+          "first_order_action_rate": -0.1,
+          "second_order_action_rate": -0.05,
+          "joint_position_limit": -10,
+          "joint_velocity_limit": -1,
+          "torque_limit": -0.001,
+          "joint_torque_squared": -0.00001,
+          "body_linear_acceleration_squared": -0.01
+        }
+      },
+      "units": null,
+      "context": "Exact outer reward scales and regularization coefficients. Table I also reports the exponential error coefficients inside each imitation term.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "generator_runtime",
+      "value": {
+        "fine_tuning_update_rate_hz": 2,
+        "deployment_reference_update_seconds": 0.25,
+        "tensorrt_inference_seconds_approx": 0.02,
+        "generator_compute": "Jetson Thor",
+        "tracker_compute": "Unitree G1 integrated Jetson Orin"
+      },
+      "units": null,
+      "context": "Fully onboard deployment with a 0.5-second reference horizon.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "fixed_vs_online_reference_success",
+      "value": {
+        "robots_per_task_and_setting": 500,
+        "box_climbing": {
+          "fixed_mean": 0.859,
+          "fixed_sd": 0.252,
+          "online_mean": 0.987,
+          "online_sd": 0.014
+        },
+        "vaulting": {
+          "fixed_mean": 0.805,
+          "fixed_sd": 0.231,
+          "online_mean": 0.99,
+          "online_sd": 0.026
+        },
+        "stair_ascent": {
+          "fixed_mean": 0.845,
+          "fixed_sd": 0.3,
+          "online_mean": 0.997,
+          "online_sd": 0.005
+        }
+      },
+      "units": "success proportion",
+      "context": "Same fine-tuned tracker; fixed task reference versus online terrain- and heading-conditioned generation over geometry and yaw settings.",
+      "evidence_ids": [
+        "E9"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "wbl.generated_reference_artifacts",
+      "name": "Generated-reference artifacts and distribution shift",
+      "description": "Foot sliding, temporal discontinuities, and other kinematic artifacts can make direct generator-plus-pretrained-tracker coupling fail because the tracker was trained on smoother physically filtered offline references.",
+      "tags": [
+        "distribution_shift",
+        "foot_sliding",
+        "temporal_discontinuity",
+        "tracking_failure"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E6",
+        "E10"
+      ]
+    },
+    {
+      "id": "wbl.fixed_reference_brittleness",
+      "name": "Fixed-reference brittleness",
+      "description": "A terrain-aware tracker tolerates nearby geometry changes, but fixed-reference success drops sharply when obstacle geometry requires altered timing or motion style.",
+      "tags": [
+        "fixed_reference",
+        "terrain_shift",
+        "timing_mismatch"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "wbl.mapping_noise_dependency",
+      "name": "LiDAR elevation-map dependence",
+      "description": "The authors report that sensing noise that degrades reconstructed terrain maps can substantially deteriorate locomotion performance.",
+      "tags": [
+        "perception",
+        "lidar",
+        "mapping_noise",
+        "hardware"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "wbl.fixed_trainer_confounded_transfer",
+      "name": "Fixed-trainer transfer boundary",
+      "description": "The full method retrains the tracker with the generator and broadens terrain and heading distributions. Those gains cannot be labeled a reference-only intervention under Sam's fixed-trainer contract, although Table III does compare fixed versus online references with one fine-tuned tracker held constant at evaluation.",
+      "tags": [
+        "harness_boundary",
+        "controller_change",
+        "causal_attribution"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "id": "wbl.heading_reward_zero_speed_gap",
+      "name": "Heading-reward zero-speed convention omitted",
+      "description": "The published task reward divides by base-speed magnitude, but v2 reports no epsilon, branch, or other executable convention for zero velocity and does not state target-heading normalization.",
+      "tags": [
+        "task_reward",
+        "numerical_guard",
+        "specification_gap"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "wbl.reproducibility_gaps",
+      "name": "Unreported implementation and evaluation details",
+      "description": "v2 omits the success-radius tolerance, training seeds, confidence intervals, PPO hyperparameters, diffusion-network widths, and noise magnitudes; the official public repository contains only the project page and media.",
+      "tags": [
+        "reproducibility",
+        "evaluation_gap",
+        "no_public_code"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E5",
+        "E6",
+        "E9",
+        "E14"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "wbl.eval_fixed_vs_online_references",
+      "name": "Fixed-reference versus online-reference evaluation",
+      "description": "For box climbing, vaulting, and stair ascent, 500 randomized robots per task/setting use the same fine-tuned tracker. Online terrain- and direction-conditioned references improve mean success across all three geometry/yaw sweeps; success is final-XY reference position for the fixed baseline and a matched goal position for the generated-reference system.",
+      "tags": [
+        "reference_ablation",
+        "simulation",
+        "success_rate",
+        "same_tracker"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "wbl.eval_tracker_finetuning",
+      "name": "Pretrained versus fine-tuned tracker evaluation",
+      "description": "With the generator shared, Figure 4 compares 500 robots on each of five tasks: climbing up/down, vaulting, and stair ascent/descent. The plotted success rates consistently favor tracker fine-tuning, especially on harder heights, but the paper does not tabulate exact bar values.",
+      "tags": [
+        "controller_ablation",
+        "simulation",
+        "five_tasks"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "wbl.eval_hardware_demonstrations",
+      "name": "Fully onboard Unitree G1 demonstrations",
+      "description": "Qualitative experiments show box ascent/descent, continuous vaulting, stair traversal, mixed-terrain transitions, and local obstacle bypass with LiDAR/IMU perception and onboard Jetson compute; no trial counts or hardware success rates are reported.",
+      "tags": [
+        "hardware",
+        "unitree_g1",
+        "qualitative",
+        "onboard"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E11",
+        "E13"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2604.17335",
+      "relation": "INTRODUCES",
+      "target": "wbl.terrain_conditioned_generator",
+      "evidence_ids": [
+        "E2",
+        "E5"
+      ]
+    },
+    {
+      "source": "wbl.terrain_conditioned_generator",
+      "relation": "COMPOSES",
+      "target": "wbl.reference_data_pipeline",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E5"
+      ]
+    },
+    {
+      "source": "wbl.terrain_conditioned_generator",
+      "relation": "CONDITIONS_ON",
+      "target": "target_heading+terrain_height_scan+two_frame_history",
+      "evidence_ids": [
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "source": "wbl.reference_tracker_motion_filter",
+      "relation": "TRACKS",
+      "target": "wbl.closed_loop_reference_policy",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "wbl.closed_loop_reference_policy",
+      "relation": "REQUIRES",
+      "target": "recent_robot_state+terrain_mapping+target_heading",
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "source": "wbl.closed_loop_tracker_finetuning",
+      "relation": "USES",
+      "target": "wbl.closed_loop_reference_policy",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "wbl.closed_loop_tracker_finetuning",
+      "relation": "ADDRESSES",
+      "target": "wbl.generated_reference_artifacts",
+      "evidence_ids": [
+        "E6",
+        "E10"
+      ]
+    },
+    {
+      "source": "wbl.heading_task_reward",
+      "relation": "OPTIMIZES",
+      "target": "target_heading_alignment",
+      "evidence_ids": [
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "source": "wbl.eval_fixed_vs_online_references",
+      "relation": "CONTRASTS_WITH",
+      "target": "fixed_reference_tracking",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "source": "wbl.eval_fixed_vs_online_references",
+      "relation": "SUPPORTS",
+      "target": "terrain_conditioned_online_reference_generalization",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "source": "wbl.closed_loop_reference_policy",
+      "relation": "REQUIRES",
+      "target": "lidar_elevation_mapping_pipeline",
+      "evidence_ids": [
+        "E8",
+        "E12"
+      ]
+    },
+    {
+      "source": "2604.17335",
+      "relation": "REPORTS",
+      "target": "wbl.eval_hardware_demonstrations",
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2604.17335v2",
+      "locator": "arXiv metadata and submission history; source archive https://arxiv.org/e-print/2604.17335v2, SHA-256 4c031fe7d58c41357d3c23b18e8576a5989a25c540d85149c4a89e38c06513a0",
+      "claim": "v2 fixes the title, authors, manuscript status, and public source bytes used for this extraction.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3",
+      "locator": "Section III and Figure 2",
+      "claim": "The method has data curation, independent generator/tracker pre-training, and RL tracker fine-tuning while the generator stays frozen.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.SS1",
+      "locator": "Section III-A, including III-A.1 and III-A.2",
+      "claim": "About five minutes of retargeted motion are aligned, physically refined, terrain-augmented, and re-filtered into about one hour covering specified obstacle ranges.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.SS2.SSS1",
+      "locator": "Section III-B.1",
+      "claim": "The PPO tracker setup, reference/proprioceptive/terrain observations, history, and 23-D joint target action are specified.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.SS2.SSS2",
+      "locator": "Section III-B.2",
+      "claim": "The diffusion generator predicts a 25-frame, 0.5-second whole-body reference from heading, terrain, and two past motion frames; raw output may retain artifacts.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.SS3",
+      "locator": "Section III-C and Equation 2",
+      "claim": "Fine-tuning closes the generator loop through two actual robot-state frames, uses two denoising steps, freezes the generator, randomizes terrain/heading, and adds a task reward while updating the tracker.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.T1",
+      "locator": "Table I",
+      "claim": "Exact imitation, regularization, and target-heading task-reward equations and coefficients are reported.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S3.SS4",
+      "locator": "Section III-D",
+      "claim": "Deployment uses LiDAR/IMU elevation mapping, TensorRT at about 0.02 seconds, a 0.5-second horizon, 0.25-second reference updates, Jetson Thor generation, and Jetson Orin tracking.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S4.T3",
+      "locator": "Table III and Section IV-B.1",
+      "claim": "With the same fine-tuned tracker, online references improve mean success over fixed references on box, hurdle, and stair geometry/yaw sweeps using 500 randomized robots per task/setting.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S4.SS2.SSS2",
+      "locator": "Figure 4 and Section IV-B.2",
+      "claim": "Across five traversal tasks, tracker fine-tuning with the frozen generator consistently improves success; the paper attributes this to generated-reference distribution mismatch.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S4.SS1",
+      "locator": "Section IV-A and Figure 3",
+      "claim": "Qualitative hardware demonstrations cover box, hurdle, stair, mixed-terrain, transition, and local-navigation behaviors on Unitree G1.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2604.17335v2#S5",
+      "locator": "Section V",
+      "claim": "The stated limitation is dependence on LiDAR elevation mapping; sensing-noise degradation can substantially harm locomotion.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://wholebodylocomotion.github.io/static/pdfs/poster.pdf",
+      "locator": "Official one-page poster, pinned via project-page commit 0516ff422de21448ad74b430968ec3bb98e4d35e",
+      "claim": "The poster summarizes the two-step closed-loop design, onboard deployment, reference-generation comparison, and qualitative hardware examples.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/wholebodylocomotion/wholebodylocomotion.github.io/tree/0516ff422de21448ad74b430968ec3bb98e4d35e",
+      "locator": "Official project-page repository tree at commit 0516ff422de21448ad74b430968ec3bb98e4d35e, audited 2026-08-30",
+      "claim": "The public artifact contains the project page, poster, and media files but no controller, training implementation, model weights, or configuration files.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

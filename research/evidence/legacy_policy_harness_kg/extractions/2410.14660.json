@@ -1,0 +1,1140 @@
+{
+  "paper": {
+    "id": "2410.14660",
+    "arxiv_id": "2410.14660",
+    "doi": "10.1016/j.knosys.2025.114065",
+    "title": "A Large Language Model-Driven Reward Design Framework via Dynamic Feedback for Reinforcement Learning",
+    "authors": [
+      "Shengjie Sun",
+      "Runze Liu",
+      "Jiafei Lyu",
+      "Jing-Wen Yang",
+      "Liangpeng Zhang",
+      "Xiu Li"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2410.14660v1",
+    "source_version": "arXiv v1, 2024-10-18; sole public arXiv revision verified 2026-08-30; PDF SHA-256 8ce886f51e0ce0659eb1943701f7707d049c4e770e290d52c5c727f67d9f140b. Published in Knowledge-Based Systems 326 (2025), article 114065. Official code evidence pinned to commit 6e1df1c6046229501ba2be55c28526760a842e89 (2025-07-15)."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "CARD is direct evidence for iteratively revising executable task-reward code from fixed-trainer learning traces and success-labelled prior trajectories. Its Trajectory Preference Evaluation is a concrete offline proposal gate, and its paper/code discrepancy identifies a contract test Sam's harness must enforce before claiming that rejected rewards skip training.",
+    "not_evidence_for": [
+      "reference-motion selection, ordering, transition logic, composition, or certification",
+      "a trajectory dataset serving as a policy-conditioning reference oracle",
+      "natural-language human steering",
+      "foundation-controller, VIBE, or physical-robot integration",
+      "matched total outer-loop compute across reward-design methods",
+      "safe or sandboxed execution of generated Python reward code",
+      "TPE as a proof that a candidate reward will train a better policy or generalize off the stored rollout distribution",
+      "the human-written reward baseline being an optimal controller or reference oracle",
+      "the public code implementing the paper's failed-TPE training skip",
+      "RL-Sculptor implementation of CARD"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "card-reward-code-coder",
+      "name": "Environment-conditioned reward-code Coder",
+      "description": "A coding LLM receives a task instruction, a Python-style environment abstraction with callable variables and types, and a reward template. It emits executable reward code returning a scalar reward and a dictionary of named sub-rewards.",
+      "tags": [
+        "task_reward",
+        "executable_reward",
+        "environment_context",
+        "component_diagnostics"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E19"
+      ]
+    },
+    {
+      "id": "card-dynamic-correctness-filter",
+      "name": "Dynamic reward-code correctness filter",
+      "description": "Generated code is executed on sampled environment transitions to catch syntax or runtime errors. A failing candidate is discarded and the LLM is re-queried, up to max_try_num attempts.",
+      "tags": [
+        "runtime_check",
+        "retry",
+        "code_generation",
+        "research_execution"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E16",
+        "E26"
+      ]
+    },
+    {
+      "id": "card-process-feedback",
+      "name": "Component-level process feedback",
+      "description": "At evaluation intervals, the Evaluator serializes mean return, episode length, task success, and cumulative named sub-rewards over training into structured text for the next reward revision.",
+      "tags": [
+        "learning_curve",
+        "sub_reward",
+        "success_metric",
+        "reflection"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E19"
+      ]
+    },
+    {
+      "id": "card-trajectory-feedback",
+      "name": "Extreme-return trajectory feedback",
+      "description": "After policy training, the Evaluator selects the highest- and lowest-return evaluation trajectories and reports return, success, sampled observations, total reward, and sub-reward values at fixed points.",
+      "tags": [
+        "trajectory_feedback",
+        "highest_return",
+        "lowest_return",
+        "offline_formatter"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E19"
+      ]
+    },
+    {
+      "id": "card-trajectory-preference-evaluation",
+      "name": "Trajectory Preference Evaluation",
+      "description": "TPE counterfactually scores success-labelled prior trajectories with the current candidate reward and checks whether successful trajectories receive higher mean per-step return than failed trajectories. The empirical gate accepts when the fraction of successful trajectories beating the maximum failed value reaches delta.",
+      "tags": [
+        "offline_reward_evaluation",
+        "success_labels",
+        "preference_ordering",
+        "proposal_gate"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E23"
+      ]
+    },
+    {
+      "id": "card-paper-conditional-training-gate",
+      "name": "Paper-specified conditional training gate",
+      "description": "After the first direct training round supplies trajectories, an order-preserving candidate is trained and produces process/trajectory feedback; a failing candidate skips RL training and produces preference feedback instead.",
+      "tags": [
+        "conditional_training",
+        "cost_gate",
+        "preference_feedback",
+        "reported_mechanism"
+      ],
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "id": "card-dialogue-lineage",
+      "name": "Full-dialogue reward refinement",
+      "description": "The Coder retains the system prompt, task-generation prompt, prior LLM reward responses, and each introspection prompt so that successive reward changes are conditioned on the full recorded dialogue.",
+      "tags": [
+        "chat_history",
+        "iterative_refinement",
+        "lineage",
+        "prompt_state"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E20"
+      ]
+    },
+    {
+      "id": "card-release-effective-loop",
+      "name": "Pinned release's effective introspection loop",
+      "description": "In both released one-step benchmark scripts, TPE is computed before training but train_and_eval is then called regardless of pass_flag. The flag selects preference versus process/trajectory feedback and controls whether newly trained trajectories are appended to the future TPE pool.",
+      "tags": [
+        "official_code",
+        "paper_code_mismatch",
+        "unconditional_training",
+        "trajectory_pool"
+      ],
+      "evidence_ids": [
+        "E24",
+        "E25"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_backbone_model",
+      "value": "GPT-4-1106-preview",
+      "units": null,
+      "context": "Zero-shot backbone used for Text2Reward, Eureka, and CARD in the main comparison.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "paper_ablation_model",
+      "value": "GPT-3.5-turbo-1106",
+      "units": null,
+      "context": "Compared with GPT-4-1106-preview on three Meta-World tasks.",
+      "evidence_ids": [
+        "E13",
+        "E16"
+      ]
+    },
+    {
+      "name": "llm_sampling_temperature",
+      "value": 0.7,
+      "units": null,
+      "context": "Sampling temperature for all paper tasks.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "reward_code_max_try_num",
+      "value": 10,
+      "units": "LLM attempts",
+      "context": "Retry cap for obtaining dynamically executable reward code.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "main_refinement_iterations",
+      "value": 2,
+      "units": "iterations",
+      "context": "Main CARD evaluation after initial generation; token accounting therefore uses three LLM queries.",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "trajectory_preference_threshold_delta",
+      "value": 0.8,
+      "units": "fraction",
+      "context": "Minimum empirical preference-order accuracy for accepting a candidate.",
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "name": "trajectories_collected_per_iteration",
+      "value": 100,
+      "units": "trajectories",
+      "context": "Candidate-policy rollouts added to the TPE pool after an accepted iteration.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "process_feedback_sampling_interval",
+      "value": {
+        "Meta-World": 100,
+        "ManiSkill2": 25
+      },
+      "units": "paper-reported interval",
+      "context": "Sampling interval in CARD hyperparameter Table 8.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "trajectory_feedback_sampling_points",
+      "value": 10,
+      "units": "points per selected trajectory",
+      "context": "Number of state/reward points included in trajectory feedback.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "benchmark_task_count",
+      "value": {
+        "Meta-World": 6,
+        "ManiSkill2": 6,
+        "total": 12
+      },
+      "units": "tasks",
+      "context": "Simulated manipulation evaluation suite.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "learning_curve_seed_count",
+      "value": 5,
+      "units": "random seeds",
+      "context": "Mean and standard deviation in the main and ablation learning curves.",
+      "evidence_ids": [
+        "E09",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "name": "parallel_environment_counts",
+      "value": {
+        "training": 8,
+        "inference": 5
+      },
+      "units": "environments",
+      "context": "Vectorized environment counts for all methods and tasks.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "reported_task_hardware",
+      "value": {
+        "gpu": "1 NVIDIA RTX 3090",
+        "cpu_cores": 8
+      },
+      "units": null,
+      "context": "Hardware reported per task.",
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "name": "ppo_fixed_hyperparameters",
+      "value": {
+        "tasks": [
+          "LiftCube",
+          "PickCube"
+        ],
+        "learning_rate": 0.0003,
+        "hidden_layers": 2,
+        "hidden_units_per_layer": 256,
+        "steps_per_update": 3200,
+        "epochs_per_update": 15,
+        "batch_size": 400,
+        "gamma": 0.85,
+        "target_kl": 0.05,
+        "training_environments": 8,
+        "gae_lambda": 0.95,
+        "clip_range": 0.2,
+        "rollout_steps_per_episode": 100
+      },
+      "units": null,
+      "context": "Stable-Baselines3 PPO settings held constant across reward methods for the two listed ManiSkill2 tasks.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "sac_fixed_hyperparameters",
+      "value": {
+        "tasks": "all Meta-World plus TurnFaucet, OpenCabinetDrawer, OpenCabinetDoor, PushChair",
+        "learning_rate": 0.0003,
+        "hidden_layers": {
+          "Meta-World": 3,
+          "ManiSkill2": 2
+        },
+        "hidden_units_per_layer": 256,
+        "target_update_frequency": {
+          "Meta-World": 2,
+          "ManiSkill2": 1
+        },
+        "train_frequency": {
+          "Meta-World": 1,
+          "ManiSkill2": 8
+        },
+        "tau": 0.005,
+        "gradient_steps": {
+          "Meta-World": 1,
+          "ManiSkill2": 4
+        },
+        "learning_starts": 4000,
+        "batch_size": {
+          "Meta-World": 512,
+          "ManiSkill2": 1024
+        },
+        "gamma": {
+          "Meta-World": 0.99,
+          "ManiSkill2": 0.95
+        },
+        "initial_temperature": {
+          "Meta-World": 0.1,
+          "ManiSkill2": 0.2
+        },
+        "training_environments": 8,
+        "rollout_steps_per_episode": {
+          "Meta-World": 500,
+          "ManiSkill2": 200
+        }
+      },
+      "units": null,
+      "context": "Stable-Baselines3 SAC settings held constant across reward methods for the listed tasks.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "per_policy_training_steps",
+      "value": {
+        "Meta-World all tasks": 1000000,
+        "ManiSkill2 LiftCube": 1000000,
+        "ManiSkill2 TurnFaucet": 1000000,
+        "ManiSkill2 OpenCabinetDoor": 1000000,
+        "ManiSkill2 PickCube": 2000000,
+        "ManiSkill2 PushChair": 2000000,
+        "ManiSkill2 OpenCabinetDrawer": 2000000
+      },
+      "units": "environment steps",
+      "context": "Per-policy training budgets in the time-cost table.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "reported_average_training_time",
+      "value": {
+        "Meta-World all tasks": 0.5,
+        "ManiSkill2 LiftCube": 0.5,
+        "ManiSkill2 TurnFaucet": 0.9,
+        "ManiSkill2 OpenCabinetDoor": 1.3,
+        "ManiSkill2 PickCube": 1.4,
+        "ManiSkill2 PushChair": 4.1,
+        "ManiSkill2 OpenCabinetDrawer": 2.1
+      },
+      "units": "hours per training run",
+      "context": "Average task times; total method cost also depends on seed and introspection counts.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "llm_queries_in_token_comparison",
+      "value": {
+        "L2R": 2,
+        "Text2Reward": 1,
+        "Eureka": 96,
+        "CARD": 3
+      },
+      "units": "queries",
+      "context": "Eureka count is initial generation plus five rounds of sixteen; CARD is initial plus two introspection rounds.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "average_token_consumption",
+      "value": {
+        "L2R": 2310.7,
+        "Text2Reward": 1724.1,
+        "Eureka": 662882.5,
+        "CARD": 14181.7
+      },
+      "units": "input plus output tokens",
+      "context": "Average across the twelve tasks; L2R/Text2Reward use sixteen runs while Eureka/CARD use one run due to cost.",
+      "evidence_ids": [
+        "E10",
+        "E17"
+      ]
+    },
+    {
+      "name": "aggregate_code_execution_error_rate",
+      "value": {
+        "L2R": 6,
+        "Text2Reward": 48,
+        "Eureka": 17,
+        "CARD": 12
+      },
+      "units": "percent",
+      "context": "Aggregate paper table; method-specific sampling protocols differ.",
+      "evidence_ids": [
+        "E14",
+        "E18"
+      ]
+    },
+    {
+      "name": "reported_oracle_comparison",
+      "value": {
+        "better_or_comparable_to_human_reward": "10/12 tasks",
+        "surpasses_human_reward": "3/12 tasks"
+      },
+      "units": "tasks",
+      "context": "Authors call the human-designed reward baseline Oracle; this is not an optimal policy oracle.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "iteration_ablation",
+      "value": {
+        "tested_iterations": [
+          1,
+          2,
+          3
+        ],
+        "second_iteration_best_or_comparable": "7/9 tasks",
+        "third_iteration_regressions": [
+          "Handle Press Side",
+          "Turn Faucet"
+        ]
+      },
+      "units": null,
+      "context": "Reward-refinement depth ablation.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "pinned_release_runtime_versions",
+      "value": {
+        "python": "3.8",
+        "pip": "24.0",
+        "torch": "1.11.0+cu113",
+        "torchvision": "0.12.0+cu113",
+        "torchaudio": "0.11.0",
+        "stable_baselines3": "1.8.0",
+        "protobuf": "4.25",
+        "chromadb": "0.4.0",
+        "pandas": "1.5.3",
+        "matplotlib": "3.4",
+        "kiwisolver": "1.0.1"
+      },
+      "units": null,
+      "context": "Versions pinned by the official install script; several other dependencies are unpinned.",
+      "evidence_ids": [
+        "E27"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "card-invalid-generated-code",
+      "name": "Invalid generated reward code",
+      "description": "The paper reports undefined variables, template violations, type mismatches, and matrix-dimension mismatches. CARD's aggregate execution-error rate remains 12 percent despite dynamic checks and retries.",
+      "tags": [
+        "syntax_error",
+        "runtime_error",
+        "template_violation",
+        "reported_failure"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E14",
+        "E18"
+      ]
+    },
+    {
+      "id": "card-over-refinement-regression",
+      "name": "Over-refinement regression",
+      "description": "A third reward-refinement iteration materially reduces performance on Handle Press Side and Turn Faucet, which the authors attribute to unwanted changes after an already useful reward has been generated.",
+      "tags": [
+        "over_refinement",
+        "performance_regression",
+        "stopping_rule",
+        "reported_failure"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "card-linear-token-growth",
+      "name": "Linear token growth",
+      "description": "The authors state that token consumption grows linearly with reward-refinement iterations, so tasks requiring many revisions can still incur substantial LLM cost.",
+      "tags": [
+        "token_cost",
+        "iteration_count",
+        "scaling_limit"
+      ],
+      "evidence_ids": [
+        "E21"
+      ]
+    },
+    {
+      "id": "card-known-perception-assumption",
+      "name": "Known-perception assumption",
+      "description": "CARD presumes that relevant environment information is known and callable a priori; vision-language reward construction is left to future work.",
+      "tags": [
+        "environment_abstraction",
+        "perception",
+        "scope_limit"
+      ],
+      "evidence_ids": [
+        "E21"
+      ]
+    },
+    {
+      "id": "card-success-label-and-coverage-dependence",
+      "name": "Success-label and outcome-coverage dependence",
+      "description": "TPE does not require a dense ground-truth reward, but it does require authoritative task-success flags and informative prior rollouts. Without both successful and failed examples, no preference ordering is evidenced.",
+      "tags": [
+        "success_label",
+        "trajectory_coverage",
+        "objective_evaluator",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E07"
+      ]
+    },
+    {
+      "id": "card-release-one-class-pass",
+      "name": "Released TPE passes one-class or empty pools",
+      "description": "At the pinned commit, if either the success set or failure set is empty, including the initial empty pool, the checker assigns correct_rate=1.0 and passes the candidate.",
+      "tags": [
+        "official_code",
+        "fail_open",
+        "empty_evidence",
+        "preference_gate"
+      ],
+      "evidence_ids": [
+        "E23"
+      ]
+    },
+    {
+      "id": "card-paper-code-tpe-statistic-mismatch",
+      "name": "Paper/code TPE statistic mismatch",
+      "description": "The formal paper definition discounts trajectory reward and requires the minimum successful score to exceed the maximum failed score. The release uses undiscounted sums divided by length and a thresholded fraction of successful trajectories against the maximum failed score.",
+      "tags": [
+        "paper_code_mismatch",
+        "discounting",
+        "threshold",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E23"
+      ]
+    },
+    {
+      "id": "card-release-training-gate-mismatch",
+      "name": "Released scripts do not skip failed candidates",
+      "description": "Both public benchmark drivers call train_and_eval after TPE regardless of pass_flag. The flag only changes the feedback branch and whether newly generated trajectories enter the stored pool.",
+      "tags": [
+        "official_code",
+        "paper_code_mismatch",
+        "training_cost",
+        "capability_boundary"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E24",
+        "E25"
+      ]
+    },
+    {
+      "id": "card-maniskill-replay-mismatch",
+      "name": "ManiSkill2 TPE is not recorded-state replay",
+      "description": "The released ManiSkill2 branch steps one live environment with recorded actions but does not install each stored state or reset for each recorded trajectory inside the checker, so candidate scores need not correspond to the stored rollouts being labelled.",
+      "tags": [
+        "official_code",
+        "counterfactual_scoring",
+        "state_replay",
+        "evidence_integrity"
+      ],
+      "evidence_ids": [
+        "E23",
+        "E25"
+      ]
+    },
+    {
+      "id": "card-unsafe-in-process-execution",
+      "name": "Unsafe in-process reward execution",
+      "description": "The release invokes Python exec on LLM-generated code within the simulator process. Its dynamic validity test samples a transition and checks return types, but does not establish a sandbox, purity, bounded outputs, or semantic alignment.",
+      "tags": [
+        "official_code",
+        "exec",
+        "sandbox_gap",
+        "execution_safety"
+      ],
+      "evidence_ids": [
+        "E19",
+        "E26"
+      ]
+    },
+    {
+      "id": "card-partial-release-reproducibility",
+      "name": "Partial public reproduction path",
+      "description": "The pinned Meta-World query script imports a module absent from the repository, and the installer enters an absent run_maniskill directory. The public tree therefore needs repair before the documented end-to-end flow can run.",
+      "tags": [
+        "official_code",
+        "missing_module",
+        "missing_directory",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E22",
+        "E27"
+      ]
+    },
+    {
+      "id": "card-unequal-cost-sampling",
+      "name": "Unequal token and error-rate sampling",
+      "description": "Token totals average sixteen runs for L2R and Text2Reward but one run for Eureka and CARD due to cost. Execution-error estimates also use different sampling units for non-iterative and iterative methods.",
+      "tags": [
+        "token_measurement",
+        "execution_error",
+        "unequal_replication",
+        "uncertainty"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E14",
+        "E17",
+        "E18"
+      ]
+    },
+    {
+      "id": "card-limited-simulation-evidence",
+      "name": "Limited simulation-only task evidence",
+      "description": "The evaluation covers twelve Meta-World and ManiSkill2 tasks. Performance is presented as five-seed learning curves without a table of final values, a declared comparability margin, statistical tests, real-robot trials, or holdout perturbation/recovery tests.",
+      "tags": [
+        "simulation_only",
+        "statistical_boundary",
+        "task_scope",
+        "external_validity"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "card-twelve-task-success-evaluation",
+      "name": "Twelve-task success-rate comparison",
+      "description": "Five-seed learning curves compare CARD, human-written reward, L2R, Text2Reward variants, and Eureka on six Meta-World and six ManiSkill2 tasks. The authors report CARD better or comparable to human rewards on ten tasks and above them on three.",
+      "tags": [
+        "success_rate",
+        "Meta-World",
+        "ManiSkill2",
+        "five_seeds"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "id": "card-token-efficiency-evaluation",
+      "name": "LLM token-efficiency comparison",
+      "description": "The paper totals input and output tokens and reports CARD at 14,181.7 average tokens across tasks, between one-shot methods and Eureka's 662,882.5, while documenting unequal repetition due to cost.",
+      "tags": [
+        "token_cost",
+        "llm_queries",
+        "efficiency",
+        "unequal_replication"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E17"
+      ]
+    },
+    {
+      "id": "card-iteration-depth-ablation",
+      "name": "Reward-refinement depth ablation",
+      "description": "One, two, and three refinement iterations are compared on nine tasks with five seeds. Iteration two is best or comparable on seven tasks, while iteration three harms two named tasks.",
+      "tags": [
+        "iteration_count",
+        "ablation",
+        "stopping_rule",
+        "regression"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "card-feedback-component-ablation",
+      "name": "Feedback-component ablation",
+      "description": "Process, trajectory, and preference feedback are each removed on Door Unlock, Drawer Open, and Handle Press Side; the all-feedback variant performs best in the reported curves.",
+      "tags": [
+        "process_feedback",
+        "trajectory_feedback",
+        "preference_feedback",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "card-llm-backbone-ablation",
+      "name": "LLM-backbone ablation",
+      "description": "GPT-4-1106-preview reward functions outperform GPT-3.5-turbo-1106 reward functions on three Meta-World tasks, with larger gaps on Door Unlock and Drawer Open.",
+      "tags": [
+        "llm_model",
+        "gpt4",
+        "gpt35",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "card-code-execution-error-evaluation",
+      "name": "Generated-code execution-error comparison",
+      "description": "The paper reports aggregate execution-error rates of 6 percent for L2R, 48 percent for Text2Reward, 17 percent for Eureka, and 12 percent for CARD, plus per-task details.",
+      "tags": [
+        "execution_error",
+        "code_generation",
+        "robustness",
+        "per_task_table"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E18"
+      ]
+    },
+    {
+      "id": "card-door-unlock-case-study",
+      "name": "Door Unlock reward-revision case study",
+      "description": "The first revision changes component weights and rotation/orientation terms without an observed effect. The second uses preference feedback to add success shaping and alter grip/rotation terms, after which task success rises.",
+      "tags": [
+        "case_study",
+        "reward_components",
+        "preference_feedback",
+        "qualitative_evidence"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2410.14660",
+      "relation": "INTRODUCES",
+      "target": "card-trajectory-preference-evaluation",
+      "evidence_ids": [
+        "E06",
+        "E07"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "INTRODUCES",
+      "target": "card-paper-conditional-training-gate",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "card-reward-code-coder",
+      "relation": "CONDITIONS_ON",
+      "target": "task instruction and typed environment abstraction",
+      "evidence_ids": [
+        "E03",
+        "E19"
+      ]
+    },
+    {
+      "source": "card-reward-code-coder",
+      "relation": "OPTIMIZES",
+      "target": "executable task reward",
+      "evidence_ids": [
+        "E03",
+        "E07"
+      ]
+    },
+    {
+      "source": "card-trajectory-preference-evaluation",
+      "relation": "REQUIRES",
+      "target": "success-labelled prior trajectories",
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E23"
+      ]
+    },
+    {
+      "source": "card-trajectory-preference-evaluation",
+      "relation": "EVALUATES_ON",
+      "target": "counterfactual candidate-reward ordering",
+      "evidence_ids": [
+        "E06",
+        "E23"
+      ]
+    },
+    {
+      "source": "card-process-feedback",
+      "relation": "USES",
+      "target": "fixed-trainer learning traces",
+      "evidence_ids": [
+        "E04",
+        "E08"
+      ]
+    },
+    {
+      "source": "card-trajectory-feedback",
+      "relation": "USES",
+      "target": "highest- and lowest-return rollouts",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "card-paper-conditional-training-gate",
+      "relation": "USES",
+      "target": "card-trajectory-preference-evaluation",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "USES",
+      "target": "GPT-4-1106-preview",
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "USES",
+      "target": "Stable-Baselines3 PPO and SAC",
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "EVALUATES_ON",
+      "target": "Meta-World and ManiSkill2",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "CONTRASTS_WITH",
+      "target": "L2R, Text2Reward, Eureka, and human-written rewards",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E10",
+        "E14"
+      ]
+    },
+    {
+      "source": "card-release-effective-loop",
+      "relation": "CONTRASTS_WITH",
+      "target": "card-paper-conditional-training-gate",
+      "evidence_ids": [
+        "E07",
+        "E24",
+        "E25"
+      ]
+    },
+    {
+      "source": "2410.14660",
+      "relation": "SUPPORTS",
+      "target": "offline proposal gating for executable task rewards",
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E20"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2410.14660v1",
+      "locator": "Header and submission history",
+      "claim": "The arXiv record identifies the title, six authors, 18 October 2024 submission date, and v1 as the sole public revision.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://www.sciencedirect.com/science/article/pii/S0950705125011104",
+      "locator": "Official article record",
+      "claim": "The paper was published in Knowledge-Based Systems volume 326 as article 114065 with DOI 10.1016/j.knosys.2025.114065.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S4.SS1",
+      "locator": "Section 4.1, Reward Design",
+      "claim": "The Coder receives a Python-style environment abstraction, task description, and reward template; emits scalar plus sub-reward outputs; and discards dynamically failing code before re-querying.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S4.SS2.SSS1",
+      "locator": "Section 4.2.1, Process Feedback",
+      "claim": "Process feedback includes evaluation return, episode length, success, and cumulative sub-reward values over training.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S4.SS2.SSS2",
+      "locator": "Section 4.2.2, Trajectory Feedback",
+      "claim": "The Evaluator formats highest- and lowest-return trajectories with success flags and sampled observation, reward, and sub-reward fields without an LLM trajectory analyzer.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S4.SS2.SSS3",
+      "locator": "Section 4.2.3 and Equation 1",
+      "claim": "TPE uses success-labelled trajectory preferences and defines order preservation by discounted mean per-step successful return exceeding failed return; preference feedback includes the ordering ratio and an example pair.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S4.SS4",
+      "locator": "Section 4.4 and Appendix A, Algorithm 1",
+      "claim": "The paper specifies direct first-round training, thresholded TPE from the second introspection onward, training plus process/trajectory feedback after a pass, and skipped training plus preference feedback after a failure.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS1",
+      "locator": "Section 5.1, Experimental Setup",
+      "claim": "The comparison uses six tasks from each benchmark, GPT-4-1106-preview, the same PPO or SAC algorithms and task hyperparameters across methods, delta 0.8, two CARD iterations, and one RTX 3090 with eight CPU cores.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS2",
+      "locator": "Section 5.2 and Figures 2-3",
+      "claim": "Five-seed learning curves report CARD better or comparable to the human-reward baseline on ten of twelve tasks and above it on three.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS3",
+      "locator": "Section 5.3 and Table 2",
+      "claim": "The paper accounts for LLM queries and reports average token totals of 2310.7, 1724.1, 662882.5, and 14181.7 for L2R, Text2Reward, Eureka, and CARD respectively.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS4",
+      "locator": "Section 5.4, Different number of iterations, Figure 4",
+      "claim": "One-to-three-iteration ablations show iteration two best or comparable on seven of nine tasks and report iteration-three regressions on Handle Press Side and Turn Faucet.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.F5",
+      "locator": "Section 5.4, Different types of feedback, Figure 5",
+      "claim": "Removing process, trajectory, or preference feedback on three Meta-World tasks lowers performance relative to the complete feedback configuration in the reported curves.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.F6",
+      "locator": "Section 5.4, Different LLM APIs, Figure 6",
+      "claim": "GPT-4-1106-preview outperforms GPT-3.5-turbo-1106 on three Meta-World reward-design tasks.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS5",
+      "locator": "Section 5.5 and Table 3",
+      "claim": "The paper reports aggregate code execution-error rates and identifies undefined variables and template violations as recurring causes.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2410.14660v1#S5.SS6",
+      "locator": "Section 5.6 and Figure 7",
+      "claim": "The Door Unlock case study traces multiple reward-component changes; the first refinement has no effect, while the second adds success shaping and is followed by higher success.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A2.SS2",
+      "locator": "Appendix B.2, Tables 6-9",
+      "claim": "The appendix locates LLM/retry settings, complete PPO and SAC hyperparameters, CARD trajectory/feedback settings, parallel environment counts, per-task training steps, and wall times.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A2.SS3",
+      "locator": "Appendix B.3, Table 10",
+      "claim": "Per-task token totals are reported; L2R/Text2Reward use averages from sixteen runs while Eureka/CARD use one run due to cost.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A2.SS4",
+      "locator": "Appendix B.4, Table 11",
+      "claim": "Per-task execution-error rates are reported; L2R/Text2Reward use sixteen independent generations while iterative methods count initial and improved versions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A3",
+      "locator": "Appendix C, Tables 12-13",
+      "claim": "The prompts specify total reward plus named component outputs, allow existing Python packages, forbid invented attributes, and tell the LLM how to react to zero success, flat components, and scale imbalance.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A4.SS2",
+      "locator": "Appendix D.2, Tables 18-21",
+      "claim": "LiftCube examples show process/trajectory feedback followed by failed preference-order examples and successive changes to distance, lifting, action, and grasp weights.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://arxiv.org/html/2410.14660v1#A5",
+      "locator": "Appendix E, Limitations and Future Work",
+      "claim": "The authors state that token consumption grows linearly with iterations and that environmental perception is assumed known a priori.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/ShengjieSun419/CARD/blob/6e1df1c6046229501ba2be55c28526760a842e89/README.md#L1-L93",
+      "locator": "Official README at commit 6e1df1c, lines 1-93",
+      "claim": "The repository identifies itself as CARD code for the paper, links the KBS/arXiv records, claims failed candidates can skip training, documents the manual repeated one-step workflow, and acknowledges Text2Reward and Eureka bases.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/ShengjieSun419/CARD/blob/6e1df1c6046229501ba2be55c28526760a842e89/code_generation/self_reflection/utils.py#L249-L328",
+      "locator": "utils.py at commit 6e1df1c, lines 249-328",
+      "claim": "The released TPE computes undiscounted reward per stored step, compares each success with the maximum failed score, passes at a thresholded success fraction, and assigns a perfect rate when either outcome class is empty; ManiSkill2 uses live env.step calls.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E24",
+      "source_url": "https://github.com/ShengjieSun419/CARD/blob/6e1df1c6046229501ba2be55c28526760a842e89/code_generation/self_reflection/metaworld_exp_one_step.py#L361-L448",
+      "locator": "metaworld_exp_one_step.py at commit 6e1df1c, lines 361-448",
+      "claim": "The Meta-World driver computes TPE, unconditionally calls train_and_eval, then gates feedback type and trajectory-pool extension on pass_flag.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E25",
+      "source_url": "https://github.com/ShengjieSun419/CARD/blob/6e1df1c6046229501ba2be55c28526760a842e89/code_generation/self_reflection/maniskill_exp_one_step.py#L523-L613",
+      "locator": "maniskill_exp_one_step.py at commit 6e1df1c, lines 523-613",
+      "claim": "The ManiSkill2 driver resets one live checking environment once, calls the shared TPE, unconditionally trains, then gates feedback type and trajectory-pool extension on pass_flag.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E26",
+      "source_url": "https://github.com/ShengjieSun419/CARD/blob/6e1df1c6046229501ba2be55c28526760a842e89/code_generation/self_reflection/metaworld_exp_one_step.py#L107-L133",
+      "locator": "metaworld_exp_one_step.py lines 107-133 and generation.py lines 43-84 at commit 6e1df1c",
+      "claim": "The release executes generated Python in-process and accepts code after sampled train/evaluation transitions and basic return-type assertions; failed attempts are re-queried up to the configured cap.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E27",
+      "source_url": "https://github.com/ShengjieSun419/CARD/tree/6e1df1c6046229501ba2be55c28526760a842e89",
+      "locator": "Pinned repository tree; query_llm_metaworld.py lines 1-10; install/install.sh lines 1-32",
+      "claim": "The sole pinned public tree lacks the metaworld_exp module imported by the Meta-World query script and the run_maniskill directory entered by install.sh; the installer also pins only part of the runtime stack.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

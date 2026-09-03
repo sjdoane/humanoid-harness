@@ -1,0 +1,716 @@
+{
+  "paper": {
+    "id": "2606.10340",
+    "arxiv_id": "2606.10340",
+    "doi": "10.48550/arXiv.2606.10340",
+    "title": "OMG: Omni-Modal Motion Generation for Generalist Humanoid Control",
+    "authors": [
+      "Siqiao Huang",
+      "Kun-Ying Lee",
+      "Dongming Qiao",
+      "Guanqi He",
+      "Zhenyu Wang",
+      "Yitang Li",
+      "Shaoting Zhu",
+      "Hang Zhao"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.10340v1",
+    "source_version": "arXiv v1, submitted 2026-06-09"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "OMG directly studies an upstream, multimodally steerable reference generator whose output is executed by a pre-existing downstream humanoid tracker. Its explicit condition interfaces, guidance weights, temporal contract, root-frame convention, and target-versus-executed metrics make it a concrete candidate mechanism for Sam's reference-composition knob under a frozen tracker.",
+    "not_evidence_for": [
+      "Task-reward synthesis, search, or optimization",
+      "An outer-loop agent that revises an oracle from evaluation metrics",
+      "OGMP state-machine, predicate, or branching-oracle execution",
+      "Embodiment-independent or controller-independent transfer",
+      "Quantitative success of zero-shot text-plus-audio composition",
+      "Dynamic feasibility or safety of arbitrary generated references",
+      "A fully fixed trainer when adapting OMG-DiT to a new modality",
+      "Apple-Silicon latency matching the reported NVIDIA deployment"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "omg.generator_tracker_hierarchy",
+      "name": "Generator-tracker hierarchy",
+      "description": "A high-level generator predicts future whole-body reference observations from recent history and external conditions; a pre-existing HoloMotion tracker maps those references to executable Unitree G1 actions.",
+      "tags": ["reference_generator", "hierarchy", "fixed_tracker", "inverse_dynamics"],
+      "evidence_ids": ["E02"]
+    },
+    {
+      "id": "omg.root_canonical_motion_contract",
+      "name": "Root-canonical G1 motion contract",
+      "description": "Each model frame is a 125D G1 feature vector canonicalized to the last history frame's root position and yaw; outputs are decoded back to world-frame G1 states before tracking.",
+      "tags": ["reference_interface", "root_frame", "canonicalization", "unitree_g1"],
+      "evidence_ids": ["E03"]
+    },
+    {
+      "id": "omg.shared_diffusion_prior",
+      "name": "Shared diffusion motion prior",
+      "description": "A DiT denoiser predicts a 60-frame clean future motion from a noisy future, ten history frames, and a subset of available conditions using an x-prediction objective.",
+      "tags": ["diffusion", "dit", "motion_prior", "planning"],
+      "evidence_ids": ["E03"]
+    },
+    {
+      "id": "omg.global_condition_interface",
+      "name": "Global cross-attention condition interface",
+      "description": "Canonical motion-history tokens and frozen T5-Base language embeddings are projected into the hidden dimension and supplied as cross-attention context in every DiT block.",
+      "tags": ["language", "history", "cross_attention", "human_steering"],
+      "evidence_ids": ["E04", "E18", "E22"]
+    },
+    {
+      "id": "omg.frame_aligned_condition_interface",
+      "name": "Frame-aligned FiLM condition interface",
+      "description": "Audio and 22-joint human-reference features are aligned to future motion frames and injected through per-layer FiLM modulation with availability masks.",
+      "tags": ["audio", "human_reference", "film", "temporal_alignment"],
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "id": "omg.modality_specific_cfg",
+      "name": "Modality-specific classifier-free guidance",
+      "description": "At each denoising step, text, audio, and human-reference directions are formed relative to a null branch and combined with independent guidance scales, enabling explicit weighted composition of control signals.",
+      "tags": ["classifier_free_guidance", "composition", "steering", "oracle_parameter"],
+      "evidence_ids": ["E05"]
+    },
+    {
+      "id": "omg.zero_initialized_adaptation",
+      "name": "Zero-initialized new-modality adapters",
+      "description": "A new global condition can append context tokens, while a new frame-aligned condition can add FiLM or AdaLN-style adapters whose final linear layer is initialized to zero; the reported experiments then fully finetune the backbone.",
+      "tags": ["adaptation", "new_modality", "zero_initialization", "finetuning"],
+      "evidence_ids": ["E04", "E11"]
+    },
+    {
+      "id": "omg.simulation_filter",
+      "name": "Tracker-executed data filter",
+      "description": "Retargeted trajectories are executed through the deployment tracker in MuJoCo and rejected for non-finite states, persistent falls, and, where strict feasibility is required, joint-limit violations.",
+      "tags": ["data_curation", "simulation", "fall_filter", "reference_admission"],
+      "evidence_ids": ["E06"]
+    },
+    {
+      "id": "omg.temporal_condition_sequence",
+      "name": "Chunk-level temporal condition sequence",
+      "description": "The official pipeline supports ordered text, audio, human-reference, text-plus-audio, and text-plus-human-reference chunks in synchronous or asynchronous generator-tracker execution modes.",
+      "tags": ["official_code", "temporal_composition", "replanning", "reference_sequence"],
+      "evidence_ids": ["E17"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "processed_pretraining_hours",
+      "value": 1174.66,
+      "units": "hours",
+      "context": "OMG-Data after retargeting, annotation, segmentation, and filtering",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "processed_pretraining_samples",
+      "value": 364500,
+      "units": "clips, approximate",
+      "context": "Reported as 364.5K processed samples",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "motion_frame_rate",
+      "value": 30,
+      "units": "frames per second",
+      "context": "Training, generation, and default evaluation cadence",
+      "evidence_ids": ["E03", "E06", "E07"]
+    },
+    {
+      "name": "history_length",
+      "value": 10,
+      "units": "frames",
+      "context": "Recent executed motion used to canonicalize and condition each plan",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "name": "prediction_horizon",
+      "value": 60,
+      "units": "frames",
+      "context": "Two-second future motion chunk at 30 FPS",
+      "evidence_ids": ["E03", "E07"]
+    },
+    {
+      "name": "internal_motion_feature_dimension",
+      "value": 125,
+      "units": "features per frame",
+      "context": "3 root position + 6 root rotation + 29 G1 joint DOF + 87 non-root link positions",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "external_g1_qpos_dimension",
+      "value": 36,
+      "units": "values per frame",
+      "context": "3 root position + 4 root quaternion + 29 G1 joint DOF benchmark artifact",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "text_encoder_max_length",
+      "value": 50,
+      "units": "tokens",
+      "context": "Frozen T5-Base language encoder",
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "name": "text_condition_dropout_probability",
+      "value": 0.3,
+      "units": null,
+      "context": "Modality dropout during training for classifier-free guidance",
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "name": "audio_feature_dimension",
+      "value": 35,
+      "units": "features per frame",
+      "context": "32 FFT-band features plus energy, zero crossing, and combined flux/centroid feature",
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "name": "audio_condition_dropout_probability",
+      "value": 0.1,
+      "units": null,
+      "context": "Frame-aligned audio modality dropout",
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "name": "human_reference_feature_dimension",
+      "value": 66,
+      "units": "features per frame",
+      "context": "22 human joints in 3D",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "human_reference_condition_dropout_probability",
+      "value": 0.5,
+      "units": null,
+      "context": "Frame-aligned human-reference modality dropout",
+      "evidence_ids": ["E04", "E18"]
+    },
+    {
+      "name": "ddim_sampling_steps",
+      "value": 50,
+      "units": "denoising steps",
+      "context": "Inference with a cosine noise schedule and eta zero",
+      "evidence_ids": ["E03", "E18"]
+    },
+    {
+      "name": "default_global_cfg_scale",
+      "value": 2.5,
+      "units": null,
+      "context": "Default single-condition classifier-free guidance",
+      "evidence_ids": ["E05", "E18"]
+    },
+    {
+      "name": "composed_text_cfg_scale",
+      "value": 3.0,
+      "units": null,
+      "context": "Text branch in reported audio-plus-language composition",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "composed_audio_cfg_scale",
+      "value": 1.5,
+      "units": null,
+      "context": "Audio branch in reported audio-plus-language composition",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "human_reference_cfg_scale",
+      "value": 2.0,
+      "units": null,
+      "context": "Default human-reference guidance",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "dit_b_architecture",
+      "value": {"parameters_millions": 50, "hidden_dimension": 512, "layers": 10, "heads": 8},
+      "units": null,
+      "context": "Smallest reported OMG-DiT backbone",
+      "evidence_ids": ["E03", "E18"]
+    },
+    {
+      "name": "dit_l_architecture",
+      "value": {"parameters_millions": 300, "hidden_dimension": 1152, "layers": 14, "heads": 18},
+      "units": null,
+      "context": "Default evaluation backbone unless otherwise specified",
+      "evidence_ids": ["E03", "E18"]
+    },
+    {
+      "name": "dit_xl_architecture",
+      "value": {"parameters_millions": 500, "hidden_dimension": 1536, "layers": 13, "heads": 24},
+      "units": null,
+      "context": "Largest reported OMG-DiT backbone",
+      "evidence_ids": ["E03", "E18"]
+    },
+    {
+      "name": "pretraining_learning_rate",
+      "value": 0.00006,
+      "units": null,
+      "context": "AdamW pretraining with linear warmup and cosine decay",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "pretraining_global_batch_size",
+      "value": 1024,
+      "units": "samples",
+      "context": "128 samples per GPU on eight A800 GPUs",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "pretraining_max_steps",
+      "value": 100000,
+      "units": "steps",
+      "context": "Maximum paper pretraining schedule",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "accelerated_planner_latency_mean",
+      "value": 51.7,
+      "units": "milliseconds",
+      "context": "DiT-B, 60-frame text-conditioned chunk, one A800, TensorRT FP16 plus DiT cache; five steady-state runs",
+      "evidence_ids": ["E15"]
+    },
+    {
+      "name": "accelerated_planner_latency_standard_deviation",
+      "value": 1.5,
+      "units": "milliseconds",
+      "context": "Same runtime experiment as accelerated_planner_latency_mean",
+      "evidence_ids": ["E15"]
+    },
+    {
+      "name": "human_reference_xl_mpjpe",
+      "value": 18.84,
+      "units": "millimeters",
+      "context": "Root-relative target-motion error for OMG-DiT-XL",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "human_reference_xl_global_mpjpe",
+      "value": 47.83,
+      "units": "millimeters",
+      "context": "Global target-motion error for OMG-DiT-XL",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "human_reference_xl_tracker_fall_rate",
+      "value": 0.39,
+      "units": "percent",
+      "context": "Sequence-level fall rate after HoloMotion execution",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "fall_filter_consecutive_frames",
+      "value": 10,
+      "units": "frames",
+      "context": "Trajectory rejection after a persistent fall condition",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "fall_filter_thresholds",
+      "value": {"root_height_low_meters": 0.2, "root_tilt_high_degrees": 85, "combined_height_meters": 0.35, "combined_tilt_degrees": 60},
+      "units": null,
+      "context": "A frame is a fall when either single threshold or the combined height-and-tilt threshold is met",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "official_code_revision",
+      "value": "1f2aebd58532631c48b9a09a1580d2bf2c5afd14",
+      "units": null,
+      "context": "Official GitHub HEAD inspected on 2026-08-30; commit dated 2026-08-23",
+      "evidence_ids": ["E17", "E18"]
+    },
+    {
+      "name": "official_model_revision",
+      "value": "06a88419da9f9125d0b5480cc10966741a189358",
+      "units": null,
+      "context": "Official Hugging Face model repository snapshot inspected on 2026-08-30",
+      "evidence_ids": ["E19"]
+    },
+    {
+      "name": "official_dataset_revision",
+      "value": "6e0dfbc1c5298bff14d4e2b1459ad678af0a38e7",
+      "units": null,
+      "context": "Official Hugging Face OMG-Data snapshot inspected on 2026-08-30",
+      "evidence_ids": ["E20"]
+    },
+    {
+      "name": "paper_300m_checkpoint_step",
+      "value": 55000,
+      "units": "training steps",
+      "context": "Official paper checkpoint at checkpoints/paper/300m/sstep=055000.ckpt",
+      "evidence_ids": ["E19"]
+    },
+    {
+      "name": "paper_300m_checkpoint_sha256",
+      "value": "df4ce9aeced84fd96a39583c7f6e2c5773b76f942cb43012c6c51dd9eb806806",
+      "units": null,
+      "context": "Official checksum manifest at model revision 06a88419da9f9125d0b5480cc10966741a189358",
+      "evidence_ids": ["E19"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "omg.flat_ground_scope",
+      "name": "Flat-ground data scope",
+      "description": "The authors report that training data mainly cover flat-ground motions and that uneven or in-the-wild terrain remains challenging.",
+      "tags": ["limitation", "terrain", "distribution_shift"],
+      "evidence_ids": ["E13"]
+    },
+    {
+      "id": "omg.no_execution_feedback_adaptation",
+      "name": "No execution-feedback adaptation",
+      "description": "The work focuses on motion generation, does not jointly adapt generator and tracker, and leaves incorporation of execution feedback into generation for future work.",
+      "tags": ["limitation", "open_loop_learning", "fixed_tracker", "feedback_gap"],
+      "evidence_ids": ["E02", "E13"]
+    },
+    {
+      "id": "omg.overguidance_tradeoff",
+      "name": "Over-guidance can worsen global tracking",
+      "description": "In the human-reference sweep, raising guidance from 1.5 to 2.0 lowers root-relative MPJPE from 74.0 to 71.0 mm but worsens g-MPJPE from 218.9 to 343.9 mm.",
+      "tags": ["cfg", "tradeoff", "steering", "non_monotonic"],
+      "evidence_ids": ["E14"]
+    },
+    {
+      "id": "omg.qualitative_composition_evidence",
+      "name": "Qualitative composition evidence",
+      "description": "Zero-shot text-plus-audio composition is supported by qualitative figures and demonstrations, not by a dedicated quantitative composition benchmark.",
+      "tags": ["evidence_gap", "composition", "qualitative"],
+      "evidence_ids": ["E12"]
+    },
+    {
+      "id": "omg.embodiment_tracker_coupling",
+      "name": "G1 and HoloMotion coupling",
+      "description": "Training targets, canonical features, output qpos, filters, and execution metrics are defined for Unitree G1 and the HoloMotion tracker; transfer to another embodiment or controller is untested here.",
+      "tags": ["scope", "unitree_g1", "holomotion", "fixed_trainer"],
+      "evidence_ids": ["E02", "E03", "E06", "E07"]
+    },
+    {
+      "id": "omg.release_path_mismatch",
+      "name": "Public checkpoint path mismatch",
+      "description": "At the pinned public revisions, the GitHub README links checkpoints/300m/sstep=055000.ckpt, while the Hugging Face tree and checksum manifest place the paper artifact under checkpoints/paper/300m/sstep=055000.ckpt.",
+      "tags": ["reproducibility", "artifact_path", "version_pin"],
+      "evidence_ids": ["E19", "E21"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "omg.multi_axis_benchmark",
+      "name": "Generation-quality and execution-fidelity benchmark",
+      "description": "The evaluation reports modality-specific generation metrics separately from tracker-executed contact sliding, jerk, pose/velocity/acceleration errors, fall rate, and joint-limit violation rate.",
+      "tags": ["evaluation", "independent_metrics", "tracking_fidelity"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "omg.human_reference_benchmark",
+      "name": "Human-reference retargeting benchmark",
+      "description": "OMG-DiT-XL reports 18.84 mm root-relative and 47.83 mm global target MPJPE, then 43.07 mm and 112.60 mm tracker-executed target errors, with 0.39% falls and 23.05% joint-limit violations.",
+      "tags": ["human_reference", "retargeting", "tracker_execution"],
+      "evidence_ids": ["E08"]
+    },
+    {
+      "id": "omg.text_benchmark",
+      "name": "Text-conditioned benchmark",
+      "description": "OMG-DiT-XL reports the strongest tabled text-motion FID, Matching Score, and R-precision among compared methods, while some tracker-fidelity columns favor OMG-DiT-L or baselines.",
+      "tags": ["text", "benchmark", "tradeoff"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "omg.audio_benchmark",
+      "name": "Audio-conditioned benchmark",
+      "description": "OMG-DiT improves tabled FID-k and FID-g over compared audio baselines but does not lead every beat-alignment, PFC, contact-slide, jerk, or tracking-fidelity metric.",
+      "tags": ["audio", "benchmark", "multi_metric"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "omg_few_shot_adaptation",
+      "name": "Few-shot and new-modality adaptation",
+      "description": "On held-out AMASS-CMU/WEIZMANN, OMG initialization outperforms same-architecture training from scratch at 1%, 10%, and 100% data for text and Pico-keypoint tasks.",
+      "tags": ["adaptation", "held_out_data", "pico", "text"],
+      "evidence_ids": ["E11"]
+    },
+    {
+      "id": "omg.cfg_sweep",
+      "name": "Human-reference CFG sweep",
+      "description": "Four human-reference guidance scales are compared across MPJPE, g-MPJPE, and rollout horizons, exposing a non-monotonic local-versus-global alignment tradeoff.",
+      "tags": ["ablation", "cfg", "human_steering"],
+      "evidence_ids": ["E14"]
+    },
+    {
+      "id": "omg.runtime_benchmark",
+      "name": "Planner runtime benchmark",
+      "description": "A staged A800 benchmark measures PyTorch, compiled, ONNX, TensorRT, FP16, and cache optimizations for one 60-frame text-conditioned DiT-B plan.",
+      "tags": ["runtime", "latency", "realtime"],
+      "evidence_ids": ["E15"]
+    },
+    {
+      "id": "omg.perceptive_locomotion_adaptation",
+      "name": "Perceptive-locomotion adaptation",
+      "description": "After 500 training steps on the stated visual task, pretrained initialization reaches 53 of 90 successes versus 44 of 90 from scratch under the paper's pelvis-in-target criterion.",
+      "tags": ["adaptation", "vision", "success_rate", "new_modality"],
+      "evidence_ids": ["E16"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.10340",
+      "relation": "INTRODUCES",
+      "target": "omg.shared_diffusion_prior",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "2606.10340",
+      "relation": "INTRODUCES",
+      "target": "omg.modality_specific_cfg",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "source": "omg.generator_tracker_hierarchy",
+      "relation": "USES",
+      "target": "HoloMotion",
+      "evidence_ids": ["E02"]
+    },
+    {
+      "source": "omg.shared_diffusion_prior",
+      "relation": "CONDITIONS_ON",
+      "target": "executed_motion_history",
+      "evidence_ids": ["E03", "E04", "E22"]
+    },
+    {
+      "source": "omg.shared_diffusion_prior",
+      "relation": "CONDITIONS_ON",
+      "target": "language",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "omg.shared_diffusion_prior",
+      "relation": "CONDITIONS_ON",
+      "target": "audio",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "omg.shared_diffusion_prior",
+      "relation": "CONDITIONS_ON",
+      "target": "human_reference_motion",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "omg.modality_specific_cfg",
+      "relation": "COMPOSES",
+      "target": "text_audio_human_guidance_directions",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "source": "omg.modality_specific_cfg",
+      "relation": "SUPPORTS",
+      "target": "human_steering",
+      "evidence_ids": ["E05", "E14"]
+    },
+    {
+      "source": "HoloMotion",
+      "relation": "TRACKS",
+      "target": "omg_generated_g1_reference",
+      "evidence_ids": ["E02", "E07"]
+    },
+    {
+      "source": "omg.simulation_filter",
+      "relation": "REQUIRES",
+      "target": "tracker_executed_mujoco_rollout",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "source": "omg.zero_initialized_adaptation",
+      "relation": "EXTENDS",
+      "target": "omg.shared_diffusion_prior",
+      "evidence_ids": ["E04", "E11"]
+    },
+    {
+      "source": "2606.10340",
+      "relation": "EVALUATES_ON",
+      "target": "Unitree_G1",
+      "evidence_ids": ["E07", "E08", "E09", "E10"]
+    },
+    {
+      "source": "omg.multi_axis_benchmark",
+      "relation": "REPORTS",
+      "target": "target_and_tracker_executed_metrics",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "source": "omg.temporal_condition_sequence",
+      "relation": "COMPOSES",
+      "target": "chunk_level_reference_conditions",
+      "evidence_ids": ["E17"]
+    },
+    {
+      "source": "omg.root_canonical_motion_contract",
+      "relation": "REQUIRES",
+      "target": "last_history_frame_root_and_yaw_anchor",
+      "evidence_ids": ["E03"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.10340",
+      "locator": "Metadata and submission history, lines 8-27; v1 submitted 2026-06-09",
+      "claim": "The active primary record is arXiv:2606.10340v1 by eight listed authors, with arXiv-issued DOI 10.48550/arXiv.2606.10340.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 3.1, Problem Formulation, generator-tracker factorization",
+      "claim": "OMG factorizes control into a high-level future-reference generator and a low-level tracker and uses pre-existing HoloMotion as the tracker.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 3.2; appendix Details of OMG-DiT, Motion Representation, Denoising Backbone, Sampling, Model Scales, and Training Hyperparameters",
+      "claim": "The source specifies the 125D canonical G1 representation, 10-frame history, 60-frame horizon, DiT variants, diffusion objective, DDIM sampler, and training settings.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 3.3; appendix Omni-Modal Condition Encoders and Adapting to New Modalities",
+      "claim": "Language and history use cross-attention; 35D audio and 66D human reference use frame-wise FiLM; modality dropout and zero-initialized new adapters are specified.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Appendix, Classifier-Free Guidance and Composition, modality-specific equation and practical scales",
+      "claim": "Null-relative text, audio, and human-reference guidance directions can be added with separate weights; reported defaults are 3.0, 1.5, and 2.0 for the respective uses.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 2; appendix Details on OMG-Data, Dataset Composition and Simulation-in-the-Loop Filtering",
+      "claim": "OMG-Data contains 1174.66 processed hours at 30 Hz, and tracker-executed MuJoCo rollouts are screened using explicit fall and joint-limit criteria.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 4.1; appendix Evaluation Protocols and Shared Evaluation Metrics",
+      "claim": "The benchmark separates modality-specific target-generation quality from tracker-executed physical and failure metrics and states the validation sample counts.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Table titled Human-reference-conditioned motion benchmark, OMG-DiT-L and OMG-DiT-XL rows",
+      "claim": "The paper reports target-motion, tracker-executed, fall, and joint-limit values for human-reference-conditioned OMG variants.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Table titled Text-conditioned motion benchmark, all rows",
+      "claim": "The text benchmark reports generation and tracker-execution metrics for OMG-DiT-L, OMG-DiT-XL, and five baseline variants.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Table titled Audio-conditioned motion benchmark, all rows",
+      "claim": "The audio benchmark reports alignment, distribution, physical, tracker-fidelity, fall, and joint-limit metrics for OMG and baselines.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 4.3, paired Text-to-Motion Finetuning and Pico Keypoint-Based Teleoperation tables",
+      "claim": "Pretrained OMG initialization outperforms same-architecture scratch training across reported data fractions for held-out text and Pico tasks.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Sec. 4.4, Zero-shot Compositionality; appendix qualitative visualization and Text-audio CFG sweep figure",
+      "claim": "The zero-shot text-plus-audio composition claim is illustrated qualitatively; no dedicated quantitative composition table is reported.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Limitations",
+      "claim": "The authors identify flat-ground data, lack of joint generator-tracker adaptation, and lack of execution feedback in generation as limitations or future directions.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Appendix, Analysis on Classifier-Free Guidance, Human-reference CFG sweep table",
+      "claim": "Moderate guidance improves alignment, but root-relative and global MPJPE respond differently and overly strong guidance can hurt performance.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Appendix, Runtime Acceleration Analysis table",
+      "claim": "TensorRT FP16 plus DiT caching generates a 60-frame DiT-B text-conditioned plan in 51.7 plus or minus 1.5 milliseconds on one A800 in five steady-state runs.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/pdf/2606.10340v1",
+      "locator": "Appendix, Adaptation to New Modalities: Perceptive Locomotion",
+      "claim": "At 500 steps, pretrained initialization succeeds in 53 of 90 held-out target rollouts versus 44 of 90 from scratch under the stated success rule.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/Tsinghua-MARS-Lab/OMG/blob/1f2aebd58532631c48b9a09a1580d2bf2c5afd14/docs/generation.md",
+      "locator": "Lines 9-35 and 52-85, pipeline modes, condition sequence, sync and async execution",
+      "claim": "The official code snapshot exposes chunk-level multimodal condition sequences and separate diffusion-only, tracker-only, synchronous, asynchronous, and offline-track modes.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/Tsinghua-MARS-Lab/OMG/blob/1f2aebd58532631c48b9a09a1580d2bf2c5afd14/configs/generation/model/motion_generator.yaml",
+      "locator": "Lines 7-23; paired diffusion config configs/generation/diffusion/guided_x0.yaml lines 1-9 and denoiser scale configs",
+      "claim": "The released snapshot encodes T5-Base, modality dimensions and mask probabilities, FiLM injection, 1000 training diffusion steps, 50-step DDIM, eta zero, CFG 2.5, and the published model widths.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://huggingface.co/THU-MARS/OMG/blob/06a88419da9f9125d0b5480cc10966741a189358/SHA256SUMS",
+      "locator": "Paper checkpoint entries; model repository revision 06a88419da9f9125d0b5480cc10966741a189358",
+      "claim": "The official model snapshot provides SHA-256 checksums for paper checkpoints, including the 300M step-55,000 checkpoint at df4ce9aeced84fd96a39583c7f6e2c5773b76f942cb43012c6c51dd9eb806806.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://huggingface.co/datasets/THU-MARS/OMG-Data/tree/6e0dfbc1c5298bff14d4e2b1459ad678af0a38e7",
+      "locator": "Official OMG-Data repository revision 6e0dfbc1c5298bff14d4e2b1459ad678af0a38e7",
+      "claim": "The public OMG-Data snapshot used for provenance is pinned to an exact Hugging Face repository revision.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/Tsinghua-MARS-Lab/OMG/blob/1f2aebd58532631c48b9a09a1580d2bf2c5afd14/README.md#L69-L79",
+      "locator": "README checkpoint table lines 69-79 compared with official model revision 06a88419da9f9125d0b5480cc10966741a189358 checkpoints/paper tree",
+      "claim": "The pinned README omits the paper directory component in its checkpoint links, while the pinned model tree and checksum manifest include checkpoints/paper.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/Tsinghua-MARS-Lab/OMG/blob/1f2aebd58532631c48b9a09a1580d2bf2c5afd14/docs/realtime_g1.md#L5-L18",
+      "locator": "Real-time architecture and process split, lines 5-18",
+      "claim": "The real bridge reads G1 lowstate, builds live history, requests planned future motion from the off-board planner, and publishes reference packets to the onboard HoloMotion tracker.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

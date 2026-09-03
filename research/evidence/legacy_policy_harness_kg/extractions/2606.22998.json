@@ -1,0 +1,494 @@
+{
+  "paper": {
+    "id": "2606.22998",
+    "arxiv_id": "2606.22998",
+    "doi": "10.48550/arXiv.2606.22998",
+    "title": "TEXEDO : Test Time Scaling for Controller-aware Language-conditioned Humanoid Motion Generation",
+    "authors": [
+      "Jianuo Cao",
+      "Yuxin Chen",
+      "Yuzhen Song",
+      "Masayoshi Tomizuka",
+      "Chenran Li",
+      "Thomas Tian"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.22998v2",
+    "source_version": "arXiv v2, revised 2026-06-23; current version checked 2026-08-31",
+    "publication_status": "active"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "TEXEDO supplies a concrete reference-candidate interface, controller-grounded feasibility screen, feasibility-first selection rule, matched fixed-controller evaluation, and explicit failure handling for choosing a reference upstream of a frozen policy tracker.",
+    "not_evidence_for": [
+      "State-conditioned oracle generation",
+      "Mode graphs, transition guards, or recovery policies",
+      "Policy-training task-reward generation or revision",
+      "Joint oracle-and-reward search",
+      "Online rollout-to-reference revision",
+      "Feasibility on controllers other than the labeled SONIC Unitree G1 stack",
+      "A dynamics certificate for arbitrary composed references",
+      "A matched real-robot improvement over the N=1 baseline"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "texedo.candidate_sampling",
+      "name": "Black-box best-of-N reference sampling",
+      "description": "A frozen language-conditioned generator draws N candidate whole-body trajectories from a prompt; downstream verifiers consume only the decoded motions rather than generator internals.",
+      "tags": ["reference_selection", "test_time_scaling", "frozen_generator"],
+      "evidence_ids": ["E02", "E08"]
+    },
+    {
+      "id": "texedo.rollout_grounding",
+      "name": "Controller-rollout feasibility labels",
+      "description": "Offline MuJoCo rollouts through the frozen SONIC tracker label each reference with binary success, normalized tracking quality, and completed-reference progress.",
+      "tags": ["controller_aware", "simulation", "feasibility_label"],
+      "evidence_ids": ["E03", "E05", "E10"]
+    },
+    {
+      "id": "texedo.feasibility_first_quality",
+      "name": "Feasibility-first oracle quality",
+      "description": "Q* assigns all binary-label successes above all failures when beta is less than 1/(1+alpha), while tracking quality ranks successes and progress times tracking quality ranks failures.",
+      "tags": ["evaluation", "success_first", "partial_progress"],
+      "evidence_ids": ["E03", "E09"]
+    },
+    {
+      "id": "texedo.dynamic_verifier",
+      "name": "Motion-only dynamic-feasibility surrogate",
+      "description": "A causal temporal Transformer predicts success probability, tracking quality, and failure progress from the 36-dimensional reference trajectory and recombines them through the Q* form as R_dyn.",
+      "tags": ["verifier", "surrogate", "controller_feasibility"],
+      "evidence_ids": ["E03", "E09"]
+    },
+    {
+      "id": "texedo.semantic_verifier",
+      "name": "Robot-skeleton semantic co-embedding",
+      "description": "Text and G1 motion encoders are contrastively trained so exponentiated negative embedding distance scores prompt-motion alignment independently of the dynamic verifier.",
+      "tags": ["semantic_alignment", "contrastive_learning", "evaluation"],
+      "evidence_ids": ["E02", "E09"]
+    },
+    {
+      "id": "texedo.filter_then_rerank",
+      "name": "Feasibility gate then semantic rerank",
+      "description": "Candidates with R_dyn above 0.8 form the admitted set; the most semantically aligned survivor is selected, or the maximum-R_dyn candidate is returned when the admitted set is empty.",
+      "tags": ["hard_gate", "reference_selection", "fallback"],
+      "evidence_ids": ["E04"]
+    },
+    {
+      "id": "texedo.privileged_oracle_selector",
+      "name": "Privileged exhaustive-rollout selector",
+      "description": "The paper's Oracle baseline rolls out every candidate through SONIC and chooses the actual best candidate in the same finite pool, serving only as a deployment-impractical upper bound.",
+      "tags": ["upper_bound", "baseline", "terminology_boundary"],
+      "evidence_ids": ["E05"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "reference_motion_contract",
+      "value": {
+        "dimensions": 36,
+        "root_position": 3,
+        "root_quaternion_wxyz": 4,
+        "joint_positions": 29,
+        "rate_hz": 50
+      },
+      "units": null,
+      "context": "Decoded Unitree G1 reference consumed by generator, verifiers, and selection pipeline",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "main_candidate_budget",
+      "value": 32,
+      "units": "candidate motions per prompt",
+      "context": "Main test-time scaling comparison and real-robot deployment",
+      "evidence_ids": ["E04", "E06", "E11"]
+    },
+    {
+      "name": "dynamic_feasibility_threshold",
+      "value": 0.8,
+      "units": null,
+      "context": "Validation-selected R_dyn admission threshold",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "empty_feasible_set_rate",
+      "value": 1.18,
+      "units": "percent of test prompts",
+      "context": "Prompts for which no candidate exceeds the feasibility threshold and fallback is used",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "qstar_weights",
+      "value": {
+        "alpha": 0.4,
+        "beta": 0.6
+      },
+      "units": null,
+      "context": "Success-first rollout-quality labels and dynamic-surrogate output fusion",
+      "evidence_ids": ["E03", "E09"]
+    },
+    {
+      "name": "termination_thresholds",
+      "value": {
+        "anchor_height_m": 0.25,
+        "anchor_tilt_component": 0.8,
+        "end_effector_height_m": 0.25
+      },
+      "units": null,
+      "context": "BeyondMimic-derived early termination used for success and progress labels",
+      "evidence_ids": ["E10"]
+    },
+    {
+      "name": "dynamic_verifier_architecture",
+      "value": {
+        "input_features": 94,
+        "layers": 4,
+        "model_width": 256,
+        "attention_heads": 4,
+        "feature_clip": [-10, 10]
+      },
+      "units": null,
+      "context": "Causal temporal Transformer feasibility surrogate",
+      "evidence_ids": ["E09"]
+    },
+    {
+      "name": "dynamic_verifier_loss_weights",
+      "value": {
+        "dynamics": 0.6,
+        "failed_rollout_progress": 0.8
+      },
+      "units": null,
+      "context": "Joint three-head verifier training",
+      "evidence_ids": ["E09"]
+    },
+    {
+      "name": "held_out_prompts",
+      "value": 9116,
+      "units": "prompts",
+      "context": "In-distribution held-out evaluation and within-prompt rank fidelity",
+      "evidence_ids": ["E08", "E09"]
+    },
+    {
+      "name": "ood_prompts",
+      "value": 50,
+      "units": "BONES-SEED prompts",
+      "context": "Out-of-distribution prompt-composition evaluation",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "real_robot_prompts",
+      "value": 30,
+      "units": "prompts",
+      "context": "Unitree G1 hardware deployment",
+      "evidence_ids": ["E11"]
+    },
+    {
+      "name": "n32_inference_time",
+      "value": {
+        "candidate_generation_seconds": 2.62,
+        "dynamic_scoring_milliseconds": 15.12,
+        "semantic_scoring_milliseconds": 11.93,
+        "end_to_end_seconds_approx": 3.5
+      },
+      "units": null,
+      "context": "Batch timing on one NVIDIA A100-SXM4 40 GB GPU",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "id_base_to_texedo",
+      "value": {
+        "vlm_judge": [5.722, 6.054],
+        "success": [0.873, 0.984],
+        "mpjpe_mm": [44.34, 39.09],
+        "accel_mm_per_frame2": [6.09, 4.26],
+        "velocity_mm_per_frame": [11.82, 7.78],
+        "qstar": [0.829, 0.926]
+      },
+      "units": null,
+      "context": "N=1 Base compared with N=32 TEXEDO on the in-distribution test prompts",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "dynamic_verifier_fidelity",
+      "value": {
+        "success_auroc": 0.979,
+        "success_auprc": 0.997,
+        "failure_recall": 0.93,
+        "overall_kendall_tau": 0.656,
+        "mixed_pool_kendall_tau": 0.674
+      },
+      "units": null,
+      "context": "Held-out head accuracy and within-prompt agreement with rollout Q*",
+      "evidence_ids": ["E09"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "texedo.failure.candidate_pool_bound",
+      "name": "Candidate-pool coverage bound",
+      "description": "Selection cannot recover a feasible, aligned motion when the frozen generator does not place one in the sampled pool; increasing N adds latency.",
+      "tags": ["coverage", "latency", "reported_limitation"],
+      "evidence_ids": ["E12"]
+    },
+    {
+      "id": "texedo.failure.tracker_specificity",
+      "name": "Tracker-specific feasibility model",
+      "description": "Changing the tracker changes the executable set and requires new controller rollouts to relabel references and adapt the Dynamic Feasibility Verifier.",
+      "tags": ["controller_contract", "domain_shift", "reported_limitation"],
+      "evidence_ids": ["E12"]
+    },
+    {
+      "id": "texedo.failure.fallback_not_feasible",
+      "name": "Least-bad fallback is not a feasibility certificate",
+      "description": "When no candidate exceeds 0.8, the selector still returns the maximum-R_dyn candidate; this occurred on 1.18% of test prompts and can return a predicted-infeasible reference.",
+      "tags": ["fallback", "fail_open", "safety_boundary"],
+      "evidence_ids": ["E04"]
+    },
+    {
+      "id": "texedo.failure.surrogate_gap",
+      "name": "Imperfect surrogate-to-rollout agreement",
+      "description": "Failure recall of 0.930 and overall Kendall tau of 0.656 show that the learned motion-only score is useful but cannot replace exact controller execution as certification.",
+      "tags": ["calibration", "surrogate", "evaluation"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "texedo.failure.metric_survivorship",
+      "name": "Tracking errors condition on successful rollouts",
+      "description": "MPJPE, velocity, and acceleration errors are averaged over successful rollouts only; reporting them without success and progress would hide early-termination failures.",
+      "tags": ["evaluation", "survivorship"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "texedo.failure.hardware_baseline_gap",
+      "name": "No matched real-robot Base comparison",
+      "description": "The hardware section reports 30 of 30 successful TEXEDO-selected trajectories but no N=1 Base row, so the hardware gain over unselected generation is not isolated.",
+      "tags": ["real_robot", "comparison_gap"],
+      "evidence_ids": ["E11"]
+    },
+    {
+      "id": "texedo.failure.release_rule_divergence",
+      "name": "Public selector diverges from the paper rule",
+      "description": "At official commit 8c5beb5, the selection script linearly combines dynamic reward with z-normalized semantic distance instead of implementing the paper's thresholded filter-then-rerank rule and empty-set fallback.",
+      "tags": ["reproducibility", "implementation_drift", "official_code"],
+      "evidence_ids": ["E13"]
+    },
+    {
+      "id": "texedo.failure.adaptation_labels_unreleased",
+      "name": "Controller-label pipeline is not publicly reproducible",
+      "description": "The public reproduction guide states that the rollout labels needed to retrain the dynamic verifier are absent, so adapting the released verifier to Sam's MDP requires building a new exact rollout-label path.",
+      "tags": ["reproducibility", "data_gap", "controller_adaptation"],
+      "evidence_ids": ["E14"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "texedo.eval.id_filter_rerank",
+      "name": "In-distribution feasibility and alignment balance",
+      "description": "Against N=1 Base, N=32 TEXEDO reports success 0.873 to 0.984, VLM-Judge 5.722 to 6.054, MPJPE 44.34 to 39.09 mm, and Q* 0.829 to 0.926.",
+      "tags": ["best_of_n", "in_distribution", "matched_pool"],
+      "evidence_ids": ["E06"]
+    },
+    {
+      "id": "texedo.eval.single_verifier_tradeoff",
+      "name": "Physical and semantic objectives conflict",
+      "description": "At N=32, dynamic-only selection reaches 0.990 success but lowers VLM-Judge to 4.924; semantic-only reaches VLM-Judge 6.110 but only 0.885 success, motivating gated composition.",
+      "tags": ["ablation", "multi_objective", "constraint_first"],
+      "evidence_ids": ["E06"]
+    },
+    {
+      "id": "texedo.eval.verifier_fidelity",
+      "name": "Dynamic-surrogate agreement with controller rollouts",
+      "description": "On held-out data the success head reports AUROC 0.979, AUPRC 0.997, and failure recall 0.930; within-prompt Kendall tau with exact Q* is 0.656 overall.",
+      "tags": ["verifier", "held_out", "calibration"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "texedo.eval.generator_transfer",
+      "name": "Zero-shot transfer to Kimodo",
+      "description": "With no verifier retraining, Kimodo plus TEXEDO reports success 0.954 and VLM-Judge 5.381 versus 0.937 and 4.823 for one Kimodo sample.",
+      "tags": ["zero_shot", "generator_agnostic"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "texedo.eval.ood_prompts",
+      "name": "BONES-SEED prompt generalization",
+      "description": "On 50 OOD prompts, TEXEDO reports success 0.980, VLM-Judge 4.401, and Q* 0.942 versus Base values 0.860, 4.116, and 0.804; adjacent prose rounds TEXEDO Q* to 0.943.",
+      "tags": ["ood", "language_generalization"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "texedo.eval.real_unitree_g1",
+      "name": "Physical Unitree G1 execution",
+      "description": "All 30 TEXEDO-selected references completed on hardware; frame-weighted MPJPE, velocity error, and acceleration error were 37.41 mm, 4.35 mm/frame, and 2.67 mm/frame squared, without a matched Base hardware row.",
+      "tags": ["real_robot", "unitree_g1"],
+      "evidence_ids": ["E11"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "TEXEDO",
+      "relation": "INTRODUCES",
+      "target": "Controller-aware test-time reference selection",
+      "evidence_ids": ["E02", "E04"]
+    },
+    {
+      "source": "Dynamic Feasibility Verifier",
+      "relation": "USES",
+      "target": "Offline SONIC rollout labels",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "Dynamic Feasibility Verifier",
+      "relation": "CONDITIONS_ON",
+      "target": "Decoded Unitree G1 reference motion",
+      "evidence_ids": ["E03", "E08"]
+    },
+    {
+      "source": "TEXEDO selector",
+      "relation": "REQUIRES",
+      "target": "R_dyn above 0.8 for normal-path admission",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "TEXEDO selector",
+      "relation": "OPTIMIZES",
+      "target": "Semantic alignment within the predicted-feasible candidate set",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "TEXEDO selector fallback",
+      "relation": "USES",
+      "target": "Maximum predicted dynamic score when the feasible set is empty",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "TEXEDO",
+      "relation": "USES",
+      "target": "Frozen FSQ-GPT generator and frozen SONIC tracker",
+      "evidence_ids": ["E02", "E05"]
+    },
+    {
+      "source": "Privileged TEXEDO Oracle baseline",
+      "relation": "EVALUATES_ON",
+      "target": "Exact SONIC rollouts of every candidate in the finite pool",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "source": "TEXEDO controller-specific verifier",
+      "relation": "MOTIVATES",
+      "target": "Version-bound feasibility models for each frozen MDP and controller contract",
+      "evidence_ids": ["E12"]
+    },
+    {
+      "source": "TEXEDO filter-then-rerank rule",
+      "relation": "MOTIVATES",
+      "target": "Feasibility admission before task-fit optimization in RL-Sculptor",
+      "evidence_ids": ["E04", "E06"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.22998",
+      "locator": "Submission history and citation metadata",
+      "claim": "arXiv v2 was submitted 2026-06-23 and is the current version checked on 2026-08-31.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Sections III and III-A",
+      "claim": "TEXEDO samples decoded candidate reference trajectories from a black-box frozen generator and leaves the deployment-time tracker frozen.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section III-B, Equations 1-2; Appendix C-A, SONIC roll-outs and ordering guarantee",
+      "claim": "Offline SONIC rollouts produce success, tracking-quality, and progress labels that define Q* and supervise a motion-only Dynamic Feasibility Verifier.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section III-C, Equation 5",
+      "claim": "The paper filters candidates at R_dyn greater than 0.8, selects the maximum semantic score among survivors, and falls back to maximum R_dyn; fallback occurs on 1.18% of test prompts.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section IV-A, Experimental Setup",
+      "claim": "Experiments use Unitree G1, frozen SONIC, a privileged exhaustive-rollout Oracle upper bound, independent physical and semantic metrics, and report N=32 timing on one A100-SXM4 40 GB GPU.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section IV-B, Table 1 and Figures 3-4",
+      "claim": "The in-distribution comparison reports Base, dynamic-only, semantic-only, and TEXEDO results, exposing the feasibility-alignment trade-off and the combined selector's performance.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section IV-C, Tables 2-3",
+      "claim": "The same verifiers are evaluated zero-shot on Kimodo and on 50 BONES-SEED OOD prompts; Table 3 reports OOD TEXEDO Q* 0.942 while prose states 0.943.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Appendix B, Tables 4-6",
+      "claim": "The paper defines the 36-dimensional, 50 Hz G1 motion representation, corpus split, FSQ tokenizer, Flan-T5 generator, and sampling configuration.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Appendix C-A, Tables 7-9 and Proposition 1",
+      "claim": "The appendix specifies the dynamic-verifier architecture and losses, proves binary-label feasibility-first ordering, and reports head accuracy and within-prompt rank fidelity.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Appendix E, Equations 10-16",
+      "claim": "The appendix defines early termination, success, progress, tracking errors, successful-rollout conditioning, and the eight-call VLM-Judge ensemble.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section IV-D; Appendix D, Table 11",
+      "claim": "TEXEDO executes all 30 selected trajectories on a physical Unitree G1 and reports per-prompt and aggregate tracking errors without a matched N=1 Base hardware row.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.22998v2",
+      "locator": "Section VI, Limitations",
+      "claim": "Performance is bounded by candidate quality and latency; changing the tracker requires new controller rollouts and adaptation of the dynamic verifier.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://github.com/JianuoCao/TEXEDO/blob/8c5beb5e18fcf9ce24ff1df61899e731fdae225a/pipeline/select_best_of_n.py#L27-L46",
+      "locator": "Function select, lines 27-46 at official commit 8c5beb5",
+      "claim": "The released selection function uses alpha-weighted dynamic reward minus beta-weighted z-normalized semantic distance, not the paper's thresholded filter-then-rerank rule.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/JianuoCao/TEXEDO/blob/8c5beb5e18fcf9ce24ff1df61899e731fdae225a/docs/REPRODUCE.md#L55-L68",
+      "locator": "Verifier training, lines 55-68 at official commit 8c5beb5",
+      "claim": "The public release omits physics-rollout labels needed to retrain the dynamic verifier and instead ships a frozen checkpoint.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

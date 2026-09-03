@@ -1,0 +1,43 @@
+.DS_Store
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Local or generated research state
+artifacts/
+checkpoints/
+experiments/**/runs/
+praxist_task/experiments/
+research/graph/
+research/references.bib
+research/SUMMARY.md
+research/evidence/legacy_policy_harness_kg/graph/
+research/evidence/legacy_policy_harness_kg/references.bib
+research/evidence/legacy_policy_harness_kg/SUMMARY.md
+research/raw_sources/*
+!research/raw_sources/README.md
+runs/
+outputs/
+videos/
+wandb/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.mp4
+
+# Local credentials and environment configuration.
+.env
+.env.*
+!.env.example
+secrets*.json
+
+# Private context must never be committed.
+private/
+docs/meetings/private/

@@ -1,0 +1,646 @@
+{
+  "paper": {
+    "id": "2410.17233",
+    "arxiv_id": "2410.17233",
+    "doi": "10.48550/arXiv.2410.17233",
+    "title": "ICPL: Few-shot In-context Preference Learning via LLMs",
+    "authors": [
+      "Chao Yu",
+      "Qixin Tan",
+      "Hong Lu",
+      "Jiaxuan Gao",
+      "Xinting Yang",
+      "Yu Wang",
+      "Yi Wu",
+      "Eugene Vinitsky"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2410.17233v3",
+    "source_version": "RLC/RLJ 2026 pre-proceedings Paper25.pdf retrieved 2026-08-30, SHA-256 58c7ec8c7412af61aa8de26b02416258e9ba9b74937db544484e3f4dcbcbdbc1; arXiv v3 revised 2025-04-03, PDF SHA-256 94c4347334940f8d53d7df32372e8eab5ad98bcb54044faa01d410f438dbd0d1; official code pinned to untagged public main HEAD a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435 (2024-09-30), verified 2026-08-30."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "ICPL directly searches executable task-reward programs around repeated policy training and converts best/worst behavior preferences plus reward-component traces into the next reward proposal. It supplies a core outer-loop mechanism and exposes evaluation, reproducibility, and execution boundaries that matter when Sam keeps the trainer fixed.",
+    "not_evidence_for": [
+      "Reference-dataset composition, motion selection, phase clocks, hybrid modes, guards, transitions, or recovery oracles",
+      "Natural-language steering, because paper participants select video identifiers and explanatory text feedback is future work",
+      "An untouched holdout evaluator, because the proxy sparse metric both selects candidates and reports performance",
+      "A single fixed trainer across baselines, because ICPL and PrefPPO use PPO while PEBBLE and SURF use SAC",
+      "Identical initialization, seeds, software versions, or compute for every candidate and baseline",
+      "Safe or sandboxed execution of generated reward code",
+      "Reward transfer across controllers, optimizers, simulators, observation contracts, or training budgets",
+      "Sim-to-real reward transfer or real-robot deployment",
+      "Broad human-preference generalization from seven training participants and one twenty-person final comparison",
+      "RL-Sculptor implementation of ICPL"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "icpl-reward-design-problem",
+      "name": "Reward design problem with preferences",
+      "description": "The paper separates an MDP with preferences, reward-function space, learning algorithm A_M that maps a reward to a policy, and a preference set; the target is a reward whose trained policy best complies with those preferences.",
+      "tags": ["task_reward", "formal_interface", "preference_learning", "fixed_trainer"],
+      "evidence_ids": ["E03"]
+    },
+    {
+      "id": "icpl-executable-reward-search",
+      "name": "Iterative executable reward-program search",
+      "description": "A coding LLM receives task text and observation/action environment context, resamples until K reward functions execute, trains a separate PPO policy for each candidate, and repeats for N rounds without fitting a parametric reward model.",
+      "tags": ["task_reward", "program_search", "ppo", "resampling"],
+      "evidence_ids": ["E03", "E04", "E11", "E14"]
+    },
+    {
+      "id": "icpl-preference-context-update",
+      "name": "Good/bad reward context update",
+      "description": "Humans rank candidate-policy videos; the code for the most and least preferred rewards is inserted as positive and negative context for the next reward generation round.",
+      "tags": ["human_steering", "video_preference", "in_context_learning", "reward_editing"],
+      "evidence_ids": ["E03", "E04", "E11"]
+    },
+    {
+      "id": "icpl-automatic-reward-feedback",
+      "name": "Component traces and historical-difference feedback",
+      "description": "The next prompt includes component values for selected good and bad rewards, learning traces for prior good rewards, and another LLM's description of differences between consecutive good reward programs.",
+      "tags": ["reward_trace", "component_feedback", "historical_diff", "credit_assignment"],
+      "evidence_ids": ["E04", "E11", "E19"]
+    },
+    {
+      "id": "icpl-video-comparison-steering",
+      "name": "Index-only comparative human steering",
+      "description": "A participant watches final-policy videos and selects best and worst identifiers. The signal steers the reward generator rather than directly commanding the low-level policy; explanatory language was not part of the reported study.",
+      "tags": ["human_steering", "comparative_feedback", "behavior_video", "scope_boundary"],
+      "evidence_ids": ["E08", "E10", "E13", "E19"]
+    },
+    {
+      "id": "icpl-proxy-preference-selector",
+      "name": "Sparse-metric proxy preference selector",
+      "description": "In synthetic trials, an independent human-designed sparse task metric labels the highest-RTS reward as good and the lowest as bad; its values and functional form are not placed in the LLM prompt.",
+      "tags": ["proxy_human", "task_metric", "best_worst", "evaluation"],
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "id": "icpl-fixed-task-policy-retraining",
+      "name": "Per-candidate policy retraining",
+      "description": "Within an IsaacGym task, candidate rewards reuse the reported task observation/action configuration and PPO training path, but each reward launches a new policy training run; the public sources do not prove a complete byte-identical trainer, seed, and budget manifest.",
+      "tags": ["fixed_trainer", "policy_retraining", "candidate_evaluation", "boundary"],
+      "evidence_ids": ["E04", "E05", "E18"]
+    },
+    {
+      "id": "icpl-release-execution-loop",
+      "name": "Generated-Python training loop",
+      "description": "The pinned release extracts the first generated Python function, maps its arguments to environment attributes, appends it to a task module, launches IsaacGym training in a subprocess, retries failed candidates, parses traces and task scores, and evaluates selected code under five seeds.",
+      "tags": ["official_code", "generated_code", "subprocess", "research_release"],
+      "evidence_ids": ["E17", "E18", "E19"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "reward_search_shape",
+      "value": {"iterations_N": 5, "executable_samples_per_iteration_K": 6, "scheduled_candidate_policy_trainings": 30},
+      "units": "policy trainings per experiment before retries",
+      "context": "Main ICPL search protocol; non-executable generations are resampled.",
+      "evidence_ids": ["E04", "E11"]
+    },
+    {
+      "name": "human_query_formula",
+      "value": {"formula": "Q=(K-1)*2N-1", "K": 6, "N": 5, "Q": 49},
+      "units": "pairwise trajectory/video comparisons",
+      "context": "Select best and worst in each round, then best among round winners.",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "baseline_query_budgets",
+      "value": [49, 150, 1500, 15000],
+      "units": "pairwise preference queries",
+      "context": "PrefPPO, PEBBLE, and SURF comparison budgets.",
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "name": "paper_llm_models",
+      "value": {"proxy_preference": "GPT-4-0613", "human_in_the_loop": "GPT-4o"},
+      "units": null,
+      "context": "The human-trial model is a mutable alias rather than a dated snapshot.",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "isaacgym_task_suite",
+      "value": ["Cartpole", "BallBalance", "Quadcopter", "Anymal", "Humanoid", "Ant", "FrankaCabinet", "ShadowHand", "AllegroHand"],
+      "units": "tasks",
+      "context": "Nine quantitative simulator tasks; HumanoidJump is an additional subjective task.",
+      "evidence_ids": ["E05", "E12"]
+    },
+    {
+      "name": "observation_action_dimensions",
+      "value": {
+        "Cartpole": [4, 1],
+        "BallBalance": [48, 12],
+        "Quadcopter": [21, 12],
+        "Anymal": [48, 12],
+        "Humanoid": [108, 21],
+        "Ant": [60, 8],
+        "FrankaCabinet": [23, 9],
+        "ShadowHand": [211, 20],
+        "AllegroHand": [88, 16]
+      },
+      "units": "[observation dimensions, action dimensions]",
+      "context": "Structural task interfaces reported in the arXiv v3 supplement.",
+      "evidence_ids": ["E12"]
+    },
+    {
+      "name": "score_selection_hierarchy",
+      "value": {
+        "RTS": "maximum sparse task metric sampled at fixed intervals in one policy run",
+        "iteration_result": "maximum RTS among 6 candidates",
+        "TS": "maximum iteration result over 5 iterations",
+        "FTS": "maximum TS over 5 independent experiments"
+      },
+      "units": null,
+      "context": "The primary metric is explicitly best-of candidates, rounds, and repeated experiments.",
+      "evidence_ids": ["E05", "E07"]
+    },
+    {
+      "name": "independent_experiments_per_method",
+      "value": 5,
+      "units": "experiments",
+      "context": "Used to address LLM/run randomness; FTS retains the highest TS.",
+      "evidence_ids": ["E05", "E07"]
+    },
+    {
+      "name": "reported_query_reduction",
+      "value": {"lower_bound": 30, "comparison": "equivalent or superior performance versus tabula-rasa PbRL"},
+      "units": "times fewer queries",
+      "context": "Author-reported summary; baseline trainers and preference signals are not identical.",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "icpl_final_task_scores",
+      "value": {
+        "Cartpole": 499,
+        "BallBalance": 499,
+        "Quadcopter": -0.0195,
+        "Anymal": -0.007,
+        "Ant": 12.04,
+        "Humanoid": 9.227,
+        "FrankaCabinet": 0.9999,
+        "ShadowHand": 13.231,
+        "AllegroHand": 25.03
+      },
+      "units": "task-specific FTS",
+      "context": "RLJ Table 1 best-of protocol; scores are not comparable across task columns.",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "feedback_ablation_scope",
+      "value": {"tasks": 9, "full_icpl_top_two_tasks": 8, "variants": ["without reward trace", "without reward trace and differences", "without reward trace, differences, and bad examples", "OpenLoop"]},
+      "units": null,
+      "context": "Ablations retain nested best-of evaluation and show substantial dispersion.",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "human_participant_counts",
+      "value": {"training_preference_volunteers": 7, "isaacgym_assignments": 5, "new_task_assignments": 2, "final_comparison_voters": 20},
+      "units": "people",
+      "context": "Participants had no prior experience with the tasks according to the paper.",
+      "evidence_ids": ["E08", "E13"]
+    },
+    {
+      "name": "human_isaacgym_reported_improvement",
+      "value": {"ICPL_proxy_average_vs_OpenLoop_percent": 27.4, "ICPL_real_average_vs_OpenLoop_percent": 18.4, "ICPL_real_outperformed_OpenLoop_tasks_reported": 3, "tasks": 5},
+      "units": null,
+      "context": "Author-reported aggregate over Quadcopter, Ant, Humanoid, ShadowHand, and AllegroHand.",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "humanoid_jump_comparison",
+      "value": {"ICPL_votes": 17, "OpenLoop_votes": 3, "voters": 20, "independent_experiments": 5, "iterations_per_experiment": 6, "samples_per_iteration": 6},
+      "units": null,
+      "context": "Random-order final video comparison for the subjective HumanoidJump task.",
+      "evidence_ids": ["E09"]
+    },
+    {
+      "name": "reported_compute_and_latency",
+      "value": {"GPU": "1 x A100", "proxy_full_experiment_wall_time": "less than 1 day", "Humanoid_ICPL_hours": 16.4, "human_experiment_duration_days": [2, 3]},
+      "units": null,
+      "context": "Training time is hardware- and implementation-specific and is not a matched compute proof.",
+      "evidence_ids": ["E05", "E13"]
+    },
+    {
+      "name": "official_release_defaults",
+      "value": {"model": "gpt-4o", "temperature": 1.0, "iterations": 5, "samples": 6, "max_policy_iterations": 3000, "final_evaluations": 5, "default_preference_type": "simple_human", "use_environment_feedback": true, "use_text_human_feedback": false},
+      "units": null,
+      "context": "Pinned code defaults at commit a23c3bc; these are release behavior, not an immutable paper reproduction environment.",
+      "evidence_ids": ["E16"]
+    },
+    {
+      "name": "official_release_reward_interface",
+      "value": {"decorator": "torch.jit.script", "returns": ["total reward tensor", "dictionary of component tensors"], "input_rule": "environment attributes only"},
+      "units": null,
+      "context": "Prompt-level contract; the parser does not enforce a side-effect-free DSL.",
+      "evidence_ids": ["E17", "E18"]
+    },
+    {
+      "name": "official_release_dependency_constraints",
+      "value": {"package_version": "1.0", "README_python_min": "3.8", "setup_python_min": "3.7", "torch": "<=2.0.0", "gym": "==0.23.1", "openai": "unpinned", "numpy": "unpinned", "hydra_core": ">=1.1", "IsaacGym": "Preview Release 4/4 as written"},
+      "units": null,
+      "context": "The exact Git commit pins repository bytes but not the external runtime or mutable hosted models.",
+      "evidence_ids": ["E15", "E20"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "icpl-video-ambiguity",
+      "name": "Video-only preference ambiguity",
+      "description": "Anymal was excluded from human trials because random-command following was difficult to judge from video. Direction, pose, and target-orientation visibility also caused documented ranking errors.",
+      "tags": ["human_feedback", "partial_observability", "ranking_error"],
+      "evidence_ids": ["E08", "E10", "E13"]
+    },
+    {
+      "id": "icpl-minimal-metric-exploit",
+      "name": "Minimal-metric leg-lift exploit",
+      "description": "A one-leg jump satisfies a simple height criterion but fails the intended human-like style. Human preference rejected it, yet the study supplies no independent naturalness or physical-quality gate.",
+      "tags": ["metric_exploit", "naturalness", "holdout_gap"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "icpl-initial-diversity-dependence",
+      "name": "Initial reward diversity dependence",
+      "description": "The authors report that qualitative task performance depends on diversity in the initial LLM reward batch; the method relies on the model to supply that diversity.",
+      "tags": ["initialization", "diversity", "llm_dependence"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "icpl-small-human-study",
+      "name": "Limited human-study breadth",
+      "description": "Seven people generated training preferences and twenty people judged one final HumanoidJump pair, limiting evidence for population-level preference robustness.",
+      "tags": ["human_study", "generalizability", "sample_size"],
+      "evidence_ids": ["E08", "E09", "E10", "E13"]
+    },
+    {
+      "id": "icpl-retraining-latency",
+      "name": "Nested policy-training latency",
+      "description": "Every candidate requires a new RL run and each human-feedback round waits for training. The paper reports several-hour waits, 16.4 hours for the representative Humanoid ICPL run, and two-to-three-day human experiments.",
+      "tags": ["compute", "latency", "human_in_the_loop"],
+      "evidence_ids": ["E05", "E10", "E13"]
+    },
+    {
+      "id": "icpl-best-of-selection",
+      "name": "Nested best-of-N reporting",
+      "description": "FTS selects maxima over fixed-interval checkpoints, six candidates, five rounds, and five independent experiments. The publisher version explicitly says the metric reflects the strongest candidate rather than an average run.",
+      "tags": ["selection_bias", "best_of_n", "reporting"],
+      "evidence_ids": ["E05", "E07"]
+    },
+    {
+      "id": "icpl-metric-reuse",
+      "name": "Proxy metric reused for search and evaluation",
+      "description": "The sparse task metric is separate from generated reward code and hidden from the LLM, but it selects good/bad examples and supplies RTS, TS, and FTS. The protocol has no untouched objective holdout against metric overfitting.",
+      "tags": ["metric_reuse", "overfitting", "evaluation"],
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "id": "icpl-mixed-baseline-contract",
+      "name": "Mixed trainer and feedback contracts",
+      "description": "ICPL and PrefPPO use PPO, while PEBBLE and SURF use SAC; ICPL proxy selection uses sparse task metrics while baselines receive dense trajectory preferences. Query-efficiency results are therefore not a fully fixed-trainer reward-only comparison.",
+      "tags": ["baseline", "trainer_confound", "preference_signal"],
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "id": "icpl-high-variance",
+      "name": "High LLM and training variance",
+      "description": "The paper reports substantial dispersion, uses five repeated experiments, and recommends repetition; feedback ablations do not dominate every task despite the aggregate top-two claim.",
+      "tags": ["variance", "stochasticity", "replication"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "icpl-no-text-feedback-evidence",
+      "name": "No explanatory text-feedback experiment",
+      "description": "Participants provide best/worst identifiers, not natural-language rationales. The authors list explanatory text feedback as future work, and the pinned release defaults use_human_feedback to false.",
+      "tags": ["human_steering", "natural_language", "evidence_gap"],
+      "evidence_ids": ["E10", "E16", "E19"]
+    },
+    {
+      "id": "icpl-unsandboxed-generated-code",
+      "name": "Unsandboxed generated reward execution",
+      "description": "The release parses only the first function signature, writes the generated body into an environment module, and runs it in a policy-training subprocess. It provides no import/AST allowlist, side-effect proof, resource boundary, or reward DSL.",
+      "tags": ["security_boundary", "generated_code", "subprocess"],
+      "evidence_ids": ["E17", "E18"]
+    },
+    {
+      "id": "icpl-unpinned-runtime",
+      "name": "Incomplete runtime identity",
+      "description": "The Git commit is exact, but hosted model aliases and several Python dependencies are mutable; README and setup.py also disagree on the minimum Python version.",
+      "tags": ["reproducibility", "dependency_pin", "model_alias"],
+      "evidence_ids": ["E15", "E16", "E20"]
+    },
+    {
+      "id": "icpl-hard-coded-api-proxy",
+      "name": "Hard-coded third-party LLM endpoint",
+      "description": "The release constructs the OpenAI client with https://api.openai-proxy.com/v1 even though its README only instructs users to supply an OpenAI API key. Environment context and reward-history prompts therefore route through an endpoint outside the documented trust boundary.",
+      "tags": ["network_endpoint", "prompt_data", "trust_boundary"],
+      "evidence_ids": ["E15", "E21"]
+    },
+    {
+      "id": "icpl-public-version-drift",
+      "name": "Publisher/arXiv result drift",
+      "description": "The active RLJ pre-proceedings and arXiv v3 are not byte- or value-identical. For example, PEBBLE-49 Quadcopter is -0.901 in RLJ Table 1 and -1.191 in arXiv v3 Table 1, so claims require an exact source version.",
+      "tags": ["versioning", "result_drift", "provenance"],
+      "evidence_ids": ["E01", "E02", "E06", "E11"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "icpl-proxy-nine-task-evaluation",
+      "name": "Nine-task proxy-preference benchmark",
+      "description": "Five independent experiments compare ICPL, PrefPPO, PEBBLE, SURF, and a modified Eureka on nine IsaacGym tasks. ICPL uses sparse task metrics for proxy best/worst labels; PbRL baselines use dense preference labels.",
+      "tags": ["isaacgym", "proxy_preference", "benchmark", "simulation"],
+      "evidence_ids": ["E05", "E06", "E12"]
+    },
+    {
+      "id": "icpl-query-efficiency-evaluation",
+      "name": "49-query versus PbRL budget comparison",
+      "description": "ICPL's K=6, N=5 ranking protocol is counted as 49 pairwise queries and compared with PbRL budgets through 15,000; the paper reports at least a 30-fold reduction at equivalent or better scores.",
+      "tags": ["query_efficiency", "preference_learning", "baseline"],
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "id": "icpl-feedback-ablation-evaluation",
+      "name": "Trace, difference, bad-example, and OpenLoop ablations",
+      "description": "Ablations remove reward traces, then historical differences, then bad examples; OpenLoop samples K times N rewards without feedback. Full ICPL is reported top-two on eight of nine tasks, with high variance.",
+      "tags": ["ablation", "reward_trace", "open_loop", "preference_feedback"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "icpl-round-improvement-evaluation",
+      "name": "Selected-task reward improvement over rounds",
+      "description": "Average RTS relative to round one is plotted for Ant and ShadowHand, the two tasks with the largest gaps over OpenLoop; the trend improves after multiple rounds but is not a nine-task monotonicity test.",
+      "tags": ["iteration", "reward_refinement", "selection_boundary"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "icpl-real-human-isaac-evaluation",
+      "name": "Real-human five-task IsaacGym trial",
+      "description": "Five video-rankable IsaacGym tasks use real best/worst selections. The paper reports an 18.4% average improvement over OpenLoop and says ICPL-real outperforms it on three of five tasks, with documented judgment errors.",
+      "tags": ["human_in_the_loop", "video_preference", "isaacgym"],
+      "evidence_ids": ["E08", "E13"]
+    },
+    {
+      "id": "icpl-humanoid-jump-evaluation",
+      "name": "Subjective HumanoidJump preference comparison",
+      "description": "After five six-round, six-sample experiments, twenty additional volunteers compare randomized final videos; seventeen prefer ICPL and three prefer OpenLoop. The evidence is one simulated final pair without an independent naturalness metric.",
+      "tags": ["humanoid", "subjective_task", "human_vote", "metric_gap"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "icpl-release-audit",
+      "name": "Paper and public-release audit",
+      "description": "The pinned untagged release matches the five-by-six search defaults but defaults to mutable GPT-4o, temperature 1.0, 3000 policy iterations, and five final evaluations; it directly executes generated Python and leaves key runtime dependencies unpinned.",
+      "tags": ["official_code", "reproducibility", "execution_boundary", "version_pin"],
+      "evidence_ids": ["E15", "E16", "E17", "E18", "E19", "E20", "E21"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2410.17233",
+      "relation": "INTRODUCES",
+      "target": "icpl-reward-design-problem",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "paper:2410.17233",
+      "relation": "INTRODUCES",
+      "target": "icpl-executable-reward-search",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "source": "paper:2410.17233",
+      "relation": "INTRODUCES",
+      "target": "icpl-preference-context-update",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "source": "icpl-executable-reward-search",
+      "relation": "OPTIMIZES",
+      "target": "artifact:task_reward",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "source": "icpl-executable-reward-search",
+      "relation": "REQUIRES",
+      "target": "trainer:PPO_policy_training",
+      "evidence_ids": ["E04", "E05"]
+    },
+    {
+      "source": "icpl-executable-reward-search",
+      "relation": "CONDITIONS_ON",
+      "target": "input:task_description_and_environment_context",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "source": "icpl-preference-context-update",
+      "relation": "CONDITIONS_ON",
+      "target": "input:human_best_worst_video_preference",
+      "evidence_ids": ["E03", "E08"]
+    },
+    {
+      "source": "icpl-automatic-reward-feedback",
+      "relation": "CONDITIONS_ON",
+      "target": "evidence:reward_component_training_traces",
+      "evidence_ids": ["E04", "E11"]
+    },
+    {
+      "source": "icpl-automatic-reward-feedback",
+      "relation": "USES",
+      "target": "concept:LLM_generated_reward_differences",
+      "evidence_ids": ["E04", "E11"]
+    },
+    {
+      "source": "icpl-proxy-preference-selector",
+      "relation": "CONDITIONS_ON",
+      "target": "metric:sparse_task_metric",
+      "evidence_ids": ["E05", "E06"]
+    },
+    {
+      "source": "paper:2410.17233",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:IsaacGym_nine_tasks",
+      "evidence_ids": ["E05", "E06", "E12"]
+    },
+    {
+      "source": "paper:2410.17233",
+      "relation": "CONTRASTS_WITH",
+      "target": "paper:2310.12931",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "source": "paper:2410.17233",
+      "relation": "ADDRESSES",
+      "target": "concept:preference_query_inefficiency",
+      "evidence_ids": ["E01", "E06"]
+    },
+    {
+      "source": "icpl-release-execution-loop",
+      "relation": "USES",
+      "target": "artifact:generated_python_reward_function",
+      "evidence_ids": ["E17", "E18"]
+    },
+    {
+      "source": "icpl-humanoid-jump-evaluation",
+      "relation": "CONTRASTS_WITH",
+      "target": "evaluation:OpenLoop_equal_candidate_budget",
+      "evidence_ids": ["E09"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2410.17233v3",
+      "locator": "arXiv header and submission history",
+      "claim": "The current arXiv title and eight authors are recorded in v3; v1 was submitted 2024-10-22, v2 on 2025-01-31, and v3 on 2025-04-03.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.html",
+      "locator": "Paper 25 metadata and pre-proceedings notice",
+      "claim": "The publisher lists the paper in Reinforcement Learning Journal volume 7 for RLC 2026 and states that the public file is pre-proceedings subject to minor changes.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Sections 3–4 and Figure 1, PDF pp. 3–5",
+      "claim": "The RDPP separates the MDP, reward space, learning algorithm, and preferences; ICPL generates executable rewards, trains agents, ranks behavior videos, and feeds selected rewards back to the LLM.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Sections 4.1–4.3, PDF pp. 4–5",
+      "claim": "ICPL resamples to K executable reward functions, uses K=6 over N=5 PPO rounds, and feeds component evaluations, historical reward differences, and reward traces to the LLM.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Sections 5.1–5.3, PDF pp. 5–6",
+      "claim": "The paper defines one query as a pairwise comparison, derives Q=49, lists larger budgets and nine tasks, defines the RTS/TS/FTS hierarchy over five experiments, and reports GPT-4-0613, GPT-4o, and one A100.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Section 5.4 and Table 1, PDF pp. 6–7",
+      "claim": "Sparse metrics select ICPL proxy good/bad examples, dense rewards label PbRL baselines, Table 1 reports exact task scores, the paper claims at least 30-fold query reduction, and modified Eureka uses six executable candidates.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Section 5.5 and Tables 2 and 5, PDF pp. 7–11",
+      "claim": "The paper ablates reward traces, differences, bad examples, and all feedback; acknowledges high variance and best-of-N selection; plots round improvement on selected Ant and ShadowHand tasks; and separately reports mean TS.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Section 5.6.1 and Table 3, PDF p. 9",
+      "claim": "Seven volunteers produced human-loop preferences, twenty more evaluated methods, Anymal was excluded as hard to judge from video, and the paper reports five-task proxy and real-human results with 27.4% and 18.4% average improvements.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Section 5.6.2 and Table 4, PDF pp. 9–11",
+      "claim": "A leg-lift jump exploits a minimal height criterion; human feedback steers later two-leg behavior; five six-round, six-sample experiments precede a randomized comparison in which 17 of 20 voters prefer ICPL.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://rlj.cs.umass.edu/2026/papers/Paper25.pdf",
+      "locator": "Section 6 Limitations, PDF p. 11",
+      "claim": "The authors list video-evaluation difficulty, absent explanatory text feedback, dependence on initial reward diversity, limited participants, and several-hour policy-retraining waits as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2410.17233v3#A1",
+      "locator": "Appendices A–B, full prompts and Algorithm 1",
+      "claim": "The v3 supplement gives the total-plus-component code prompt, executable-resampling loop, selected good/bad code, reward traces, and LLM-generated differences between consecutive good rewards.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2410.17233v3#A4",
+      "locator": "Appendix D, Table 6",
+      "claim": "The supplement lists observation and action dimensions, task descriptions, and sparse task metrics for all nine IsaacGym tasks.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2410.17233v3#A5",
+      "locator": "Appendices E–F, training-time table and human setup",
+      "claim": "The supplement reports 16.4 hours for ICPL on Humanoid, two-to-three-day human experiments, participant demographics, video-only task judgments, and an example of a mistaken Humanoid ranking.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://sites.google.com/view/few-shot-icpl/home",
+      "locator": "Method, Experiment, and Appendix sections",
+      "claim": "The official project page summarizes the generate/train/rank/refine loop, query formula, fixed-interval checkpoint metric, human-study setup, and demonstrations.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/icpl-research/ICPL/commit/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435",
+      "locator": "Commit a23c3bc and README lines 1–20",
+      "claim": "The repository self-identifies as official; commit a23c3bc was the untagged public main HEAD verified on 2026-08-30, and the README names Python and IsaacGym requirements.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/icpl/cfg/config.yaml#L11-L34",
+      "locator": "config.yaml lines 11–34",
+      "claim": "Release defaults are GPT-4o, temperature 1.0, simple-human preference, environment feedback on, text human feedback off, five rounds, six samples, 3000 policy iterations, and five final evaluations.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/icpl/utils/prompts/code_output_tip.txt",
+      "locator": "code_output_tip.txt and reward_signature.txt",
+      "claim": "The prompt requests TorchScript-style Python returning total reward and a component dictionary and restricts declared reward inputs to exposed environment attributes.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/icpl/icpl.py#L243-L420",
+      "locator": "icpl.py lines 243–420 and extract_task_code.py lines 84–105",
+      "claim": "The release extracts the first function, appends generated code to a task module, launches training in a subprocess, retries failed candidates, and performs no side-effect or import allowlist validation.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/icpl/icpl.py#L556-L766",
+      "locator": "icpl.py lines 556–766",
+      "claim": "The release accepts best/worst identifiers, automatically selects proxy max/min task scores, assembles reward history, records selected code, and evaluates the best program in five seeded runs.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/setup.py#L3-L32",
+      "locator": "setup.py lines 3–32 and README lines 5–33",
+      "claim": "Package version 1.0 pins gym and caps torch but leaves OpenAI, NumPy, and several dependencies open; setup.py and README disagree on Python >=3.7 versus >=3.8.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/icpl-research/ICPL/blob/a23c3bc0bbd29ad21ac33e29260f0ab8eb58c435/icpl/icpl.py#L1-L10",
+      "locator": "icpl.py lines 1–10",
+      "claim": "The release constructs its OpenAI client with the hard-coded base URL https://api.openai-proxy.com/v1 rather than the default official API endpoint.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

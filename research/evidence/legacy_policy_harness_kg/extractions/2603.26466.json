@@ -1,0 +1,941 @@
+{
+  "paper": {
+    "id": "2603.26466",
+    "arxiv_id": "2603.26466",
+    "doi": "10.48550/arXiv.2603.26466",
+    "title": "Adapt as You Say: Online Interactive Bimanual Skill Adaptation via Human Language Feedback",
+    "authors": [
+      "Zhuo Li",
+      "Dianxi Li",
+      "Tao Teng",
+      "Quentin Rouxel",
+      "Zhipeng Dong",
+      "Dennis Hong",
+      "Darwin Caldwell",
+      "Fei Chen"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2603.26466v1",
+    "source_version": "arXiv v1, submitted 2026-03-27; only public arXiv version verified 2026-08-30. PDF SHA-256 09a1f67c76a2b9ffce0999677a83d6ad36a49c3c30c3bddecfb4fada29687b7a; source-archive SHA-256 e23fe4268917f2012ca69f6100ec9886fa4b507c76c490924b9fa8654fac62f2. Official project repository pinned at commit fde0c830ce32cba3905da889189aff3cc573c658 (2026-03-13); it contains project-page/media assets and a placeholder code link, not the BiSAIL method implementation."
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "BiSAIL source-locates a decoupled interface that turns language plus visual/embodiment context into a trajectory-scoring objective and a closed coordination label, then uses post-execution feedback to revise both. This informs Sam's steering schema and validation protocol while sharply bounding what cannot count as a reference-oracle or executable-task-reward intervention under the fixed trainer.",
+    "not_evidence_for": [
+      "selection, cropping, ordering, splicing, transition logic, or certification of immutable reference clips",
+      "a bounded per-step executable task reward consumed by an unchanged RL trainer",
+      "an oracle-only or task-reward-only intervention under a fixed controller, observation, action, dynamics, and budget contract",
+      "zero-update cross-embodiment portability, because the Franka BMP is retrained",
+      "dynamic adaptation of speed, acceleration, or interaction forces",
+      "an independent objective-reward validator, calibrated success gate, or safe generated-code execution boundary",
+      "availability of a reproducible BiSAIL method implementation, checkpoints, training data, or evaluation code",
+      "RL-Sculptor implementation of BiSAIL"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "bisail.esa_cot_objective_compiler",
+      "name": "Embodied language-to-objective compiler",
+      "description": "A four-step MLLM reasoning chain combines language feedback, visual task context, end-effector/object keypoints, and bimanual taxonomy knowledge to emit a non-differentiable trajectory reward R(tau;l,o) plus one of six coordination categories.",
+      "tags": [
+        "human_steering",
+        "multimodal_reasoning",
+        "reward_generation",
+        "coordination_taxonomy"
+      ],
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "id": "bisail.bmp_motion_prior",
+      "name": "Task-agnostic bimanual diffusion prior",
+      "description": "An unconditional encoder-only Transformer diffusion model is trained with diffusion, pairwise-diversity, and second-order smoothness losses on one million URDF-generated, reachability-checked, collision-filtered bimanual motions to supply online proposals beyond one task's demonstrations.",
+      "tags": [
+        "motion_prior",
+        "diffusion",
+        "proposal_generation",
+        "synthetic_motion_data"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "bisail.diffusion_evolutionary_search",
+      "name": "Black-box reward-guided diffusion search",
+      "description": "Thirty-two BMP proposals are scored by the generated black-box objective, resampled through a temperature-weighted distribution, mutated by truncated forward diffusion, and denoised for four search iterations before the best-scoring trajectory is selected.",
+      "tags": [
+        "gradient_free_optimization",
+        "black_box_reward",
+        "diffusion_mutation",
+        "inference_time_adaptation"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E07"
+      ]
+    },
+    {
+      "id": "bisail.compositional_mcmc_modulation",
+      "name": "Product-of-experts bimanual motion modulation",
+      "description": "Within truncated denoising, annealed MCMC combines the pretrained BMP score, an offline task-specific diffusion-policy score, and a coordination-energy gradient so the adapted trajectory remains near the task distribution while satisfying the inferred interaction pattern.",
+      "tags": [
+        "compositional_diffusion",
+        "mcmc",
+        "task_compatibility",
+        "coordination_constraint"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E05"
+      ]
+    },
+    {
+      "id": "bisail.closed_loop_reflection",
+      "name": "Post-execution objective reflection loop",
+      "description": "The same ESA-CoT/MLLM consumes the original and adapted motions, post-execution language/visual context, and prior reasoning history to revise the trajectory reward and emit a binary success indicator; execution and reflection repeat until success or an unspecified retry cap.",
+      "tags": [
+        "closed_loop_feedback",
+        "self_critique",
+        "reward_revision",
+        "human_steering"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "adaptation_objective_contract",
+      "value": {
+        "reward": "non-differentiable black-box R(tau;l,o) encoding spatial constraints",
+        "coordination": "one category c_i from a six-class taxonomy"
+      },
+      "units": null,
+      "context": "Structured ESA-CoT output used to score and constrain candidate bimanual trajectories.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "coordination_categories",
+      "value": [
+        "unimanual_left",
+        "unimanual_right",
+        "uncoordinated_bimanual",
+        "left_dominant",
+        "right_dominant",
+        "symmetric"
+      ],
+      "units": "categories",
+      "context": "Closed taxonomy; coordination energy is applied only for the three coordinated patterns.",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "name": "motion_sequence_contract",
+      "value": {
+        "shape": "N x D",
+        "per_step_fields": [
+          "left_end_effector_pose",
+          "right_end_effector_pose",
+          "left_gripper_command",
+          "right_gripper_command"
+        ]
+      },
+      "units": null,
+      "context": "Optimization output tau; N and D are symbolic rather than numerically specified.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "bmp_training_motion_count",
+      "value": 1000000,
+      "units": "motions",
+      "context": "URDF-derived, reachability-checked, quintic-interpolated, collision-filtered bimanual motion corpus.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "esa_cot_model",
+      "value": "GPT-4o",
+      "units": null,
+      "context": "Reported MLLM family; exact snapshot, prompt, API configuration, and fallback behavior are not reported.",
+      "evidence_ids": [
+        "E07",
+        "E14"
+      ]
+    },
+    {
+      "name": "esa_cot_temperature",
+      "value": 0.2,
+      "units": null,
+      "context": "MLLM decoding temperature.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "bmp_training_optimizer",
+      "value": {
+        "optimizer": "AdamW",
+        "learning_rate": 0.0001,
+        "batch_size": 256
+      },
+      "units": null,
+      "context": "Offline BMP training configuration; loss weights and training duration are not reported.",
+      "evidence_ids": [
+        "E07",
+        "E14"
+      ]
+    },
+    {
+      "name": "initial_proposal_population",
+      "value": 32,
+      "units": "trajectories",
+      "context": "BMP samples in the initial online search population M.",
+      "evidence_ids": [
+        "E05",
+        "E07"
+      ]
+    },
+    {
+      "name": "iterative_search_steps",
+      "value": 4,
+      "units": "iterations",
+      "context": "Reward-scored diffusion search iterations K.",
+      "evidence_ids": [
+        "E05",
+        "E07"
+      ]
+    },
+    {
+      "name": "mcmc_sampling_steps",
+      "value": 4,
+      "units": "steps",
+      "context": "MCMC updates J during online compositional modulation.",
+      "evidence_ids": [
+        "E05",
+        "E07"
+      ]
+    },
+    {
+      "name": "diffusion_denoising_steps",
+      "value": 10,
+      "units": "steps",
+      "context": "BMP sampling and online motion modulation.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "experiment_hardware",
+      "value": "NVIDIA RTX 4090 workstation",
+      "units": null,
+      "context": "Reported hardware; training time, online end-to-end latency, GPU-hours, and energy are absent.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "main_robot_platform",
+      "value": {
+        "platform": "DOBOT X-Trainer",
+        "arms": 2,
+        "arm_model": "Nova2",
+        "arm_dof_each": 6,
+        "gripper_dof_each": 1
+      },
+      "units": null,
+      "context": "Primary six-task real-robot platform.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "real_robot_tasks",
+      "value": [
+        "plate_wiping",
+        "vegetable_cutting",
+        "stir_fry",
+        "steak_flipping",
+        "pot_placing",
+        "bowl_shelving"
+      ],
+      "units": "tasks",
+      "context": "Four tasks are asymmetric and two symmetric; the source does not map every task to one group in text.",
+      "evidence_ids": [
+        "E07",
+        "E11"
+      ]
+    },
+    {
+      "name": "objective_reasoning_dataset_split",
+      "value": {
+        "total": 120,
+        "prompt_demonstrations": 20,
+        "evaluation": 100,
+        "tasks": 6
+      },
+      "units": "multimodal task variations",
+      "context": "Language-plus-image cases with expert-annotated ground-truth objectives.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "esa_cot_full_results",
+      "value": {
+        "reasoning_accuracy_percent": "93.7 +/- 0.3",
+        "executability_rate_percent": "89.8 +/- 0.4",
+        "rouge_l": "0.94 +/- 0.03"
+      },
+      "units": null,
+      "context": "Full ESA-CoT on the held-out objective-reasoning set; the meaning of plus/minus is not defined.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "differentiable_reward_ablation_results",
+      "value": {
+        "reasoning_accuracy_percent": "66.5 +/- 0.6",
+        "executability_rate_percent": "42.9 +/- 1.1",
+        "rouge_l": "0.91 +/- 0.04"
+      },
+      "units": null,
+      "context": "ESA-CoT variant required to infer a differentiable reward; the authors attribute its ER drop to execution failures.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "bmp_full_results",
+      "value": {
+        "fid": "2.48 +/- 0.02",
+        "diversity": 0.93,
+        "smoothness": "0.02 +/- 0.06",
+        "sampling_time_seconds": 0.16
+      },
+      "units": null,
+      "context": "Encoder-only BMP architecture comparison on generated motions.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "bmm_evaluation_protocol",
+      "value": {
+        "task": "bowl_shelving",
+        "adaptation_objectives": 10,
+        "independent_trials_per_method": 20
+      },
+      "units": null,
+      "context": "Online modulation ablation protocol.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "bmm_full_results",
+      "value": {
+        "intent_alignment_percent": "86.8 +/- 1.2",
+        "task_alignment_percent": "82.5 +/- 1.7",
+        "constraint_satisfaction_percent": "83.9 +/- 1.6"
+      },
+      "units": null,
+      "context": "Full online motion modulation result.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "classifier_guidance_shift_results",
+      "value": {
+        "g_300": {
+          "intent_alignment_percent": "78.9 +/- 1.5",
+          "task_alignment_percent": "75.8 +/- 1.3",
+          "constraint_satisfaction_percent": "72.1 +/- 1.4"
+        },
+        "g_500": {
+          "intent_alignment_percent": "64.7 +/- 1.6",
+          "task_alignment_percent": "62.3 +/- 2.7",
+          "constraint_satisfaction_percent": "64.5 +/- 1.2"
+        }
+      },
+      "units": null,
+      "context": "Classifier-guided alternative degrades as guide ratio rises; full BiSAIL uses MCMC instead.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "language_feedback_per_variation_type",
+      "value": 15,
+      "units": "random language feedback",
+      "context": "Composed for each of object, environmental, and human-preference variation types in the six-task comparison.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "bisail_average_task_success_rate",
+      "value": {
+        "object_variations": "0.77 +/- 0.07",
+        "environmental_variations": "0.77 +/- 0.07",
+        "human_preference_variations": "0.76 +/- 0.02"
+      },
+      "units": "task success rate",
+      "context": "Average over six DOBOT tasks for each variation class.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "cross_embodiment_results",
+      "value": {
+        "platform": "dual-arm Franka",
+        "tasks": 4,
+        "intent_alignment_percent_range": "71.5-82.7",
+        "task_alignment_percent_range": "73.3-84.2",
+        "constraint_satisfaction_percent_range": "67.8-83.6",
+        "adaptation": "BMP retrained for Franka"
+      },
+      "units": null,
+      "context": "Four asymmetric tasks under the Section V-E protocol; this is not zero-update morphology transfer.",
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "bisail.kinematic_only_scope",
+      "name": "Kinematic-only adaptation boundary",
+      "description": "The reported method changes spatial motions only; it cannot adapt execution speed, acceleration, or interaction force.",
+      "tags": [
+        "reported_limitation",
+        "kinematics",
+        "dynamics",
+        "interaction_force"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "bisail.generated_reward_executability_gap",
+      "name": "Generated objectives do not fail closed",
+      "description": "Full ESA-CoT reports 89.8% executability, leaving roughly one in ten benchmark rewards non-executable; the differentiable-reward variant reports 42.9%. The paper does not define a typed reward language, static checks, sandbox, or promotion gate.",
+      "tags": [
+        "generated_code",
+        "executability",
+        "validation_gap",
+        "fail_closed"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "id": "bisail.self_judged_stopping",
+      "name": "Generator and stop judge share one MLLM",
+      "description": "The same ESA-CoT/MLLM revises the objective reward and emits the binary success indicator used to stop retries, so promotion is not grounded in an independent evaluator.",
+      "tags": [
+        "self_evaluation",
+        "non_independent_metric",
+        "stopping_rule",
+        "reward_validation"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "bisail.task_policy_proposal_failure",
+      "name": "Task-policy proposals trade diversity for feasibility",
+      "description": "Initial proposals sampled from the plate-wiping task policy remain close to the demonstrations; increasing noise or reducing observation conditioning adds diversity but produces jerky or physically implausible motions.",
+      "tags": [
+        "overfitting",
+        "proposal_diversity",
+        "motion_smoothness",
+        "physical_plausibility"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "bisail.composition_sampling_fragility",
+      "name": "Alternative composition samplers leave the joint distribution",
+      "description": "Removing MCMC lowers task and coordination scores, classifier guidance degrades when g rises from 300 to 500, and removing BMP noise collapses intent alignment to 32.3%, exposing sensitivity to the sampling mechanism.",
+      "tags": [
+        "distribution_shift",
+        "guidance_scale",
+        "mcmc_ablation",
+        "mode_collapse"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "bisail.reproduction_contract_gap",
+      "name": "Core runtime and reward contracts are underspecified",
+      "description": "v1 gives no values for BMP loss weights, selection temperature, mutation depth, MCMC guide ratio or schedules, retry cap, task-policy training details, generated-reward schema, exact prompt/model snapshot, or end-to-end adaptation latency.",
+      "tags": [
+        "reproducibility",
+        "missing_hyperparameters",
+        "model_version",
+        "latency"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E14"
+      ]
+    },
+    {
+      "id": "bisail.evaluation_reporting_gap",
+      "name": "Human and uncertainty protocols are incomplete",
+      "description": "The reasoning set is expert annotated and tables report plus/minus values, but v1 does not report expert count or agreement, metric raters, repeated model-call seeds, the meaning of plus/minus, or end-to-end retry/latency statistics.",
+      "tags": [
+        "annotation_protocol",
+        "uncertainty",
+        "evaluation_gap",
+        "latency"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "bisail.fixed_trainer_mismatch",
+      "name": "Inference-time motion synthesis exceeds the two-knob boundary",
+      "description": "BiSAIL requires a newly trained task-agnostic diffusion prior, score access to an offline task-specific diffusion policy, and a new trajectory-generation/sampling path; its Franka study retrains BMP. These are not a reference-oracle or executable-training-reward substitution under Sam's fixed trainer.",
+      "tags": [
+        "fixed_trainer",
+        "harness_boundary",
+        "controller_change",
+        "cross_embodiment"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E04",
+        "E05",
+        "E12"
+      ]
+    },
+    {
+      "id": "bisail.public_code_release_gap",
+      "name": "Claimed code is not publicly released",
+      "description": "Although arXiv v1 says code is available, the latest pinned official repository contains project-page and media assets only; its code button is marked coming soon and targets a placeholder URL.",
+      "tags": [
+        "code_availability",
+        "release_gap",
+        "reproducibility",
+        "source_contradiction"
+      ],
+      "evidence_ids": [
+        "E01",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "bisail.eval_objective_reasoning",
+      "name": "Held-out multimodal objective-reasoning evaluation",
+      "description": "On 100 held-out language-plus-image task variations after 20 prompt demonstrations, full ESA-CoT reports 93.7% reasoning accuracy, 89.8% reward executability, and 0.94 ROUGE-L, outperforming prompting baselines and six reported variants.",
+      "tags": [
+        "held_out_evaluation",
+        "reasoning_accuracy",
+        "executability",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "bisail.eval_bmp",
+      "name": "Bimanual motion-prior architecture evaluation",
+      "description": "BMP is compared with U-Net, decoder-only, encoder-decoder, and no-auxiliary variants using FID, diversity, smoothness, and sampling time; the reported full BMP result is 2.48 FID, 0.93 diversity, 0.02 smoothness, and 0.16 seconds.",
+      "tags": [
+        "motion_prior",
+        "architecture_ablation",
+        "fid",
+        "sampling_efficiency"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "bisail.eval_bmm",
+      "name": "Online motion-modulation ablation",
+      "description": "On bowl shelving with ten ESA-CoT objectives and twenty trials per method, full BMM reports 86.8% intent alignment, 82.5% task alignment, and 83.9% constraint satisfaction against ranking, CEM, MPPI, no-MCMC, classifier-guided, and no-BMP-noise variants.",
+      "tags": [
+        "real_robot",
+        "motion_modulation",
+        "intent_alignment",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "bisail.eval_six_task_real_robot",
+      "name": "Six-task language-guided real-robot comparison",
+      "description": "Across six DOBOT tasks and object, environmental, and human-preference variations, BiSAIL reports mean TSR 0.77, 0.77, and 0.76 against DP, ACT, IDMP, DSRL, YAY, and LATTE full-pipeline baselines.",
+      "tags": [
+        "real_robot",
+        "task_success",
+        "language_feedback",
+        "ood_variation"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "bisail.eval_cross_embodiment",
+      "name": "Franka embodiment adaptation evaluation",
+      "description": "After retraining BMP for a dual-arm Franka platform, the paper reports four-task intent alignment of 71.5–82.7%, task alignment of 73.3–84.2%, and constraint satisfaction of 67.8–83.6%.",
+      "tags": [
+        "cross_embodiment",
+        "real_robot",
+        "bmp_retraining",
+        "four_tasks"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2603.26466",
+      "relation": "INTRODUCES",
+      "target": "bisail.esa_cot_objective_compiler",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "INTRODUCES",
+      "target": "bisail.bmp_motion_prior",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "INTRODUCES",
+      "target": "bisail.diffusion_evolutionary_search",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "INTRODUCES",
+      "target": "bisail.compositional_mcmc_modulation",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "INTRODUCES",
+      "target": "bisail.closed_loop_reflection",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "bisail.esa_cot_objective_compiler",
+      "relation": "CONDITIONS_ON",
+      "target": "input:natural_language_visual_observation_and_embodied_keypoints",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "bisail.esa_cot_objective_compiler",
+      "relation": "COMPOSES",
+      "target": "artifact:trajectory_adaptation_reward_and_coordination_label",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "bisail.diffusion_evolutionary_search",
+      "relation": "USES",
+      "target": "bisail.bmp_motion_prior",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "bisail.diffusion_evolutionary_search",
+      "relation": "OPTIMIZES",
+      "target": "objective:language_conditioned_trajectory_reward",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "bisail.compositional_mcmc_modulation",
+      "relation": "USES",
+      "target": "bisail.bmp_motion_prior",
+      "evidence_ids": [
+        "E02",
+        "E05"
+      ]
+    },
+    {
+      "source": "bisail.compositional_mcmc_modulation",
+      "relation": "COMPOSES",
+      "target": "controller:offline_task_specific_diffusion_policy",
+      "evidence_ids": [
+        "E02",
+        "E05"
+      ]
+    },
+    {
+      "source": "bisail.compositional_mcmc_modulation",
+      "relation": "COMPOSES",
+      "target": "constraint:six_category_bimanual_coordination_energy",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "bisail.closed_loop_reflection",
+      "relation": "EXTENDS",
+      "target": "bisail.esa_cot_objective_compiler",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "bisail.closed_loop_reflection",
+      "relation": "CONDITIONS_ON",
+      "target": "evidence:post_execution_context_and_reasoning_history",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "EVALUATES_ON",
+      "target": "bisail.eval_objective_reasoning",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "EVALUATES_ON",
+      "target": "bisail.eval_bmp",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "EVALUATES_ON",
+      "target": "bisail.eval_bmm",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "EVALUATES_ON",
+      "target": "bisail.eval_six_task_real_robot",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2603.26466",
+      "relation": "EVALUATES_ON",
+      "target": "bisail.eval_cross_embodiment",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "bisail.esa_cot_objective_compiler",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.typed_language_to_artifact_proposal",
+      "evidence_ids": [
+        "E03",
+        "E08"
+      ]
+    },
+    {
+      "source": "bisail.generated_reward_executability_gap",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.fail_closed_generated_artifact_validation",
+      "evidence_ids": [
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "source": "bisail.self_judged_stopping",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.independent_objective_evaluator",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "bisail.compositional_mcmc_modulation",
+      "relation": "CONTRASTS_WITH",
+      "target": "contract:fixed_controller_and_two_knob_harness",
+      "evidence_ids": [
+        "E02",
+        "E04",
+        "E05",
+        "E12"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2603.26466v1",
+      "locator": "Title block, abstract, comments, and submission history",
+      "claim": "The record identifies eight authors, a 27 March 2026 v1 submission, eleven pages, and links the official project page; v1 is the only public arXiv version verified on 30 August 2026.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S3",
+      "locator": "Section III, Equations 7-9 and Figure 3",
+      "claim": "BiSAIL optimizes an N-by-D sequence of dual-arm pose/gripper actions under a product of task-agnostic motion prior, offline task-specific diffusion policy, language-conditioned trajectory reward, and coordination energy.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S4.SS1",
+      "locator": "Section IV-A, Equations 10-11 and Figure 4",
+      "claim": "ESA-CoT combines user-intent grounding, visual task-context analysis, embodied keypoints, objective reasoning, and a six-category bimanual taxonomy to emit a non-differentiable black-box reward plus coordination class.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S4.SS2",
+      "locator": "Section IV-B, Equations 12-15, Figures 5-6, and Data Generation paragraph",
+      "claim": "BMP is an encoder-only unconditional diffusion model with diversity and smoothness losses, trained on one million URDF-driven, reachability-checked, collision-filtered bimanual motions.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S4.SS3",
+      "locator": "Section IV-C, Equations 16-26, Algorithm 1, and Figure 7",
+      "claim": "Online modulation reward-scores, resamples, diffuses, and denoises BMP proposals, then uses annealed MCMC to combine BMP and task-policy scores with coordination-energy gradients before selecting the best trajectory.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S4.SS4",
+      "locator": "Section IV-D, Equation 27",
+      "claim": "The same ESA-CoT/MLLM receives original/adapted motions, post-execution language/vision context, and reasoning history, then returns a revised reward and binary success bit; retries stop at success or an unspecified maximum.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS1",
+      "locator": "Section V-A, Implementation Details and Task Settings",
+      "claim": "The experiments use GPT-4o at temperature 0.2; AdamW at learning rate 1e-4 and batch 256; 32 proposals; four search and four MCMC steps; ten denoising steps; one RTX 4090 workstation; and a dual-Nova2 DOBOT platform for six tasks.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS2",
+      "locator": "Section V-B and Table I",
+      "claim": "The 120-case expert-annotated reasoning set uses 20 prompt demonstrations and 100 evaluation cases; full ESA-CoT reports 93.7% RA, 89.8% ER, and 0.94 ROUGE-L, while the differentiable-reward variant reports 66.5%, 42.9%, and 0.91.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS3",
+      "locator": "Section V-C, Table II, and Figures 11-12",
+      "claim": "Task-policy proposals overfit demonstrations and become jerky or implausible when diversity is forced; full BMP reports 2.48 FID, 0.93 diversity, 0.02 smoothness, and 0.16-second sampling time.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS4",
+      "locator": "Section V-D, Table III, and Figure 10",
+      "claim": "On bowl shelving with ten objectives and twenty trials per method, full BMM reports 86.8/82.5/83.9% IA/TA/CS; no-MCMC, classifier-guided, and no-BMP-noise variants expose task, coordination, distribution-shift, and diversity failures.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS5",
+      "locator": "Section V-E, Table IV, and Figures 13-14",
+      "claim": "Six-task DOBOT experiments compare six baselines under object, environmental, and preference variations using fifteen random language feedback per variation type; BiSAIL reports mean TSR 0.77, 0.77, and 0.76.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S5.SS6",
+      "locator": "Section V-F, Table V, and Figure 15",
+      "claim": "For four dual-arm Franka tasks, BMP is retrained for the embodiment and the reported IA/TA/CS ranges are 71.5-82.7%, 73.3-84.2%, and 67.8-83.6%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S6",
+      "locator": "Section VI, final limitation sentence",
+      "claim": "The authors identify kinematic-only adaptation as a limitation and name speed, acceleration, and interaction-force modulation as future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2603.26466v1#S4.SS2",
+      "locator": "Sections IV-B-IV-D, Equations 15-27, Algorithm 1, and Section V-A",
+      "claim": "v1 leaves BMP loss weights, proposal temperature, mutation depth, MCMC guide ratio and schedules, maximum retries, task-policy training details, generated-reward schema and validation, exact GPT-4o snapshot/prompt, and end-to-end latency unspecified.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/RIP4KOBE/BiSAIL/blob/fde0c830ce32cba3905da889189aff3cc573c658/index.html#L328-L335",
+      "locator": "Official project repository commit fde0c830ce32cba3905da889189aff3cc573c658, index.html lines 328-335",
+      "claim": "The official project page labels code as coming soon and links its code button to a placeholder repository URL.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/RIP4KOBE/BiSAIL/tree/fde0c830ce32cba3905da889189aff3cc573c658",
+      "locator": "Complete repository tree at commit fde0c830ce32cba3905da889189aff3cc573c658, committed 2026-03-13",
+      "claim": "The pinned official tree contains HTML/CSS/JavaScript project-page files, figures, and videos, but no BiSAIL method, training, evaluation, checkpoint, or dataset implementation.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

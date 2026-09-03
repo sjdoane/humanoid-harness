@@ -1,0 +1,1130 @@
+{
+  "paper": {
+    "id": "2410.06401",
+    "arxiv_id": "2410.06401",
+    "doi": null,
+    "title": "Trajectory Improvement and Reward Learning from Comparative Language Feedback",
+    "authors": [
+      "Zhaojing Yang",
+      "Miru Jun",
+      "Jeremy Tien",
+      "Stuart J. Russell",
+      "Anca Dragan",
+      "Erdem Bıyık"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2410.06401v1",
+    "source_version": "arXiv v1, submitted 2024-10-08 22:15:46 UTC; sole public arXiv revision verified 2026-08-30; versioned PDF SHA-256 cbacf06bbd7260800d312911dda5e920da123f658c1a4dd9c39dc195689d1129; TeX-source archive SHA-256 6004153162993053e44035d6729d0baf891b145b18fb971342ff347f867e40a2. CoRL 2024 paper, later published in PMLR 270 (2025), pages 5389-5404. Official code evidence pinned to untagged master HEAD 120990d4021689e8a6a992d9c0f6c0c49bf9c18b, committed 2025-02-21; the source does not identify that post-paper commit as the exact experiment-producing snapshot."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper gives a source-located mechanism for translating comparative language after one shown trajectory into both finite-library trajectory retrieval and a trajectory-level preference scorer, plus simulation and human evidence. It also supplies a decisive boundary: neither output is exercised as Sam's executable closed-loop reference oracle or per-step task reward under a fixed policy trainer.",
+    "not_evidence_for": [
+      "RL-Sculptor implementing comparative-language steering or reward learning",
+      "an executable per-state/action task reward installed in Sam's fixed trainer",
+      "policy improvement caused by training on the learned reward scorer",
+      "a closed-loop reference oracle with timing, guards, branches, transitions, and recovery",
+      "dynamics feasibility or Tier-D certification of a retrieved trajectory",
+      "generalization to objects absent from latent-space pretraining",
+      "active query selection in arXiv 2410.06401v1",
+      "safety or hardware transfer beyond selection among the prerecorded WidowX trajectory library",
+      "identity between official code commit 120990d4021689e8a6a992d9c0f6c0c49bf9c18b and the code that produced every paper result"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "clf:shared_difference_latent",
+      "name": "Difference-aligned trajectory-language latent space",
+      "description": "Offline tuples of two trajectories and language describing their difference train a trajectory encoder and pretrained T5 encoder so the language embedding aligns with the difference of mean trajectory embeddings. Training first freezes T5, then co-finetunes both encoders, with alignment and embedding-magnitude terms.",
+      "tags": [
+        "comparative_language",
+        "trajectory_embedding",
+        "shared_latent_space",
+        "offline_pretraining"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E09",
+        "E20"
+      ]
+    },
+    {
+      "id": "clf:discrete_language_trajectory_retrieval",
+      "name": "Language-guided discrete trajectory retrieval",
+      "description": "After a user critiques the current trajectory, the method searches a predefined finite trajectory set for a candidate whose latent displacement best aligns with the language embedding, presents the retrieved whole trajectory, and repeats. The paper does not compose segments or optimize a policy in this path.",
+      "tags": [
+        "human_steering",
+        "trajectory_selection",
+        "finite_library",
+        "reference_candidate"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E10",
+        "E21"
+      ]
+    },
+    {
+      "id": "clf:explicit_implicit_reward_inference",
+      "name": "Explicit-plus-implicit comparative-language reward inference",
+      "description": "For each shown trajectory, the selected utterance defines an imaginary improved latent vector. A Bradley-Terry explicit loss prefers it over the original latent, while an implicit loss prefers it over imaginary alternatives formed from sampled other utterances. The reward scorer is updated over the full feedback history and ranks whole-trajectory embeddings.",
+      "tags": [
+        "reward_learning",
+        "Bradley_Terry",
+        "implicit_preference",
+        "trajectory_ranking"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E11",
+        "E12",
+        "E22"
+      ]
+    },
+    {
+      "id": "clf:synthetic_comparative_feedback",
+      "name": "Feature-weighted synthetic comparative-language user",
+      "description": "Simulation uses a hidden linear reward over hand-crafted trajectory features. A softmax over feature-wise reward gaps to a true-reward-optimal trajectory selects which feature to critique, then an utterance is sampled from that feature's GPT-3.5-augmented language set.",
+      "tags": [
+        "synthetic_user",
+        "linear_reward",
+        "feature_engineering",
+        "simulation"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "id": "clf:one_trajectory_feedback_interface",
+      "name": "One-trajectory comparative-language interface",
+      "description": "Each language query shows one trajectory and asks what should change, whereas the baseline shows a pair and asks which is preferred. In the real-robot reward-learning study, the best trajectory under the learned scorer is shown and rated after every five feedback queries.",
+      "tags": [
+        "human_feedback",
+        "comparative_language",
+        "interface",
+        "query_efficiency"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E13",
+        "E14"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "simulation_trajectory_horizon",
+      "value": 500,
+      "units": "timesteps",
+      "context": "Length of every generated Robosuite and Meta-World rollout used in simulation experiments.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "robosuite_observation_action_contract",
+      "value": {
+        "raw_rgb": [
+          640,
+          480
+        ],
+        "resized_rgb": [
+          224,
+          224
+        ],
+        "proprioception_dim": 25,
+        "action_dim": 4,
+        "robot": "Jaco",
+        "task": "pick up cube"
+      },
+      "units": null,
+      "context": "Simulation environment contract; the four-dimensional action keeps the end effector pointing down.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "metaworld_observation_action_contract",
+      "value": {
+        "raw_rgb": [
+          480,
+          320
+        ],
+        "resized_rgb": [
+          224,
+          224
+        ],
+        "proprioception_dim": 20,
+        "action_dim": 4,
+        "robot": "Sawyer",
+        "task": "push side button"
+      },
+      "units": null,
+      "context": "Simulation environment contract; the four-dimensional action keeps the end effector pointing down.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "simulation_feature_counts",
+      "value": {
+        "Robosuite": 5,
+        "Meta-World": 3
+      },
+      "units": "features",
+      "context": "Hand-crafted feature sets used to generate simulation trajectories and synthetic language feedback, not inputs explicitly required by the encoder training objective.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "simulation_language_corpus",
+      "value": {
+        "Robosuite": {
+          "total": 629,
+          "train": 480,
+          "validation": 74,
+          "test": 75
+        },
+        "Meta-World": {
+          "total": 660,
+          "train": 492,
+          "validation": 84,
+          "test": 84
+        }
+      },
+      "units": "utterances",
+      "context": "GPT-3.5-augmented language corpora paired with trajectory differences.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "simulation_rollout_corpus",
+      "value": {
+        "Robosuite": {
+          "total": 448,
+          "train": 359,
+          "validation": 44,
+          "test": 45
+        },
+        "Meta-World": {
+          "total": 324,
+          "train": 260,
+          "validation": 32,
+          "test": 32
+        }
+      },
+      "units": "unique rollouts",
+      "context": "Rollouts generated by policies trained under stratified randomized feature weights.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "latent_alignment_test_accuracy",
+      "value": {
+        "Robosuite": 0.849,
+        "Meta-World": 0.829
+      },
+      "units": "fraction correct",
+      "context": "Fraction of test tuples with positive language dot trajectory-difference score.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "language_encoder_training_ablation",
+      "value": {
+        "co_finetune": {
+          "Robosuite": 0.8489,
+          "Meta-World": 0.8288
+        },
+        "freeze_T5": {
+          "Robosuite": 0.7625,
+          "Meta-World": 0.7344
+        }
+      },
+      "units": "fraction correct",
+      "context": "Table 2 test accuracy comparing the second co-finetuning stage against leaving T5 frozen.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "trajectory_improvement_iterations",
+      "value": 15,
+      "units": "iterations",
+      "context": "Number of simulated language-guided retrieval steps per run.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "trajectory_improvement_repetitions",
+      "value": 100,
+      "units": "random seeds",
+      "context": "Repetitions summarized by mean and standard deviation in Figure 4.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "reward_learning_simulation_repetitions",
+      "value": {
+        "synthetic_humans_per_environment": 3,
+        "random_seeds_per_human": 3
+      },
+      "units": null,
+      "context": "Reward weights are randomly initialized separately for the three synthetic humans in each environment.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "widowx_observation_action_contract",
+      "value": {
+        "raw_rgb": [
+          480,
+          320
+        ],
+        "resized_rgb": [
+          224,
+          224
+        ],
+        "proprioception_dim": 22,
+        "action_dim": 7,
+        "robot": "WidowX 250 6DOF",
+        "task": "pick up spoon while avoiding pan"
+      },
+      "units": null,
+      "context": "Real-robot user-study setup; actions are six degrees of freedom plus gripper.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "widowx_pretraining_trajectory_corpus",
+      "value": {
+        "total": 321,
+        "train": 192,
+        "validation": 64,
+        "test": 65
+      },
+      "units": "trajectories",
+      "context": "Latent-space pretraining trajectories varying spoon-pick success, pan avoidance, and speed.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "widowx_language_corpus",
+      "value": {
+        "total": 496,
+        "train": 297,
+        "validation": 99,
+        "test": 100
+      },
+      "units": "utterances",
+      "context": "GPT-augmented real-robot language corpus.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "user_study_candidate_library",
+      "value": 32,
+      "units": "trajectories",
+      "context": "Separate prerecorded trajectory set used after pretraining for both real-robot studies.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "user_study_participants",
+      "value": {
+        "total": 10,
+        "female": 4,
+        "male": 6
+      },
+      "units": "participants",
+      "context": "Human-subject sample in the real-robot study.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "trajectory_user_study_iteration_cap",
+      "value": 10,
+      "units": "iterations",
+      "context": "Study 1 stops earlier when the participant is satisfied.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "preference_user_study_protocol",
+      "value": {
+        "queries_per_method": 20,
+        "rating_interval": 5,
+        "comparison_first_participants": 5,
+        "language_first_participants": 5
+      },
+      "units": null,
+      "context": "Study 2 comparison between language feedback and pairwise preference feedback.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "mean_subjective_score_difference",
+      "value": 23.9,
+      "units": "percent higher",
+      "context": "Language method relative to comparison method, averaged over reported post-study attributes.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "mean_query_time_difference",
+      "value": 11.3,
+      "units": "percent lower",
+      "context": "Language method relative to comparison method; language time includes typing.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "reported_rating_AUC_p_value_bound",
+      "value": 0.05,
+      "units": "p-value upper bound",
+      "context": "The comparative-language rating curve had higher AUC; the paper reports p<0.05 without naming the test, statistic, exact p-value, or effect size.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "user_satisfaction_counts",
+      "value": {
+        "time_efficient": {
+          "language": 9,
+          "comparison": 1
+        },
+        "convenient": {
+          "language": 6,
+          "comparison": 8
+        },
+        "adaptable": {
+          "language": 8,
+          "comparison": 3
+        }
+      },
+      "units": "participants out of 10",
+      "context": "Table 1 categories are not mutually exclusive.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "paper_unreported_hyperparameters",
+      "value": [
+        "normalization weight a",
+        "normalization weight b",
+        "implicit contrast count k"
+      ],
+      "units": null,
+      "context": "The paper introduces these symbols but supplies no numerical settings; it also describes the reward scorer only as a neural network.",
+      "evidence_ids": [
+        "E04",
+        "E06"
+      ]
+    },
+    {
+      "name": "official_code_commit",
+      "value": {
+        "commit": "120990d4021689e8a6a992d9c0f6c0c49bf9c18b",
+        "branch": "master",
+        "commit_date": "2025-02-21T14:20:23-08:00",
+        "release_tag": null
+      },
+      "units": null,
+      "context": "Exact public official code tree inspected 2026-08-30; the repository does not claim this post-paper HEAD produced every reported result.",
+      "evidence_ids": [
+        "E18",
+        "E19"
+      ]
+    },
+    {
+      "name": "released_reward_scorer",
+      "value": {
+        "layers": 1,
+        "type": "linear",
+        "bias": false,
+        "initial_weight_standard_deviation": 0.001
+      },
+      "units": null,
+      "context": "Pinned release realization. This is more specific than the paper's generic neural-network description and is not bound to every paper experiment.",
+      "evidence_ids": [
+        "E22"
+      ]
+    },
+    {
+      "name": "released_implicit_contrast_count",
+      "value": {
+        "README_example": 20,
+        "parser_default": 10,
+        "paper": "unspecified k"
+      },
+      "units": "alternative utterances per query",
+      "context": "The release does not resolve which value generated each paper figure.",
+      "evidence_ids": [
+        "E06",
+        "E19",
+        "E22"
+      ]
+    },
+    {
+      "name": "released_feature_learning_example",
+      "value": {
+        "language_model": "t5-base",
+        "batch_size": 1024,
+        "trajectory_regularization_coefficient": 0.01
+      },
+      "units": null,
+      "context": "README example at the pinned commit; no claim binds it to every reported result.",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "name": "released_reward_learning_example",
+      "value": {
+        "language_model": "t5-small",
+        "seed": 42,
+        "learning_rate": 0.01,
+        "weight_decay": 0.1,
+        "optimizer_steps_per_query": 1,
+        "other_feedback_count": 20
+      },
+      "units": null,
+      "context": "README example at the pinned commit; the named module is absent from that tree, so this is not a validated launch receipt.",
+      "evidence_ids": [
+        "E19",
+        "E23"
+      ]
+    },
+    {
+      "name": "released_runtime_versions",
+      "value": {
+        "Python": "3.8",
+        "torch": "1.12.1+cu113",
+        "torchvision": "0.13.1+cu113",
+        "torchaudio": "0.12.1",
+        "transformers": "4.35.1",
+        "matplotlib": "3.7.5",
+        "einops": "0.8.0",
+        "opencv-python": "4.1.2.30"
+      },
+      "units": null,
+      "context": "Pinned README/requirements environment declarations. Hosted T5 aliases, preprocessed data, and checkpoints are not immutable in this contract.",
+      "evidence_ids": [
+        "E19",
+        "E23"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "clf:history_free_retrieval_loop",
+      "name": "History-free trajectory retrieval can loop",
+      "description": "The authors report that the trajectory-improvement method does not reach optimal performance because each decision ignores older feedback and can cycle between good but non-optimal trajectories.",
+      "tags": [
+        "reported_limitation",
+        "history",
+        "cycling",
+        "trajectory_selection"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "clf:finite_library_coverage_ceiling",
+      "name": "Finite candidate library can omit desired behavior",
+      "description": "The real-robot study selects among 32 prerecorded trajectories. The authors conjecture that its two-peaked satisfaction pattern may reflect desired trajectories missing from that set.",
+      "tags": [
+        "reported_caveat",
+        "coverage",
+        "finite_library",
+        "user_study"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14"
+      ]
+    },
+    {
+      "id": "clf:pretraining_object_scope",
+      "name": "Language grounding is limited to pretraining objects",
+      "description": "The authors state that the model is limited to feedback about objects present in the pretraining data.",
+      "tags": [
+        "reported_limitation",
+        "out_of_distribution",
+        "object_grounding"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "clf:uniform_query_inefficiency",
+      "name": "Reward-learning queries are uniformly random",
+      "description": "The original paper samples queries uniformly and names active learning as future work; the later active-querying project-page material must not be back-attributed to v1.",
+      "tags": [
+        "reported_limitation",
+        "query_selection",
+        "version_boundary"
+      ],
+      "evidence_ids": [
+        "E16",
+        "E18"
+      ]
+    },
+    {
+      "id": "clf:chosen_utterance_ordering_assumption",
+      "name": "Unchosen utterances are assumed less improving",
+      "description": "The implicit loss assumes that the user's selected utterance would improve reward more than sampled alternatives. Multiple equally valid corrections, synonymous utterances, or arbitrary salience can make this latent preference relation false; the paper does not calibrate that assumption.",
+      "tags": [
+        "model_assumption",
+        "implicit_preference",
+        "label_noise",
+        "reward_learning"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E12"
+      ]
+    },
+    {
+      "id": "clf:trajectory_scorer_not_executable_reward",
+      "name": "Learned reward is not an executable step reward",
+      "description": "The learned scorer consumes whole-trajectory embeddings and is evaluated by ranking a fixed test library. No reported experiment installs it as R(s,a), trains a policy with it, or freezes and reuses Sam's trainer; therefore it is not evidence for an executable task_reward_k.",
+      "tags": [
+        "harness_boundary",
+        "task_reward",
+        "fixed_trainer",
+        "trajectory_ranking"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E06",
+        "E11"
+      ]
+    },
+    {
+      "id": "clf:imaginary_latent_not_feasible_reference",
+      "name": "Imaginary improved embedding is not a feasible reference",
+      "description": "The reward method explicitly defines the improved trajectory only as phi_tau plus psi_l in latent space. It is not decoded, rolled out, checked against dynamics, or supplied with timing and provenance.",
+      "tags": [
+        "harness_boundary",
+        "reference_composition",
+        "dynamics_feasibility",
+        "imaginary_trajectory"
+      ],
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "id": "clf:retrieval_not_closed_loop_oracle",
+      "name": "Whole-trajectory retrieval is not a closed-loop oracle",
+      "description": "The improvement path chooses one candidate from a predefined trajectory set. It does not expose a playback clock, segment boundaries, guards, branches, transition windows, terminal holds, or recovery rules required by Sam's oracle contract.",
+      "tags": [
+        "harness_boundary",
+        "reference_composition",
+        "oracle",
+        "trajectory_retrieval"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E10"
+      ]
+    },
+    {
+      "id": "clf:small_subjective_user_study",
+      "name": "Small, subjective, and partly non-monotone user evidence",
+      "description": "Ten participants used one robot/task. The reported AUC result gives only p<0.05; average language ratings decreased from query 5 to 10, language response times varied more across users, and comparison feedback was rated more convenient.",
+      "tags": [
+        "evaluation_caveat",
+        "small_sample",
+        "subjective_metric",
+        "uncertainty"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E15",
+        "E17"
+      ]
+    },
+    {
+      "id": "clf:paper_code_metric_ambiguity",
+      "name": "Paper equations and released selectors are not one exact contract",
+      "description": "Equation 2 prints a vector-minus-one term while its prose and release constrain the language-vector norm. Equation 4 is called cosine similarity but uses a different denominator from standard cosine. The release offers distance, cosine, and projection against phi plus psi, with simulation and human paths choosing different metrics.",
+      "tags": [
+        "reproducibility",
+        "equation_ambiguity",
+        "implementation_mismatch",
+        "trajectory_selection"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E05",
+        "E20",
+        "E21"
+      ]
+    },
+    {
+      "id": "clf:unbound_hyperparameters_and_release",
+      "name": "Paper and release do not bind an exact experiment runtime",
+      "description": "The paper omits numerical a, b, and k values and a concrete reward-network architecture. The README example uses 20 implicit contrasts while the parser defaults to 10; the untagged post-paper tree has no supplied model checkpoint or immutable dataset digest, and its documented reward-learning module is absent.",
+      "tags": [
+        "reproducibility",
+        "missing_hyperparameters",
+        "release_gap",
+        "versioning"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E06",
+        "E19",
+        "E22",
+        "E23"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "clf:latent_alignment_evaluation",
+      "name": "Simulation latent-alignment evaluation",
+      "description": "Robosuite and Meta-World test tuples are correct when language has positive dot product with the trajectory-embedding difference. Co-finetuning improves reported accuracy over leaving T5 frozen in both environments.",
+      "tags": [
+        "simulation",
+        "latent_alignment",
+        "accuracy",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "id": "clf:trajectory_improvement_evaluation",
+      "name": "Finite-library iterative trajectory-improvement evaluation",
+      "description": "Across 100 random seeds and 15 retrieval iterations, mean true reward rises in both simulation environments but remains below the average optimum; the same experiment exposes looping as a negative result.",
+      "tags": [
+        "simulation",
+        "trajectory_selection",
+        "true_reward",
+        "negative_result"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "clf:simulation_reward_learning_evaluation",
+      "name": "Synthetic reward-learning comparison",
+      "description": "For three synthetic humans and three seeds per human in each environment, the paper compares language and pairwise feedback using cross-entropy between true and learned pairwise trajectory distributions and the normalized true reward of the test trajectory selected by the learned scorer. Curves favor language feedback, but the text reports no exact endpoint values.",
+      "tags": [
+        "simulation",
+        "reward_learning",
+        "pairwise_baseline",
+        "cross_entropy"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "clf:reward_loss_ablation",
+      "name": "Explicit/implicit reward-loss ablation",
+      "description": "Figure 6 reports that combining the explicit original-versus-improved term with the implicit chosen-versus-alternative term outperforms either component alone on cross-entropy and selected-trajectory true reward.",
+      "tags": [
+        "ablation",
+        "reward_learning",
+        "explicit_preference",
+        "implicit_preference"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "clf:widowx_user_evaluation",
+      "name": "WidowX trajectory-improvement and reward-learning user studies",
+      "description": "Ten participants interact with a 32-trajectory spoon-pick/avoid-pan library. The paper reports higher average subjective scores, lower average response time, and higher rating-curve AUC for language feedback, alongside a comparison-convenience advantage, higher language-time variance, and a non-monotone rating segment.",
+      "tags": [
+        "real_robot",
+        "human_subjects",
+        "subjective_rating",
+        "time_efficiency"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E15",
+        "E17"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2410.06401",
+      "relation": "INTRODUCES",
+      "target": "clf:shared_difference_latent",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "2410.06401",
+      "relation": "INTRODUCES",
+      "target": "clf:discrete_language_trajectory_retrieval",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2410.06401",
+      "relation": "INTRODUCES",
+      "target": "clf:explicit_implicit_reward_inference",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "clf:shared_difference_latent",
+      "relation": "USES",
+      "target": "concept:pretrained_T5_language_encoder",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "clf:shared_difference_latent",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:trajectory_pair_difference_language_tuples",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "clf:discrete_language_trajectory_retrieval",
+      "relation": "USES",
+      "target": "clf:shared_difference_latent",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "clf:discrete_language_trajectory_retrieval",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:comparative_language_feedback",
+      "evidence_ids": [
+        "E05",
+        "E13"
+      ]
+    },
+    {
+      "source": "clf:discrete_language_trajectory_retrieval",
+      "relation": "COMPOSES",
+      "target": "concept:finite_predefined_trajectory_library",
+      "evidence_ids": [
+        "E05",
+        "E13"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "USES",
+      "target": "clf:shared_difference_latent",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:cumulative_comparative_language_history",
+      "evidence_ids": [
+        "E06",
+        "E11"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "OPTIMIZES",
+      "target": "concept:explicit_and_implicit_Bradley_Terry_losses",
+      "evidence_ids": [
+        "E06",
+        "E12"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:pairwise_preference_reward_learning",
+      "evidence_ids": [
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "source": "clf:synthetic_comparative_feedback",
+      "relation": "SUPPORTS",
+      "target": "clf:trajectory_improvement_evaluation",
+      "evidence_ids": [
+        "E07",
+        "E10"
+      ]
+    },
+    {
+      "source": "clf:synthetic_comparative_feedback",
+      "relation": "SUPPORTS",
+      "target": "clf:simulation_reward_learning_evaluation",
+      "evidence_ids": [
+        "E07",
+        "E11"
+      ]
+    },
+    {
+      "source": "clf:one_trajectory_feedback_interface",
+      "relation": "SUPPORTS",
+      "target": "clf:explicit_implicit_reward_inference",
+      "evidence_ids": [
+        "E06",
+        "E13"
+      ]
+    },
+    {
+      "source": "clf:discrete_language_trajectory_retrieval",
+      "relation": "EVALUATES_ON",
+      "target": "clf:trajectory_improvement_evaluation",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "EVALUATES_ON",
+      "target": "clf:simulation_reward_learning_evaluation",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "clf:explicit_implicit_reward_inference",
+      "relation": "EVALUATES_ON",
+      "target": "clf:reward_loss_ablation",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "clf:one_trajectory_feedback_interface",
+      "relation": "EVALUATES_ON",
+      "target": "clf:widowx_user_evaluation",
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E15",
+        "E17"
+      ]
+    },
+    {
+      "source": "2410.06401",
+      "relation": "EVALUATES_ON",
+      "target": "clf:latent_alignment_evaluation",
+      "evidence_ids": [
+        "E09"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2410.06401v1",
+      "locator": "Header, comments, and submission history",
+      "claim": "The record identifies arXiv 2410.06401v1, the six authors, submission at 2024-10-08 22:15:46 UTC, and the 8th Annual Conference on Robot Learning (2024); no later arXiv revision is listed.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://proceedings.mlr.press/v270/yang25e.html",
+      "locator": "PMLR bibliographic header and citation block",
+      "claim": "PMLR publishes the paper in volume 270, pages 5389-5404, for the 8th Conference on Robot Learning, with publication year 2025.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S3",
+      "locator": "Section 3, Problem Definition",
+      "claim": "The paper defines a finite-horizon trajectory of state-action pairs and a human-known per-step reward, then says language-to-task grounding is learned offline from paired trajectories and language describing their difference before user-specific reward learning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S4.SS1",
+      "locator": "Section 4.1, Equations 1-3",
+      "claim": "The trajectory-difference embedding is aligned with a T5 language embedding through negative log-sigmoid loss; magnitude regularization and freeze-then-co-finetune training are specified, while normalization weights a and b are left symbolic.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S4.SS2.SSS1",
+      "locator": "Section 4.2.1, Equation 4",
+      "claim": "Iterative improvement selects from a discrete predefined trajectory set using a language-alignment objective. RL or MPC is mentioned only as a more computationally expensive alternative to that search.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S4.SS2.SSS2",
+      "locator": "Section 4.2.2, Equations 5-9",
+      "claim": "One shown trajectory and selected language form an imaginary improved latent. Explicit Bradley-Terry loss prefers it over the original; implicit loss assumes it beats alternatives built with k other utterances; the full loss sums over n feedback queries. k is not assigned a number.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS1",
+      "locator": "Section 5.1, Equations 10-11; Appendix A",
+      "claim": "Synthetic humans use hidden linear feature rewards and sample the critique feature from a softmax over weighted feature gaps to an optimal trajectory. Appendix A lists five Robosuite features and three Meta-World features.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS1",
+      "locator": "Section 5.1, Environments and Learning the Latent Space",
+      "claim": "The paper reports both simulation tasks and observation/action dimensions, 500-step rollout horizon, 629/660 augmented utterances with splits, and 448/324 unique rollouts with splits.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2410.06401v1#A3.SS1",
+      "locator": "Section 5.1, Equation 12; Appendix C.1, Table 2",
+      "claim": "Reported test accuracy is 84.9% in Robosuite and 82.9% in Meta-World; Table 2 gives 0.8489/0.8288 for co-finetuning and 0.7625/0.7344 with T5 frozen.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS1",
+      "locator": "Section 5.1, Iterative Trajectory Improvement; Figure 4",
+      "claim": "Fifteen-step improvement is repeated over 100 random seeds. Reward improves but does not reach the optimum; the authors attribute this to decisions independent of older feedback and loops among good non-optimal trajectories.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS1",
+      "locator": "Section 5.1, Reward Learning; Equation 13 and Figure 5",
+      "claim": "Each environment uses three synthetic humans and three seeds per human. Evaluation uses pairwise-distribution cross-entropy and normalized true reward of the test trajectory selected by the learned scorer; plotted curves favor language over pairwise feedback.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS1",
+      "locator": "Section 5.1, Ablation Study; Figure 6",
+      "claim": "The combined explicit and implicit reward losses outperform either component alone on the plotted cross-entropy and selected-trajectory true-reward metrics.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS2",
+      "locator": "Section 5.2, Real Robot Setup and Studies 1-2",
+      "claim": "The WidowX contract, 321-trajectory and 496-utterance pretraining splits, separate 32-trajectory study library, 10 participants, 10-iteration trajectory-study cap, and 20-query preference-study protocol with 5-query ratings and 5/5 order split are reported.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS2",
+      "locator": "Section 5.2, Results; Table 1 and Figure 9",
+      "claim": "The language method has 23.9% higher mean subjective score and 11.3% lower response time. Table 1 reports 9/10 versus 1/10 time-efficient, 6/10 versus 8/10 convenient, and 8/10 versus 3/10 adaptable; the authors conjecture the 32-trajectory library may omit desired trajectories.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S5.SS2",
+      "locator": "Section 5.2, Figure 10 discussion",
+      "claim": "The paper reports higher language-method rating-curve AUC at p<0.05 but does not name the test or give the exact statistic/effect size. It also notes that average language ratings decreased from query 5 to 10.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2410.06401v1#S6",
+      "locator": "Section 6, Limitations and Future Work",
+      "claim": "The model is limited to feedback about objects seen during pretraining; reward-learning queries are uniformly random; image-annotation expansion and active learning are future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2410.06401v1#A3.SS2",
+      "locator": "Appendix C.2, Figure 11 discussion",
+      "claim": "Although average language-query time is lower, its across-user response-time variance is higher than the comparison baseline.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://liralab.usc.edu/comparative-language-feedback/",
+      "locator": "Project-page header: separate CoRL 2024 Paper/Code/arXiv row and IJRR 2025 Paper/Code row",
+      "claim": "The author project page identifies USC-Lira/language-preference-learning as code for the CoRL paper and separately lists the later active-querying IJRR extension, preventing the latter from being attributed to arXiv v1.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/USC-Lira/language-preference-learning/commit/120990d4021689e8a6a992d9c0f6c0c49bf9c18b",
+      "locator": "Official repository commit 120990d; README lines 20-72; requirements.txt lines 1-8; refs inspected 2026-08-30",
+      "claim": "The pinned untagged master HEAD is dated 2025-02-21. README examples use T5-base/batch 1024/trajectory coefficient 0.01 for feature learning and T5-small/seed 42/lr 0.01/weight decay 0.1/one update/20 alternatives for reward learning; the data link and hosted model aliases have no immutable artifact digest.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/USC-Lira/language-preference-learning/blob/120990d4021689e8a6a992d9c0f6c0c49bf9c18b/lang_pref_learning/feature_learning/learn_features.py#L170-L195",
+      "locator": "learn_features.py lines 170-195; model/encoder.py lines 98-112 at commit 120990d",
+      "claim": "The release mean-pools trajectory and language token embeddings, optimizes negative log-sigmoid of language dot trajectory difference, clips trajectory norms above a margin, and optionally penalizes the squared error between language-vector norm and one. This matches the prose but not the literal vector-minus-one notation in paper Equation 2.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/USC-Lira/language-preference-learning/blob/120990d4021689e8a6a992d9c0f6c0c49bf9c18b/lang_pref_learning/model_analysis/find_nearest_traj.py#L19-L54",
+      "locator": "find_nearest_traj.py lines 19-54; model_analysis/improve_trajectory.py lines 99-121; real_robot_exp/improve_trajectory.py lines 86-124 at commit 120990d",
+      "claim": "The release implements distance, cosine, and projection selectors around current-trajectory plus language embeddings. The simulation path calls cosine and rejects non-improving true-reward moves; the human path calls the default Euclidean selector and accepts the result, so no single released selector exactly binds the paper's printed Equation 4 to both paths.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/USC-Lira/language-preference-learning/blob/120990d4021689e8a6a992d9c0f6c0c49bf9c18b/lang_pref_learning/pref_learning/pref_based_learning.py#L32-L283",
+      "locator": "pref_based_learning.py lines 32-53, 134-283, 480-482, and 587-617 at commit 120990d",
+      "claim": "The release uses one bias-free linear trajectory-embedding scorer, accumulates all observed feedback, implements the explicit loss on chosen language embeddings and the implicit loss against utterances sampled only from other feature aspects, and defaults to 10 alternatives although the README example requests 20.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/USC-Lira/language-preference-learning/tree/120990d4021689e8a6a992d9c0f6c0c49bf9c18b",
+      "locator": "Complete pinned tree; README lines 43-72; inspected 2026-08-30",
+      "claim": "The README points to a mutable external preprocessed-data folder and invokes lang_pref_learning.pref_learning.train_pref_learning, but the pinned tree contains no module of that name and no .pth, .ckpt, or safetensors model checkpoint; it therefore does not provide an exact end-to-end reproduction identity.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

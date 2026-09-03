@@ -1,0 +1,1015 @@
+{
+  "paper": {
+    "id": "2606.32027",
+    "arxiv_id": "2606.32027",
+    "doi": "10.48550/arXiv.2606.32027",
+    "title": "Freeform Preference Learning for Robotic Manipulation",
+    "authors": [
+      "Marcel Torne",
+      "Anubha Mahajan",
+      "Abhijnya Bhat",
+      "Chelsea Finn"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.32027v3",
+    "source_version": "arXiv v3, submitted 2026-08-01 01:25:23 UTC and verified as the latest public revision on 2026-08-30; PDF SHA-256 3abfaaa7a63a8d63b7e9fae2e208b84617c2d05042d2cf260d637e6996769ffe; TeX-source SHA-256 b7106307738be0ae6a7e05d6407095053afe350827bf0d77bb1387cf9ce67b03; official method repository commit dfb62a85374d6cd6d312ab86b7fa030161da0ce9, official real-world collection repository commit 17cffe62d4c0dc3474a3bc1ae221046cf839c129, and official project-page repository commit 8aac1a63be52a832a1f9adbde2809af3fa3cbc59, checked 2026-08-30"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "FPL supplies a concrete human-steering schema—freeform natural-language axes plus per-axis trajectory preferences—and a learned vector-valued reward representation. It directly informs how Sam could elicit and version task-reward components and keep their objective evaluations separate. Its policy result is also a sharp fixed-trainer boundary: FPL relabels trajectories and fine-tunes a policy that consumes axis-score conditioning, so the reported gain is not evidence for swapping only an executable task reward into Sam's unchanged controller/trainer.",
+    "not_evidence_for": [
+      "reference-motion selection, ordering, composition, transition guards, recovery, or certification",
+      "an executable per-step task reward consumed by an otherwise unchanged trainer",
+      "a task-reward-only improvement under fixed policy observations, architecture, data, and optimization",
+      "compatibility with a frozen controller that does not already consume an axis-score conditioning vector",
+      "test-time reference-oracle steering; FPL changes reward-conditioning values supplied to its trained policy",
+      "objective validation or safety of the learned VLM reward outside the reported tasks and data distribution",
+      "automatic selection of safe, in-distribution target reward values at test time",
+      "variable-axis policy conditioning at test time; the evaluated policy uses a selected fixed axis set",
+      "a complete reproducible match between the paper recipe and the released launch scripts",
+      "RL-Sculptor implementation of FPL"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "fpl.freeform_axis_preferences",
+      "name": "Freeform per-axis trajectory preferences",
+      "description": "An annotator views two complete trajectories, supplies or uses one or more natural-language judgment axes, and records A-versus-B preference separately for each axis. The number of axes may vary by pair; the implementation also permits equivalence, which the paper's training recipe drops.",
+      "tags": [
+        "human_steering",
+        "preference_elicitation",
+        "natural_language_axis",
+        "trajectory_pair"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E12"
+      ]
+    },
+    {
+      "id": "fpl.language_conditioned_reward_model",
+      "name": "Language-conditioned trajectory reward model",
+      "description": "One reward model receives a trajectory and a natural-language axis and returns an axis-specific scalar. Pairwise supervision uses a Bradley-Terry loss, while the proposed trajectory score is the sum of multimodal-transformer scores over observation prefixes.",
+      "tags": [
+        "task_reward",
+        "learned_reward",
+        "language_conditioning",
+        "bradley_terry",
+        "trajectory_history"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "id": "fpl.multi_axis_reward_conditioned_policy",
+      "name": "Multi-axis reward-conditioned policy extraction",
+      "description": "A representative fixed set of axes is chosen, every trajectory is labeled with its reward-model score on every selected axis, and a policy is trained by action log-likelihood conditioned on state plus the complete axis-score list. At test time, changing desired normalized scores steers the already trained policy.",
+      "tags": [
+        "reward_conditioned_policy",
+        "offline_policy_learning",
+        "test_time_steering",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E06",
+        "E14"
+      ]
+    },
+    {
+      "id": "fpl.iterative_preference_loop",
+      "name": "Iterative preference-and-rollout loop",
+      "description": "Across iterations, preferences accumulate, the reward model and conditioned policy are retrained, the new policy generates rollouts, and those rollouts expand the training dataset. Human axes may shift from coarse completion criteria to finer quality criteria as behavior improves.",
+      "tags": [
+        "iterative_improvement",
+        "replay_growth",
+        "human_feedback",
+        "changing_data_distribution"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E12"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_and_public_artifact_identity",
+      "value": {
+        "arxiv_version": "2606.32027v3",
+        "submitted_utc": "2026-08-01T01:25:23Z",
+        "pages": 24,
+        "pdf_sha256": "3abfaaa7a63a8d63b7e9fae2e208b84617c2d05042d2cf260d637e6996769ffe",
+        "tex_source_sha256": "b7106307738be0ae6a7e05d6407095053afe350827bf0d77bb1387cf9ce67b03",
+        "method_code_commit": "dfb62a85374d6cd6d312ab86b7fa030161da0ce9",
+        "real_world_collection_code_commit": "17cffe62d4c0dc3474a3bc1ae221046cf839c129",
+        "official_project_page_commit": "8aac1a63be52a832a1f9adbde2809af3fa3cbc59",
+        "repository_tags": []
+      },
+      "units": null,
+      "context": "Exact public paper bytes and untagged official repository revisions reviewed on 2026-08-30.",
+      "evidence_ids": [
+        "E01",
+        "E17",
+        "E22",
+        "E23"
+      ]
+    },
+    {
+      "name": "freeform_preference_record",
+      "value": {
+        "comparison_unit": "two full trajectories",
+        "axis_representation": "natural-language label l_k",
+        "preference_label": "y_k in {0,1}",
+        "axes_per_pair": "K_ij, variable by pair",
+        "axis_source": [
+          "predefined",
+          "annotator-specified"
+        ],
+        "equivalence_handling": "equivalent-axis labels are dropped from reward-model training"
+      },
+      "units": null,
+      "context": "Human-supervision record used by the paper; the public collection interface exposes A / Equal / B.",
+      "evidence_ids": [
+        "E02",
+        "E12",
+        "E13",
+        "E22"
+      ]
+    },
+    {
+      "name": "axis_conditioned_reward_objective",
+      "value": "L_FPL-Reward(phi) = -E_P[sum_{k=1}^{K_ij} log sigmoid((2*y_k-1)*(r_phi(tau_i|l_k)-r_phi(tau_j|l_k)))]",
+      "units": null,
+      "context": "Bradley-Terry negative log-likelihood summed over the variable set of labeled axes for each trajectory pair.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "trajectory_reward_decomposition",
+      "value": "r_phi(tau,l_k) = sum_{i=1}^{T} g_phi(o_{1:i},l_k)",
+      "units": null,
+      "context": "Proposed complete-trajectory reward is a sum of axis-conditioned observation-prefix scores.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "real_world_reward_model_architecture",
+      "value": {
+        "paper_backbone_label": "Qwen 3.5 VL 4B",
+        "code_default_backbone_label": "Qwen/Qwen3-VL-4B-Instruct",
+        "inputs": [
+          "natural-language axis question",
+          "wrist-camera sequence",
+          "third-person-camera sequence"
+        ],
+        "vision_encoder": "frozen",
+        "remaining_backbone": "full fine-tuning",
+        "attention": "causal over text and past images, not future images",
+        "score_head": "single linear projection from the final second-camera vision-separator token at each timestep",
+        "trajectory_score": "sum over timestep scores",
+        "checkpoint_selection": "highest validation accuracy in the first 500 epochs"
+      },
+      "units": null,
+      "context": "Paper implementation description. The exact backbone product label differs between paper text and pinned official code.",
+      "evidence_ids": [
+        "E13",
+        "E18"
+      ]
+    },
+    {
+      "name": "real_world_reward_model_hyperparameters",
+      "value": {
+        "sequence_length_frames": 20,
+        "batch_size": 32,
+        "learning_rate": 0.00001,
+        "image_shape": [
+          128,
+          128,
+          3
+        ],
+        "stride_by_task": {
+          "plate_toast": 20,
+          "setup_table": 20,
+          "fold_shorts": 60,
+          "put_cube_in_target_bowl": 10
+        }
+      },
+      "units": "frames, samples, optimizer step size, pixels",
+      "context": "Appendix Table 4. Stride is task-specific while the other listed settings are shared.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "multi_axis_policy_objective",
+      "value": "L_FPL-Policy(theta) = -E_{tau_i~D}[sum_t log pi_theta(a_i^t | s_i^t, l_1, r_phi(tau_i|l_1), ..., l_Kpi, r_phi(tau_i|l_Kpi))]",
+      "units": null,
+      "context": "Supervised action-likelihood objective over reward-labeled trajectories, not an online environment-return objective.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "reward_conditioning_transform",
+      "value": {
+        "statistics_scope": "per axis over the complete dataset D",
+        "transform": "(r - mean) / standard_deviation",
+        "serialization": "axis label: standardized score",
+        "decimal_places": 1,
+        "test_time_control": "vary target standardized scores"
+      },
+      "units": "standard deviations",
+      "context": "Reward scores are z-scored and rounded to one decimal before text conditioning. Contrary to one sentence in Appendix 9.2, z-scoring does not mathematically bound values.",
+      "evidence_ids": [
+        "E06",
+        "E14"
+      ]
+    },
+    {
+      "name": "real_world_policy_training",
+      "value": {
+        "initialization": "pi_0.5 open-source weights",
+        "policy_head": "flow matching",
+        "action_chunk_size": 16,
+        "executed_actions_per_query": 8,
+        "fine_tuning": "full",
+        "paper_training_steps": 30000,
+        "batch_size": 32,
+        "observations": [
+          "wrist camera",
+          "third-person camera",
+          "task prompt with axis-score conditioning"
+        ]
+      },
+      "units": "actions, gradient steps, samples",
+      "context": "Paper real-world policy recipe. Pinned public code currently configures 60,000 steps for the invoked pi05_droid_finetune preset.",
+      "evidence_ids": [
+        "E14",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "name": "simulation_variant",
+      "value": {
+        "observation_space": "state",
+        "pretraining": false,
+        "reward_model": "K fixed heads, one per preference axis",
+        "policy": "flow-matching diffusion transformer",
+        "conditioning": "float vector",
+        "post_standardization_noise_amplitude": 0.2
+      },
+      "units": null,
+      "context": "Simulation uses a fixed-axis, non-language implementation and adds noise only to the smaller scratch-trained policy's conditioning vector.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "real_world_dataset_statistics",
+      "value": {
+        "plate_toast": {
+          "offline_demonstrations": 148,
+          "preference_pairs": 295,
+          "rollouts": 128,
+          "reported_axis_groups": 5,
+          "single_preference_matching_labels": 1492
+        },
+        "setup_table": {
+          "offline_demonstrations": 100,
+          "preference_pairs": 325,
+          "rollouts": 270,
+          "reported_axis_groups": 5,
+          "single_preference_matching_labels": 1625
+        },
+        "fold_shorts": {
+          "offline_demonstrations": 138,
+          "preference_pairs": 239,
+          "rollouts": 130,
+          "reported_axis_groups": 10,
+          "single_preference_matching_labels": 1336,
+          "matching_labels_footnote": "full label matching was prohibitively costly"
+        },
+        "place_cube_into_bowl": {
+          "offline_demonstrations": 0,
+          "preference_pairs": 250,
+          "rollouts": 400,
+          "reported_axis_groups": 3,
+          "single_preference_matching_labels": 800
+        }
+      },
+      "units": "trajectories, compared pairs, and labels",
+      "context": "Appendix Table 2. The paper calls the third numeric column 'Num Preferences'; the method describes these as trajectory-pair comparisons.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "simulation_dataset_statistics",
+      "value": {
+        "object_rearrangement": {
+          "offline_demonstrations": 300,
+          "preference_pairs": 70,
+          "axes": [
+            "order",
+            "bread placed",
+            "can placed",
+            "bread dropped",
+            "can dropped"
+          ],
+          "single_preference_matching_labels": 350
+        },
+        "bimodal_square": {
+          "offline_demonstrations": 200,
+          "preference_pairs": 100,
+          "axes": [
+            "speed",
+            "peg"
+          ],
+          "single_preference_matching_labels": 200
+        }
+      },
+      "units": "trajectories, compared pairs, and labels",
+      "context": "Appendix Table 3.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "evaluation_protocol",
+      "value": {
+        "real_world_tasks": 4,
+        "real_world_rollouts_per_method": 20,
+        "real_world_robot": "Franka in DROID setup",
+        "real_world_observations": [
+          "wrist camera",
+          "third-person camera"
+        ],
+        "real_world_control": "joint velocity",
+        "simulation_tasks": 2,
+        "simulation_additional_inverted_condition": 1,
+        "simulation_seeds": 3,
+        "reported_statistic": "mean plus or minus standard error"
+      },
+      "units": "tasks, rollouts, and random seeds",
+      "context": "Evaluation sampling and embodiment stated in Section 5.1.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "real_world_reported_results",
+      "value": {
+        "metric_label_in_appendix": "success rate",
+        "task_order": [
+          "setup_table",
+          "plate_toast",
+          "fold_shorts",
+          "place_cube_into_bowl",
+          "average"
+        ],
+        "BC_mean": [
+          0.68,
+          0.15,
+          0.1,
+          0.33,
+          0.31
+        ],
+        "Filtered_BC_mean": [
+          0.65,
+          0.3,
+          0.25,
+          0.29,
+          0.37
+        ],
+        "Single_Preference_match_pairs_mean": [
+          0.64,
+          0.0,
+          0.25,
+          0.43,
+          0.33
+        ],
+        "Single_Preference_match_comparisons_mean": [
+          0.77,
+          0.1,
+          0.3,
+          0.19,
+          0.34
+        ],
+        "FPL_mean": [
+          0.94,
+          0.7,
+          0.55,
+          0.81,
+          0.75
+        ],
+        "FPL_standard_error": [
+          0.02,
+          0.1,
+          0.11,
+          0.09,
+          0.04
+        ],
+        "best_baseline_average": 0.37,
+        "average_absolute_gain": 0.38
+      },
+      "units": "fraction and absolute fraction",
+      "context": "Appendix Table 8 and Figure 3. The official project page labels the aggregate visualization 'Average real-world task progress,' so the exact scoring rubric should be recovered before reuse.",
+      "evidence_ids": [
+        "E08",
+        "E23"
+      ]
+    },
+    {
+      "name": "simulation_reported_results",
+      "value": {
+        "task_order": [
+          "object_rearrangement_success",
+          "bimodal_square_throughput",
+          "bimodal_square_inverted_throughput"
+        ],
+        "BC_mean": [
+          0.04,
+          0.71,
+          0.25
+        ],
+        "Filtered_BC_mean": [
+          0.09,
+          0.71,
+          0.0
+        ],
+        "Weighted_Regression_mean": [
+          0.18,
+          0.83,
+          0.09
+        ],
+        "Advantage_Conditioning_mean": [
+          0.17,
+          0.75,
+          0.08
+        ],
+        "Single_Preferences_match_pairs_mean": [
+          0.73,
+          0.67,
+          0.78
+        ],
+        "Single_Preferences_match_comparisons_mean": [
+          0.79,
+          0.73,
+          0.74
+        ],
+        "FPL_mean": [
+          0.84,
+          1.19,
+          1.24
+        ],
+        "FPL_standard_error": [
+          0.09,
+          0.01,
+          0.01
+        ],
+        "FPL_bimodal_square_success": 1.0,
+        "FPL_bimodal_square_inverted_success": 1.0,
+        "FPL_bimodal_square_time_to_first_step": 253.13,
+        "FPL_bimodal_square_inverted_time_to_first_step": 242.23
+      },
+      "units": "success fraction, throughput, and paper-reported T1S units (unspecified)",
+      "context": "Main Table 1 and Appendix Tables 5-7; means plus or minus standard error over three seeds.",
+      "evidence_ids": [
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "name": "preference_diversity_and_annotation_cost",
+      "value": {
+        "plate_toast_trajectory_pair_comparisons": 295,
+        "plate_toast_axis_level_comparisons": "over 1477",
+        "plate_toast_distinct_labels": 41,
+        "freeform_speedup_per_label": 1.85,
+        "headline_time_reduction_per_label": "approximately 50%"
+      },
+      "units": "comparisons, labels, and multiplicative speedup",
+      "context": "Preference-diversity and wall-clock annotation analysis. The paper does not report annotator count or inter-annotator agreement.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "reported_compute",
+      "value": {
+        "real_world_reward_and_policy_fine_tuning": "one NVIDIA H100",
+        "simulation": "generally NVIDIA RTX 4500"
+      },
+      "units": "GPU model labels",
+      "context": "Appendix Section 10; run duration, GPU-hours, and total experiment count are not reported.",
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "fpl.manual_target_fixed_axis_limit",
+      "name": "Manual target selection and fixed policy axes",
+      "description": "The reward model is unbounded, target values must remain behaviorally effective and in distribution, and the current policy consumes a selected fixed axis set. The authors identify automatic target selection and variable-axis policies as future work.",
+      "tags": [
+        "test_time_control",
+        "distribution_shift",
+        "fixed_axes",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E16"
+      ]
+    },
+    {
+      "id": "fpl.not_drop_in_task_reward",
+      "name": "Not a drop-in fixed-trainer task reward",
+      "description": "FPL scores complete trajectories offline, changes the policy input to include all axis-score pairs, fine-tunes the policy, and can expand the replay dataset. Applying the full mechanism to Sam would therefore change frozen trainer/controller and data contracts unless those interfaces were predeclared and held fixed.",
+      "tags": [
+        "fixed_trainer_boundary",
+        "policy_observation_change",
+        "dataset_change",
+        "task_reward_scope"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E05",
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "fpl.reward_validation_gap",
+      "name": "Reward validity is evaluated qualitatively",
+      "description": "The dense-credit claim is illustrated on one representative setup-table rollout, while v3 reports neither held-out reward-model accuracy nor calibration, adversarial optimization, out-of-distribution, or reward-hacking tests. Policy outcomes therefore do not independently validate the reward signal itself.",
+      "tags": [
+        "evaluation_gap",
+        "reward_calibration",
+        "reward_hacking",
+        "qualitative_evidence"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "fpl.evaluation_definition_gap",
+      "name": "Real-world metric-definition ambiguity",
+      "description": "The appendix calls the per-task quantity success rate, while the official project page calls the aggregate average task progress. V3 does not give a complete scoring rubric or blind-rating protocol for each qualitative task, so the 38-point headline cannot be reconstructed from the paper alone.",
+      "tags": [
+        "metric_definition",
+        "reproducibility",
+        "real_world_evaluation"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E23"
+      ]
+    },
+    {
+      "id": "fpl.annotation_and_uncertainty_gap",
+      "name": "Human-annotation and uncertainty limits",
+      "description": "Preference collection remains more costly than unsupervised learning. V3 gives per-label timing and label counts but no annotator count, agreement, demographic protocol, or repeated reward/policy training seeds for real-world tasks; real-world uncertainty comes from 20 rollouts per method.",
+      "tags": [
+        "human_cost",
+        "annotator_variance",
+        "small_sample",
+        "uncertainty"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E12",
+        "E16"
+      ]
+    },
+    {
+      "id": "fpl.standardization_is_unbounded",
+      "name": "Z-score conditioning is not bounded",
+      "description": "Appendix 9.2 says per-axis standardization makes rewards bounded, but the stated transform (r-mean)/standard deviation is unbounded. Rounding to one decimal discretizes values without providing an admissible range or clipping rule.",
+      "tags": [
+        "normalization",
+        "specification_error",
+        "test_time_target"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E14"
+      ]
+    },
+    {
+      "id": "fpl.public_recipe_drift",
+      "name": "Pinned public launchers do not match the paper recipe",
+      "description": "At the reviewed commit, the reward launcher selects the non-cumulative qwen_open model for one epoch with stride 10, while v3 describes summed prefix scores, per-task strides, and checkpoint selection within 500 epochs. The invoked pi05_droid_finetune preset uses 60,000 steps rather than the paper's 30,000, and the environment installs mutable Transformers main. The repository is useful but not an exact evaluation manifest.",
+      "tags": [
+        "code_drift",
+        "reproducibility",
+        "mutable_dependency",
+        "public_artifact"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E14",
+        "E18",
+        "E19",
+        "E20",
+        "E21"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "fpl.real_world_policy_evaluation",
+      "name": "Four-task real-world policy comparison",
+      "description": "On 20 rollouts per method, FPL reports per-task means of 0.94, 0.70, 0.55, and 0.81 and an average of 0.75 plus or minus 0.04. The best baseline average is Filtered BC at 0.37 plus or minus 0.04, giving the reported 0.38 absolute gap.",
+      "tags": [
+        "real_robot",
+        "policy_outcome",
+        "baseline_comparison",
+        "mean_standard_error"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "id": "fpl.simulation_policy_evaluation",
+      "name": "Robomimic-based simulation comparison",
+      "description": "Across three seeds, FPL reports object-rearrangement success 0.84 plus or minus 0.09 and bimodal-square throughput 1.19 plus or minus 0.01, exceeding all listed baselines; the inverted conditioning yields throughput 1.24 plus or minus 0.01.",
+      "tags": [
+        "simulation",
+        "success",
+        "throughput",
+        "three_seeds"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "fpl.compositionality_and_steering_evaluation",
+      "name": "Behavior compositionality and same-policy steering tests",
+      "description": "The bimodal dataset contains fast and slow left-peg trajectories but only slow right-peg trajectories. FPL produces faster right-peg behavior and, with changed score conditioning, the same policy reaches 1.00 success in both normal and inverted peg directions; the real cube task changes target-bowl score prompts to steer placement.",
+      "tags": [
+        "behavior_composition",
+        "test_time_steering",
+        "same_policy",
+        "out_of_combination_generalization"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "id": "fpl.qualitative_reward_evaluation",
+      "name": "Qualitative temporal credit-assignment comparison",
+      "description": "On one setup-table rollout, selected FPL axes peak around corresponding placement events without explicit subtask boundaries, whereas the single binary-preference reward has a late spike with no major completion event. The paper presents this as qualitative, not calibrated, evidence.",
+      "tags": [
+        "reward_visualization",
+        "credit_assignment",
+        "qualitative",
+        "long_horizon"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "fpl.annotation_efficiency_evaluation",
+      "name": "Preference diversity and time-per-label analysis",
+      "description": "Plate-toast collection yields 295 trajectory pairs, over 1,477 axis-level comparisons, and 41 distinct labels. Sharing video-viewing cost across several labels is reported as about 1.85 times faster per label than single-preference annotation.",
+      "tags": [
+        "annotation_cost",
+        "label_diversity",
+        "human_feedback"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.32027",
+      "relation": "INTRODUCES",
+      "target": "fpl.freeform_axis_preferences",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "INTRODUCES",
+      "target": "fpl.language_conditioned_reward_model",
+      "evidence_ids": [
+        "E02",
+        "E03"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "INTRODUCES",
+      "target": "fpl.multi_axis_reward_conditioned_policy",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "fpl.freeform_axis_preferences",
+      "relation": "SUPPORTS",
+      "target": "fpl.language_conditioned_reward_model",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "fpl.language_conditioned_reward_model",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:natural_language_preference_axis",
+      "evidence_ids": [
+        "E02",
+        "E03"
+      ]
+    },
+    {
+      "source": "fpl.language_conditioned_reward_model",
+      "relation": "OPTIMIZES",
+      "target": "concept:bradley_terry_preference_likelihood",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "fpl.language_conditioned_reward_model",
+      "relation": "SUPPORTS",
+      "target": "fpl.multi_axis_reward_conditioned_policy",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "fpl.multi_axis_reward_conditioned_policy",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:fixed_axis_score_vector",
+      "evidence_ids": [
+        "E04",
+        "E06"
+      ]
+    },
+    {
+      "source": "fpl.multi_axis_reward_conditioned_policy",
+      "relation": "REQUIRES",
+      "target": "concept:policy_axis_score_input_interface",
+      "evidence_ids": [
+        "E04",
+        "E14"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "INTRODUCES",
+      "target": "fpl.iterative_preference_loop",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "fpl.iterative_preference_loop",
+      "relation": "USES",
+      "target": "fpl.freeform_axis_preferences",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "fpl.iterative_preference_loop",
+      "relation": "USES",
+      "target": "fpl.multi_axis_reward_conditioned_policy",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "EVALUATES_ON",
+      "target": "fpl.real_world_policy_evaluation",
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "EVALUATES_ON",
+      "target": "fpl.simulation_policy_evaluation",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "REPORTS",
+      "target": "fpl.compositionality_and_steering_evaluation",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "REPORTS",
+      "target": "fpl.qualitative_reward_evaluation",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.32027",
+      "relation": "REPORTS",
+      "target": "fpl.annotation_efficiency_evaluation",
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.32027v3",
+      "locator": "Title, authors, submission history, DOI, v3 PDF and TeX-source links; exact downloaded bytes verified 2026-08-30",
+      "claim": "V3 is the latest public revision as of the corpus date; it was submitted 1 August 2026. The reviewed 24-page PDF and TeX archive have the recorded SHA-256 digests.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S3.SS1",
+      "locator": "Section 3.1, especially Eq. 3",
+      "claim": "FPL compares full trajectories, permits predefined or annotator-written natural-language axes with variable K_ij, and trains one axis-conditioned scalar reward using the summed Bradley-Terry negative log-likelihood.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S3.SS1",
+      "locator": "Section 3.1, Eq. 4 and Figure 2",
+      "claim": "The proposed trajectory reward is a sum of axis-conditioned prefix scores from a multimodal transformer over observation history.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S3.SS2",
+      "locator": "Section 3.2, Eq. 5 and offline/online policy-extraction discussion",
+      "claim": "FPL selects representative axes, labels each trajectory with all axis rewards, and trains a policy by action log-likelihood conditioned on state and the axis-score list; the procedure can be offline or repeated with new rollouts.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S3.SS2",
+      "locator": "Section 3.2, Algorithm 1 and following paragraph",
+      "claim": "The iterative loop accumulates preferences, retrains reward and policy models, adds current-policy rollouts to D, and allows the selected axis set and human criteria to evolve.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S3.SS2",
+      "locator": "End of Section 3.2; Appendix Section 9.2; Section 6",
+      "claim": "At test time the policy is steered by target per-axis rewards. Rewards are standardized over D because raw outputs are unbounded; appropriate target selection and variable-axis policies remain future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S5.SS1",
+      "locator": "Section 5.1",
+      "claim": "Evaluation spans four Franka/DROID real-world tasks with wrist and third-person cameras plus joint-velocity control and two Robomimic-based simulation tasks; results use 20 real-world rollouts per method and three simulation seeds with mean and standard error.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S11.T8",
+      "locator": "Appendix Table 8 and main Figure 3",
+      "claim": "The complete per-task real-world table reports FPL means 0.94/0.70/0.55/0.81 and average 0.75 plus or minus 0.04 versus best-baseline average 0.37 plus or minus 0.04, an absolute 0.38 gap.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S11.SS1",
+      "locator": "Main Table 1; Appendix Tables 5, 6, and 7",
+      "claim": "The simulation tables report all baseline means and standard errors, including FPL object-rearrangement success 0.84 plus or minus 0.09, normal/inverted throughput 1.19/1.24, and 1.00 success in both bimodal directions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S5.SS2",
+      "locator": "Section 5.2, Figures 4 and 5",
+      "claim": "The same multi-axis-conditioned policy composes fast right-peg behavior absent from demonstrations and is steered to the inverted peg or a commanded bowl by changing target reward conditioning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S5.SS3",
+      "locator": "Section 5.3, Figure 6",
+      "claim": "A representative setup-table rollout qualitatively shows temporally localized FPL axis rewards without subtask labels and a late erroneous spike for the single binary-preference reward.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S8",
+      "locator": "Appendix Tables 2-3; Section 8 and Figures 9-10; Section 5.3",
+      "claim": "The paper reports all task dataset counts and interface semantics, about 1.85x lower time per freeform label, and plate-toast diversity of 295 pairs, over 1,477 axis judgments, and 41 distinct labels; annotator count and agreement are not reported.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S9.SS1",
+      "locator": "Appendix Section 9.1 and Table 4",
+      "claim": "The real-world reward implementation uses the paper-labelled Qwen 3.5 VL 4B, two camera streams, causal history, a frozen vision encoder, full fine-tuning elsewhere, per-timestep linear scores summed over time, validation selection within 500 epochs, task-specific strides, sequence length 20, batch 32, LR 1e-5, 128-square images, and drops equivalent labels.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S9.SS2",
+      "locator": "Appendix Sections 9.2-9.3 and 10",
+      "claim": "Real policy training z-scores rewards, rounds to one decimal, full-fine-tunes pi_0.5 for 30,000 steps with batch 32, action chunk 16 and eight executed actions; simulation uses fixed reward heads, float conditioning plus 0.2 noise; reported compute is one H100 and generally RTX 4500 simulation GPUs.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S9.SS4",
+      "locator": "Section 5.2 comparisons and Appendix Section 9.4",
+      "claim": "Baselines change reward dimensionality, supervision source, dataset filtering, or policy extraction; no reported arm substitutes only an executable task reward while holding the complete trainer/controller contract fixed.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2606.32027v3#S6",
+      "locator": "Section 6, Limitations and Conclusion",
+      "claim": "The authors report human-preference cost, manual target-reward selection, and the fixed policy-axis set as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/freeform-pl/fpl/tree/dfb62a85374d6cd6d312ab86b7fa030161da0ce9",
+      "locator": "Pinned repository tree and README, commit dfb62a85374d6cd6d312ab86b7fa030161da0ce9",
+      "claim": "The official method repository exposes simulation, real-world reward-model, score-inference, data-conversion, and pi_0.5 fine-tuning code plus dataset links; no release tag is present at the reviewed revision.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/freeform-pl/fpl/blob/dfb62a85374d6cd6d312ab86b7fa030161da0ce9/real_world/scripts/train_qwen.sh#L11-L21",
+      "locator": "Pinned train_qwen.sh lines 11-21; qwen_model.py lines 403-428; train_reward_model.py lines 101-116",
+      "claim": "The public launcher selects qwen_open, stride 10, sequence 20, batch 32, one epoch, and LR 1e-5. The code's cumulative-prefix implementation is a separate qwen_open_cum option, and its default model ID is Qwen/Qwen3-VL-4B-Instruct.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/freeform-pl/fpl/blob/dfb62a85374d6cd6d312ab86b7fa030161da0ce9/real_world/scripts/infer_then_train_pi05.sh#L46-L58",
+      "locator": "Pinned infer_then_train_pi05.sh lines 46-58",
+      "claim": "The public pipeline invokes the pi05_droid_finetune configuration without overriding its training-step count.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/freeform-pl/fpl/blob/dfb62a85374d6cd6d312ab86b7fa030161da0ce9/real_world/openpi/src/openpi/training/config.py#L898-L922",
+      "locator": "Pinned pi05_droid_finetune config lines 898-922",
+      "claim": "The invoked public config uses action horizon 16, DROID base weights, 60,000 training steps, and batch size 32; the paper reports 30,000 steps.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/freeform-pl/fpl/blob/dfb62a85374d6cd6d312ab86b7fa030161da0ce9/real_world/conda_environment_real.yaml#L1-L33",
+      "locator": "Pinned real-world environment lines 1-33",
+      "claim": "Most dependencies are versioned, but Transformers is installed from mutable Git main without a commit, so the code commit does not fully pin the runtime.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/freeform-pl/fpl_real/tree/17cffe62d4c0dc3474a3bc1ae221046cf839c129",
+      "locator": "Pinned official real-world collection repository README and preference_server.py, commit 17cffe62d4c0dc3474a3bc1ae221046cf839c129",
+      "claim": "The public collection system presents live or recorded rollout pairs, accepts annotator-named axes with A/Equal/B labels, randomizes cross-pair ordering, and writes preference JSON beside rollout artifacts; no release tag is present.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/freeform-pl/fpl.website/blob/8aac1a63be52a832a1f9adbde2809af3fa3cbc59/index.html#L235-L247",
+      "locator": "Pinned index.html lines 235-247, results block headed 'Average real-world task progress'",
+      "claim": "The official project page labels the 31/37/33/34/75 aggregate result as average real-world task progress, whereas Appendix Table 8 labels the per-task quantity success rate.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

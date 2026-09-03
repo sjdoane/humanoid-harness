@@ -1,0 +1,824 @@
+{
+  "paper": {
+    "id": "2606.20705",
+    "arxiv_id": "2606.20705",
+    "doi": "10.48550/arXiv.2606.20705",
+    "title": "MotionPyramid: Hierarchical Motion Representation and Residual Interfaces",
+    "authors": [
+      "Gao Zhu",
+      "Zaishuo Xia",
+      "Yubei Chen"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.20705v1",
+    "source_version": "arXiv v1, submitted 2026-06-15; versioned PDF SHA-256 acdac8bc5fe63e2abce0dc7a86e3d7cab01ddd1cb42eb10c0fb33531ef0b03dc; no public code or project repository linked in v1; inspected 2026-08-30"
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It provides a source-located hierarchy of closed-loop temporal motion interfaces and a controlled speed-versus-precision evaluation. This sharpens how Sam could parameterize reference-oracle timescales and, more importantly, where the fixed action/controller boundary must be enforced.",
+    "not_evidence_for": [
+      "A reference-oracle improvement under Sam's fixed controller and action interface",
+      "A task-reward improvement or automated reward-design method",
+      "An OGMP state machine or composition of immutable reference trajectories",
+      "Human-language steering or a recursive agentic harness",
+      "Quantitative real-robot performance",
+      "Statistically resolved downstream gains across random seeds",
+      "Apple-MPS compatibility or single-workstation reproducibility"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "motionpyramid.hierarchical_action_representation",
+      "name": "Recursive hierarchical action representation",
+      "description": "Three 32-dimensional latent levels recursively decode across one, five, and ten simulator-step horizons into a 69-dimensional motor command; child decoding is conditioned on current proprioception.",
+      "tags": [
+        "temporal_abstraction",
+        "latent_action",
+        "closed_loop",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "MP-E02"
+      ]
+    },
+    {
+      "id": "motionpyramid.bottom_up_distillation",
+      "name": "Bottom-up closed-loop distillation",
+      "description": "A motion-tracking teacher supervises the first decoder; each higher decoder reconstructs lower-level latent blocks while previously learned decoders remain frozen, and rollout losses are evaluated on student-visited states.",
+      "tags": [
+        "teacher_student",
+        "distillation",
+        "motion_prior",
+        "closed_loop"
+      ],
+      "evidence_ids": [
+        "MP-E03"
+      ]
+    },
+    {
+      "id": "motionpyramid.fixed_residual_interface",
+      "name": "Fixed residual latent interface",
+      "description": "A downstream policy predicts a residual around a proprioception-conditioned prior mean at one selected pyramid level; the latent unfolds through frozen decoders for that level's native duration.",
+      "tags": [
+        "residual_action",
+        "frozen_decoder",
+        "downstream_rl",
+        "smdp"
+      ],
+      "evidence_ids": [
+        "MP-E04",
+        "MP-E15"
+      ]
+    },
+    {
+      "id": "motionpyramid.mixture_of_interfaces",
+      "name": "Mixture of Interfaces",
+      "description": "An SMDP policy jointly selects a horizon from one, five, or ten steps and a 32-dimensional residual latent, exposing online allocation of policy decision bandwidth.",
+      "tags": [
+        "adaptive_interface",
+        "horizon_selection",
+        "decision_bandwidth",
+        "smdp"
+      ],
+      "evidence_ids": [
+        "MP-E05",
+        "MP-E15"
+      ]
+    },
+    {
+      "id": "motionpyramid.residual_interfaces",
+      "name": "Nested Residual Interfaces",
+      "description": "High-, middle-, and low-level latent commands coexist: frozen parent decoders provide base commands and learned residual heads refine them at ten-, five-, and one-step refresh intervals.",
+      "tags": [
+        "multi_rate_control",
+        "residual_cascade",
+        "coarse_to_fine",
+        "controller_change"
+      ],
+      "evidence_ids": [
+        "MP-E06"
+      ]
+    },
+    {
+      "id": "motionpyramid.multiscale_editing_probe",
+      "name": "Multiscale latent editing probe",
+      "description": "Latent interpolation, local edits under fixed coarse context, transitions, and fused behaviors qualitatively probe reuse across temporal levels; they do not change training and are not a quantitative composition benchmark.",
+      "tags": [
+        "interpolation",
+        "transition",
+        "qualitative_composition",
+        "reference_composition_hypothesis"
+      ],
+      "evidence_ids": [
+        "MP-E10",
+        "MP-E11"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "source_pdf_sha256",
+      "value": "acdac8bc5fe63e2abce0dc7a86e3d7cab01ddd1cb42eb10c0fb33531ef0b03dc",
+      "units": null,
+      "context": "SHA-256 of https://arxiv.org/pdf/2606.20705v1 downloaded 2026-08-30.",
+      "evidence_ids": [
+        "MP-E01"
+      ]
+    },
+    {
+      "name": "motor_command_dimension",
+      "value": 69,
+      "units": "dimensions",
+      "context": "Raw motor command / PD target z^(0).",
+      "evidence_ids": [
+        "MP-E02"
+      ]
+    },
+    {
+      "name": "pyramid_horizons",
+      "value": {
+        "H1": 1,
+        "H2": 5,
+        "H3": 10
+      },
+      "units": "simulator control steps",
+      "context": "Manually selected temporal spans for the three learned interfaces.",
+      "evidence_ids": [
+        "MP-E02",
+        "MP-E11"
+      ]
+    },
+    {
+      "name": "interface_decision_rates",
+      "value": {
+        "z1": 30,
+        "z2": 6,
+        "z3": 3
+      },
+      "units": "Hz",
+      "context": "Decimated policy control rates, not internal physics integration rates.",
+      "evidence_ids": [
+        "MP-E02"
+      ]
+    },
+    {
+      "name": "latent_action_dimensions",
+      "value": {
+        "z1": 32,
+        "z2": 32,
+        "z3": 32
+      },
+      "units": "dimensions",
+      "context": "All learned fixed and adaptive interfaces.",
+      "evidence_ids": [
+        "MP-E02",
+        "MP-E12",
+        "MP-E13"
+      ]
+    },
+    {
+      "name": "amass_training_clips",
+      "value": 11314,
+      "units": "motion clips",
+      "context": "Motion-tracking teacher / interface-pretraining split.",
+      "evidence_ids": [
+        "MP-E14"
+      ]
+    },
+    {
+      "name": "amass_train_tracking_table",
+      "value": {
+        "raw": {
+          "success_percent": 94.3,
+          "global_mpjpe_mm": 58.4,
+          "global_rotation_deg": 13.6,
+          "local_rotation_deg": 10.8,
+          "smoothness_cost": 675.3
+        },
+        "z1": {
+          "success_percent": 96.1,
+          "global_mpjpe_mm": 68.6,
+          "global_rotation_deg": 17.5,
+          "local_rotation_deg": 15.2,
+          "smoothness_cost": 499.4
+        },
+        "z2": {
+          "success_percent": 92.0,
+          "global_mpjpe_mm": 90.5,
+          "global_rotation_deg": 19.4,
+          "local_rotation_deg": 15.7,
+          "smoothness_cost": 350.1
+        },
+        "z3": {
+          "success_percent": 81.0,
+          "global_mpjpe_mm": 181.0,
+          "global_rotation_deg": 23.8,
+          "local_rotation_deg": 16.5,
+          "smoothness_cost": 229.2
+        }
+      },
+      "units": null,
+      "context": "AMASS-Train tracking evaluation; lower errors and smoothness cost are better.",
+      "evidence_ids": [
+        "MP-E08"
+      ]
+    },
+    {
+      "name": "prior_sampling_protocol",
+      "value": {
+        "rollouts_per_level": 256,
+        "rollout_seconds": 10,
+        "low_root_threshold_m": 0.15,
+        "low_root_counts": {
+          "z1": 158,
+          "z2": 13,
+          "z3": 2
+        }
+      },
+      "units": null,
+      "context": "Prior sampling with environment height termination disabled.",
+      "evidence_ids": [
+        "MP-E09"
+      ]
+    },
+    {
+      "name": "ppo_core_hyperparameters",
+      "value": {
+        "discount_gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_threshold": 0.2,
+        "gradient_clip": 50,
+        "observation_clip": [
+          -5,
+          5
+        ],
+        "rollout_steps_per_environment": 32,
+        "epochs_per_update": 6
+      },
+      "units": null,
+      "context": "Downstream PPO with Adam and observation normalization.",
+      "evidence_ids": [
+        "MP-E12"
+      ]
+    },
+    {
+      "name": "downstream_network_and_batch",
+      "value": {
+        "actor_hidden_sizes": [
+          2048,
+          1024,
+          512
+        ],
+        "critic_hidden_sizes": [
+          2048,
+          1024,
+          512
+        ],
+        "activation": "SiLU",
+        "parallel_environments": 512,
+        "default_batch_size": 1024
+      },
+      "units": null,
+      "context": "Speed, reach, and strike downstream policies.",
+      "evidence_ids": [
+        "MP-E12",
+        "MP-E14"
+      ]
+    },
+    {
+      "name": "learned_interface_optimizer",
+      "value": {
+        "actor_learning_rate": 0.00002,
+        "critic_learning_rate": 0.00002,
+        "fixed_log_standard_deviation": -1.0
+      },
+      "units": null,
+      "context": "z1, z2, z3, and Mixture downstream policies.",
+      "evidence_ids": [
+        "MP-E12"
+      ]
+    },
+    {
+      "name": "mixture_selector",
+      "value": {
+        "hidden_sizes": [
+          512,
+          256
+        ],
+        "horizon_choices": [
+          1,
+          5,
+          10
+        ],
+        "boundary_cost": 0.02,
+        "reward_threshold": 0.85,
+        "ramp_factor": 0.1
+      },
+      "units": null,
+      "context": "Jointly trained Mixture of Interfaces selector and latent policy.",
+      "evidence_ids": [
+        "MP-E05",
+        "MP-E12",
+        "MP-E15"
+      ]
+    },
+    {
+      "name": "decoder_training",
+      "value": {
+        "learning_rate": 0.00003,
+        "task_encoder_hidden_sizes": [
+          1536,
+          1024,
+          512
+        ],
+        "latent_action_head_hidden_sizes": [
+          2048,
+          1024,
+          512
+        ],
+        "z1_action_head_hidden_sizes": [
+          3096,
+          2048,
+          1024
+        ],
+        "ar1_weight": 0.005,
+        "ar1_phi": 0.99
+      },
+      "units": null,
+      "context": "VAE-style decoder distillation; the paper reports 3096 for the first action-head width.",
+      "evidence_ids": [
+        "MP-E13"
+      ]
+    },
+    {
+      "name": "decoder_kl_schedules",
+      "value": {
+        "z1": {
+          "start": 0.01,
+          "end": 0.001
+        },
+        "z2": {
+          "start": 0.03,
+          "end": 0.01
+        },
+        "z3": {
+          "start": 0.04,
+          "end": 0.015
+        }
+      },
+      "units": null,
+      "context": "KL-coefficient annealing for decoder distillation.",
+      "evidence_ids": [
+        "MP-E13"
+      ]
+    },
+    {
+      "name": "downstream_task_settings",
+      "value": {
+        "speed_target_mps": [
+          0,
+          5
+        ],
+        "speed_resample_steps": [
+          100,
+          200
+        ],
+        "reach_target_resample_steps": [
+          50,
+          100
+        ],
+        "reach_end_effector": "right hand",
+        "strike_contact_body": "right hand"
+      },
+      "units": null,
+      "context": "Speed, reach, and strike task configuration.",
+      "evidence_ids": [
+        "MP-E14"
+      ]
+    },
+    {
+      "name": "reported_compute_stack",
+      "value": {
+        "workstation_gpus": "8 x NVIDIA RTX 4090 24 GB",
+        "downstream_gpus_per_run": 4,
+        "software": {
+          "pytorch": "2.7",
+          "cuda": "12.8",
+          "simulator": "Isaac Lab"
+        }
+      },
+      "units": null,
+      "context": "Main experiment compute; not an Apple-MPS reproduction claim.",
+      "evidence_ids": [
+        "MP-E16"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "motionpyramid.failure.coarse_precision_loss",
+      "name": "Coarse-interface precision loss",
+      "description": "The z3 interface is smoothest under the reported tracking metric but drops to 81.0% success and 181.0 mm global MPJPE, showing that temporal compression can discard fine tracking information.",
+      "tags": [
+        "precision",
+        "tracking_ceiling",
+        "temporal_compression"
+      ],
+      "evidence_ids": [
+        "MP-E08",
+        "MP-E11"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.narrow_evaluation",
+      "name": "Narrow simulated downstream evaluation",
+      "description": "Downstream evaluation covers three simulated tasks—speed, reach, and strike—not dexterous, long-horizon, or real-world robot behavior.",
+      "tags": [
+        "simulation_only",
+        "external_validity"
+      ],
+      "evidence_ids": [
+        "MP-E11",
+        "MP-E14"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.missing_seed_uncertainty",
+      "name": "Missing seed uncertainty",
+      "description": "The main downstream curves omit seed error bars because of computational cost, so run-to-run variability is unquantified.",
+      "tags": [
+        "statistics",
+        "uncertainty",
+        "evaluation_gap"
+      ],
+      "evidence_ids": [
+        "MP-E11"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.manual_hierarchy",
+      "name": "Manually selected hierarchy",
+      "description": "The number of levels, horizons 1/5/10, and residual routing rules are specified by hand rather than learned or broadly swept.",
+      "tags": [
+        "manual_design",
+        "horizon_selection"
+      ],
+      "evidence_ids": [
+        "MP-E11"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.qualitative_composition",
+      "name": "Qualitative-only composition evidence",
+      "description": "Interpolation, transition, and composition demos are representation probes without quantitative benchmarks, independent trials, or uncertainty.",
+      "tags": [
+        "composition",
+        "qualitative_evidence"
+      ],
+      "evidence_ids": [
+        "MP-E10",
+        "MP-E11"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.fixed_trainer_mismatch",
+      "name": "Fixed-trainer contract mismatch",
+      "description": "Using MotionPyramid directly replaces raw actions with learned latent interfaces and changes decision timing, PPO storage, and likelihood evaluation; it cannot be admitted as an oracle-only or reward-only intervention under Sam's initial contract.",
+      "tags": [
+        "fixed_trainer_boundary",
+        "action_interface",
+        "smdp"
+      ],
+      "evidence_ids": [
+        "MP-E04",
+        "MP-E05",
+        "MP-E06",
+        "MP-E15"
+      ]
+    },
+    {
+      "id": "motionpyramid.failure.reproducibility_pin_gap",
+      "name": "Implementation and checkpoint pin gap",
+      "description": "v1 links no official code, repository, or checkpoint digest, and reports using the latest available checkpoint for long-running figures unless otherwise specified.",
+      "tags": [
+        "reproducibility",
+        "code_unavailable",
+        "checkpoint_identity"
+      ],
+      "evidence_ids": [
+        "MP-E16",
+        "MP-E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "motionpyramid.eval.controlled_interface_comparison",
+      "name": "Controlled action-interface comparison",
+      "description": "For downstream RL, task reward, observations, architecture, optimizer, initial-state distribution, and training budget are held fixed while the action interface changes.",
+      "tags": [
+        "controlled_ablation",
+        "fixed_reward",
+        "evaluation_design"
+      ],
+      "evidence_ids": [
+        "MP-E07"
+      ]
+    },
+    {
+      "id": "motionpyramid.eval.amass_tracking",
+      "name": "AMASS-Train fixed-interface tracking",
+      "description": "Table 2 measures rollout success, global MPJPE, global/local rotation error, and normalized joint-motion smoothness across raw, z1, z2, and z3 interfaces.",
+      "tags": [
+        "motion_tracking",
+        "success",
+        "pose_error",
+        "smoothness"
+      ],
+      "evidence_ids": [
+        "MP-E08"
+      ]
+    },
+    {
+      "id": "motionpyramid.eval.prior_sampling",
+      "name": "Unguided prior-sampling regularity",
+      "description": "Across 256 ten-second rollouts per level, the paper measures path distance, speed, action variation, minimum root height, and low-root collapse counts without downstream task reward.",
+      "tags": [
+        "prior_sampling",
+        "naturalness_proxy",
+        "collapse"
+      ],
+      "evidence_ids": [
+        "MP-E09"
+      ]
+    },
+    {
+      "id": "motionpyramid.eval.downstream_tasks",
+      "name": "Speed, reach, and strike downstream tasks",
+      "description": "The tasks probe locomotion, target alignment, and contact timing; paper figures report the nested Residual Interfaces as strongest overall, but main curves lack seed error bars.",
+      "tags": [
+        "locomotion",
+        "target_alignment",
+        "contact_timing",
+        "seed_gap"
+      ],
+      "evidence_ids": [
+        "MP-E07",
+        "MP-E11",
+        "MP-E14"
+      ]
+    },
+    {
+      "id": "motionpyramid.eval.multiscale_probes",
+      "name": "Multiscale editing probes",
+      "description": "Traversal, interpolation, transition, and qualitative composition inspect editable latent directions across temporal levels; these probes are illustrative rather than benchmarked.",
+      "tags": [
+        "representation_probe",
+        "interpolation",
+        "transition",
+        "composition"
+      ],
+      "evidence_ids": [
+        "MP-E10",
+        "MP-E11"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.20705",
+      "relation": "INTRODUCES",
+      "target": "motionpyramid.hierarchical_action_representation",
+      "evidence_ids": [
+        "MP-E02"
+      ]
+    },
+    {
+      "source": "2606.20705",
+      "relation": "INTRODUCES",
+      "target": "motionpyramid.mixture_of_interfaces",
+      "evidence_ids": [
+        "MP-E05"
+      ]
+    },
+    {
+      "source": "2606.20705",
+      "relation": "INTRODUCES",
+      "target": "motionpyramid.residual_interfaces",
+      "evidence_ids": [
+        "MP-E06"
+      ]
+    },
+    {
+      "source": "motionpyramid.hierarchical_action_representation",
+      "relation": "USES",
+      "target": "motion_tracking_teacher",
+      "evidence_ids": [
+        "MP-E03"
+      ]
+    },
+    {
+      "source": "motionpyramid.hierarchical_action_representation",
+      "relation": "CONDITIONS_ON",
+      "target": "current_proprioceptive_state_at_child_boundaries",
+      "evidence_ids": [
+        "MP-E02"
+      ]
+    },
+    {
+      "source": "motionpyramid.bottom_up_distillation",
+      "relation": "USES",
+      "target": "AMASS",
+      "evidence_ids": [
+        "MP-E14"
+      ]
+    },
+    {
+      "source": "motionpyramid.residual_interfaces",
+      "relation": "COMPOSES",
+      "target": "coarse_segment_and_frame_latent_commands",
+      "evidence_ids": [
+        "MP-E06"
+      ]
+    },
+    {
+      "source": "motionpyramid.fixed_residual_interface",
+      "relation": "REQUIRES",
+      "target": "smdp_ppo_rollout_and_likelihood_changes",
+      "evidence_ids": [
+        "MP-E15"
+      ]
+    },
+    {
+      "source": "motionpyramid.hierarchical_action_representation",
+      "relation": "EVALUATES_ON",
+      "target": "AMASS_Train_tracking",
+      "evidence_ids": [
+        "MP-E08"
+      ]
+    },
+    {
+      "source": "motionpyramid.residual_interfaces",
+      "relation": "EVALUATES_ON",
+      "target": "speed_reach_strike_tasks",
+      "evidence_ids": [
+        "MP-E07",
+        "MP-E14"
+      ]
+    },
+    {
+      "source": "2606.20705",
+      "relation": "REPORTS",
+      "target": "coarse_smoothness_vs_fine_precision_tradeoff",
+      "evidence_ids": [
+        "MP-E08",
+        "MP-E09",
+        "MP-E11"
+      ]
+    },
+    {
+      "source": "motionpyramid.multiscale_editing_probe",
+      "relation": "SUPPORTS",
+      "target": "qualitative_multiscale_motion_editability",
+      "evidence_ids": [
+        "MP-E10"
+      ]
+    },
+    {
+      "source": "motionpyramid.hierarchical_action_representation",
+      "relation": "CONTRASTS_WITH",
+      "target": "raw_69D_PD_target_interface",
+      "evidence_ids": [
+        "MP-E07",
+        "MP-E08",
+        "MP-E12"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "MP-E01",
+      "source_url": "https://arxiv.org/abs/2606.20705v1",
+      "locator": "arXiv abstract page, submission history; versioned PDF https://arxiv.org/pdf/2606.20705v1",
+      "claim": "MotionPyramid v1 was submitted 15 June 2026 by Gao Zhu, Zaishuo Xia, and Yubei Chen; the downloaded versioned PDF has SHA-256 acdac8bc5fe63e2abce0dc7a86e3d7cab01ddd1cb42eb10c0fb33531ef0b03dc.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "MP-E02",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 2, opening and Section 2.2, especially hierarchy definition and recursive unfolding",
+      "claim": "Three latent levels recursively decode 32-dimensional commands at horizons 1, 5, and 10 to a 69-dimensional motor command at 30, 6, and 3 Hz; child-boundary decoding reads current proprioception.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E03",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Sections 2.1–2.3 and Appendix A.3",
+      "claim": "A motion-tracking teacher supervises sequential bottom-up decoder training, with lower decoders frozen and distillation evaluated on states visited by the learned interface.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E04",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 2.4, equations for p_l and residual action",
+      "claim": "Downstream fixed-interface policies output residuals around frozen proprioception-conditioned prior means, and PPO likelihood is computed over the residual.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E05",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 2.5, Mixture of Interfaces subsection",
+      "claim": "Mixture of Interfaces jointly samples a level from {1,2,3} and a same-dimension residual latent, then executes the selected frozen decoder path for its native horizon.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E06",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 2.5, Residual Interfaces subsection",
+      "claim": "Nested Residual Interfaces refresh z3, z2, and z1 residuals every 10, 5, and 1 steps; all pretrained decoders and priors remain frozen while downstream actor, critic, and residual heads are optimized.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E07",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 3.2, controlled-comparison paragraph and Figure 2 discussion",
+      "claim": "For downstream RL, comparisons hold task reward, observation space, policy architecture, optimizer, initial-state distribution, and training budget fixed while changing the action interface.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E08",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Table 2",
+      "claim": "AMASS-Train tracking reports success, global MPJPE, global/local rotation errors, and normalized smoothness for scratch/raw, z1, z2, and z3, including z3 81.0% success, 181.0 mm global MPJPE, and 229.2 smoothness cost.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "MP-E09",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 3.3 and Table 3",
+      "claim": "Prior sampling uses 256 ten-second rollouts per level and reports path distance, speed, action change, minimum root height, and low-root counts under a 0.15 m proxy threshold.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "MP-E10",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 3.4, Figures 1 and 5, and Appendix A.11",
+      "claim": "Interpolation, transition, and composition examples are presented as qualitative representation probes; Appendix A.11 states that the probe does not change the training objective.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "MP-E11",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 5, Discussion and Limitations",
+      "claim": "The paper limits downstream evaluation to three simulated tasks, omits seed error bars on main curves, manually specifies horizons 1/5/10, and treats editing/composition results as qualitative.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E12",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Appendix B and Table 4",
+      "claim": "PPO uses gamma 0.99, GAE lambda 0.95, clip 0.2, gradient clip 50, observation clip [-5,5], 32-step rollouts, six epochs, separate 2048/1024/512 MLPs, and tabulated learning rates/log standard deviations.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "MP-E13",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Appendix B and Table 5",
+      "claim": "Decoder training uses 32-dimensional latents, a 3e-5 learning rate, specified MLP widths, level-specific KL schedules, and AR(1) regularization with weight 0.005 and phi 0.99.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "MP-E14",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Section 3.1 and Appendix B, final experiment paragraph",
+      "claim": "Pretraining uses 11,314 AMASS clips; speed, reach, and strike use 512 parallel environments with task-specific target schedules.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "MP-E15",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Appendices A.5–A.10",
+      "claim": "Temporally extended interfaces induce an SMDP and require duration-aware reward accumulation, discounts, GAE, PPO likelihoods at decision boundaries, and one stored transition per latent decision.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "MP-E16",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Appendix C and Table 6",
+      "claim": "Experiments use an eight-RTX-4090 workstation, PyTorch 2.7, CUDA 12.8, and Isaac Lab; downstream runs use four GPUs, and long-running figures use the latest available checkpoint unless otherwise stated.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "MP-E17",
+      "source_url": "https://arxiv.org/html/2606.20705v1",
+      "locator": "Appendix C.1, Assets and Licenses",
+      "claim": "The paper names AMASS, Isaac Lab, and PyTorch and states what any released code will include, but v1 does not identify a code repository, project page, release, commit, or checkpoint artifact.",
+      "evidence_type": "supplement"
+    }
+  ]
+}

@@ -1,0 +1,993 @@
+{
+  "paper": {
+    "id": "2607.19903",
+    "arxiv_id": "2607.19903",
+    "doi": "10.48550/arXiv.2607.19903",
+    "title": "What Matters in Humanoid General Motion Tracking? An Empirical Study",
+    "authors": [
+      "Fabio Amadio",
+      "Enrico Mingo Hoffman"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2607.19903v1",
+    "source_version": "arXiv v1, submitted 2026-07-22; paper-linked official code hucebot/yahmp pinned at 2111a998663e9f787b3ac36e8f8a7c17745ca83f and inspected 2026-08-30; the paper does not assert commit-to-experiment identity"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It is a controlled G1 study showing that reference fields, temporal context, action centering, actuation, randomization, and training approach can materially or directionally change independent tracking metrics; it therefore defines confounds to freeze and a concrete evaluation protocol for Sam's two-knob harness.",
+    "not_evidence_for": [
+      "A causal benefit from oracle or mode composition",
+      "Automated task-reward generation or improvement",
+      "The optimality or cross-task transfer of the fixed YAHMP reward coefficients",
+      "A gain under Sam's fixed trainer because several studied factors are trainer or controller changes",
+      "Factor interactions or generality beyond the Unitree G1",
+      "Statistically quantified multi-seed or sim-to-real reliability",
+      "Human-language steering or recursive harness improvement",
+      "Identity between the pinned public code commit and the code that produced every reported experiment"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "yahmp.controlled_variant_protocol",
+      "name": "One-factor controlled variant protocol",
+      "description": "A nominal G1 PPO pipeline is held fixed while one of six axes changes: motion command, observation history, action representation, actuation profile, hand-force randomization, or policy-training approach.",
+      "tags": [
+        "ablation",
+        "fixed_trainer",
+        "causal_design",
+        "confound_control"
+      ],
+      "evidence_ids": [
+        "E1",
+        "E8",
+        "E11"
+      ]
+    },
+    {
+      "id": "yahmp.reference_conditioned_actor_interface",
+      "name": "Reference-conditioned actor interface",
+      "description": "The deployable actor receives proprioception, a current motion command with reference joint position and velocity plus base targets, and optionally a short command-state history.",
+      "tags": [
+        "reference_conditioning",
+        "motion_command",
+        "history",
+        "actor_input"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E5"
+      ]
+    },
+    {
+      "id": "yahmp.hard_example_phase_sampling",
+      "name": "Tracking-statistic clip and phase replay",
+      "description": "Resets sample a motion and initial phase; training tracking statistics increase replay of poorly tracked clips and phases while a uniform component preserves coverage.",
+      "tags": [
+        "reference_sampling",
+        "curriculum",
+        "hard_example_mining",
+        "phase"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "yahmp.fixed_tracking_reward_baseline",
+      "name": "Fixed tracking and regularization reward",
+      "description": "All variants share eight exponential tracking terms and four costs for force, slip, action rate, and joint-limit violations, keeping reward constant during the factor study.",
+      "tags": [
+        "task_reward",
+        "tracking_reward",
+        "baseline",
+        "fixed_across_ablations"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "yahmp.interaction_force_randomization",
+      "name": "Torque-feasible hand-force randomization",
+      "description": "Training samples hand side, application point, duration, and cooldown, then caps forces for joint-torque feasibility to expose the policy to interaction loads absent from free-space tracking.",
+      "tags": [
+        "domain_randomization",
+        "interaction",
+        "force",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E16"
+      ]
+    },
+    {
+      "id": "yahmp.teacher_student_variant",
+      "name": "Privileged teacher with PPO-KL student",
+      "description": "A privileged PPO teacher is frozen; a deployable student is then trained with PPO plus a KL penalty toward the teacher distribution.",
+      "tags": [
+        "teacher_student",
+        "privileged_learning",
+        "ppo",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E9",
+        "E13"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "robot_degrees_of_freedom",
+      "value": 29,
+      "units": "joints",
+      "context": "Unitree G1 joint position and velocity vectors and policy output dimensionality.",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "name": "nominal_motion_command",
+      "value": [
+        "reference_joint_position",
+        "reference_joint_velocity",
+        "base_frame_reference_planar_velocity",
+        "base_frame_reference_yaw_rate",
+        "world_frame_reference_base_height",
+        "base_frame_reference_roll",
+        "base_frame_reference_pitch"
+      ],
+      "units": null,
+      "context": "Current reference input to the deployable actor; Pos-ref-only removes reference_joint_velocity.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "history_length_variants",
+      "value": {
+        "nominal": 10,
+        "alternatives": [
+          0,
+          20
+        ]
+      },
+      "units": "control steps",
+      "context": "Concatenated past proprioception and motion-command vectors.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "actor_critic_mlp",
+      "value": {
+        "hidden_dimensions": [
+          512,
+          512,
+          256,
+          128
+        ],
+        "activation": "ELU",
+        "running_observation_normalization": true,
+        "layer_norm_location": "last_hidden_layer"
+      },
+      "units": null,
+      "context": "Core architecture shared by actor and critic.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "history_encoder",
+      "value": {
+        "channels": [
+          48,
+          24
+        ],
+        "kernel_sizes": [
+          6,
+          4
+        ],
+        "strides": [
+          2,
+          2
+        ],
+        "embedding_dimension": 64
+      },
+      "units": null,
+      "context": "Two-layer 1-D temporal convolution and linear projection.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "action_representations",
+      "value": {
+        "nominal_residual_center": "reference_joint_position",
+        "alternative_center": "default_joint_posture",
+        "desired_joint_velocity": 0,
+        "torque_saturation": "actuator_effort_limits"
+      },
+      "units": null,
+      "context": "Policy actions are scaled joint-position offsets consumed by low-level PD control.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "mechanics_based_actuation_formula",
+      "value": {
+        "natural_frequency_rad_s": 62.8318530718,
+        "natural_frequency_expression": "2*pi*10",
+        "damping_ratio": 2,
+        "action_scale_factor": 0.25,
+        "kp": "reflected_inertia * natural_frequency^2",
+        "kd": "2 * damping_ratio * reflected_inertia * natural_frequency",
+        "alpha": "0.25 * actuator_effort_limit / kp"
+      },
+      "units": null,
+      "context": "Nominal actuation profile.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "actuation_profiles_by_joint_group",
+      "value": {
+        "mechanics_based": {
+          "hip_pitch_yaw": [40.18, 2.56, 0.548],
+          "hip_roll": [99.1, 6.31, 0.351],
+          "knee": [99.1, 6.31, 0.351],
+          "ankle_pitch_roll": [28.5, 1.81, 0.439],
+          "waist_yaw": [40.18, 2.56, 0.548],
+          "waist_roll_pitch": [28.5, 1.81, 0.439],
+          "shoulder_elbow": [14.25, 0.91, 0.439],
+          "wrist_roll": [14.25, 0.91, 0.439],
+          "wrist_pitch_yaw": [16.78, 1.07, 0.075]
+        },
+        "stiffer_fixed_scale": {
+          "hip_pitch_yaw": [100, 2, 0.5],
+          "hip_roll": [100, 2, 0.5],
+          "knee": [150, 4, 0.5],
+          "ankle_pitch_roll": [40, 2, 0.5],
+          "waist_yaw": [150, 4, 0.5],
+          "waist_roll_pitch": [150, 4, 0.5],
+          "shoulder_elbow": [40, 5, 0.5],
+          "wrist_roll": [4, 0.2, 0.5],
+          "wrist_pitch_yaw": [4, 0.2, 0.5]
+        }
+      },
+      "units": "each value is [kp, kd, action_scale]",
+      "context": "Exact nominal and alternative low-level actuation settings.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "motion_dataset_split",
+      "value": {
+        "total": 12175,
+        "train": 11151,
+        "test": 1024,
+        "sources": [
+          "AMASS",
+          "OMOMO"
+        ],
+        "disjoint_unit": "retargeted_motion_clip",
+        "source_dataset_or_subject_disjoint": false
+      },
+      "units": "motions",
+      "context": "Fixed before ablations; test selection covers varied motion types.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "training_scale",
+      "value": {
+        "parallel_environments": 8192,
+        "ppo_iterations": 20000,
+        "gpu": "NVIDIA GeForce RTX 4090",
+        "approximate_runtime_hours": 25
+      },
+      "units": null,
+      "context": "Every YAHMP variant; runtime is approximate per run.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "ppo_hyperparameters",
+      "value": {
+        "rollout_steps_per_environment": 24,
+        "learning_epochs": 5,
+        "mini_batches": 4,
+        "learning_rate": 0.001,
+        "schedule": "adaptive",
+        "discount": 0.99,
+        "gae_lambda": 0.95,
+        "clip": 0.2,
+        "entropy_coefficient": 0.005,
+        "value_loss_coefficient": 1,
+        "desired_kl": 0.01,
+        "max_gradient_norm": 1,
+        "initial_policy_std": 1
+      },
+      "units": null,
+      "context": "Nominal PPO settings; teacher-student differences are separately captured.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "teacher_student_training",
+      "value": {
+        "teacher_iterations": 20000,
+        "student_iterations": 20000,
+        "student_learning_rate": 0.0003,
+        "student_desired_kl": 0.008,
+        "student_initial_policy_std": 0.4,
+        "teacher_kl_coefficient_start": 0.1,
+        "teacher_kl_coefficient_end": 0.07
+      },
+      "units": null,
+      "context": "Teacher is frozen before deployable student PPO-KL training.",
+      "evidence_ids": [
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "name": "domain_randomization_ranges",
+      "value": {
+        "foot_ground_friction": [0.3, 1.2],
+        "torso_com_offset_m": {
+          "x": [-0.025, 0.025],
+          "y": [-0.05, 0.05],
+          "z": [-0.05, 0.05]
+        },
+        "base_angular_velocity_noise_rad_s": [-0.2, 0.2],
+        "projected_gravity_noise": [-0.05, 0.05],
+        "joint_position_noise_rad": [-0.01, 0.01],
+        "joint_velocity_noise_rad_s": [-1.5, 1.5],
+        "base_push_interval_s": [1, 3],
+        "base_push_xy_velocity_m_s": [-0.5, 0.5],
+        "base_push_z_velocity_m_s": [-0.2, 0.2],
+        "base_push_roll_pitch_rad_s": [-0.52, 0.52],
+        "base_push_yaw_rad_s": [-0.78, 0.78],
+        "hand_force_duration_s": [0.5, 2],
+        "hand_force_cap_n": 20
+      },
+      "units": null,
+      "context": "Training randomization; hand-force randomization is enabled only for its variant.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "fixed_reward_terms",
+      "value": {
+        "base_position_tracking": {"weight": 0.5, "sigma": 0.3},
+        "base_orientation_tracking": {"weight": 0.5, "sigma": 0.4},
+        "body_position_tracking": {"weight": 1, "sigma": 0.3},
+        "body_orientation_tracking": {"weight": 1, "sigma": 0.4},
+        "body_linear_velocity_tracking": {"weight": 1, "sigma": 1},
+        "body_angular_velocity_tracking": {"weight": 1, "sigma": 3.14},
+        "joint_position_tracking": {"weight": 1, "sigma": 0.3},
+        "joint_velocity_tracking": {"weight": 0.5, "sigma": 2},
+        "excess_foot_force": {"weight": -0.0005, "threshold_n": 300},
+        "foot_slip": {"weight": -0.1, "contact_threshold_n": 5},
+        "action_rate": {"weight": -0.1},
+        "joint_limits": {"weight": -10}
+      },
+      "units": null,
+      "context": "Tracking terms use exp(-error/sigma^2); held fixed across variants.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "simulation_evaluation_protocol",
+      "value": {
+        "test_motions": 1024,
+        "simulation_time_step_s": 0.005,
+        "control_frequency_hz": 50,
+        "rollout_start": "first_reference_frame",
+        "external_perturbations": false,
+        "failure_definition": "torso_contact_with_ground",
+        "key_bodies": 9,
+        "key_body_set": [
+          "torso",
+          "left_knee",
+          "right_knee",
+          "left_ankle",
+          "right_ankle",
+          "left_elbow",
+          "right_elbow",
+          "left_wrist",
+          "right_wrist"
+        ],
+        "aggregation": "time_mean_per_motion_then_aggregate_across_motions"
+      },
+      "units": null,
+      "context": "Common evaluation for all YAHMP variants and TWIST2.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "nominal_tracking_errors_mean_sd",
+      "value": {
+        "base_position_m": [0.197, 0.233],
+        "base_orientation_rad": [0.121, 0.125],
+        "key_body_position_m": [0.044, 0.02],
+        "key_body_orientation_rad": [0.123, 0.047],
+        "joint_position_rad": [0.377, 0.093],
+        "joint_velocity_rad_s": [1.69, 1.11]
+      },
+      "units": "each value is [mean, standard_deviation_across_motions]",
+      "context": "Nominal policy over the 1,024-motion test set.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "factor_ablation_relative_error_percent",
+      "value": {
+        "metric_order": [
+          "base_position",
+          "base_orientation",
+          "key_body_position",
+          "key_body_orientation",
+          "joint_position",
+          "joint_velocity"
+        ],
+        "position_reference_only": [7, 14, 9, 9, 8, 15],
+        "no_history": [38, 50, 10, 11, 10, 17],
+        "history_20": [-6, -7, 1, 4, 4, 4],
+        "no_residual": [1, -5, 5, 6, 5, 0],
+        "stiffer_fixed_scale": [4, 8, -2, -7, -3, 2],
+        "hand_force_randomization": [4, 4, 5, -1, 1, -1],
+        "teacher_student": [-8, 8, 0, -8, -6, -3],
+        "twist2": [32, 36, -10, 51, 38, 81]
+      },
+      "units": "percent change in mean error versus nominal; positive is worse",
+      "context": "All policies had 100% success under the torso-contact fall definition.",
+      "evidence_ids": [
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "name": "actuation_torque_comparison",
+      "value": {
+        "metric_order": [
+          "mean_all",
+          "max_all",
+          "mean_upper",
+          "max_upper",
+          "mean_lower",
+          "max_lower"
+        ],
+        "mechanics_based_mean_nm": [3.56, 51.2, 1.52, 22.8, 6.46, 51.2],
+        "stiffer_fixed_scale_mean_nm": [3.63, 57.7, 1.58, 32.2, 6.53, 57.4],
+        "stiffer_relative_change_percent": [2, 13, 4, 41, 1, 12]
+      },
+      "units": null,
+      "context": "Simulation over 1,024 test motions; maximum torque is computed per rollout before aggregation.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "hardware_hand_load_elbow_deviation",
+      "value": {
+        "loads_kg": [1, 2, 3, 4, 5, 6],
+        "randomization_disabled_deg": [3.2, 8.3, 13.3, 15.5, null, null],
+        "randomization_enabled_deg": [1.5, 3, 3, 6.6, 7.9, 9.4],
+        "executions_per_policy": 1
+      },
+      "units": null,
+      "context": "Mean right-elbow displacement over a steady hold window.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "hardware_stiffer_profile_crouch_torque",
+      "value": {
+        "mean_all_joint_nm": {
+          "mechanics_based": 4.52,
+          "stiffer_fixed_scale": 4.53
+        },
+        "max_all_joint_nm": {
+          "mechanics_based": 54.5,
+          "stiffer_fixed_scale": 75.2
+        },
+        "mean_right_ankle_pitch_nm": {
+          "mechanics_based": 7.6,
+          "stiffer_fixed_scale": 10.38
+        }
+      },
+      "units": null,
+      "context": "One matched hardware crouch phase; stiffer control also shows larger oscillation.",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "name": "official_code_pin",
+      "value": {
+        "repository": "hucebot/yahmp",
+        "commit": "2111a998663e9f787b3ac36e8f8a7c17745ca83f",
+        "package_version": "0.1.0",
+        "mjlab_version": "1.2.0",
+        "inspected_date": "2026-08-30",
+        "paper_claims_experiment_commit_identity": false
+      },
+      "units": null,
+      "context": "Exact paper-linked public-code snapshot for inspection.",
+      "evidence_ids": [
+        "E20"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "yahmp.missing_reference_velocity",
+      "name": "Reference-velocity omission",
+      "description": "Removing explicit reference joint velocity worsens every reported tracking metric by 7% to 15%, despite retaining observation history.",
+      "tags": [
+        "reference_conditioning",
+        "velocity",
+        "tracking_error",
+        "interface_failure"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "yahmp.missing_temporal_context",
+      "name": "No-history degradation",
+      "description": "Removing history worsens all six errors, with base-position and base-orientation mean errors rising 38% and 50%.",
+      "tags": [
+        "history",
+        "partial_observability",
+        "tracking_error"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "yahmp.stiff_actuation_peaks",
+      "name": "Stiff-profile torque and oscillation cost",
+      "description": "The stiffer fixed-scale profile gives mixed tracking changes but raises simulated peak torque and produces more oscillatory hardware crouching.",
+      "tags": [
+        "actuation",
+        "torque",
+        "oscillation",
+        "safety_metric"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E18"
+      ]
+    },
+    {
+      "id": "yahmp.scalar_metric_reversal",
+      "name": "Metric-direction reversal",
+      "description": "Residual-action, actuation, and teacher-student variants improve some metrics while worsening others, so a single scalar score can conceal tradeoffs.",
+      "tags": [
+        "evaluation",
+        "multi_metric",
+        "tradeoff"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "yahmp.limited_factor_external_validity",
+      "name": "Single-platform one-factor scope",
+      "description": "The study uses one robot and changes one factor at a time around one nominal pipeline; interactions and cross-platform transfer are unmeasured.",
+      "tags": [
+        "external_validity",
+        "factor_interaction",
+        "unitree_g1"
+      ],
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "id": "yahmp.test_subject_overlap",
+      "name": "Source-dataset and subject overlap",
+      "description": "Train and test clips are distinct after retargeting, but they may come from the same source datasets and human subjects.",
+      "tags": [
+        "dataset_split",
+        "generalization",
+        "leakage_boundary"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "yahmp.limited_seed_reporting",
+      "name": "Limited training-seed uncertainty",
+      "description": "The authors state that one additional seed preserved trends, but the main table does not expose per-seed estimates or uncertainty across training runs.",
+      "tags": [
+        "random_seed",
+        "uncertainty",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "yahmp.narrow_success_and_hardware_evidence",
+      "name": "Narrow success and hardware evidence",
+      "description": "Simulation success is only absence of torso-ground contact; pushes, soft ground, and lifting are qualitative, while hand-load values come from one execution per policy.",
+      "tags": [
+        "success_metric",
+        "hardware",
+        "qualitative_evidence",
+        "replication"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E15",
+        "E16",
+        "E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "yahmp.held_out_motion_tracking_protocol",
+      "name": "Held-out motion tracking protocol",
+      "description": "All policies run the same 1,024 disjoint retargeted motion clips at 50 Hz without perturbations; errors are averaged over time per motion before cross-motion aggregation.",
+      "tags": [
+        "simulation",
+        "held_out_set",
+        "tracking",
+        "aggregation"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "yahmp.multi_metric_tracking_panel",
+      "name": "Six-metric tracking panel",
+      "description": "Base position/orientation, nine-body position/orientation, and joint position/velocity errors expose directionally mixed design tradeoffs independently of training reward.",
+      "tags": [
+        "independent_metrics",
+        "base",
+        "key_body",
+        "joint_space"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "yahmp.actuation_torque_panel",
+      "name": "Actuation-effort evaluation",
+      "description": "Mean and maximum absolute torque are measured across all, upper-body, and lower-body joints to reveal costs not visible in tracking errors.",
+      "tags": [
+        "torque",
+        "actuation",
+        "safety",
+        "independent_metrics"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "yahmp.twist2_common_protocol",
+      "name": "TWIST2 common-protocol comparison",
+      "description": "TWIST2 is retrained on the same 11,151 motions and iteration count and evaluated on the same metrics, while remaining a complete-pipeline rather than single-factor baseline.",
+      "tags": [
+        "external_baseline",
+        "TWIST2",
+        "pipeline_comparison"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "yahmp.hand_load_test",
+      "name": "Controlled hand-load test",
+      "description": "Matched policies hold the same right-arm configuration under progressive loads; steady-window elbow displacement measures interaction-force capability separately from free-space tracking.",
+      "tags": [
+        "hardware",
+        "interaction_force",
+        "elbow_displacement",
+        "single_execution"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "yahmp.zero_shot_hardware_demonstration",
+      "name": "Zero-shot G1 hardware demonstration",
+      "description": "The same simulated checkpoint runs at 50 Hz without hardware fine-tuning or command smoothing for diverse motion replay, manual perturbations, and soft-ground double-support trials.",
+      "tags": [
+        "hardware",
+        "sim_to_real",
+        "qualitative_evidence"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2607.19903",
+      "relation": "INTRODUCES",
+      "target": "yahmp.controlled_variant_protocol",
+      "evidence_ids": [
+        "E1"
+      ]
+    },
+    {
+      "source": "yahmp.reference_conditioned_actor_interface",
+      "relation": "CONDITIONS_ON",
+      "target": "reference_joint_position_velocity_and_base_targets",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "yahmp.hard_example_phase_sampling",
+      "relation": "USES",
+      "target": "per_clip_and_phase_training_tracking_statistics",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "yahmp.fixed_tracking_reward_baseline",
+      "relation": "OPTIMIZES",
+      "target": "reference_tracking_with_contact_action_and_limit_regularization",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "yahmp.interaction_force_randomization",
+      "relation": "SUPPORTS",
+      "target": "external_hand_load_capacity",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "source": "2607.19903",
+      "relation": "EVALUATES_ON",
+      "target": "unitree_g1_1024_held_out_retargeted_motions",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "2607.19903",
+      "relation": "CONTRASTS_WITH",
+      "target": "TWIST2",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "source": "reference_joint_velocity_input",
+      "relation": "SUPPORTS",
+      "target": "lower_tracking_error_across_all_six_metrics",
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "source": "ten_step_command_state_history",
+      "relation": "SUPPORTS",
+      "target": "lower_tracking_error_across_all_six_metrics",
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "source": "mechanics_based_actuation_profile",
+      "relation": "SUPPORTS",
+      "target": "lower_peak_torque_with_comparable_tracking",
+      "evidence_ids": [
+        "E12",
+        "E18"
+      ]
+    },
+    {
+      "source": "2607.19903",
+      "relation": "MOTIVATES",
+      "target": "frozen_interface_and_independent_multi_metric_evaluation_for_sam_harness",
+      "evidence_ids": [
+        "E11",
+        "E12",
+        "E16",
+        "E19"
+      ]
+    },
+    {
+      "source": "2607.19903",
+      "relation": "USES",
+      "target": "official_code_hucebot_yahmp_2111a998663e9f787b3ac36e8f8a7c17745ca83f",
+      "evidence_ids": [
+        "E20"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2607.19903v1",
+      "locator": "arXiv metadata and abstract; submitted 22 July 2026",
+      "claim": "The v1 paper introduces YAHMP and a controlled study of six general-motion-tracking design axes on the Unitree G1.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-B, Equations 1-3, and Table I",
+      "claim": "The actor's proprioception, nominal reference command, and 0/10/20-step history variants are explicitly defined.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-C, Equations 4-6",
+      "claim": "Residual and default-centered action targets feed effort-saturated PD control with zero desired joint velocity.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-D, Equations 7-9, and Appendix Table VI",
+      "claim": "Mechanics-based gain equations, scaling, and exact joint-group actuation profiles are specified.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-E",
+      "claim": "The MLP and temporal-convolution history encoder dimensions and normalization choices are stated.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-F and Appendix Table VII",
+      "claim": "Nominal domain randomization and exact hand-force duration and cap are reported.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-G and Appendix Table VIII",
+      "claim": "All variants share one specified reward, while reset sampling replays poorly tracked clips and phases more often with uniform coverage retained.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section II-H",
+      "claim": "The motion split, actor-critic privileges, teacher-student sequence, environment count, iteration count, hardware, and approximate runtime are reported.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Appendix Table V",
+      "claim": "PPO and teacher-student optimization hyperparameters are tabulated.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section III, opening protocol",
+      "claim": "The simulator cadence, held-out motions, initialization, no-perturbation condition, success rule, metric set, and aggregation order are fixed.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Table II and Figure 2",
+      "claim": "Absolute nominal errors and relative changes for every factor variant and TWIST2 are reported over 1,024 motions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Table III and Section III-A.4",
+      "claim": "The stiffer fixed-scale profile has mixed tracking effects but increases maximum all-joint and upper-body torque by 13% and 41%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section III-A",
+      "claim": "The paper interprets each internal ablation and states that one additional training seed produced consistent trends without tabulating per-seed estimates.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section III-B and Table II",
+      "claim": "TWIST2 is retrained on the same training motions and PPO iterations, then compared as an external complete pipeline under common metrics.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section IV-A",
+      "claim": "The same simulated checkpoint runs at 50 Hz without real-robot fine-tuning or command smoothing; pushes and soft-ground trials are presented qualitatively.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section IV-B and Table IV",
+      "claim": "One controlled execution per policy reports steady-window elbow displacement under 1-6 kg hand loads and shows improved load holding with force randomization.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section IV-B and Figure 6",
+      "claim": "The 1.5 kg box lift is explicitly described as reference replay without box observation, adaptation, replanning, or autonomous manipulation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Section IV-C and Figure 7",
+      "claim": "One matched crouch phase shows larger torque peaks, ankle torque, and oscillation under the stiffer fixed-scale profile.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2607.19903v1",
+      "locator": "Conclusion",
+      "claim": "The authors identify the one-platform, one-factor-at-a-time scope and leave interactions and other humanoids untested.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/hucebot/yahmp/tree/2111a998663e9f787b3ac36e8f8a7c17745ca83f",
+      "locator": "Paper-linked official repository, commit 2111a998663e9f787b3ac36e8f8a7c17745ca83f; pyproject.toml and README; inspected 2026-08-30",
+      "claim": "The inspected public snapshot declares YAHMP package version 0.1.0 and mjlab 1.2.0; this pin does not prove identity with the experiment-producing code.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

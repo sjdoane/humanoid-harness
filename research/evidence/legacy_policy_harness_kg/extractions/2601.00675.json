@@ -1,0 +1,1108 @@
+{
+  "paper": {
+    "id": "2601.00675",
+    "arxiv_id": "2601.00675",
+    "doi": "10.48550/arXiv.2601.00675",
+    "title": "RoboReward: General-Purpose Vision-Language Reward Models for Robotics",
+    "authors": [
+      "Tony Lee",
+      "Andrew Wagenmaker",
+      "Karl Pertsch",
+      "Percy Liang",
+      "Sergey Levine",
+      "Chelsea Finn"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2601.00675v2",
+    "source_version": "arXiv v2, revised 2026-01-08; latest public arXiv version verified 2026-08-31; PDF SHA-256 601200a96f8e30137cd3166d6d330ff9ff2ceb0de6a4c43949d808e6e9c0d29a. Official artifacts are pinned to HELM suite v0.0.1, dataset commit 469b9af76e8539e8d2ac553b081307738fd92ca5, 4B checkpoint commit 4dec8af8d89d214de7028d70f9f9aee3b3a44c3d, and 8B checkpoint commit 3a185b4fce2b1253643105be1f234ae618b9732f.",
+    "publication_status": "active"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "RoboReward supplies a transferable episodic vision-language scoring interface, a human-verified robot reward benchmark, controlled negative and near-miss construction, and fixed-DSRL comparisons that separate the learned training reward from final binary task success.",
+    "not_evidence_for": [
+      "executable task-reward code over simulator state or action fields",
+      "reference composition, mode discovery, phase-window dispatch, or closed-loop oracle logic",
+      "a dense per-step reward, long-horizon credit assignment, or multi-stage progress estimation",
+      "an objective evaluator when the same model output is optimized as training reward or candidate-selection feedback",
+      "human-calibrated ground truth beyond one-reviewer accept/reject verification of the benchmark test split",
+      "a reward-form- and scale-matched comparison between binary human labels and five-level VLM scores",
+      "statistically replicated real-robot RL results across training seeds",
+      "portability across parameterized MDPs, trainers, policy architectures, robots, or observation/action contracts",
+      "RL-Sculptor implementation of RoboReward"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "roboreward.episodic_progress_interface",
+      "name": "Instruction-conditioned episodic progress model",
+      "description": "A vision-language model consumes a natural-language task and full robot rollout video and emits one discrete end-of-episode progress score in {1,2,3,4,5}; it does not consume simulator state/action fields or emit executable reward code.",
+      "tags": [
+        "learned_reward_model",
+        "episodic_reward",
+        "video",
+        "task_conditioning",
+        "five_level_progress"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E07",
+        "E20"
+      ]
+    },
+    {
+      "id": "roboreward.counterfactual_relabeling",
+      "name": "Counterfactual instruction relabeling",
+      "description": "For a successful score-5 video, the pipeline holds the video fixed and generates alternative imperative commands whose final-state satisfaction forms calibrated score levels 1 through 4, testing instruction-sensitive failure and near-miss discrimination.",
+      "tags": [
+        "negative_examples",
+        "near_miss",
+        "counterfactual",
+        "instruction_grounding",
+        "matched_video"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "id": "roboreward.temporal_clipping",
+      "name": "Temporal clipping for grounded partial progress",
+      "description": "The pipeline holds the original successful command fixed and clips the same rollout to earlier endpoints, assigning score levels 1 through 4 to create visually grounded partial-progress outcomes.",
+      "tags": [
+        "negative_examples",
+        "near_miss",
+        "temporal_clipping",
+        "progress",
+        "matched_trajectory"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "id": "roboreward.filtered_teacher_pipeline",
+      "name": "Rubric-constrained generation and rejection teacher",
+      "description": "GPT-5 mini analyzes sampled video frames, plans strictly ordered failures, and validates generated triples; Qwen3-4B emits one constrained command per score. Inconsistent or ungrounded triples are rejected before model training.",
+      "tags": [
+        "teacher_pipeline",
+        "rubric",
+        "validation",
+        "rejection_sampling",
+        "weak_supervision"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E15"
+      ]
+    },
+    {
+      "id": "roboreward.human_verified_benchmark",
+      "name": "Human-verified held-out reward benchmark",
+      "description": "RoboRewardBench contains 2,831 task-video-label triples whose generated or organic scores were accepted by one human reviewer; 22 VLMs are compared by group-wise mean absolute error across source subsets.",
+      "tags": [
+        "evaluation",
+        "human_verification",
+        "held_out_tasks",
+        "mean_absolute_error",
+        "robotics"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "id": "roboreward.fixed_dsrl_reward_comparison",
+      "name": "Fixed-DSRL external reward comparison",
+      "description": "On two WidowX tasks, the same DSRL policy-improvement setup and 6,000-step budget receive either binary human success, RoboReward 8B progress, or Gemini Robotics-ER progress; final policy performance is reported separately as binary success over 20 trials.",
+      "tags": [
+        "fixed_trainer",
+        "real_robot",
+        "downstream_rl",
+        "independent_success",
+        "reward_comparison"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "id": "roboreward.public_artifacts",
+      "name": "Versioned benchmark, dataset, and model releases",
+      "description": "The official project links a HELM leaderboard, a 54,135-row task-video-score dataset, and Qwen3-VL 4B/8B checkpoints; the 8B model card documents the five-level inference prompt.",
+      "tags": [
+        "official_project",
+        "dataset_release",
+        "model_checkpoint",
+        "evaluation_suite",
+        "implementation_boundary"
+      ],
+      "evidence_ids": [
+        "E19",
+        "E20"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "episodic_progress_labels",
+      "value": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "units": "integer progress score",
+      "context": "End-of-episode final-state rubric from no success to perfect completion.",
+      "evidence_ids": [
+        "E02",
+        "E06"
+      ]
+    },
+    {
+      "name": "dataset_split_sizes",
+      "value": {
+        "total": 54135,
+        "train": 45072,
+        "validation": 6232,
+        "test_human_verified": 2831
+      },
+      "units": "task-video-score examples",
+      "context": "RoboReward corpus and RoboRewardBench split counts.",
+      "evidence_ids": [
+        "E07",
+        "E14",
+        "E20"
+      ]
+    },
+    {
+      "name": "benchmark_embodiment_types",
+      "value": 14,
+      "units": "embodiment types",
+      "context": "Reported coverage of the 2,831-episode benchmark, with mixed exocentric and egocentric perspectives.",
+      "evidence_ids": [
+        "E01",
+        "E08"
+      ]
+    },
+    {
+      "name": "benchmark_vlms",
+      "value": 22,
+      "units": "models",
+      "context": "Open-weight and proprietary VLMs evaluated with the same task-video five-level scoring interface.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "oxe_sampling_cap_per_source_dataset",
+      "value": 1200,
+      "units": "episodes",
+      "context": "Uniform maximum used to reduce repetition within each OXE source dataset.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "roboarena_split_sizes",
+      "value": {
+        "train": 7337,
+        "validation": 1000,
+        "test": 1000
+      },
+      "units": "episodes",
+      "context": "Organic DROID-platform policy evaluations with mapped progress scores.",
+      "evidence_ids": [
+        "E04",
+        "E14"
+      ]
+    },
+    {
+      "name": "counterfactual_and_clipped_target_labels",
+      "value": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "units": "progress score",
+      "context": "Synthetic alternatives generated from an original score-5 successful episode.",
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "name": "augmentation_model_snapshots",
+      "value": {
+        "video_analysis_planning_validation": "gpt-5-mini-2025-08-07",
+        "command_generation": "Qwen3-4B-Instruct-2507"
+      },
+      "units": null,
+      "context": "Models in the offline high-cost negative-example teacher pipeline.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "augmentation_video_sampling_rate",
+      "value": 1,
+      "units": "frames per second",
+      "context": "Sampled frames include the true final frame for video analysis and validation.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "generated_command_word_limit",
+      "value": 25,
+      "units": "words maximum",
+      "context": "Counterfactual command must be imperative, ASCII, grounded, non-entailed, and shorter than this strict bound.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "split_grouping_key",
+      "value": "original task description",
+      "units": null,
+      "context": "Task descriptions are partitioned before assigning episodes so original task strings are disjoint across train, validation, and test.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "human_reviewers_per_test_example",
+      "value": 1,
+      "units": "reviewer",
+      "context": "One annotator accepts or rejects each test task-video-label triple; mismatches are discarded.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "reward_model_parameter_scales",
+      "value": [
+        4,
+        8
+      ],
+      "units": "billions of parameters",
+      "context": "Qwen3-VL bases fine-tuned for five-level progress prediction.",
+      "evidence_ids": [
+        "E07",
+        "E20"
+      ]
+    },
+    {
+      "name": "reward_model_trainable_components",
+      "value": {
+        "vision_backbone": "frozen",
+        "fusion_layers": "trainable",
+        "LLM_layers": "trainable"
+      },
+      "units": null,
+      "context": "Fine-tuning boundary for both RoboReward model scales.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "reward_model_training_hyperparameters",
+      "value": {
+        "epochs": 3,
+        "effective_batch_size": 32,
+        "warmup_ratio": 0.05,
+        "weight_decay": 0.05,
+        "max_gradient_norm": 1.0,
+        "learning_rate_4B": 0.000003,
+        "learning_rate_8B": 0.000005,
+        "scheduler": "cosine"
+      },
+      "units": null,
+      "context": "Best checkpoint at each scale is selected by validation-set mean absolute error.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "simulated_reward_type_tasks_and_seeds",
+      "value": {
+        "Robomimic_tasks": 3,
+        "seeds_per_setting": 3
+      },
+      "units": null,
+      "context": "DSRL-NA policy fine-tuning comparison of learned binary, continuous-progress, and discrete-progress rewards.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "offline_reward_accuracy_downstream_success_correlation",
+      "value": 0.83,
+      "units": "reported correlation coefficient r",
+      "context": "Reported across reward-model checkpoints and three Robomimic tasks using held-out MAE and converged true policy success.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "roborewardbench_groupwise_mae",
+      "value": {
+        "RoboReward_8B": 0.665,
+        "GPT_5_mini_2025_08_07": 0.691,
+        "GPT_5_2025_08_07": 0.811,
+        "RoboReward_4B": 0.845,
+        "Qwen3_VL_8B_base": 0.892,
+        "Gemini_Robotics_ER_1_5": 0.906,
+        "Qwen3_VL_4B_base": 1.032
+      },
+      "units": "mean absolute error on labels 1-5",
+      "context": "Overall group-wise benchmark results; lower is better.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "roboarena_subset_mae",
+      "value": {
+        "RoboReward_8B": 0.768,
+        "RoboReward_4B": 0.806,
+        "Qwen3_VL_8B_base": 0.847,
+        "GPT_5_mini_2025_08_07": 0.862,
+        "Qwen3_VL_4B_base": 0.929,
+        "Gemini_Robotics_ER_1_5": 1.002
+      },
+      "units": "mean absolute error on labels 1-5",
+      "context": "Performance on the 1,000-episode organic RoboArena test subset.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "negative_data_ablation_overall_roboarena_mae",
+      "value": {
+        "full": [
+          0.845,
+          0.806
+        ],
+        "without_all_negative_augmentation": [
+          1.45,
+          0.797
+        ],
+        "without_negative_clipping": [
+          1.075,
+          0.813
+        ]
+      },
+      "units": "[overall group-wise MAE, RoboArena MAE]",
+      "context": "RoboReward 4B data-mixture ablation.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "real_robot_training_budget",
+      "value": {
+        "environment_steps": 6000,
+        "maximum_episode_steps": 70,
+        "replay_warm_start_rollouts": 20,
+        "final_success_trials_per_task_condition": 20
+      },
+      "units": null,
+      "context": "WidowX DSRL-SAC comparison under shared algorithmic settings.",
+      "evidence_ids": [
+        "E10",
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "name": "real_robot_success_rates",
+      "value": {
+        "pick_and_place_monkey": {
+          "base_policy": 0.05,
+          "human_binary_reward": 0.75,
+          "RoboReward_8B_progress": 0.5,
+          "Gemini_Robotics_ER_1_5_progress": 0.1
+        },
+        "open_drawer": {
+          "base_policy": 0.1,
+          "human_binary_reward": 0.9,
+          "RoboReward_8B_progress": 0.8,
+          "Gemini_Robotics_ER_1_5_progress": 0.45
+        }
+      },
+      "units": "success rate over 20 trials",
+      "context": "Post-training binary task success; no repeated RL-training seed count or confidence interval is reported.",
+      "evidence_ids": [
+        "E11"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "roboreward.failure.catastrophic_false_rewards",
+      "name": "High-impact visual false positives and negatives",
+      "description": "The paper shows Gemini Robotics-ER assigning 5/5 to a closed-drawer failure, 2/5 to a successful opening, and 5/5 to a monkey apparently hovering rather than resting on a towel; the associated descriptions hallucinate or miss decisive temporal and spatial events.",
+      "tags": [
+        "reported_failure",
+        "false_positive",
+        "false_negative",
+        "temporal_reasoning",
+        "spatial_reasoning"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "id": "roboreward.failure.nonuniform_generalization",
+      "name": "Non-uniform embodiment and source generalization",
+      "description": "RoboReward 8B is best overall but reports MAE 1.394 on UTokyo xArm Bimanual and 0.890 on Stanford HYDRA; the best HYDRA model reports 0.495, so aggregate rank does not guarantee reliable per-domain scoring.",
+      "tags": [
+        "reported_limitation",
+        "generalization",
+        "embodiment_shift",
+        "source_shift",
+        "per_subset_metric"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E13"
+      ]
+    },
+    {
+      "id": "roboreward.failure.single_reviewer_ground_truth",
+      "name": "Single-reviewer benchmark verification",
+      "description": "Each test example is accepted or rejected by one reviewer; no inter-rater agreement, reviewer calibration, or adjudication procedure is reported, limiting the strength of the human-verified label claim.",
+      "tags": [
+        "evaluation_caveat",
+        "human_annotation",
+        "inter_rater_reliability",
+        "ground_truth"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "roboreward.failure.synthetic_teacher_dependence",
+      "name": "Synthetic label and validator dependence",
+      "description": "GPT-5 mini both helps construct and validates augmented labels; the authors state generated labels are not guaranteed correct, and human verification is applied only to the test split rather than all training supervision.",
+      "tags": [
+        "reported_limitation",
+        "weak_supervision",
+        "teacher_bias",
+        "validator_coupling",
+        "label_noise"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E15",
+        "E16"
+      ]
+    },
+    {
+      "id": "roboreward.failure.mae_hides_error_asymmetry",
+      "name": "MAE hides reward-hacking risk asymmetry",
+      "description": "Group-wise MAE averages absolute score distance and does not separately report catastrophic false-positive and false-negative rates; over-rewarding a failure can be more damaging under policy optimization than an equally sized benign error.",
+      "tags": [
+        "evaluation_caveat",
+        "mean_absolute_error",
+        "reward_hacking",
+        "error_asymmetry"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E17"
+      ]
+    },
+    {
+      "id": "roboreward.failure.reward_form_scale_confound",
+      "name": "Human-versus-VLM reward form confound",
+      "description": "The real-robot human condition supplies binary {0,1} success while VLM conditions supply progress {1,...,5}; matched DSRL hyperparameters therefore do not isolate label-source quality from reward shaping and numerical scale.",
+      "tags": [
+        "causal_caveat",
+        "reward_scale",
+        "reward_shaping",
+        "fixed_trainer",
+        "comparison_design"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E18"
+      ]
+    },
+    {
+      "id": "roboreward.failure.real_robot_uncertainty_gap",
+      "name": "Unreported RL-training replication uncertainty",
+      "description": "Real-robot success is reported over 20 final trials per condition, but the paper does not report repeated RL-training seeds or confidence intervals, so training variance is not quantified.",
+      "tags": [
+        "evaluation_caveat",
+        "real_robot",
+        "random_seeds",
+        "confidence_interval",
+        "statistical_power"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "roboreward.failure.correlation_not_causation",
+      "name": "Offline-MAE correlation is not a universal guarantee",
+      "description": "The reported r=0.83 association pools checkpoints across three simulation tasks without a confidence interval; it does not establish that reducing held-out MAE will causally improve every downstream RL setting.",
+      "tags": [
+        "evaluation_caveat",
+        "correlation",
+        "offline_metric",
+        "downstream_rl",
+        "external_validity"
+      ],
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "id": "roboreward.failure.split_scope",
+      "name": "Task-string split does not prove scene or embodiment transfer",
+      "description": "Train, validation, and test are disjoint by original task description, but the paper does not report grouping by scene, source dataset, or embodiment, leaving stricter transfer questions unresolved.",
+      "tags": [
+        "evaluation_caveat",
+        "dataset_split",
+        "scene_generalization",
+        "embodiment_generalization"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E09"
+      ]
+    },
+    {
+      "id": "roboreward.failure.short_horizon_scope",
+      "name": "Short-horizon episodic scope",
+      "description": "The method scores complete short-horizon episodes and explicitly leaves longer-horizon, multi-stage progress estimation and credit assignment to future work.",
+      "tags": [
+        "reported_limitation",
+        "short_horizon",
+        "episodic_reward",
+        "credit_assignment",
+        "future_work"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E13"
+      ]
+    },
+    {
+      "id": "roboreward.failure.total_count_wording",
+      "name": "Total-versus-generated example wording inconsistency",
+      "description": "The introduction says the augmentation pipeline yields all 54,135 examples, while the dataset method and source table use 54,135 for the complete mixture, which includes original OXE demonstrations and organic RoboArena episodes.",
+      "tags": [
+        "source_conflict",
+        "dataset_accounting",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E01",
+        "E04",
+        "E14"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "roboreward.eval.reward_type_simulation",
+      "name": "Binary versus continuous and discrete progress reward study",
+      "description": "Across Lift, Can, and Square Robomimic tasks with three seeds, learned continuous and five-bin progress rewards converge faster and nearly match simulator-ground-truth binary reward, while the learned binary reward performs worse; curves rather than exact terminal values are reported.",
+      "tags": [
+        "simulation",
+        "reward_type",
+        "three_seeds",
+        "true_success",
+        "DSRL"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "roboreward.eval.offline_downstream_correlation",
+      "name": "Held-out reward MAE versus downstream success",
+      "description": "Across checkpoints and three Robomimic tasks, reward accuracy measured offline is associated with converged true task success at r=0.83.",
+      "tags": [
+        "offline_evaluation",
+        "mean_absolute_error",
+        "downstream_rl",
+        "correlation"
+      ],
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "id": "roboreward.eval.benchmark",
+      "name": "RoboRewardBench group-wise MAE evaluation",
+      "description": "Twenty-two VLMs predict five-level final-state progress on 2,831 human-verified task-video examples; RoboReward 8B ranks first at 0.665 group-wise MAE and RoboReward 4B ranks fourth at 0.845.",
+      "tags": [
+        "benchmark",
+        "real_robot_video",
+        "human_verification",
+        "mean_absolute_error",
+        "twenty_two_models"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E16"
+      ]
+    },
+    {
+      "id": "roboreward.eval.data_mixture_ablation",
+      "name": "Organic and synthetic negative-data ablation",
+      "description": "For RoboReward 4B, removing all negative augmentation changes overall/RoboArena MAE from 0.845/0.806 to 1.450/0.797, and removing clipping changes it to 1.075/0.813, isolating broad-coverage benefits outside the organic RoboArena subset.",
+      "tags": [
+        "ablation",
+        "negative_examples",
+        "temporal_clipping",
+        "RoboArena",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "roboreward.eval.real_robot_success",
+      "name": "Separate binary success after reward-driven real-robot RL",
+      "description": "With matched DSRL settings and 6,000 steps, RoboReward 8B yields 50% and 80% success on pick-and-place monkey and open drawer, versus 10% and 45% for Gemini Robotics-ER and 75% and 90% for binary human reward, each measured over 20 final trials.",
+      "tags": [
+        "real_robot",
+        "downstream_rl",
+        "binary_success",
+        "fixed_trainer",
+        "twenty_trials"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "id": "roboreward.eval.qualitative_failure_audit",
+      "name": "Fine-state false-reward audit",
+      "description": "Three Gemini Robotics-ER rollouts expose false success, false failure, and hover-versus-place errors, linking score failures to hallucinated grasps, missed drawer motion, and hallucinated release.",
+      "tags": [
+        "qualitative_evaluation",
+        "failure_analysis",
+        "false_reward",
+        "temporal_reasoning",
+        "spatial_reasoning"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2601.00675",
+      "relation": "INTRODUCES",
+      "target": "roboreward.episodic_progress_interface",
+      "evidence_ids": [
+        "E02",
+        "E07"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "INTRODUCES",
+      "target": "roboreward.counterfactual_relabeling",
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "INTRODUCES",
+      "target": "roboreward.temporal_clipping",
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "INTRODUCES",
+      "target": "roboreward.human_verified_benchmark",
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "source": "roboreward.counterfactual_relabeling",
+      "relation": "CONDITIONS_ON",
+      "target": "input:successful_robot_rollout_video_and_original_task",
+      "evidence_ids": [
+        "E05",
+        "E15"
+      ]
+    },
+    {
+      "source": "roboreward.counterfactual_relabeling",
+      "relation": "SUPPORTS",
+      "target": "concept:instruction_sensitive_negative_evaluation",
+      "evidence_ids": [
+        "E05",
+        "E12"
+      ]
+    },
+    {
+      "source": "roboreward.temporal_clipping",
+      "relation": "SUPPORTS",
+      "target": "concept:grounded_near_miss_evaluation",
+      "evidence_ids": [
+        "E05",
+        "E12"
+      ]
+    },
+    {
+      "source": "roboreward.filtered_teacher_pipeline",
+      "relation": "USES",
+      "target": "model:gpt_5_mini_2025_08_07",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "source": "roboreward.filtered_teacher_pipeline",
+      "relation": "USES",
+      "target": "model:Qwen3_4B_Instruct_2507",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "source": "roboreward.filtered_teacher_pipeline",
+      "relation": "COMPOSES",
+      "target": "dataset:RoboReward",
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E15"
+      ]
+    },
+    {
+      "source": "roboreward.human_verified_benchmark",
+      "relation": "EVALUATES_ON",
+      "target": "dataset:RoboRewardBench_2831_episodes",
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "source": "roboreward.human_verified_benchmark",
+      "relation": "USES",
+      "target": "metric:groupwise_mean_absolute_error",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "roboreward.episodic_progress_interface",
+      "relation": "REQUIRES",
+      "target": "input:task_instruction_and_full_rollout_video",
+      "evidence_ids": [
+        "E02",
+        "E20"
+      ]
+    },
+    {
+      "source": "roboreward.episodic_progress_interface",
+      "relation": "SUPPORTS",
+      "target": "artifact:external_episodic_task_reward",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "roboreward.fixed_dsrl_reward_comparison",
+      "relation": "USES",
+      "target": "method:DSRL_SAC",
+      "evidence_ids": [
+        "E10",
+        "E18"
+      ]
+    },
+    {
+      "source": "roboreward.fixed_dsrl_reward_comparison",
+      "relation": "CONTRASTS_WITH",
+      "target": "reward:binary_human_success",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "roboreward.fixed_dsrl_reward_comparison",
+      "relation": "CONTRASTS_WITH",
+      "target": "reward:Gemini_Robotics_ER_1_5_progress",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "roboreward.fixed_dsrl_reward_comparison",
+      "relation": "REPORTS",
+      "target": "metric:binary_task_success_over_20_trials",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:Robomimic_Lift_Can_Square",
+      "evidence_ids": [
+        "E02",
+        "E03"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:RoboRewardBench",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "2601.00675",
+      "relation": "EVALUATES_ON",
+      "target": "task:WidowX_pick_place_monkey_and_open_drawer",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "roboreward.counterfactual_relabeling",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.same_rollout_different_instruction_challenge_set",
+      "evidence_ids": [
+        "E05",
+        "E12"
+      ]
+    },
+    {
+      "source": "roboreward.temporal_clipping",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.same_task_temporal_near_miss_challenge_set",
+      "evidence_ids": [
+        "E05",
+        "E12"
+      ]
+    },
+    {
+      "source": "roboreward.failure.catastrophic_false_rewards",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.false_positive_contact_and_final_state_gates",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "source": "roboreward.human_verified_benchmark",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.frozen_evaluator_model_prompt_sampler_and_rubric_manifest",
+      "evidence_ids": [
+        "E08",
+        "E16",
+        "E20"
+      ]
+    },
+    {
+      "source": "roboreward.fixed_dsrl_reward_comparison",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.reward_independent_final_task_metrics",
+      "evidence_ids": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "roboreward.public_artifacts",
+      "relation": "SUPPORTS",
+      "target": "concept:offline_episodic_video_scoring",
+      "evidence_ids": [
+        "E19",
+        "E20"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2601.00675v2",
+      "locator": "arXiv v2 metadata/header and Introduction contribution list; revised 2026-01-08",
+      "claim": "The active v2 record identifies the title, six authors, revision date, project URL, 54,135-example statement, 2,831-episode benchmark, 14 embodiment types, and 22 evaluated VLMs.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S3",
+      "locator": "Section 3 and Figure 2, The Role of Reward in Reinforcement Learning",
+      "claim": "The study restricts RoboReward to full-episode rewards, defines binary, continuous-progress, and five-bin discrete-progress signals, and compares learned variants using DSRL-NA on three Robomimic tasks over three seeds with true simulator success as policy performance.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S3.F3",
+      "locator": "Section 3, Figure 3 and adjacent paragraph",
+      "claim": "Across reward-model checkpoints and all three Robomimic tasks, held-out reward accuracy and converged downstream RL success have reported correlation r=0.83.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S4.SS1",
+      "locator": "Section 4.1, Data Sources",
+      "claim": "OXE supplies successful demonstrations subsampled to at most 1,200 episodes per source and assigned score 5, while RoboArena supplies organic successes and failures whose human progress in [0,100] is mapped to scores 1-5.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S4.SS2",
+      "locator": "Section 4.2, Negative Example Generation",
+      "claim": "Counterfactual relabeling keeps video fixed while changing the task, and negative clipping keeps task fixed while ending a successful trajectory earlier, producing failure and partial-progress examples without fabricated video.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S4.SS2",
+      "locator": "Section 4.2, Rubric and Validation",
+      "claim": "A fixed five-level final-state rubric and VLM-based coherence/score check filter examples; the authors call the teacher pipeline too costly for an RL loop and state its labels are not guaranteed perfect.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S4.SS3",
+      "locator": "Section 4.3, Training and Evaluation of General-Purpose Robot Reward Models",
+      "claim": "The corpus contains 45,072 train, 6,232 validation, and 2,831 test examples split by original task description; Qwen3-VL 4B/8B freeze vision and train fusion/LLM layers for three epochs with the stated optimizer hyperparameters and select by validation MAE.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S5.SS1",
+      "locator": "Section 5.1 and Table 1, Benchmarking frontier VLMs with RoboRewardBench",
+      "claim": "Twenty-two VLMs receive task descriptions and rollout videos, emit labels 1-5, and are ranked by group-wise MAE on the human-verified benchmark.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A2.SS2",
+      "locator": "Section 5.1 and Appendix B.2, Tables 7 and 10",
+      "claim": "RoboReward 8B ranks first at 0.665 overall MAE and RoboReward 4B fourth at 0.845; tables report base-model, frontier-model, RoboArena, and per-source results, including non-uniform RoboReward 8B subset errors.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S5.SS2",
+      "locator": "Section 5.2, Setting",
+      "claim": "The real-robot test uses a WidowX 250 6-DoF arm, BridgeData V2-pretrained multi-task diffusion policy, DSRL, two unseen tasks, 6,000 steps, 70-step episode cap, and human-binary versus RoboReward/Gemini five-level end-of-episode reward conditions; both VLMs are zero-shot.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S5.SS2",
+      "locator": "Section 5.2, Table 2 and Results",
+      "claim": "Over 20 final trials per task and condition, pick-and-place success is base 5%, human 75%, RoboReward 50%, Gemini Robotics-ER 10%; drawer success is 10%, 90%, 80%, and 45%, respectively.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S5.SS3",
+      "locator": "Section 5.3, Table 3, Data Mixture Ablations",
+      "claim": "For the 4B model, full data scores 0.845 overall/0.806 RoboArena MAE; removing all negative augmentation scores 1.450/0.797; removing clipping scores 1.075/0.813.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2601.00675v2#S6",
+      "locator": "Section 6, Discussion",
+      "claim": "The authors report large non-uniform generalization gaps and identify longer-horizon, multi-stage reward modeling with harder credit assignment and progress estimation as future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A1.SS1",
+      "locator": "Appendix A.1, Table 4, Dataset Sources",
+      "claim": "The source table totals 54,135 examples and gives per-source train, validation, and test counts, including RoboArena at 7,337/1,000/1,000.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A1.SS2",
+      "locator": "Appendix A.2.2-A.2.3, Negative Example Generation and Verification prompts",
+      "claim": "The teacher uses GPT-5 mini for 1-FPS video analysis, failure planning, and validation; Qwen3-4B generates under-25-word imperative commands; generated and clipped examples target labels 1-4 with strict ordering and are rejected when inconsistent.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A1.SS3",
+      "locator": "Appendix A.3, Human Verification for RoboRewardBench",
+      "claim": "One human annotator reviews each test video, task, label, rubric, and automated rationale; mismatches are discarded before subsampling the 2,831-example benchmark.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A2.SS3",
+      "locator": "Appendix B.3 and Figure 6, Pitfalls of State-of-the-Art VLMs",
+      "claim": "Three Gemini Robotics-ER failures include a 5/5 closed drawer, 2/5 successful opening, and 5/5 hovering monkey; detailed descriptions reveal hallucinated or missed task-defining temporal and spatial events.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2601.00675v2#A2.SS4",
+      "locator": "Appendix B.4 and Tables 8-9, Real-World RL Experiment",
+      "claim": "All reward conditions use the same DSRL-SAC hyperparameters, the replay buffer starts with 20 base-policy rollouts, and the appendix specifies base diffusion-policy and WidowX DSRL settings.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://crfm.stanford.edu/helm/robo-reward-bench/v0.0.1/",
+      "locator": "Official HELM RoboReward project landing page, suite v0.0.1",
+      "claim": "The official project links the paper, full leaderboard, dataset, and 4B/8B checkpoint repositories.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://huggingface.co/teetone/RoboReward-8B/blob/3a185b4fce2b1253643105be1f234ae618b9732f/README.md",
+      "locator": "Pinned official 8B model card; cross-checked against official dataset card at commit 469b9af76e8539e8d2ac553b081307738fd92ca5",
+      "claim": "The released 8B checkpoint is based on Qwen3-VL-8B and its model card specifies the task-video prompt and five-level end-of-episode score; the pinned dataset card documents 54,135 rows, split sizes, fields, and human-verified test status.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

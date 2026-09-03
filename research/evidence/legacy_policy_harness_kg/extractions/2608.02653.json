@@ -1,0 +1,761 @@
+{
+  "paper": {
+    "id": "2608.02653",
+    "arxiv_id": "2608.02653",
+    "doi": "10.48550/arXiv.2608.02653",
+    "title": "Light-Loco-Parkour: Versatile Perceptive Whole-Body Locomotion via Multi-Skill Distillation",
+    "authors": [
+      "Hongming Chen",
+      "Zhuoran Li",
+      "Hongxi Wang",
+      "Jiangpeng Hu",
+      "Ziliang Li",
+      "Peize Liu",
+      "QingRui Zhao",
+      "Xuhao Liu",
+      "Liang Pan",
+      "Ximin Lyu",
+      "Yuntao Ma",
+      "Tingxiang Fan"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/abs/2608.02653v1",
+    "source_version": "arXiv v1 submitted 2026-08-01; PDF sha256:1002633c2f96b8931a92d4b59e8f37081c91d0ea895f6221724f57d6ae1da760; TeX source sha256:b55f611e6a87df540300d9319039e3c6d90c3227ae1e27e1e6f1e4d67a23b423; official project site commit 33de335763540bcd5a649fd5a4f46112c9e0a293 dated 2026-08-08; no author implementation linked as of 2026-08-30"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "Directly specifies a closed-loop, physics-grounded reference-expansion algorithm and a reward-trained behavior-transition mechanism, then ablates reference augmentation and transition training. Its many concurrent trainer, terrain, observation, and reset changes make the fixed-trainer boundary essential.",
+    "not_evidence_for": [
+      "An external runtime oracle, mode graph, or OGMP state machine",
+      "Causal gains from reference composition or task reward while scene, observations, trainer, tracking reward, and budget all remain fixed",
+      "Portability of the reported dynamically feasible references beyond LightLP's robot, simulator, controller, and actuator limits",
+      "Quantitative real-hardware success rates",
+      "Automatic seed-to-obstacle alignment",
+      "A publicly reproducible author implementation",
+      "Any implemented capability in RL-Sculptor"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "2608.02653:object_interaction_mimic",
+      "name": "Object-Interaction Mimic",
+      "description": "Extends reference tracking to object contact by tracking the global root, conditioning the expert on obstacle distance and size, applying global-frame contact-point rewards, and resetting from random reference frames.",
+      "tags": [
+        "reference_grounding",
+        "contact",
+        "global_root",
+        "rsi"
+      ],
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "id": "2608.02653:iterative_reference_refinement",
+      "name": "Iterative physics-grounded reference refinement",
+      "description": "Trains on a paired motion and obstacle, rolls out candidates under simulator physics and actuator limits, scores and admits the best rollout, then lifts both motion and obstacle for the next iteration.",
+      "tags": [
+        "reference_composition",
+        "closed_loop",
+        "terrain_pairing",
+        "curriculum"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E05"
+      ]
+    },
+    {
+      "id": "2608.02653:terrain_conditioned_skill_learning",
+      "name": "Terrain-conditioned skill learning",
+      "description": "Distills a hardest-reference expert with DAgger plus PPO, then trains across one-to-one terrain/reference pairs with proximity and terminal task rewards and locomotion-consistent initialization.",
+      "tags": [
+        "dagger",
+        "ppo",
+        "task_reward",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "id": "2608.02653:multi_expert_distillation",
+      "name": "Label-free multi-expert distillation",
+      "description": "Merges locomotion and per-skill experts through group-partitioned DAgger; the actor receives no group label while the critic receives a group one-hot.",
+      "tags": [
+        "policy_composition",
+        "dagger",
+        "privileged_critic"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "2608.02653:transition_group",
+      "name": "Reward-trained transition group",
+      "description": "Fine-tunes the unified policy in cluttered transition scenes without per-frame references using velocity, yaw, sparse completion, dense proximity, and conditional AMP rewards; far-side resets seed exploration.",
+      "tags": [
+        "task_reward",
+        "autonomous_transition",
+        "amp",
+        "reset_curriculum"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E17"
+      ]
+    },
+    {
+      "id": "2608.02653:recurrent_depth_distillation",
+      "name": "Recurrent depth distillation",
+      "description": "Distills height-scan teachers into a GRU depth policy with auxiliary scan reconstruction and measured camera noise, frame rate, and latency.",
+      "tags": [
+        "partial_observability",
+        "depth",
+        "gru",
+        "sim_to_real"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "reference_obstacle_lift_per_iteration",
+      "value": [
+        5,
+        10
+      ],
+      "units": "cm",
+      "context": "Both admitted rollout reference and paired obstacle are lifted before the next mimic-training iteration.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "illustrative_climb_reference_range",
+      "value": {
+        "seed": 45,
+        "maximum": 75
+      },
+      "units": "cm obstacle height",
+      "context": "Contribution-level example of expanding one climb reference into a terrain-paired family.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "reference_deviation_termination",
+      "value": 25,
+      "units": "cm",
+      "context": "Episode terminates when base position deviates this far from the reference in the inherited mimic specification.",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "name": "whole_body_skill_count",
+      "value": 3,
+      "units": "skills",
+      "context": "Climb-and-step, speed-vault, and reverse-vault experts are combined with locomotion.",
+      "evidence_ids": [
+        "E02",
+        "E20"
+      ]
+    },
+    {
+      "name": "privileged_teacher_count",
+      "value": 4,
+      "units": "teachers",
+      "context": "One locomotion teacher plus three contact-rich skill teachers.",
+      "evidence_ids": [
+        "E02",
+        "E20"
+      ]
+    },
+    {
+      "name": "control_frequency",
+      "value": 50,
+      "units": "Hz",
+      "context": "Deployable policy sends target joint positions to a PD controller.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "depth_camera_training_timing",
+      "value": {
+        "frame_rate_hz": [
+          27,
+          33
+        ],
+        "processing_latency_ms": [
+          30,
+          60
+        ]
+      },
+      "units": null,
+      "context": "Noise-and-latency model used for final depth-policy training.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "ablation_trials_per_setting",
+      "value": 500,
+      "units": "randomized simulation trials",
+      "context": "Each success rate in the main skill/locomotion ablation table.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "ablation_training_budget_per_variant",
+      "value": 15000,
+      "units": "iterations",
+      "context": "Each variant is trained independently under the same paper environment and budget.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "depth_policy_schedule",
+      "value": {
+        "distillation_iterations": 14000,
+        "fine_tune_iterations": 1000
+      },
+      "units": "iterations",
+      "context": "Full depth-policy schedule; the no-fine-tune variant stops after distillation.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "skill_test_box_dimensions",
+      "value": {
+        "width_m": [
+          0.7,
+          1.0
+        ],
+        "depth_m": [
+          0.5,
+          1.5
+        ]
+      },
+      "units": null,
+      "context": "Box geometry randomized within every evaluated obstacle-height setting.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "transition_trials_per_setting",
+      "value": 100,
+      "units": "randomized simulation trials",
+      "context": "A trial succeeds only if the policy switches correctly and completes the resulting segment.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "transition_success_ablation",
+      "value": {
+        "flat_locomotion_plus_skills_without_transition_group": 0,
+        "rough_locomotion_plus_skills_without_transition_group": 33,
+        "without_amp": 51,
+        "full_transition_group": 98
+      },
+      "units": "percent",
+      "context": "Transition-and-skill success across the four Table VII configurations.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "climb_75cm_success",
+      "value": {
+        "deployable_depth_student": 33.4,
+        "privileged_height_scan_teacher": 98.6
+      },
+      "units": "percent",
+      "context": "Frontier climb-and-step result exposing a perception/control gap.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "unseen_trapezoid_success",
+      "value": {
+        "reverse_vault": 93.4,
+        "speed_vault": 95.3
+      },
+      "units": "percent",
+      "context": "Student policy tested on a pommel-horse-like obstacle shape absent from training.",
+      "evidence_ids": [
+        "E16"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "2608.02653:manual_seed_alignment",
+      "name": "Manual seed-to-obstacle alignment",
+      "description": "A human must align every recovered video motion with a candidate obstacle, limiting skill-set expansion.",
+      "tags": [
+        "data_bottleneck",
+        "human_in_loop"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E18"
+      ]
+    },
+    {
+      "id": "2608.02653:sparse_reward_contact_exploration_failure",
+      "name": "Sparse-reward contact exploration failure",
+      "description": "Without expert distillation, even a privileged teacher fails to discover the forceful contact sequence and settles into collision local minima.",
+      "tags": [
+        "non_convergence",
+        "exploration",
+        "contact"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "2608.02653:single_reference_overfit",
+      "name": "Single-reference overfit",
+      "description": "A seed-only teacher can succeed at the seed configuration but does not cover the evaluated obstacle-height range.",
+      "tags": [
+        "reference_coverage",
+        "overfit"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "2608.02653:discrete_transition_limit",
+      "name": "Small discrete transition repertoire",
+      "description": "The reported transition policy degrades when obstacles overlap or occur in close succession; sparse reward does not resolve this case.",
+      "tags": [
+        "transition",
+        "compositionality",
+        "ood"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "2608.02653:training_time_trigger_dependency",
+      "name": "Training-time trigger dependency",
+      "description": "Although deployment has no explicit gate, transition training switches the conditional AMP discriminator at a predefined trigger position.",
+      "tags": [
+        "boundary",
+        "amp",
+        "phase_trigger"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "2608.02653:perception_control_gap",
+      "name": "Perception/control gap at frontier height",
+      "description": "At 75 cm, deployable depth-policy success is 33.4% while the privileged height-scan teacher remains at 98.6%.",
+      "tags": [
+        "depth",
+        "partial_observability",
+        "failure_frontier"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "2608.02653:camera_occlusion",
+      "name": "Chest-camera self-occlusion",
+      "description": "Upper-body motion can hide the obstacle mid-skill; the fixed camera limits perception and manipulation coverage.",
+      "tags": [
+        "perception",
+        "occlusion"
+      ],
+      "evidence_ids": [
+        "E11",
+        "E18"
+      ]
+    },
+    {
+      "id": "2608.02653:reproduction_gap",
+      "name": "Incomplete reproduction surface",
+      "description": "The paper leaves K, N, rollout-score details, transition weights, and trigger construction numeric details unspecified, and the pinned author project exposes no implementation repository.",
+      "tags": [
+        "reproducibility",
+        "missing_parameters",
+        "no_official_code"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E10",
+        "E19"
+      ]
+    },
+    {
+      "id": "2608.02653:hardware_quantification_gap",
+      "name": "Hardware quantification gap",
+      "description": "The official project states quantitative evaluation is from simulation; hardware support is qualitative zero-shot video evidence.",
+      "tags": [
+        "evaluation",
+        "sim_to_real",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "2608.02653:reference_quality_comparison",
+      "name": "Reference quality comparison",
+      "description": "Compares GMR, OmniRetarget, and LightLP references on object pairing, penetration, floating contact, dynamic feasibility, and covered height range.",
+      "tags": [
+        "reference_composition",
+        "qualitative_criteria",
+        "baseline"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "2608.02653:fixed_budget_component_ablation",
+      "name": "Fixed-budget component ablation",
+      "description": "Trains each variant independently for 15,000 iterations and evaluates each reported setting over 500 randomized simulation trials, including no reference augmentation, no expert distillation, no GRU, and no final fine-tune variants.",
+      "tags": [
+        "ablation",
+        "fixed_budget",
+        "simulation"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "2608.02653:unseen_shape_test",
+      "name": "Unseen obstacle-shape test",
+      "description": "Tests reverse-vault and speed-vault on a trapezoidal obstacle absent from training, reporting 93.4% and 95.3% success.",
+      "tags": [
+        "generalization",
+        "unseen_geometry"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "2608.02653:transition_ablation",
+      "name": "Transition-and-skill ablation",
+      "description": "Requires both correct switching and segment completion over 100 randomized trials per setting; compares flat/rough no-transition, no-AMP, and full transition-group configurations.",
+      "tags": [
+        "transition",
+        "ablation",
+        "objective_success"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "id": "2608.02653:hardware_demonstrations",
+      "name": "Zero-shot hardware demonstrations",
+      "description": "Shows indoor and outdoor deployment with onboard sensing, but the official project explicitly reserves quantitative results for simulation.",
+      "tags": [
+        "hardware",
+        "qualitative",
+        "sim_to_real"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2608.02653",
+      "relation": "INTRODUCES",
+      "target": "2608.02653:iterative_reference_refinement",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "2608.02653:iterative_reference_refinement",
+      "relation": "COMPOSES",
+      "target": "terrain_paired_reference_family",
+      "evidence_ids": [
+        "E04",
+        "E05"
+      ]
+    },
+    {
+      "source": "2608.02653:object_interaction_mimic",
+      "relation": "TRACKS",
+      "target": "global_root_and_contact_points",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "2608.02653:object_interaction_mimic",
+      "relation": "EXTENDS",
+      "target": "arxiv:2508.08241",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "source": "2608.02653:terrain_conditioned_skill_learning",
+      "relation": "USES",
+      "target": "DAgger_plus_PPO",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2608.02653:terrain_conditioned_skill_learning",
+      "relation": "OPTIMIZES",
+      "target": "obstacle_relative_proximity_and_terminal_rewards",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "2608.02653:multi_expert_distillation",
+      "relation": "COMPOSES",
+      "target": "locomotion_and_three_whole_body_skills",
+      "evidence_ids": [
+        "E09",
+        "E20"
+      ]
+    },
+    {
+      "source": "2608.02653:transition_group",
+      "relation": "OPTIMIZES",
+      "target": "transition_reward_eq_11",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "2608.02653:transition_group",
+      "relation": "USES",
+      "target": "phase_conditional_AMP",
+      "evidence_ids": [
+        "E10",
+        "E17"
+      ]
+    },
+    {
+      "source": "deployable_LightLP_policy",
+      "relation": "CONDITIONS_ON",
+      "target": "onboard_depth_and_velocity_command",
+      "evidence_ids": [
+        "E02",
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "source": "2608.02653",
+      "relation": "EVALUATES_ON",
+      "target": "fixed_budget_randomized_simulation_ablations",
+      "evidence_ids": [
+        "E14",
+        "E17"
+      ]
+    },
+    {
+      "source": "2608.02653:fixed_budget_component_ablation",
+      "relation": "SUPPORTS",
+      "target": "terrain_paired_reference_family",
+      "evidence_ids": [
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "source": "2608.02653:transition_ablation",
+      "relation": "SUPPORTS",
+      "target": "2608.02653:transition_group",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "source": "2608.02653:iterative_reference_refinement",
+      "relation": "CONTRASTS_WITH",
+      "target": "sam_harness_fixed_scene_contract",
+      "evidence_ids": [
+        "E04"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2608.02653v1",
+      "locator": "Abstract page; title/authors; submission history [v1], 1 Aug 2026 06:38:55 UTC",
+      "claim": "The paper has twelve listed authors and one public arXiv version, v1, submitted on 2026-08-01.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section III, Figure 2, Sections III-A and III-B",
+      "claim": "The staged system trains privileged locomotion and skill teachers in IsaacLab with PPO, distills them, and deploys a 50 Hz policy whose actions are PD-tracked target joint positions.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-A1, Object-Interaction Mimic; Figure 5",
+      "claim": "The contact-rich mimic stage tracks global root position, adds obstacle distance and size to privileged observation, rewards designated global contact points, and uses Reference State Initialization.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-A2, Equation 6, Algorithm 1",
+      "claim": "Iterative refinement trains on a motion/obstacle pair, rolls out K candidates, admits the highest-scored rollout, and lifts both motion and obstacle by 5-10 cm; K, N, score details are not numerically specified.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section I, contribution: Terrain-conditioned skill acquisition from sparse seeds",
+      "claim": "The paper gives a climb example in which one 45 cm seed is expanded to references through 75 cm.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-B1, Equations 7 and 8",
+      "claim": "Each chosen hardest expert is distilled with DAgger plus a PPO recovery objective under a task, goal, and mimic reward mixture.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-B1, Table III",
+      "claim": "The inherited mimic specification terminates when base position differs from the reference by more than 25 cm.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-B2, Equations 9 and 10",
+      "claim": "Skill generalization pairs each obstacle configuration with its reference, adds obstacle-relative continuous and terminal task rewards, disables RSI, and initializes joints from locomotion.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-C1, Multi-Expert Distillation",
+      "claim": "Group-partitioned DAgger merges locomotion and skill experts; the actor receives no group label, while the critic receives a group one-hot.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section V-C2, Figure 6, Equations 11 and 12",
+      "claim": "Transition fine-tuning uses velocity, yaw, sparse position, dense proximity, and conditional AMP rewards; the AMP switches at a trigger position and far-side resets seed exploration.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VI, Equation 13",
+      "claim": "Final deployment distillation uses a GRU with auxiliary height-scan reconstruction and models depth noise, 27-33 Hz frames, and 30-60 ms processing latency.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://light-loco-parkour.github.io/",
+      "locator": "What proves it works; text immediately before Operating range / Ablation",
+      "claim": "The official project states that all quantitative results are from simulation and that hardware videos show transfer without real-world fine-tuning.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VII-C1, Table IV",
+      "claim": "The reference comparison evaluates object pairing, penetration, floating contact, dynamic feasibility, and height range; LightLP reports satisfying all four binary quality criteria.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VII-C2, Table V and ablation protocol",
+      "claim": "Each ablation uses 500 randomized trials per setting and 15,000 training iterations per variant; the 75 cm student/teacher success rates are 33.4% and 98.6%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VII-C2, paragraphs following Table V",
+      "claim": "Without expert distillation, the teacher fails to converge; with only one unaugmented reference, it overfits the seed and does not cover the obstacle range.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VII-C2, Table VI",
+      "claim": "On an unseen trapezoidal obstacle, the student reports 93.4% reverse-vault and 95.3% speed-vault success.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VII-D1, Table VII and following paragraphs",
+      "claim": "Across 100 randomized trials per setting, transition success is 0% without transition training from flat locomotion, 33% without transition training from rough locomotion, 51% without AMP, and 98% for the full method.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2608.02653v1",
+      "locator": "Section VIII, limitations paragraph",
+      "claim": "Authors identify manual obstacle alignment, a small discrete skill set with degraded close/overlapping-obstacle behavior, and fixed-camera occlusion as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/Light-Loco-Parkour/light-loco-parkour.github.io/tree/33de335763540bcd5a649fd5a4f46112c9e0a293",
+      "locator": "Official project repository tree and index.html paper links at commit 33de335763540bcd5a649fd5a4f46112c9e0a293; inspected 2026-08-30",
+      "claim": "The pinned author project snapshot exposes website, paper, and media assets but no author implementation repository; independent implementations are excluded.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://light-loco-parkour.github.io/",
+      "locator": "LightParkour / system; Reference generation and Multi-skill distillation",
+      "claim": "The official project summarizes four privileged teachers: locomotion plus climb-and-step, speed-vault, and reverse-vault.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

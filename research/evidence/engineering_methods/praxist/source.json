@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "source_id": "arxiv:2608.25955v1",
+  "title": "From Experimental Artifacts to Solution Lineages",
+  "authors": [
+    "Jin Li",
+    "Ahmed Murtadha",
+    "Zhiyu Wang",
+    "Qiwen Chen",
+    "William Chen",
+    "Yifei Wu",
+    "Guan Wang",
+    "Andy L. Siy",
+    "Jiayi Yang",
+    "Mengsha Huang",
+    "Wenhao Li",
+    "Yixuan Liu",
+    "Shuailin Pan",
+    "Mingli Yuan",
+    "Sen Song",
+    "Yuhao Sun"
+  ],
+  "version": "v1",
+  "submitted_date": "2026-08-26",
+  "registered_date": "2026-09-02",
+  "page_count": 68,
+  "document_role": "engineering_method",
+  "direct_oracle_mechanism_evidence": false,
+  "formal_review_status": "registered_not_screened",
+  "urls": {
+    "abstract": "https://arxiv.org/abs/2608.25955",
+    "html": "https://arxiv.org/html/2608.25955v1",
+    "pdf": "https://arxiv.org/pdf/2608.25955v1"
+  },
+  "local_source": {
+    "repository_relative_path": "research/raw_sources/2608.25955v1.pdf",
+    "git_ignored": true,
+    "sha256": "360967ac23f6cc4d9455a8b2bec5c0826765a028f67c53c8364099c17f42c9fc",
+    "bytes": 3806276,
+    "pdf_version": "1.7",
+    "encrypted": false,
+    "javascript": false
+  },
+  "bounded_method_summary": {
+    "cycle": "artifact to finding to frontier to agenda to lineage",
+    "required_evaluation": "task-owned external evaluator",
+    "inheritance_units": [
+      "typed findings",
+      "frontier lanes",
+      "agendas",
+      "durable lessons",
+      "lineage records"
+    ],
+    "frontier_roles": [
+      "confirmed",
+      "candidate",
+      "diagnostic",
+      "validation"
+    ],
+    "project_use": "bounded oracle-variant orchestration after tracker and evaluator validation"
+  },
+  "interpretation_limits": [
+    "This source describes a research process, not a humanoid oracle mechanism.",
+    "Repository installation does not reproduce the paper's benchmark results.",
+    "Paper-reported performance does not validate this project's evaluator or oracle.",
+    "Formal oracle literature screening has not begun."
+  ]
+}

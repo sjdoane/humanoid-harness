@@ -1,0 +1,989 @@
+{
+  "paper": {
+    "id": "2403.04205",
+    "arxiv_id": "2403.04205",
+    "doi": "10.48550/arXiv.2403.04205",
+    "title": "OGMP: Oracle Guided Multi-mode Policies for Agile and Versatile Robot Control",
+    "authors": [
+      "Lokesh Krishna",
+      "Nikhil Sobanbabu",
+      "Quan Nguyen"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2403.04205v3",
+    "source_version": "arXiv v3, 2024-09-18; latest public arXiv version verified 2026-08-30. Official code evidence pinned to commit 085d293f4e8b494021e6bb93fb33b137b98ca6de."
+  },
+  "decision_relevance": {
+    "tier": "anchor",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "OGMP formalizes a receding-horizon state-reference oracle, mode decomposition, and a tunable permissible-state tube, then tests how oracle family, horizon, conditioning, and rho affect one-policy-per-task robot control.",
+    "not_evidence_for": [
+      "automatic discovery, ranking, or composition of reference datasets",
+      "a reference-only intervention under an otherwise frozen MDP",
+      "natural-language or human preference steering",
+      "vision-conditioned VIBE integration or a frozen foundation tracker",
+      "global policy coverage or global convergence",
+      "dynamic feasibility of every oracle reference",
+      "RL-Sculptor implementation of OGMP"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "ogmp-oracle-contract",
+      "name": "Receding-horizon oracle",
+      "description": "Xi maps a current state x_t and task variant psi_T to a finite state-reference trajectory x^Xi[t,t+Delta t]. The conceptual contract assumes a reference exists for every input and remains within an unknown epsilon of an unknown optimal trajectory.",
+      "tags": [
+        "oracle",
+        "closed_loop_reference",
+        "receding_horizon",
+        "assumption"
+      ],
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "id": "ogmp-permissible-tube",
+      "name": "Oracle-bounded permissible state tube",
+      "description": "Policy states are restricted to ||x^pi_t-x^Xi_t||_W<rho. The experiments realize the bound as early termination; the theory gives rho>=epsilon as a sufficient reachability condition, while practice grid-searches rho because epsilon is unknown.",
+      "tags": [
+        "rho",
+        "termination",
+        "bounded_exploration",
+        "local_optima"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "id": "task-vital-modes",
+      "name": "Task-vital multi-modality",
+      "description": "A user defines a finite set of spatially or temporally invariant trajectory segments and continuous mode parameters; repeated mode instances and transitions are intended to span an infinite-horizon task.",
+      "tags": [
+        "mode_set",
+        "mode_parameters",
+        "transitions",
+        "user_defined"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "ogmp-oracle-families",
+      "name": "Linear, LQR, and preview-control oracles",
+      "description": "The paper builds three oracle families over an approximate single-rigid-body LTI model. Preview control adds look-ahead demand; the oracle may use auxiliary moments and need not output physically realistic control.",
+      "tags": [
+        "linear_interpolation",
+        "lqr",
+        "preview_control",
+        "single_rigid_body"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E8"
+      ]
+    },
+    {
+      "id": "ogmp-mode-encoder",
+      "name": "Oracle-trajectory mode encoder",
+      "description": "A single-hidden-layer 32-unit LSTM autoencoder compresses oracle reference horizons to a two-dimensional latent mode command z.",
+      "tags": [
+        "lstm_autoencoder",
+        "latent_command",
+        "oracle_dataset"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "ogmp-conditioned-policy",
+      "name": "Recurrent mode-conditioned policy",
+      "description": "A two-layer 128-node LSTM PPO policy observes robot proprioception, latent mode command z, a phase clock c, and optional task feedback h such as terrain scan.",
+      "tags": [
+        "ppo",
+        "lstm",
+        "clock_conditioning",
+        "terrain_feedback"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "ogmp-surrogate-reward",
+      "name": "Oracle-tracking surrogate reward",
+      "description": "The per-step objective combines exponential base-position and base-orientation tracking, a control-magnitude term, and a non-toe-contact penalty. Its coefficients are shared across the two tasks, but its numerical target changes with the oracle.",
+      "tags": [
+        "tracking_reward",
+        "regularization",
+        "oracle_dependent_reward"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "ogmp-online-replanning",
+      "name": "Horizon-boundary online replanning",
+      "description": "The released environment re-queries the oracle when the environment step count reaches a prediction-horizon boundary, then uses the resulting reference for conditioning, reward, and termination.",
+      "tags": [
+        "online_oracle",
+        "query_cadence",
+        "feedback_path"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E14",
+        "E15"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "oracle_reference_horizon",
+      "value": "[t, t+Delta t]",
+      "units": null,
+      "context": "Finite receding-horizon output in the formal oracle definition.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "rho_sufficient_condition",
+      "value": "rho >= epsilon",
+      "units": null,
+      "context": "Sufficient conceptual condition for the unknown optimal state to be reachable within the permissible tube.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "oracle_model_state_dimension",
+      "value": 13,
+      "units": "dimensions",
+      "context": "Gravity-augmented SRB LTI state over a horizon.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "oracle_model_output_dimension",
+      "value": 12,
+      "units": "dimensions",
+      "context": "Relevant LTI output dimension.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "oracle_model_control_dimension",
+      "value": 12,
+      "units": "dimensions",
+      "context": "LTI control vector comprising forces and aggregate moments at two contacts.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "mode_latent_dimension",
+      "value": 2,
+      "units": "dimensions",
+      "context": "Mode encoder output z.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "mode_autoencoder_hidden_units",
+      "value": 32,
+      "units": "neurons",
+      "context": "Single hidden LSTM layer.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "policy_hidden_layers",
+      "value": [
+        128,
+        128
+      ],
+      "units": "nodes per layer",
+      "context": "Recurrent PPO actor architecture reported in the paper.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "tracking_reward_position_scale",
+      "value": 0.475,
+      "units": null,
+      "context": "Multiplier on exp(-5||er_p||).",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "tracking_reward_orientation_scale",
+      "value": 0.475,
+      "units": null,
+      "context": "Multiplier on exp(-5||er_o||).",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "tracking_reward_error_exponent",
+      "value": -5,
+      "units": null,
+      "context": "Exponent coefficient for both base-position and base-orientation error norms.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "control_regulation_scale",
+      "value": 0.05,
+      "units": null,
+      "context": "Multiplier on exp(-0.01||u_t||).",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "control_regulation_exponent",
+      "value": -0.01,
+      "units": null,
+      "context": "Control-magnitude exponent coefficient.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "non_toe_contact_penalty",
+      "value": -0.3,
+      "units": "reward per step",
+      "context": "Applied if any non-toe contact occurs.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "paper_weight_matrix_active_entry_parkour",
+      "value": "W_11=1; all other entries=0",
+      "units": null,
+      "context": "Paper's experimental permissible-bound metric for parkour.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "paper_weight_matrix_active_entry_dive",
+      "value": "W_33=1; all other entries=0",
+      "units": null,
+      "context": "Paper's experimental permissible-bound metric for diving.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "parkour_horizon_ablation_steps",
+      "value": [
+        7,
+        15,
+        30
+      ],
+      "units": "environment time steps",
+      "context": "Paper horizon ablation.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "parkour_horizon_ablation_seconds",
+      "value": [
+        0.21,
+        0.45,
+        0.9
+      ],
+      "units": "seconds",
+      "context": "Official project page mapping for 7dt, 15dt, and 30dt.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "parkour_rho_sweep",
+      "value": [
+        0.05,
+        0.8
+      ],
+      "units": null,
+      "context": "Reported sweep endpoints for the preview oracle.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "parkour_reported_optimal_rho",
+      "value": 0.5,
+      "units": null,
+      "context": "Reported optimum for preview-oracle parkour in the paper ablation.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "parkour_reported_global_optimum_rho_interval",
+      "value": [
+        0.1,
+        0.6
+      ],
+      "units": null,
+      "context": "Training curves reported to converge to the global optimum throughout this inclusive interval.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "dive_best_rho_by_oracle",
+      "value": {
+        "preview": 0.1,
+        "lqr": 0.4,
+        "linear": 0.4
+      },
+      "units": null,
+      "context": "Best reported bounds in the oracle-family dive ablation.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "unguided_ppo_rho_proxy",
+      "value": 10000000000,
+      "units": null,
+      "context": "Finite proxy for rho approaching infinity in the vanilla PPO baseline.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "evaluation_rollouts",
+      "value": 100,
+      "units": "episodes",
+      "context": "Sample-mean agility evaluation.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "parkour_evaluation_horizon",
+      "value": 400,
+      "units": "steps",
+      "context": "Paper evaluation episode length.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "dive_evaluation_horizon",
+      "value": 150,
+      "units": "steps",
+      "context": "Paper evaluation episode length.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "evaluation_track_length",
+      "value": 10,
+      "units": "meters",
+      "context": "Paper parkour test track.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "fall_height_threshold",
+      "value": 0.3,
+      "units": "meters",
+      "context": "Terrain-relative base-height fall criterion in evaluation.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "best_reported_heading_speed",
+      "value": 1.77,
+      "units": "meters per second",
+      "context": "Parkour observation variant [h_t,z_t,c_t].",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "best_reported_episode_completion",
+      "value": 0.84,
+      "units": "fraction",
+      "context": "Parkour observation variant [h_t,z_t,c_t].",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "maximum_reported_heading_acceleration",
+      "value": 4.7,
+      "units": "g",
+      "context": "Parkour observation variant z_t only; not the best-completion row.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "real_parkour_gap_envelope",
+      "value": 105,
+      "units": "percent of leg length",
+      "context": "Largest gap reported in real-robot parkour demonstrations.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "real_parkour_block_envelope",
+      "value": 20,
+      "units": "percent of nominal robot height",
+      "context": "Largest block height reported in real-robot parkour demonstrations.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "real_parkour_pace_speed",
+      "value": 0.6,
+      "units": "meters per second",
+      "context": "Reported real-robot pace speed.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "released_parkour_rho_proxy",
+      "value": 0.3,
+      "units": "meters of x-reference error",
+      "context": "Cleaned official code termination threshold; distinguish from the paper's rho ablation optimum.",
+      "evidence_ids": [
+        "E11",
+        "E17"
+      ]
+    },
+    {
+      "name": "released_dive_rho_proxy",
+      "value": 0.1,
+      "units": "meters of z-reference error",
+      "context": "Cleaned official code termination threshold.",
+      "evidence_ids": [
+        "E13",
+        "E17"
+      ]
+    },
+    {
+      "name": "released_policy_pd_targets",
+      "value": 10,
+      "units": "joint targets",
+      "context": "Action slice [0,10] in both official task configurations.",
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "name": "released_pd_gains",
+      "value": {
+        "kp": 30,
+        "kd": 0.5
+      },
+      "units": null,
+      "context": "Official task configuration values.",
+      "evidence_ids": [
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "name": "released_ppo_defaults",
+      "value": {
+        "timesteps": 600000000,
+        "discount": 0.95,
+        "fixed_action_std": 0.13,
+        "actor_lr": 0.0001,
+        "critic_lr": 0.0001,
+        "kl_abort": 0.02,
+        "gradient_clip": 0.05,
+        "batch_size": 64,
+        "epochs_per_iteration": 8,
+        "workers": 30,
+        "samples_per_iteration": 50000,
+        "prenormalization_samples": 10000,
+        "max_iterations": 2000
+      },
+      "units": null,
+      "context": "Official code defaults. The repository does not establish that every paper checkpoint used every current default.",
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "unknown-oracle-error",
+      "name": "Unknown oracle quality",
+      "description": "The proof sketch depends on epsilon, but both the optimum x* and epsilon are unknown; rho therefore requires empirical search.",
+      "tags": [
+        "assumption",
+        "hyperparameter_search",
+        "calibration"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E8"
+      ]
+    },
+    {
+      "id": "rho-too-tight",
+      "name": "Over-constrained exploration",
+      "description": "If rho is too small, the optimal behavior can lie outside the permissible tube and training terminates before reaching it.",
+      "tags": [
+        "rho",
+        "false_rejection",
+        "coverage"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "rho-too-loose",
+      "name": "Under-constrained exploration",
+      "description": "If rho is too large, additional local optima re-enter the search space; rho=0.8 and the unguided rho=10^10 baseline stagnated in the reported parkour analysis.",
+      "tags": [
+        "rho",
+        "local_optimum",
+        "unguided_ppo"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "short-horizon-surrogate-exploit",
+      "name": "Short-horizon surrogate exploitation",
+      "description": "At 7dt the parkour policy obtained high tracking objective while remaining stationary, showing that the surrogate can disagree with task progress.",
+      "tags": [
+        "reward_hacking",
+        "horizon",
+        "metric_misalignment"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "id": "non-global-policy",
+      "name": "Failure outside the oracle tube",
+      "description": "Restricting reachable states sacrifices global policy coverage; the authors warn that states outside the rho-neighborhood can fail.",
+      "tags": [
+        "distribution_shift",
+        "recovery",
+        "global_coverage"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "manual-mode-design",
+      "name": "Manual task-vital mode specification",
+      "description": "Mode identity and parameterization are user-defined; the paper does not test missing, redundant, or incorrect decompositions.",
+      "tags": [
+        "human_design",
+        "mode_coverage",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "latent-conditioning-null-result",
+      "name": "Latent conditioning did not improve parkour return",
+      "description": "Adding z to terrain and clock observations did not improve the reported parkour objective; the authors retain z for analysis, reuse, and possible reactive commands.",
+      "tags": [
+        "ablation",
+        "conditioning",
+        "null_result"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "implementation-contract-gap",
+      "name": "Conceptual versus released closed-loop interface",
+      "description": "The formal oracle accepts any current state, but released parkour uses selected live state components while released dive constructs x0 from task parameters or the previous reference endpoint.",
+      "tags": [
+        "theory_implementation_gap",
+        "closed_loop",
+        "provenance"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E12",
+        "E14"
+      ]
+    },
+    {
+      "id": "post-paper-code-drift",
+      "name": "Post-paper code cleanup drift",
+      "description": "The official repository states that cleanup changed convergence and analysis results slightly, so current YAML is not sufficient proof of every reported checkpoint's exact configuration.",
+      "tags": [
+        "reproducibility",
+        "version_pin",
+        "code_drift"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "hector-task-suite",
+      "name": "HECTOR parkour and dive task suite",
+      "description": "One recurrent policy per task is evaluated on a 16-DoF biped: random block-gap parkour and omnidirectional diving. Parkour transfers to hardware; diving is reported in simulation.",
+      "tags": [
+        "biped",
+        "simulation",
+        "sim_to_real",
+        "two_tasks"
+      ],
+      "evidence_ids": [
+        "E1",
+        "E7"
+      ]
+    },
+    {
+      "id": "agility-metrics",
+      "name": "Parkour agility metrics",
+      "description": "Across 100 rollouts, the paper reports maximum heading acceleration, maximum heading speed, Froude number, and episode-length fraction for six observation variants.",
+      "tags": [
+        "speed",
+        "acceleration",
+        "froude",
+        "completion"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "mode-generalization",
+      "name": "In-domain and out-of-domain terrain sweep",
+      "description": "The parkour policy is evaluated by undiscounted return over discretized jump/block and leap/gap dimensions inside and outside the training support.",
+      "tags": [
+        "generalization",
+        "mode_parameters",
+        "terrain_sweep"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "id": "oracle-rho-ablation",
+      "name": "Oracle family by permissible-bound ablation",
+      "description": "Linear, LQR, and preview oracles are compared while varying rho. Preview control mattered for diving; parkour showed no significant oracle-family difference.",
+      "tags": [
+        "oracle_ablation",
+        "rho_sweep",
+        "interaction_effect"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "horizon-ablation",
+      "name": "Oracle-horizon ablation",
+      "description": "Seven-, fifteen-, and thirty-step horizons separate stationary, quasi-static, and agile block-to-block parkour behaviors and expose task-versus-tracking objective mismatch.",
+      "tags": [
+        "horizon",
+        "replanning",
+        "task_metric",
+        "tracking_metric"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "id": "observation-ablation",
+      "name": "Clock, terrain, and latent observation ablation",
+      "description": "Clock-bearing variants consistently outperform their counterparts; terrain feedback reduces myopia; latent conditioning adds no reported parkour return over terrain plus clock.",
+      "tags": [
+        "observation",
+        "clock",
+        "terrain",
+        "latent"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2403.04205",
+      "relation": "INTRODUCES",
+      "target": "ogmp-permissible-tube",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "ogmp-oracle-contract",
+      "relation": "CONDITIONS_ON",
+      "target": "current_state_and_task_variant",
+      "evidence_ids": [
+        "E2",
+        "E12",
+        "E14"
+      ]
+    },
+    {
+      "source": "task-vital-modes",
+      "relation": "COMPOSES",
+      "target": "infinite_horizon_task_variants",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "ogmp-mode-encoder",
+      "relation": "USES",
+      "target": "oracle_reference_trajectories",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "ogmp-conditioned-policy",
+      "relation": "CONDITIONS_ON",
+      "target": "proprioception_mode_latent_clock_optional_task_feedback",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "ogmp-conditioned-policy",
+      "relation": "TRACKS",
+      "target": "online_oracle_reference",
+      "evidence_ids": [
+        "E6",
+        "E15"
+      ]
+    },
+    {
+      "source": "ogmp-surrogate-reward",
+      "relation": "REQUIRES",
+      "target": "online_oracle_reference",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "ogmp-permissible-tube",
+      "relation": "REQUIRES",
+      "target": "joint_oracle_and_rho_calibration",
+      "evidence_ids": [
+        "E2",
+        "E8"
+      ]
+    },
+    {
+      "source": "2403.04205",
+      "relation": "EVALUATES_ON",
+      "target": "hector-task-suite",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "2403.04205",
+      "relation": "REPORTS",
+      "target": "horizon_ablation_exposes_tracking_task_metric_mismatch",
+      "evidence_ids": [
+        "E8",
+        "E10"
+      ]
+    },
+    {
+      "source": "2403.04205",
+      "relation": "SUPPORTS",
+      "target": "versioned_executable_oracle_interface_for_sams_harness",
+      "evidence_ids": [
+        "E2",
+        "E12",
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "source": "2403.04205",
+      "relation": "CONTRASTS_WITH",
+      "target": "pure_reference_composition_only_intervention",
+      "evidence_ids": [
+        "E6",
+        "E15"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2403.04205",
+      "locator": "metadata, abstract, and submission history",
+      "claim": "The record lists Lokesh Krishna, Nikhil Sobanbabu, and Quan Nguyen; v3 dated 2024-09-18 is the latest public arXiv version and reports HECTOR parkour sim-to-real plus simulation diving.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. II-1, Eq. 1–5",
+      "claim": "Xi returns a finite-horizon reference from current state and task variant; the reference is assumed within unknown epsilon of an unknown optimum, while policy states are restricted to a rho-neighborhood and rho>=epsilon is sufficient for optimal-state reachability.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. II-2",
+      "claim": "Task-vital modes are finite spatiotemporal segments with continuous parameters; sequences of these modes and transitions are proposed as a compact representation of infinite-horizon task variants.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. III-A, Table I",
+      "claim": "The user-defined task decomposition is parkour pace {v}, jump {w,h}, leap {w,d}, and dive settle {}, flip {r,h}.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. III-B, Eq. 6–7",
+      "claim": "Linear, LQR, and preview oracles use an approximate SRB LTI system with a 13-dimensional state and 12-dimensional output/control; auxiliary aggregate moments and horizon-averaged orientations simplify the model.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. III-C, Eq. 8",
+      "claim": "The mode autoencoder has one 32-unit LSTM hidden layer and a 2-D latent; the policy observes proprioception, latent, clock, and optional task feedback; exact reward coefficients are given; the rho constraint is implemented as termination with sparse W; PPO uses a 2x128 LSTM.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Abstract; Sec. IV-A; Table II",
+      "claim": "Evaluation uses 100 rollouts, a 10 m/400-step parkour test and 150-step dive test, reports agility metrics across observation variants, in/out-of-domain mode-parameter behavior, and real parkour envelopes of 105% leg-length gaps, 20% robot-height blocks, and 0.6 m/s pacing.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. IV-B and Fig. 6",
+      "claim": "Ablations vary observation components, oracle family, rho, and horizon. The paper reports no parkour return benefit from latent conditioning, oracle-dependent best rho, short-horizon task failure, parkour rho*=0.5 for preview, and the same local optimum for rho=0.8 and unguided rho=10^10.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2403.04205v3",
+      "locator": "Sec. V",
+      "claim": "The authors explicitly state that restricting reachable states forgoes a global policy and that states outside the rho-neighborhood may fail.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://og-mps.github.io/",
+      "locator": "Preview Horizon variation",
+      "claim": "The official project page maps the tested horizons to 0.21, 0.45, and 0.9 seconds and labels their outcomes as failure, myopic block-ground-block motion, and optimal block-block transitions.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/exp_confs/parkour.yaml",
+      "locator": "lines 4–16, 17–47, 48–89",
+      "claim": "The pinned cleaned parkour configuration uses Kp=30, Kd=0.5, a 30-step preview oracle, selected translational state feedback, a 1 m terrain scan, a 0.3 x-reference termination threshold, 10 PD targets, and explicit block/gap supports.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/dtsd/envs/sim/parkour.py",
+      "locator": "lines 1–47",
+      "claim": "The released parkour oracle query builds x0 from the current simulator state, replaces unselected components by nominal values, and passes selected state, forward terrain scan, and desired displacement [1,0].",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/exp_confs/dive.yaml",
+      "locator": "lines 5–33, 35–77",
+      "claim": "The pinned cleaned dive configuration uses Kp=30, Kd=0.5, a 30-step preview oracle, a 0.1 z-reference termination threshold, 10 PD targets, and pitch/roll flip supports of height 1.0–1.75 and delta-theta -6.28–6.28.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/dtsd/envs/sim/dive.py",
+      "locator": "lines 37–84",
+      "claim": "The released dive oracle constructs x0 from sampled height for the flip and from the previous reference endpoint for settling, then passes x0, initial/final heights, and desired rotation; it does not read the live robot state in this function.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/dtsd/envs/sim/ogpo_biped_base.py",
+      "locator": "lines 144–182 and 184–219",
+      "claim": "The released environment re-queries the oracle at prediction-horizon boundaries, applies the policy action, computes oracle-dependent rewards and termination, and also queries the oracle on reset.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://raw.githubusercontent.com/DRCL-USC/ogmp/085d293f4e8b494021e6bb93fb33b137b98ca6de/train.py",
+      "locator": "lines 5–28",
+      "claim": "The released trainer defaults specify 600M time steps, gamma 0.95, fixed action std 0.13, actor and critic learning rates 1e-4, KL threshold 0.02, gradient clip 0.05, batch 64, 8 epochs, 30 workers, and 50k samples per iteration.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/DRCL-USC/ogmp/tree/085d293f4e8b494021e6bb93fb33b137b98ca6de#recreating-results-from-the-paper",
+      "locator": "README, Recreating results from the paper",
+      "claim": "The authors state that the code was cleaned and modularized after the paper, producing minor differences in training convergence and analysis results despite qualitative similarity.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

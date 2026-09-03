@@ -1,0 +1,445 @@
+{
+  "paper": {
+    "id": "2507.07356",
+    "arxiv_id": "2507.07356",
+    "doi": "10.48550/arXiv.2507.07356",
+    "title": "UniTracker: Learning Universal Whole-Body Motion Tracker for Humanoid Robots",
+    "authors": [
+      "Kangning Yin",
+      "Weishuai Zeng",
+      "Ke Fan",
+      "Minyue Dai",
+      "Zirui Wang",
+      "Qiang Zhang",
+      "Zheng Tian",
+      "Jingbo Wang",
+      "Jiangmiao Pang",
+      "Weinan Zhang"
+    ],
+    "year": 2025,
+    "primary_url": "https://arxiv.org/html/2507.07356v3",
+    "source_version": "arXiv v3, 2025-09-18"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It source-locks a reference-conditioned whole-body tracker's corpus admission, retargeting, frame transforms, reference horizons, privileged-teacher boundary, fixed tracking objective, and independent metrics. These details constrain the manifest that Sam must freeze while changing only reference/oracle logic or a separate task reward.",
+    "not_evidence_for": [
+      "An OGMP state machine, predicate transition, or composition of multiple reference clips",
+      "Improvement of a task reward under a fixed tracking objective",
+      "A causal benefit from dataset filtering or retargeting alone",
+      "Universal generalization on an aggregate held-out motion benchmark",
+      "Quantitative real-world reliability",
+      "Any implemented UniTracker capability in RL-Sculptor"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "unitracker.curated_retargeted_reference_corpus",
+      "name": "Curated and retargeted motion reference corpus",
+      "description": "AMASS clips with object interactions or fewer than ten frames are removed, PHC filtering rejects unsuitable motions, and sixteen body-link correspondences drive sequence-level SMPL-to-G1 retargeting.",
+      "tags": ["reference_composition", "dataset_admission", "retargeting", "amass"],
+      "evidence_ids": ["E2"]
+    },
+    {
+      "id": "unitracker.privileged_teacher",
+      "name": "Privileged next-frame teacher",
+      "description": "A PPO teacher observes full simulator state and local-frame one-step differences to the reference, producing high-fidelity action supervision for online distillation.",
+      "tags": ["teacher_policy", "privileged_state", "ppo", "reference_conditioning"],
+      "evidence_ids": ["E1", "E3"]
+    },
+    {
+      "id": "unitracker.reference_conditioned_cvae_distillation",
+      "name": "Reference-conditioned CVAE online distillation",
+      "description": "A full-observation encoder is KL-aligned to a deployable prior conditioned on partial proprioception and five future reference steps; a decoder maps deployable history and latent state to actions under teacher supervision.",
+      "tags": ["cvae", "dagger", "online_distillation", "future_reference", "partial_observation"],
+      "evidence_ids": ["E5", "E7", "E9"]
+    },
+    {
+      "id": "unitracker.residual_fast_adaptation",
+      "name": "Frozen-base residual fast adaptation",
+      "description": "For references the universal policy cannot track, all base parameters are frozen and an RL-trained decoder adds a task-specific correction to the base action.",
+      "tags": ["residual_policy", "fast_adaptation", "out_of_distribution", "trainer_change"],
+      "evidence_ids": ["E6", "E11"]
+    },
+    {
+      "id": "unitracker.fixed_tracking_objective_bundle",
+      "name": "Whole-body tracking objective bundle",
+      "description": "Seven reference-tracking terms are combined with action-rate, torque, slippage, and termination terms; regularization and penalty terms are introduced by an unspecified curriculum.",
+      "tags": ["tracking_reward", "regularization", "termination", "fixed_trainer"],
+      "evidence_ids": ["E3", "E4"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "curated_training_motion_count",
+      "value": 8179,
+      "units": "motion sequences",
+      "context": "AMASS-derived corpus after object-interaction, short-clip, and PHC filtering.",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "name": "excluded_short_clip_threshold",
+      "value": 10,
+      "units": "frames",
+      "context": "Clips shorter than this threshold are discarded.",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "name": "retargeting_correspondence_count",
+      "value": 16,
+      "units": "body links",
+      "context": "Corresponding SMPL and humanoid links selected for retargeting.",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "name": "robot_total_dof",
+      "value": 29,
+      "units": "degrees of freedom",
+      "context": "Unitree G1 embodiment used in simulation and hardware evaluation.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "controlled_action_dimension",
+      "value": 23,
+      "units": "joint-position targets",
+      "context": "Six wrist joints are locked; actions are executed through a PD controller.",
+      "evidence_ids": ["E3", "E8"]
+    },
+    {
+      "name": "projected_gravity_termination_threshold",
+      "value": 0.8,
+      "units": null,
+      "context": "Episode terminates if projected gravity on the x or y axis exceeds this value.",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "name": "mean_link_tracking_termination_threshold",
+      "value": 0.5,
+      "units": "m",
+      "context": "Episode terminates when mean robot-reference link distance exceeds this value.",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "name": "deploy_proprioceptive_history",
+      "value": 25,
+      "units": "steps",
+      "context": "Authors describe joint states, root angular velocity, gravity, and previous actions as stacked over the past 25 steps.",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "name": "deploy_future_reference_window",
+      "value": 5,
+      "units": "steps",
+      "context": "Future goal features are stacked over five steps; frame transforms differ between root features and body positions.",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "name": "tracking_objective_weights",
+      "value": {
+        "keypoints": 1.6,
+        "feet_position": 2.1,
+        "body_rotation": 0.5,
+        "joint_position": 0.75,
+        "joint_velocity": 0.5,
+        "body_linear_velocity": 0.5,
+        "body_angular_velocity": 0.5,
+        "action_rate": -0.5,
+        "torque": -0.000001,
+        "slippage": -1.0,
+        "termination": -200.0
+      },
+      "units": null,
+      "context": "Weights printed in Table I; this is the fixed foundation tracking objective for Sam's boundary, not the separate task-reward knob.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "selected_cvae_latent_dimension",
+      "value": 64,
+      "units": "latent dimensions",
+      "context": "Selected from 32, 64, 128, and 256 in the architecture ablation.",
+      "evidence_ids": ["E7", "E9"]
+    },
+    {
+      "name": "selected_kl_loss_coefficient",
+      "value": 0.1,
+      "units": null,
+      "context": "Selected from 1.0, 0.1, 0.01, and 0.001.",
+      "evidence_ids": ["E7", "E9"]
+    },
+    {
+      "name": "simulation_parallel_environment_count",
+      "value": 8192,
+      "units": "environments",
+      "context": "Isaac Gym training under domain randomization.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "all_amass_train_success_rate",
+      "value": "91.82 +/- 0.114",
+      "units": "percent",
+      "context": "Ours row on the full AMASS training dataset; DAgger without CVAE is 88.03 +/- 0.221.",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "name": "all_amass_train_mpkpe",
+      "value": "82.57 +/- 0.097",
+      "units": null,
+      "context": "Ours row on the full AMASS training dataset; Table II does not state a unit.",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "name": "noise_level_2_success_rate",
+      "value": "86.78 +/- 0.212",
+      "units": "percent",
+      "context": "UniTracker at ordinal noise level 2; DAgger without CVAE is 79.58 +/- 0.066. The perturbation magnitude is not defined.",
+      "evidence_ids": ["E10"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "unitracker.rare_dynamic_reference_failure",
+      "name": "Rare and dynamic reference failure",
+      "description": "The universal policy is not expected to track every rare, strongly out-of-distribution, or near-physical-limit sequence; the proposed remedy changes the policy through residual adaptation.",
+      "tags": ["out_of_distribution", "dynamic_motion", "adaptation", "scope_boundary"],
+      "evidence_ids": ["E6"]
+    },
+    {
+      "id": "unitracker.explicit_reference_latent_bypass",
+      "name": "Explicit-reference latent bypass",
+      "description": "When the actor receives the reference directly, the latent variable's influence vanishes and behavior resembles standard DAgger.",
+      "tags": ["architecture", "latent_collapse", "reference_conditioning", "ablation"],
+      "evidence_ids": ["E7", "E9"]
+    },
+    {
+      "id": "unitracker.large_latent_training_difficulty",
+      "name": "Large latent training difficulty",
+      "description": "Latent dimensions above 64 were reported as harder to train and did not improve overall performance.",
+      "tags": ["cvae", "hyperparameter", "training_stability"],
+      "evidence_ids": ["E7", "E9"]
+    },
+    {
+      "id": "unitracker.train_set_generalization_gap",
+      "name": "Train-set headline and limited held-out aggregate",
+      "description": "The main aggregate table is explicitly evaluated on the AMASS training dataset; held-out support is an illustrated unseen crescent kick and supplemental demonstrations rather than an aggregate held-out corpus result.",
+      "tags": ["evaluation", "generalization", "train_set", "evidence_gap"],
+      "evidence_ids": ["E7", "E9", "E12"]
+    },
+    {
+      "id": "unitracker.under_specified_training_details",
+      "name": "Under-specified training and perturbation details",
+      "description": "Version 3 does not give PPO hyperparameters, domain-randomization ranges, reward-curriculum schedule, numerical noise magnitudes, or a numeric adaptation-time comparison.",
+      "tags": ["reproducibility", "missing_parameter", "evidence_gap"],
+      "evidence_ids": ["E3", "E4", "E8", "E10", "E11"]
+    },
+    {
+      "id": "unitracker.qualitative_hardware_evidence",
+      "name": "Qualitative hardware evidence",
+      "description": "The paper and project page show real G1 behaviors but report no aggregate hardware success rate, trial count, or confidence interval.",
+      "tags": ["real_world", "unitree_g1", "evaluation", "evidence_gap"],
+      "evidence_ids": ["E8", "E12"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "unitracker.amass_train_baseline_and_ablation",
+      "name": "AMASS training-corpus comparison and ablation",
+      "description": "UniTracker is compared with OmniH2O, ExBody2, DAgger without CVAE, and scratch training; architecture, KL residual/coefficient, future-window, and latent-size variants are tested.",
+      "tags": ["simulation", "training_set", "baseline_comparison", "ablation"],
+      "evidence_ids": ["E7"]
+    },
+    {
+      "id": "unitracker.independent_motion_metrics",
+      "name": "Independent motion-tracking metric set",
+      "description": "Evaluation separates success rate, world-frame mean per-keypoint position error, joint-velocity distance, and joint-acceleration distance.",
+      "tags": ["evaluation", "success_rate", "mpkpe", "velocity", "acceleration"],
+      "evidence_ids": ["E8"]
+    },
+    {
+      "id": "unitracker.noise_robustness_ablation",
+      "name": "Ordinal observation-noise robustness",
+      "description": "UniTracker and DAgger without CVAE are compared at noise levels 0, 1, and 2; UniTracker degrades more slowly, but the physical scales are not defined.",
+      "tags": ["robustness", "observation_noise", "ablation", "evidence_gap"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "unitracker.qualitative_ood_and_global_consistency",
+      "name": "Qualitative OOD and global-consistency examples",
+      "description": "A MuJoCo crescent kick unseen during training and a walking trajectory compare CVAE and non-CVAE behavior; project videos add real-world OOD demonstrations.",
+      "tags": ["mujoco", "out_of_distribution", "orientation_drift", "qualitative"],
+      "evidence_ids": ["E9", "E12"]
+    },
+    {
+      "id": "unitracker.fast_adaptation_convergence",
+      "name": "Fast-adaptation convergence figure",
+      "description": "Residual adaptation is compared with scratch training on one challenging sequence and the AMASS test dataset using episode length and cumulative reward, without tabulated convergence times.",
+      "tags": ["adaptation", "convergence", "amass_test", "qualitative_figure"],
+      "evidence_ids": ["E11"]
+    },
+    {
+      "id": "unitracker.real_world_demonstrations",
+      "name": "Unitree G1 real-world demonstrations",
+      "description": "The project demonstrates universal-policy motions, fast-adapted motions, text-to-motion, and video-estimated references on G1 without aggregate reliability statistics.",
+      "tags": ["real_world", "unitree_g1", "demonstration", "qualitative"],
+      "evidence_ids": ["E8", "E12"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2507.07356",
+      "relation": "INTRODUCES",
+      "target": "unitracker.privileged_teacher",
+      "evidence_ids": ["E1", "E3"]
+    },
+    {
+      "source": "unitracker.curated_retargeted_reference_corpus",
+      "relation": "USES",
+      "target": "AMASS",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "source": "unitracker.privileged_teacher",
+      "relation": "CONDITIONS_ON",
+      "target": "next_frame_reference_difference",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "source": "unitracker.reference_conditioned_cvae_distillation",
+      "relation": "USES",
+      "target": "unitracker.privileged_teacher",
+      "evidence_ids": ["E1", "E5"]
+    },
+    {
+      "source": "unitracker.reference_conditioned_cvae_distillation",
+      "relation": "CONDITIONS_ON",
+      "target": "five_step_future_reference_goal",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "source": "unitracker.reference_conditioned_cvae_distillation",
+      "relation": "ADDRESSES",
+      "target": "partial_observation_global_drift",
+      "evidence_ids": ["E5", "E9"]
+    },
+    {
+      "source": "unitracker.residual_fast_adaptation",
+      "relation": "EXTENDS",
+      "target": "unitracker.reference_conditioned_cvae_distillation",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "unitracker.curated_retargeted_reference_corpus",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.reference_execution_manifest",
+      "evidence_ids": ["E2", "E3", "E5"]
+    },
+    {
+      "source": "unitracker.fixed_tracking_objective_bundle",
+      "relation": "SUPPORTS",
+      "target": "sam_harness.fixed_tracking_reward_manifest",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "source": "2507.07356",
+      "relation": "EVALUATES_ON",
+      "target": "unitracker.amass_train_baseline_and_ablation",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "2507.07356",
+      "relation": "REPORTS",
+      "target": "unitracker.real_world_demonstrations",
+      "evidence_ids": ["E8", "E12"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S1.F2",
+      "locator": "Figure 2; Section I, contribution list",
+      "claim": "The framework has a privileged PPO teacher, CVAE-based online distillation, and residual fast-adaptation stages.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.SS2",
+      "locator": "Section II-B, Humanoid Motion Dataset Curation",
+      "claim": "Object-interaction clips and clips shorter than ten frames are removed, PHC filtering leaves 8,179 motions, and sixteen link correspondences drive two-stage retargeting.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.SS3",
+      "locator": "Section II-C, Oracle Policy Training in Simulation",
+      "claim": "The teacher observes full simulator state and next-frame local reference differences; early termination thresholds are projected gravity 0.8 and mean link distance 0.5 m; only asset properties are randomized in Stage 1.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.T1",
+      "locator": "Table I, Definition of Reward Functions; Section II-C, Reward Design",
+      "claim": "The training objective combines seven tracking terms with action-rate, torque, slippage, and termination terms; the paper says regularization and penalties follow a curriculum without giving its schedule.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.SS4",
+      "locator": "Section II-D, Hierarchical Controller via Online Distillation; Equations 1-3",
+      "claim": "Deployable input uses 25-step proprioceptive history and five future reference steps; the CVAE aligns a full-state encoder with a partial-state conditional prior and learns from teacher action supervision.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.SS5",
+      "locator": "Section II-E, Fast Adaption on top of a Universal Policy; Equation 4",
+      "claim": "Rare, OOD, and highly dynamic failed references are handled by freezing the universal policy and RL-training an explicit-reference residual decoder whose output is added to the base action.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S2.T2",
+      "locator": "Table II, Baselines Comparison and Ablation Studies",
+      "claim": "On the AMASS training dataset, UniTracker reports 91.82 +/- 0.114 success and 82.57 +/- 0.097 MPKPE; the table tests direct reference input, KL residual/coefficient, future window, and latent dimension.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S3.SS1",
+      "locator": "Section III-A, Experiment Setup",
+      "claim": "Training uses 8,192 Isaac Gym environments; evaluation defines SR, world-frame MPKPE, velocity distance, and acceleration distance; hardware is a 29-DoF G1 with 23 controlled DoFs.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S3.SS3",
+      "locator": "Section III-C, Ablation Studies; Figure 4",
+      "claim": "Direct actor reference input suppresses the latent; dimension 64, future window five, and KL coefficient 0.1 are selected; an unseen crescent kick and straight-walking trajectory provide qualitative generalization/global-consistency evidence.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S3.T3",
+      "locator": "Table III, observation-noise robustness",
+      "claim": "At ordinal noise level 2, UniTracker reports 86.78 +/- 0.212 success versus 79.58 +/- 0.066 without CVAE; the table does not define numerical perturbation magnitudes.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2507.07356v3#S3.SS5",
+      "locator": "Section III-E, Light Weight Fast Adaption; Figure 5",
+      "claim": "Fast adaptation is compared with scratch training on one challenging sequence and the AMASS test dataset using episode length and cumulative reward, but no tabular convergence time is supplied.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://yinkangning0124.github.io/Humanoid-UniTracker/",
+      "locator": "Official project page: behavior, fast-adaptation, and downstream-application sections",
+      "claim": "The authors provide videos for universal-policy behaviors, fast-adapted motions, text-to-motion references, and video-estimated references; the page gives no aggregate hardware success statistic.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

@@ -1,0 +1,1107 @@
+{
+  "paper": {
+    "id": "2607.01721",
+    "arxiv_id": "2607.01721",
+    "doi": "10.48550/arXiv.2607.01721",
+    "title": "CoRe: Combined Rewards with Vision-Language Model Feedback for Preference-Aligned Reinforcement Learning",
+    "authors": [
+      "Hexian Ni",
+      "Tao Lu",
+      "Yinghao Cai"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2607.01721v1",
+    "source_version": "arXiv v1, submitted 2026-07-02; versioned PDF SHA-256 624655fd3a8ba0c9049a58f0dce260c749ee9b87a42ef93af33a057e819eee16. Official public code is pinned to default-branch commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59 (commit date 2026-06-15; no release tag; inspected 2026-08-30). The paper uses Gemini 2.0 Flash, while that code snapshot defaults to Gemini 2.5 Flash Lite."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "CoRe directly constructs a task reward as the clipped sum of executable LLM-generated formal code and a VLM-supervised residual image reward, and it supplies component, feedback-efficiency, alignment-proxy, robustness, and real-robot evaluations. Task text plus start/goal images expose a possible steering interface. Its online relabeling, critic reset, rendering changes, and unequal baseline pretraining also define a sharp boundary for Sam's fixed-trainer experiments.",
+    "not_evidence_for": [
+      "reference selection, motion composition, mode transitions, recovery, phase-window automata, or any reference oracle",
+      "human preference calibration or human steering, because CoRe labels preferences with a VLM and reports no human-feedback experiment",
+      "a static standalone Python reward, because the residual term requires rendered images, an online learned reward model, preference data, and replay relabeling",
+      "reward-only causality under Sam's fixed trainer, because CoRe resets critic state and some baselines use unsupervised pretraining while CoRe does not",
+      "statistically resolved superiority, because simulation uses three seeds and the real-robot table reports point estimates without confidence intervals or significance tests",
+      "a comparison under Sam's fixed scene and observation contract, because task-specific renderers, cameras, and MetaWorld initial states are modified",
+      "portability across a frozen simulator, controller, action interface, dynamics tuple, or training budget",
+      "safe execution of generated reward code, immutable reward promotion, or sandboxing",
+      "exact reproduction from the README launch path without edits, because the code default VLM and initial-FRM path differ from the paper",
+      "RL-Sculptor implementation of CoRe"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "core.combined_reward_decomposition",
+      "name": "Formal-plus-residual reward decomposition",
+      "description": "CoRe forms the policy reward by clipping a code-based formal term and an image-model residual term to [-0.5, 0.5] separately and summing them, assigning explicit task knowledge to FRM and difficult-to-specify visual preference to RRM.",
+      "tags": [
+        "task_reward",
+        "reward_composition",
+        "formal_reward",
+        "residual_reward"
+      ],
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E04"
+      ]
+    },
+    {
+      "id": "core.formal_reward_module",
+      "name": "Preference-aligned executable formal reward search",
+      "description": "An LLM proposes executable reward functions from task text, state/action definitions, the previous reward, and policy-component feedback; after the initial task-completion search, candidate segment returns are ranked by agreement with the accumulated VLM preference labels, and only a strict alignment improvement is accepted in the pinned code.",
+      "tags": [
+        "executable_reward",
+        "program_search",
+        "preference_alignment",
+        "best_of_n"
+      ],
+      "evidence_ids": [
+        "CORE-E02",
+        "CORE-E05",
+        "CORE-E06",
+        "CORE-E20"
+      ]
+    },
+    {
+      "id": "core.residual_reward_module",
+      "name": "Video-preference residual reward learning",
+      "description": "A VLM compares two trajectory videos against task text and start/goal images, returns a pairwise preference plus per-frame completion weights, and an image reward ensemble learns from preference cross-entropy with a KL penalty toward the interpolated frame-weight distributions; incomparable pairs are excluded.",
+      "tags": [
+        "learned_reward",
+        "video_preference",
+        "frame_importance",
+        "credit_assignment",
+        "vlm_feedback"
+      ],
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E06"
+      ]
+    },
+    {
+      "id": "core.online_reward_policy_loop",
+      "name": "Concurrent reward and policy update loop",
+      "description": "SAC data collection, policy updates, FRM alignment, VLM querying, and RRM learning proceed online; accepted FRM or RRM updates trigger full replay-buffer relabeling, and the pinned implementation resets the critic when RRM is first enabled.",
+      "tags": [
+        "online_reward_learning",
+        "replay_relabeling",
+        "critic_reset",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "CORE-E05",
+        "CORE-E21"
+      ]
+    },
+    {
+      "id": "core.text_image_task_specification",
+      "name": "Text-and-image task specification",
+      "description": "The reward-construction interface consumes task description, state/action definitions, and task start and goal images. This is a potential reward-steering surface, but the paper supplies the inputs once and does not evaluate human correction or a mid-run nudge.",
+      "tags": [
+        "task_specification",
+        "goal_image",
+        "human_steering_boundary",
+        "reward_input"
+      ],
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E05"
+      ]
+    },
+    {
+      "id": "core.public_implementation_path",
+      "name": "Pinned public implementation path",
+      "description": "The official repository exposes the CoRe trainer, checked-in formal rewards, reward-generation prompts, video-preference labeler, and RRM learner. Its README launch path loads a checked-in initial FRM, later runs preference alignment, defaults to a different Gemini model than the paper, and directly writes and imports generated Python modules.",
+      "tags": [
+        "official_code",
+        "version_pin",
+        "implementation_boundary",
+        "generated_code"
+      ],
+      "evidence_ids": [
+        "CORE-E18",
+        "CORE-E19",
+        "CORE-E22",
+        "CORE-E20",
+        "CORE-E21"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "source_pdf_sha256",
+      "value": "624655fd3a8ba0c9049a58f0dce260c749ee9b87a42ef93af33a057e819eee16",
+      "units": null,
+      "context": "SHA-256 of https://arxiv.org/pdf/2607.01721v1 downloaded 2026-08-30.",
+      "evidence_ids": [
+        "CORE-E01"
+      ]
+    },
+    {
+      "name": "official_code_commit",
+      "value": "d663cabc38e6d6f39ac5e1e4327d94f17f84fa59",
+      "units": null,
+      "context": "Default-branch HEAD of the official public repository inspected 2026-08-30; the repository has no release tag.",
+      "evidence_ids": [
+        "CORE-E18"
+      ]
+    },
+    {
+      "name": "formal_reward_search",
+      "value": {
+        "searches": 5,
+        "candidates_per_search": 4,
+        "paper_llm": "GPT-4.1 mini",
+        "candidate_objective": "preference-prediction accuracy after the initial task-completion search"
+      },
+      "units": null,
+      "context": "FRM program-generation and Reward-Preference Alignment schedule.",
+      "evidence_ids": [
+        "CORE-E02",
+        "CORE-E04",
+        "CORE-E06"
+      ]
+    },
+    {
+      "name": "formal_preference_label_values",
+      "value": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          0.5,
+          0.5
+        ]
+      ],
+      "units": null,
+      "context": "Preference for segment 1, preference for segment 0, and no preference in the FRM definition.",
+      "evidence_ids": [
+        "CORE-E02"
+      ]
+    },
+    {
+      "name": "combined_reward_range_and_rule",
+      "value": {
+        "formal_component_clip": [
+          -0.5,
+          0.5
+        ],
+        "residual_component_clip": [
+          -0.5,
+          0.5
+        ],
+        "combination": "sum"
+      },
+      "units": "reward units per step",
+      "context": "Paper-level task-reward composition before policy optimization.",
+      "evidence_ids": [
+        "CORE-E04"
+      ]
+    },
+    {
+      "name": "residual_reward_model_configuration",
+      "value": {
+        "paper_vlm": "Gemini 2.0 Flash",
+        "MetaWorld_architecture": "4-layer CNN",
+        "SoftGym_architecture": "ResNet-18",
+        "ensemble_size": 3,
+        "output_activation": "tanh",
+        "optimizer": "Adam",
+        "initial_learning_rate": 0.0003,
+        "CNN_batch_size": 32,
+        "ResNet_batch_size": 8,
+        "query_sampling": "uniform"
+      },
+      "units": null,
+      "context": "Image-based RRM used in the paper experiments.",
+      "evidence_ids": [
+        "CORE-E04",
+        "CORE-E06"
+      ]
+    },
+    {
+      "name": "residual_reward_loss",
+      "value": {
+        "preference_term": "cross entropy",
+        "importance_term": "KL divergence",
+        "KL_weight_alpha": 5
+      },
+      "units": null,
+      "context": "Frame importance is auxiliary to the primary pairwise-preference objective.",
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E07",
+        "CORE-E13"
+      ]
+    },
+    {
+      "name": "trajectory_segment_and_vlm_frames",
+      "value": {
+        "MetaWorld_segment_steps": 20,
+        "MetaWorld_queried_frames": 3,
+        "SoftGym_segment_steps": 3
+      },
+      "units": "frames or environment steps",
+      "context": "MetaWorld segments are downsampled to three frames for the VLM; SoftGym uses three-step segments.",
+      "evidence_ids": [
+        "CORE-E06",
+        "CORE-E07"
+      ]
+    },
+    {
+      "name": "reward_training_steps",
+      "value": {
+        "MetaWorld": 500000,
+        "Fold_Cloth": 15000,
+        "Straighten_Rope": 100000,
+        "Pass_Water": 100000
+      },
+      "units": "environment steps",
+      "context": "Per-task training budgets in the reward-learning hyperparameter table.",
+      "evidence_ids": [
+        "CORE-E07"
+      ]
+    },
+    {
+      "name": "initial_formal_reward_steps",
+      "value": {
+        "MetaWorld": 19000,
+        "Fold_Cloth": 250,
+        "Straighten_Rope": 9000,
+        "Pass_Water": 9000
+      },
+      "units": "environment steps",
+      "context": "Table 7's named initial-FRM count; separate random-exploration steps precede the residual-reward phase.",
+      "evidence_ids": [
+        "CORE-E07",
+        "CORE-E21"
+      ]
+    },
+    {
+      "name": "formal_reward_update_frequency_M",
+      "value": {
+        "MetaWorld": 25000,
+        "Fold_Cloth": 2500,
+        "Straighten_Rope": 25000,
+        "Pass_Water": 25000
+      },
+      "units": "environment steps per update",
+      "context": "Accepted FRM updates trigger replay-buffer relabeling.",
+      "evidence_ids": [
+        "CORE-E05",
+        "CORE-E07"
+      ]
+    },
+    {
+      "name": "vlm_query_frequency_N",
+      "value": {
+        "MetaWorld": 4000,
+        "Fold_Cloth": 1000,
+        "Straighten_Rope": 5000,
+        "Pass_Water": 5000
+      },
+      "units": "environment steps per query session",
+      "context": "VLM preference querying and RRM updating schedule.",
+      "evidence_ids": [
+        "CORE-E05",
+        "CORE-E07"
+      ]
+    },
+    {
+      "name": "preference_query_and_feedback_budget",
+      "value": {
+        "MetaWorld": {
+          "queries_per_session": 20,
+          "maximum_labels": 500
+        },
+        "Fold_Cloth": {
+          "queries_per_session": 10,
+          "maximum_labels": 150
+        },
+        "Straighten_Rope_and_Pass_Water": {
+          "queries_per_session": 10,
+          "maximum_labels": 200
+        }
+      },
+      "units": "VLM pairwise-preference queries",
+      "context": "Maximum feedback counts and per-session query counts.",
+      "evidence_ids": [
+        "CORE-E07"
+      ]
+    },
+    {
+      "name": "policy_learning_configuration",
+      "value": {
+        "algorithm": "Soft Actor-Critic",
+        "Fold_Cloth": {
+          "hidden_layers": 3,
+          "units_per_layer": 1024,
+          "learning_rate": 0.0005,
+          "batch_size": 1024
+        },
+        "Others": {
+          "hidden_layers": 2,
+          "units_per_layer": 256,
+          "learning_rate": 0.0003,
+          "batch_size": 512
+        },
+        "initial_temperature": 0.1,
+        "critic_target_update_frequency": 2,
+        "optimizer": "Adam",
+        "adam_betas": [
+          0.9,
+          0.999
+        ],
+        "discount": 0.99,
+        "critic_EMA_tau": 0.005
+      },
+      "units": null,
+      "context": "Paper's policy-learning hyperparameters; the public CoRe loop additionally relabels replay and resets the critic when RRM is enabled.",
+      "evidence_ids": [
+        "CORE-E08",
+        "CORE-E21"
+      ]
+    },
+    {
+      "name": "simulation_final_results",
+      "value": {
+        "MetaWorld_success_percent": {
+          "Soccer": 100.0,
+          "Sweep_Into": 97.3,
+          "Drawer_Open": 100.0,
+          "Button_Press": 100.0,
+          "Dial_Turn": 98.0,
+          "Hammer": 98.0,
+          "Peg_Insert": 100.0,
+          "reported_mean": 99.0
+        },
+        "SoftGym_episode_return": {
+          "Fold_Cloth": -0.1,
+          "Straighten_Rope": 20.6,
+          "Pass_Water": -30.0
+        },
+        "random_seeds": 3
+      },
+      "units": null,
+      "context": "Final reported CoRe performance across ten simulated manipulation tasks; MetaWorld uses success and SoftGym uses environment return.",
+      "evidence_ids": [
+        "CORE-E09"
+      ]
+    },
+    {
+      "name": "paper_feedback_counts",
+      "value": {
+        "MetaWorld": {
+          "labels": 500,
+          "images": 4000
+        },
+        "Fold_Cloth": {
+          "labels": 150,
+          "images": 1200
+        },
+        "Straighten_Rope_and_Pass_Water": {
+          "labels": 200,
+          "images": 1600
+        },
+        "reported_reduction_range": "3-40x"
+      },
+      "units": null,
+      "context": "CoRe feedback usage and paper-reported reduction relative to selected baselines.",
+      "evidence_ids": [
+        "CORE-E11"
+      ]
+    },
+    {
+      "name": "average_training_cost",
+      "value": {
+        "tokens_millions": 2.0,
+        "API_cost_USD": 0.37,
+        "wall_clock_hours": 2.15
+      },
+      "units": null,
+      "context": "Average full CoRe run across ten tasks; the table does not state the hardware used for the wall-clock figure.",
+      "evidence_ids": [
+        "CORE-E12"
+      ]
+    },
+    {
+      "name": "vlm_preference_label_outcomes",
+      "value": {
+        "video_percent": {
+          "correct": 51.5,
+          "incorrect": 15.0,
+          "no_preference": 33.5
+        },
+        "image_percent": {
+          "correct": 41.6,
+          "incorrect": 15.6,
+          "no_preference": 42.8
+        }
+      },
+      "units": "percent of labels",
+      "context": "Correctness is defined against which sample has higher task completion, not against human preference.",
+      "evidence_ids": [
+        "CORE-E13"
+      ]
+    },
+    {
+      "name": "importance_and_reward_progress_correlations",
+      "value": {
+        "VLM_importance_weight_spearman": 0.48,
+        "PrefVLM_reward_spearman": 0.09,
+        "RL_VLM_F_reward_spearman": 0.44,
+        "ERL_VLM_reward_spearman": 0.48,
+        "RRM_without_importance_reward_spearman": 0.56,
+        "RRM_reward_spearman": 0.77,
+        "CoRe_reward_spearman": 0.88
+      },
+      "units": "Spearman rho",
+      "context": "Averages over ten tasks; learned-reward correlations use normalized rewards along expert trajectories.",
+      "evidence_ids": [
+        "CORE-E13"
+      ]
+    },
+    {
+      "name": "real_robot_protocol_and_core_results",
+      "value": {
+        "robot": "UR5",
+        "repeats_per_method": 20,
+        "fine_tuning_after_simulation": false,
+        "real_results": {
+          "Drawer_Open_success_percent": 90,
+          "Dial_Turn_success_percent": 70,
+          "Hammer_success_percent": 80,
+          "Fold_Cloth_corner_error_cm": 3.2,
+          "Straighten_Rope_completion_percent": 84
+        }
+      },
+      "units": null,
+      "context": "Five real tasks after task-specific simulation reconfiguration and policy retraining, followed by direct real deployment.",
+      "evidence_ids": [
+        "CORE-E14",
+        "CORE-E17"
+      ]
+    },
+    {
+      "name": "model_scale_and_open_vlm_results",
+      "value": {
+        "Hammer_FRM_GPT_4_1_mini": {
+          "success_percent": 54.0,
+          "API_cost_USD": 0.06
+        },
+        "Hammer_FRM_GPT_5_4": {
+          "success_percent": 54.7,
+          "API_cost_USD": 0.53
+        },
+        "Hammer_RRM_Gemini_2_0_Flash": {
+          "success_percent": 49.3,
+          "API_cost_USD": 0.31
+        },
+        "Hammer_RRM_Gemini_3_Flash": {
+          "success_percent": 62.6,
+          "API_cost_USD": 1.88
+        },
+        "Qwen3_VL_8B_Instruct": {
+          "Sweep_Into_success_percent": 84.0,
+          "Hammer_success_percent": 88.7
+        },
+        "Video_LLaVA_7B": "no reliable result"
+      },
+      "units": null,
+      "context": "Appendix model-scaling and open-source VLM substitutions.",
+      "evidence_ids": [
+        "CORE-E16"
+      ]
+    },
+    {
+      "name": "visual_disturbance_results",
+      "value": {
+        "Sweep_Into_clear_percent": 97.3,
+        "Sweep_Into_noisy_percent": 91.7,
+        "Hammer_clear_percent": 98.0,
+        "Hammer_noisy_percent": 96.0
+      },
+      "units": "success percent",
+      "context": "Randomly moving red-cube distractor in two simulated tasks.",
+      "evidence_ids": [
+        "CORE-E16"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "core.task_completion_reward_exploitation",
+      "name": "Task-completion reward exploitation",
+      "description": "Selecting formal rewards solely by task completion can over-weight the nail-position term in Hammer and produce handle-first striking, motivating preference-based candidate selection.",
+      "tags": [
+        "reward_hacking",
+        "proxy_failure",
+        "formal_reward"
+      ],
+      "evidence_ids": [
+        "CORE-E02"
+      ]
+    },
+    {
+      "id": "core.formal_reward_expressiveness_and_noise",
+      "name": "Formal-reward expressiveness and label sensitivity",
+      "description": "The authors report that FRM is limited for deformable objects and sensitive to task difficulty and label noise; Hammer and Fold Cloth show limited improvement under repeated Reward-Preference Alignment.",
+      "tags": [
+        "reward_misspecification",
+        "deformable_object",
+        "label_noise"
+      ],
+      "evidence_ids": [
+        "CORE-E10",
+        "CORE-E13"
+      ]
+    },
+    {
+      "id": "core.residual_long_horizon_feedback_limit",
+      "name": "Residual-reward long-horizon feedback limit",
+      "description": "RRM handles deformable visual tasks better than FRM but struggles on complex long-horizon tasks under limited feedback; the authors attribute residual credit-assignment noise to sparse segment-level supervision.",
+      "tags": [
+        "long_horizon",
+        "credit_assignment",
+        "feedback_efficiency"
+      ],
+      "evidence_ids": [
+        "CORE-E10",
+        "CORE-E13"
+      ]
+    },
+    {
+      "id": "core.vlm_preference_and_importance_noise",
+      "name": "VLM preference and importance noise",
+      "description": "Only 51.5% of video comparisons agree with task-completion ordering, while 15.0% are wrong and 33.5% abstain; VLM frame weights have only rho=0.48 correlation with progress and yield high variance when used directly as reward.",
+      "tags": [
+        "vlm_noise",
+        "abstention",
+        "importance_weight",
+        "reward_variance"
+      ],
+      "evidence_ids": [
+        "CORE-E13"
+      ]
+    },
+    {
+      "id": "core.vlm_proxy_not_human_evidence",
+      "name": "VLM proxy is not human-preference evidence",
+      "description": "CoRe explicitly operates without humans; preference-label accuracy is evaluated against relative task completion, and no human labeling, inter-rater agreement, preference calibration, or steering experiment substantiates the paper's human-intent language.",
+      "tags": [
+        "human_steering_boundary",
+        "proxy_evaluator",
+        "calibration_gap"
+      ],
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E13"
+      ]
+    },
+    {
+      "id": "core.fixed_trainer_and_scene_confounds",
+      "name": "Fixed-trainer and scene confounds",
+      "description": "Although policy hyperparameters are common, several baselines receive PEBBLE unsupervised pretraining while CoRe trains directly; CoRe also relabels replay and resets its critic, and the visual reward setup changes render visibility, camera focus, and MetaWorld initial state. The comparison therefore does not isolate a scalar task-reward change under Sam's fixed boundary.",
+      "tags": [
+        "fixed_trainer_boundary",
+        "pretraining",
+        "critic_reset",
+        "scene_change",
+        "causal_attribution"
+      ],
+      "evidence_ids": [
+        "CORE-E04",
+        "CORE-E17",
+        "CORE-E21"
+      ]
+    },
+    {
+      "id": "core.ablation_reporting_inconsistency",
+      "name": "FRM ablation prose-table inconsistency",
+      "description": "Table 2 reports FRM^0 success of 36.0% on Sweep and 34.7% on Dial, then 93.3% and 79.3% for FRM^2. The adjacent prose describes the starts as 30% and assigns the two final values to one alignment, so exact iteration-level attribution should follow the table and retain the discrepancy.",
+      "tags": [
+        "source_inconsistency",
+        "ablation",
+        "iteration_lineage"
+      ],
+      "evidence_ids": [
+        "CORE-E10"
+      ]
+    },
+    {
+      "id": "core.statistical_reporting_gap",
+      "name": "Uncertainty and hardware reporting gap",
+      "description": "Simulation results use three seeds and real-robot results use twenty repetitions, but the reported tables provide no confidence intervals or significance tests. The average wall-clock cost also lacks a hardware specification.",
+      "tags": [
+        "three_seeds",
+        "confidence_interval",
+        "statistical_power",
+        "hardware_reproducibility"
+      ],
+      "evidence_ids": [
+        "CORE-E09",
+        "CORE-E12",
+        "CORE-E14"
+      ]
+    },
+    {
+      "id": "core.query_cost_bias_and_generalization",
+      "name": "Model-query cost, bias, and generalization limits",
+      "description": "The authors identify iterative LLM/VLM cost, propagation of model bias or inaccuracies, robustness and scalability, and evaluation in more diverse unstructured real environments as unresolved issues; stronger single modules cost roughly 6-9 times more for limited gains in Hammer.",
+      "tags": [
+        "api_cost",
+        "model_bias",
+        "robustness",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "CORE-E15",
+        "CORE-E16"
+      ]
+    },
+    {
+      "id": "core.paper_code_version_gap",
+      "name": "Paper-to-code version and launch-path gap",
+      "description": "The untagged pinned repository defaults to Gemini 2.5 Flash Lite rather than the paper's Gemini 2.0 Flash. Its recommended launch scripts load checked-in initial FRMs instead of rerunning the paper's initial task-completion candidate search, although later preference-alignment updates remain active.",
+      "tags": [
+        "reproducibility",
+        "model_version",
+        "code_release",
+        "initialization"
+      ],
+      "evidence_ids": [
+        "CORE-E04",
+        "CORE-E18",
+        "CORE-E19",
+        "CORE-E22"
+      ]
+    },
+    {
+      "id": "core.generated_code_execution_boundary",
+      "name": "Unspecified generated-code execution boundary",
+      "description": "The pinned implementation extracts LLM output into Python files, dynamically imports candidate functions, and can launch training subprocesses. Neither paper nor repository documents a sandbox, import allowlist, static validator, or immutable review/promotion step.",
+      "tags": [
+        "generated_code",
+        "execution_safety",
+        "sandbox_gap",
+        "artifact_promotion"
+      ],
+      "evidence_ids": [
+        "CORE-E20"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "core.ten_task_simulation_benchmark",
+      "name": "Ten-task simulation benchmark",
+      "description": "Seven MetaWorld rigid/articulated tasks use success rate and three SoftGym deformable tasks use episode return; learning curves and final results are averaged over three seeds, with CoRe reporting 99.0% mean MetaWorld success.",
+      "tags": [
+        "MetaWorld",
+        "SoftGym",
+        "success_rate",
+        "episode_return",
+        "three_seeds"
+      ],
+      "evidence_ids": [
+        "CORE-E09"
+      ]
+    },
+    {
+      "id": "core.reward_component_ablation",
+      "name": "FRM, RRM, importance, and combination ablation",
+      "description": "Ten-task final performance compares FRM at multiple alignment iterations, RRM without importance, RRM with importance, and full CoRe; the combined method is best on every listed task metric in Table 2.",
+      "tags": [
+        "ablation",
+        "reward_composition",
+        "importance_weight",
+        "alignment_iteration"
+      ],
+      "evidence_ids": [
+        "CORE-E10"
+      ]
+    },
+    {
+      "id": "core.preference_and_reward_diagnostics",
+      "name": "Preference-quality and reward-progress diagnostics",
+      "description": "The evaluation separates correct, incorrect, and no-preference VLM labels; measures VLM importance weights against task progress; and measures normalized learned-reward correlations along expert trajectories, reporting CoRe rho=0.88.",
+      "tags": [
+        "label_accuracy",
+        "abstention",
+        "spearman_correlation",
+        "independent_metric"
+      ],
+      "evidence_ids": [
+        "CORE-E13"
+      ]
+    },
+    {
+      "id": "core.feedback_and_cost_accounting",
+      "name": "Feedback and training-cost accounting",
+      "description": "Tables report labels, images, API tokens, dollars, and wall-clock time. CoRe uses 150-500 labels by task group and averages 2.00M tokens, $0.37, and 2.15 hours per run across ten tasks.",
+      "tags": [
+        "feedback_efficiency",
+        "api_cost",
+        "wall_clock",
+        "resource_reporting"
+      ],
+      "evidence_ids": [
+        "CORE-E11",
+        "CORE-E12"
+      ]
+    },
+    {
+      "id": "core.real_robot_transfer",
+      "name": "Five-task UR5 direct-deployment evaluation",
+      "description": "Policies are retrained in task-specific simulations and deployed on UR5 hardware without real-world fine-tuning for Drawer Open, Dial Turn, Hammer, Fold Cloth, and Straighten Rope; each method is repeated twenty times with task-specific success or geometric metrics.",
+      "tags": [
+        "real_robot",
+        "UR5",
+        "sim_to_real",
+        "twenty_trials"
+      ],
+      "evidence_ids": [
+        "CORE-E14",
+        "CORE-E17"
+      ]
+    },
+    {
+      "id": "core.model_and_visual_robustness",
+      "name": "Model-substitution and visual-disturbance evaluation",
+      "description": "Hammer tests stronger proprietary models, Sweep/Hammer test Qwen3-VL-8B-Instruct and Video-LLaVA-7B substitutions, and a moving red-cube distractor tests perceptual robustness on two tasks.",
+      "tags": [
+        "model_ablation",
+        "open_source_vlm",
+        "visual_distractor",
+        "robustness"
+      ],
+      "evidence_ids": [
+        "CORE-E16"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2607.01721",
+      "relation": "INTRODUCES",
+      "target": "core.combined_reward_decomposition",
+      "evidence_ids": [
+        "CORE-E04"
+      ]
+    },
+    {
+      "source": "core.combined_reward_decomposition",
+      "relation": "COMPOSES",
+      "target": "core.formal_reward_module",
+      "evidence_ids": [
+        "CORE-E02",
+        "CORE-E04"
+      ]
+    },
+    {
+      "source": "core.combined_reward_decomposition",
+      "relation": "COMPOSES",
+      "target": "core.residual_reward_module",
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E04"
+      ]
+    },
+    {
+      "source": "core.formal_reward_module",
+      "relation": "CONDITIONS_ON",
+      "target": "VLM trajectory-preference dataset",
+      "evidence_ids": [
+        "CORE-E02"
+      ]
+    },
+    {
+      "source": "core.formal_reward_module",
+      "relation": "OPTIMIZES",
+      "target": "executable formal task-reward code",
+      "evidence_ids": [
+        "CORE-E02",
+        "CORE-E06"
+      ]
+    },
+    {
+      "source": "core.formal_reward_module",
+      "relation": "EXTENDS",
+      "target": "Eureka-style iterative reward design",
+      "evidence_ids": [
+        "CORE-E06"
+      ]
+    },
+    {
+      "source": "core.residual_reward_module",
+      "relation": "CONDITIONS_ON",
+      "target": "video preferences and per-frame importance weights",
+      "evidence_ids": [
+        "CORE-E03"
+      ]
+    },
+    {
+      "source": "core.residual_reward_module",
+      "relation": "OPTIMIZES",
+      "target": "image-based residual task-reward model",
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E06"
+      ]
+    },
+    {
+      "source": "core.online_reward_policy_loop",
+      "relation": "REQUIRES",
+      "target": "replay-buffer reward relabeling",
+      "evidence_ids": [
+        "CORE-E05",
+        "CORE-E21"
+      ]
+    },
+    {
+      "source": "core.online_reward_policy_loop",
+      "relation": "OPTIMIZES",
+      "target": "state-observation SAC policy",
+      "evidence_ids": [
+        "CORE-E05",
+        "CORE-E08"
+      ]
+    },
+    {
+      "source": "core.text_image_task_specification",
+      "relation": "SUPPORTS",
+      "target": "reward-artifact steering hypothesis",
+      "evidence_ids": [
+        "CORE-E03",
+        "CORE-E05"
+      ]
+    },
+    {
+      "source": "core.public_implementation_path",
+      "relation": "CONTRASTS_WITH",
+      "target": "paper-experiment version manifest",
+      "evidence_ids": [
+        "CORE-E04",
+        "CORE-E18",
+        "CORE-E19",
+        "CORE-E22"
+      ]
+    },
+    {
+      "source": "core.public_implementation_path",
+      "relation": "REQUIRES",
+      "target": "direct execution of generated Python reward modules",
+      "evidence_ids": [
+        "CORE-E20"
+      ]
+    },
+    {
+      "source": "2607.01721",
+      "relation": "EVALUATES_ON",
+      "target": "core.ten_task_simulation_benchmark",
+      "evidence_ids": [
+        "CORE-E09"
+      ]
+    },
+    {
+      "source": "2607.01721",
+      "relation": "EVALUATES_ON",
+      "target": "core.real_robot_transfer",
+      "evidence_ids": [
+        "CORE-E14"
+      ]
+    },
+    {
+      "source": "2607.01721",
+      "relation": "REPORTS",
+      "target": "core.preference_and_reward_diagnostics",
+      "evidence_ids": [
+        "CORE-E13"
+      ]
+    },
+    {
+      "source": "2607.01721",
+      "relation": "REPORTS",
+      "target": "core.feedback_and_cost_accounting",
+      "evidence_ids": [
+        "CORE-E11",
+        "CORE-E12"
+      ]
+    },
+    {
+      "source": "2607.01721",
+      "relation": "REPORTS",
+      "target": "core.model_and_visual_robustness",
+      "evidence_ids": [
+        "CORE-E16"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "CORE-E01",
+      "source_url": "https://arxiv.org/abs/2607.01721v1",
+      "locator": "arXiv v1 record and version history, submitted 2026-07-02",
+      "claim": "The active v1 record gives the exact title, authors Hexian Ni, Tao Lu, and Yinghao Cai, arXiv identifier 2607.01721, 2026 date, and ICML 2026 comment.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "CORE-E02",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S3.SS1",
+      "locator": "Section 3.1, Figure 2, Equations (1)-(3)",
+      "claim": "FRM generates executable reward candidates from task/interface context, the prior best reward, and policy feedback; Reward-Preference Alignment selects the candidate with maximum segment-preference prediction accuracy, replacing task-completion selection that can produce hammer-handle exploitation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E03",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S3.SS2",
+      "locator": "Section 3.2, Equations (4)-(6)",
+      "claim": "RRM queries a VLM with task text, start/goal images, and two videos for pair preference and per-frame importance; incomparable labels are excluded, and the image reward is trained with preference cross-entropy plus an alpha-weighted KL importance constraint.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E04",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.SS1",
+      "locator": "Section 4.1, Implementation Details",
+      "claim": "The paper uses SAC state policies, GPT-4.1 mini formal rewards, five searches of four candidates, Gemini 2.0 Flash preference labels, uniform queries, interpolated/softmax frame weights, and clipped-and-summed FRM/RRM; some baselines use PEBBLE pretraining, and task-specific rendering is used for reward learning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E05",
+      "source_url": "https://arxiv.org/html/2607.01721v1#alg1",
+      "locator": "Algorithm 1, CoRe",
+      "claim": "The algorithm interleaves off-policy learning, periodic formal reward generation and preference selection, periodic VLM queries and RRM optimization, and full replay relabeling after either reward update.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E06",
+      "source_url": "https://arxiv.org/html/2607.01721v1#A2.SS1",
+      "locator": "Appendix B.1, Reward Optimization",
+      "claim": "FRM runs five four-candidate GPT-4.1 mini searches; RRM uses a four-layer CNN for MetaWorld, ResNet-18 for SoftGym, a three-model tanh ensemble, Adam at 3e-4, batch 32 or 8, uniform queries, and MetaWorld segment length 20 downsampled to three VLM frames.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "CORE-E07",
+      "source_url": "https://arxiv.org/html/2607.01721v1#A2.T7",
+      "locator": "Appendix Table 7, reward-learning hyperparameters",
+      "claim": "Table 7 reports task-group train and initialization steps, random steps, FRM and VLM periods, per-session query counts, segment sizes, feedback caps, KL weight 5, and reward batches.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E08",
+      "source_url": "https://arxiv.org/html/2607.01721v1#A2.T8",
+      "locator": "Appendix Table 8, policy-learning hyperparameters",
+      "claim": "Table 8 reports the Fold Cloth and other-task network depths, widths, learning rates, batches, initial temperature, critic target period, Adam betas, discount, and critic EMA tau.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E09",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.T1",
+      "locator": "Figure 3, Table 1, and Section 4.2",
+      "claim": "Across seven MetaWorld and three SoftGym tasks run with three seeds, Table 1 reports CoRe's final task results and Section 4.2 reports a 99.0% average MetaWorld success rate.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E10",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.T2",
+      "locator": "Table 2 and Section 4.3, Effects of FRM and RRM / Reward-Preference Alignment",
+      "claim": "Ten-task ablations compare FRM iterations, RRM without frame importance, RRM, and combined CoRe; the authors report module limitations and sensitivity to difficulty and label noise. Table 2's Sweep/Dial values differ from the adjacent prose's stated starting values and iteration attribution.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E11",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.T3",
+      "locator": "Table 3 and Section 4.2, feedback numbers",
+      "claim": "CoRe uses 500 MetaWorld labels and 4,000 images, 150 Fold Cloth labels and 1,200 images, and 200 Rope/Water labels and 1,600 images; the paper describes a 3-40x label reduction relative to selected baselines.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E12",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.T4",
+      "locator": "Table 4 and Section 4.2, average training cost",
+      "claim": "A full CoRe run averages 2.00 million tokens, 0.37 US dollars of API cost, and 2.15 wall-clock hours across ten tasks; the table does not state hardware.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E13",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.SS3",
+      "locator": "Section 4.3, Figures 4-6",
+      "claim": "Video labels are 51.5% correct, 15.0% incorrect, and 33.5% no-preference against task completion; frame importance has average rho 0.48 and is noisy as a direct reward; learned-reward/task-progress correlations are 0.09, 0.44, 0.48, 0.56, 0.77, and 0.88 from PrefVLM through CoRe.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E14",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S4.T5",
+      "locator": "Section 4.4 and Table 5",
+      "claim": "Five policies retrained in task-specific simulations are directly deployed without fine-tuning on UR5 tasks, repeated twenty times, and evaluated with success or geometric task metrics; Table 5 reports CoRe's results.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "CORE-E15",
+      "source_url": "https://arxiv.org/html/2607.01721v1#S5",
+      "locator": "Section 5, Conclusion and Future Work; Impact Statement",
+      "claim": "The authors identify iterative LLM/VLM query cost, output bias or inaccuracies, robustness and scalability, and generalization to diverse unstructured real environments as limitations or future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "CORE-E16",
+      "source_url": "https://arxiv.org/html/2607.01721v1#A4",
+      "locator": "Appendix D, Tables 9-11",
+      "claim": "Stronger proprietary single-module models add roughly 6-9x API cost for limited Hammer gains; Qwen3-VL-8B-Instruct produces results on Sweep/Hammer while Video-LLaVA-7B does not; a moving red-cube distractor reduces CoRe success modestly on two tasks.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "CORE-E17",
+      "source_url": "https://arxiv.org/html/2607.01721v1#A1",
+      "locator": "Appendix A, task, observation, action, rendering, camera, and real-robot setup",
+      "claim": "The paper specifies task-dependent state/image observations and actions, makes the MetaWorld arm and SoftGym pickers transparent for reward images, changes camera focus and MetaWorld initial states, and reconfigures simulation before real deployment.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "CORE-E18",
+      "source_url": "https://github.com/nihx9919/CoRe/blob/d663cabc38e6d6f39ac5e1e4327d94f17f84fa59/README.md#L24-L36",
+      "locator": "Official repository README lines 24-36 at commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59",
+      "claim": "The official code snapshot configures an RRM VLM and FRM LLM through an OpenAI-compatible API, defaulting to gemini-2.5-flash-lite and gpt-4.1-mini, respectively; no release tag exists at inspection time.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "CORE-E19",
+      "source_url": "https://github.com/nihx9919/CoRe/blob/d663cabc38e6d6f39ac5e1e4327d94f17f84fa59/run_meta.sh#L1-L16",
+      "locator": "run_meta.sh lines 1-16 at commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59 (representative; every published task block in run_meta.sh and run-soft.sh sets the same flag)",
+      "claim": "The README-recommended launchers set use_FRM_online=False for the published tasks.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "CORE-E20",
+      "source_url": "https://github.com/nihx9919/CoRe/blob/d663cabc38e6d6f39ac5e1e4327d94f17f84fa59/FRM/reward_code.py#L138-L202",
+      "locator": "FRM/reward_code.py lines 138-202 and 322-372 at commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59",
+      "claim": "The release extracts model responses into Python files, imports generated reward functions dynamically, launches initial candidate-training subprocesses, and imports later preference-aligned candidates; no sandbox or static validation contract is documented in these paths.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "CORE-E21",
+      "source_url": "https://github.com/nihx9919/CoRe/blob/d663cabc38e6d6f39ac5e1e4327d94f17f84fa59/train_CoRe.py#L407-L538",
+      "locator": "train_CoRe.py lines 407-538 at commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59",
+      "claim": "At RRM activation the public trainer learns RRM, relabels replay, resets the critic, performs reset updates, and then fuses weighted formal and residual rewards for subsequent SAC learning.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "CORE-E22",
+      "source_url": "https://github.com/nihx9919/CoRe/blob/d663cabc38e6d6f39ac5e1e4327d94f17f84fa59/train_CoRe.py#L145-L166",
+      "locator": "train_CoRe.py lines 145-166 and 314-350 at commit d663cabc38e6d6f39ac5e1e4327d94f17f84fa59",
+      "claim": "When use_FRM_online is false, trainer initialization imports a checked-in formal-reward module; the scheduled alignment loop later calls FRM_generate and relabels replay if a candidate improves preference accuracy.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

@@ -1,0 +1,418 @@
+{
+  "paper": {
+    "id": "2510.05070",
+    "arxiv_id": "2510.05070",
+    "doi": "10.48550/arXiv.2510.05070",
+    "title": "ResMimic: From General Motion Tracking to Humanoid Whole-body Loco-Manipulation via Residual Learning",
+    "authors": [
+      "Siheng Zhao",
+      "Yanjie Ze",
+      "Yue Wang",
+      "C. Karen Liu",
+      "Pieter Abbeel",
+      "Guanya Shi",
+      "Rocky Duan"
+    ],
+    "year": 2025,
+    "primary_url": "https://arxiv.org/html/2510.05070v2",
+    "source_version": "arXiv v2, 2025-10-08; official code supplement pinned at fa20d98dbbf9b5b903db20435d90a4964bcf09d9"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It defines synchronized robot-object-contact references and executable object/contact reward forms, then exposes the confounding changes that must be excluded from a fixed-trainer harness experiment.",
+    "not_evidence_for": [
+      "A causal benefit from the point-cloud reward alone",
+      "A causal benefit from the contact reward alone",
+      "An OGMP state machine or learned oracle",
+      "A fixed-MDP comparison, because residual inputs, policy architecture, virtual forces, and termination also change",
+      "Quantitative real-world reliability"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "resmimic.two_stage_residual",
+      "name": "Two-stage GMT plus residual policy",
+      "description": "A pretrained GMT policy emits a coarse joint target and a per-task PPO policy emits a 29-D correction; the actions are added before the PD controller.",
+      "tags": ["residual_policy", "gmt", "ppo", "whole_body_control"],
+      "evidence_ids": ["E2", "E15"]
+    },
+    {
+      "id": "resmimic.paired_reference",
+      "name": "Synchronized robot-object reference",
+      "description": "Human motion is retargeted to the robot while recorded object motion is retained, producing time-aligned robot and object trajectories for residual training.",
+      "tags": ["reference_composition", "mocap", "retargeting", "object_trajectory"],
+      "evidence_ids": ["E5"]
+    },
+    {
+      "id": "resmimic.point_cloud_object_reward",
+      "name": "Point-cloud object tracking reward",
+      "description": "Corresponding object-surface points jointly encode translation and rotation error in an exponential tracking reward.",
+      "tags": ["task_reward", "object_tracking", "point_cloud", "dense_reward"],
+      "evidence_ids": ["E7", "E13", "E14", "E16"]
+    },
+    {
+      "id": "resmimic.reference_contact_reward",
+      "name": "Reference-gated contact reward",
+      "description": "Per-link reference contacts are inferred from link-to-object distance and gate exponential functions of simulated contact force; feet are excluded.",
+      "tags": ["task_reward", "contact_oracle", "reference_contact", "whole_body_contact"],
+      "evidence_ids": ["E7"]
+    },
+    {
+      "id": "resmimic.virtual_object_curriculum",
+      "name": "Virtual object force curriculum",
+      "description": "Training-only PD forces and torques track the reference object and are gradually decayed so the learned policy takes over.",
+      "tags": ["curriculum", "virtual_force", "training_dynamics", "out_of_scope"],
+      "evidence_ids": ["E6", "E10"]
+    },
+    {
+      "id": "resmimic.reference_aware_termination",
+      "name": "Reference-aware early termination",
+      "description": "Episodes end for excessive object-reference mesh deviation or loss of any required reference contact for more than ten consecutive frames.",
+      "tags": ["termination", "reference_tracking", "fixed_mdp_boundary"],
+      "evidence_ids": ["E7"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "gmt_pretraining_clips",
+      "value": ">15000",
+      "units": "clips",
+      "context": "Combined curated AMASS and OMOMO motion corpus.",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "name": "gmt_pretraining_duration",
+      "value": "approximately 42",
+      "units": "hours",
+      "context": "Combined curated AMASS and OMOMO motion corpus.",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "name": "joint_and_residual_action_dimension",
+      "value": 29,
+      "units": "joint targets",
+      "context": "Unitree G1 joint vector and residual action.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "proprioceptive_window_offsets",
+      "value": [-10, 0],
+      "units": "frames relative to t",
+      "context": "Inclusive notation in the paper: t-10:t.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "reference_window_offsets",
+      "value": [-10, 10],
+      "units": "frames relative to t",
+      "context": "Robot and object reference windows use t-10:t+10.",
+      "evidence_ids": ["E4"]
+    },
+    {
+      "name": "lost_required_contact_termination",
+      "value": ">10",
+      "units": "consecutive frames",
+      "context": "Additional whole-body loco-manipulation early termination.",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "name": "evaluation_task_count",
+      "value": 4,
+      "units": "tasks",
+      "context": "Kneel, Carry, Squat, and Chair.",
+      "evidence_ids": ["E9"]
+    },
+    {
+      "name": "mean_mujoco_success_rate",
+      "value": 92.5,
+      "units": "percent",
+      "context": "ResMimic mean across four tasks; direct GMT 10%, scratch 0%, fine-tune 7.5%.",
+      "evidence_ids": ["E8"]
+    },
+    {
+      "name": "random_object_pose_real_trials",
+      "value": 11,
+      "units": "trials",
+      "context": "Figure 4 states the trial count but does not give a success count.",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "name": "maximum_demonstrated_payload",
+      "value": 5.5,
+      "units": "kg",
+      "context": "Qualitative real-world chair-lifting demonstration.",
+      "evidence_ids": ["E11"]
+    },
+    {
+      "name": "released_surface_point_count",
+      "value": 1024,
+      "units": "points",
+      "context": "Official example code at pinned commit; the paper leaves N symbolic.",
+      "evidence_ids": ["E13"]
+    },
+    {
+      "name": "released_surface_sampling_seed",
+      "value": 2024,
+      "units": null,
+      "context": "Official example code at pinned commit.",
+      "evidence_ids": ["E13"]
+    },
+    {
+      "name": "released_point_cloud_exponential_scale",
+      "value": 10.0,
+      "units": null,
+      "context": "Official code computes exp(-10 * mean point distance), whereas the paper writes exp(-lambda_o * sum distance).",
+      "evidence_ids": ["E7", "E16"]
+    },
+    {
+      "name": "released_point_cloud_reward_weight",
+      "value": 2.0,
+      "units": null,
+      "context": "Reward scale in the official example configuration.",
+      "evidence_ids": ["E14"]
+    },
+    {
+      "name": "released_object_far_threshold",
+      "value": 0.3,
+      "units": null,
+      "context": "Object point-cloud distance threshold in the official example configuration; units are not annotated there.",
+      "evidence_ids": ["E14"]
+    },
+    {
+      "name": "released_final_actor_layer_gain",
+      "value": 0.01,
+      "units": null,
+      "context": "Xavier gain for near-zero initial residual outputs in the official example configuration.",
+      "evidence_ids": ["E14"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "resmimic.retargeting_contact_defect",
+      "name": "Retargeting contact defects",
+      "description": "Penetration or floating contact can make the base behavior knock over the object, yielding early termination and a retreating local optimum.",
+      "tags": ["retargeting", "penetration", "floating_contact", "local_optimum"],
+      "evidence_ids": ["E6", "E10"]
+    },
+    {
+      "id": "resmimic.heavy_object_instability",
+      "name": "Heavy-object early-training instability",
+      "description": "Large object masses destabilize early learning; the proposed workaround applies training-only forces and therefore changes the dynamics seen during optimization.",
+      "tags": ["object_mass", "curriculum", "training_dynamics", "fixed_mdp_boundary"],
+      "evidence_ids": ["E6"]
+    },
+    {
+      "id": "resmimic.under_specified_hyperparameters",
+      "name": "Under-specified reward and curriculum parameters",
+      "description": "The paper leaves N, lambda_o, sigma_c, contact lambda, sigma_o, PD gains and decay, PPO settings, success threshold, rollout count, and seeds unspecified; the code snapshot fills only part of this gap.",
+      "tags": ["reproducibility", "missing_parameter", "evidence_gap"],
+      "evidence_ids": ["E6", "E7", "E9", "E13", "E14"]
+    },
+    {
+      "id": "resmimic.bundle_confound",
+      "name": "Bundled intervention confound",
+      "description": "Residual architecture, object observations, reward terms, virtual assistance, and termination differ together, so reported gains do not isolate Sam's reference or reward knob.",
+      "tags": ["causal_confounding", "fixed_trainer", "scope_boundary"],
+      "evidence_ids": ["E2", "E6", "E7", "E8"]
+    },
+    {
+      "id": "resmimic.qualitative_real_world_evidence",
+      "name": "Qualitative real-world evidence",
+      "description": "The paper demonstrates payloads and behaviors but gives no real-world aggregate success rate; the 11-trial figure does not report outcomes.",
+      "tags": ["evaluation", "real_world", "evidence_gap"],
+      "evidence_ids": ["E6", "E11"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "resmimic.four_task_sim_to_sim",
+      "name": "Four-task IsaacGym-to-MuJoCo evaluation",
+      "description": "Policies trained in IsaacGym are evaluated in MuJoCo on Kneel, Carry, Squat, and Chair against GMT-only, scratch, and fine-tune baselines.",
+      "tags": ["simulation", "sim_to_sim", "mujoco", "baseline_comparison"],
+      "evidence_ids": ["E8", "E9"]
+    },
+    {
+      "id": "resmimic.independent_metric_set",
+      "name": "Independent tracking and success metrics",
+      "description": "Reported metrics are training iterations, object point error, global-link motion error, joint error, and task success defined by object error plus balance.",
+      "tags": ["evaluation", "object_error", "motion_error", "joint_error", "success_rate"],
+      "evidence_ids": ["E9"]
+    },
+    {
+      "id": "resmimic.qualitative_ablation",
+      "name": "Qualitative curriculum and contact ablations",
+      "description": "Figures show behavioral differences with the virtual controller and contact reward, but no numeric factorial effects are reported.",
+      "tags": ["ablation", "qualitative", "evidence_gap"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "resmimic.real_world_demo",
+      "name": "Unitree G1 real-world demonstrations",
+      "description": "Blind and MoCap-assisted demonstrations cover box/chair interactions, payloads through 5.5 kg, consecutive tasks, random initial poses, and perturbations.",
+      "tags": ["real_world", "unitree_g1", "qualitative"],
+      "evidence_ids": ["E6", "E11"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2510.05070",
+      "relation": "INTRODUCES",
+      "target": "resmimic.two_stage_residual",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "source": "resmimic.two_stage_residual",
+      "relation": "CONDITIONS_ON",
+      "target": "resmimic.paired_reference",
+      "evidence_ids": ["E2", "E5"]
+    },
+    {
+      "source": "resmimic.two_stage_residual",
+      "relation": "EXTENDS",
+      "target": "general_motion_tracking_policy",
+      "evidence_ids": ["E2"]
+    },
+    {
+      "source": "resmimic.point_cloud_object_reward",
+      "relation": "TRACKS",
+      "target": "reference_object_surface_trajectory",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "resmimic.reference_contact_reward",
+      "relation": "USES",
+      "target": "reference_contact_oracle",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "resmimic.virtual_object_curriculum",
+      "relation": "TRACKS",
+      "target": "reference_object_pose",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "2510.05070",
+      "relation": "EVALUATES_ON",
+      "target": "resmimic.four_task_sim_to_sim",
+      "evidence_ids": ["E8", "E9"]
+    },
+    {
+      "source": "resmimic.paired_reference",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.reference_composition",
+      "evidence_ids": ["E5", "E7"]
+    },
+    {
+      "source": "resmimic.point_cloud_object_reward",
+      "relation": "SUPPORTS",
+      "target": "sam_harness.task_reward_candidate",
+      "evidence_ids": ["E7", "E8"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS1",
+      "locator": "Sections III-A and III-C2; Figure 3",
+      "claim": "GMT produces a coarse action, a per-task PPO residual policy produces a correction, and the two actions are added.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS2.SSS1",
+      "locator": "Section III-B1, Dataset",
+      "claim": "AMASS and OMOMO together provide more than 15,000 clips and approximately 42 hours before/after the described curation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS2.SSS2",
+      "locator": "Sections III-B2 and III-C2",
+      "claim": "The paper specifies t-10:t proprioception, t-10:t+10 robot/object reference windows, and a 29-dimensional residual action.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS3.SSS1",
+      "locator": "Section III-C1, Reference Motions",
+      "claim": "Simultaneous human-object MoCap is converted into paired retargeted robot and object reference trajectories.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS3.SSS2",
+      "locator": "Section III-C2, Network Initialization and Virtual Object Force Curriculum; Figure 4",
+      "claim": "The residual actor starts near zero; training-only object PD forces address reference defects and heavy-object instability; Figure 4 identifies 11 random-pose trials without an aggregate outcome.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.SS3.SSS3",
+      "locator": "Section III-C3, Reward and Early Termination",
+      "claim": "The paper defines point-cloud object and reference-contact rewards plus object-deviation and lost-contact termination conditions, while leaving their numeric symbols unspecified except the ten-frame contact rule.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S3.T1",
+      "locator": "Table I",
+      "claim": "Across four MuJoCo tasks, mean success is 92.5% for ResMimic, 10% for GMT-only, 0% for scratch, and 7.5% for fine-tuning.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S4.SS1",
+      "locator": "Section IV-A, Experiment Setup",
+      "claim": "The evaluation defines four tasks and reports training iterations, object error, motion error, joint error, and success rate; exact success threshold and rollout count are not supplied.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S4.SS4",
+      "locator": "Section IV-D; Figures 7 and 8",
+      "claim": "The virtual object controller and contact reward are supported by qualitative ablation figures and narrative rather than numeric factorial results.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2510.05070v2#S4.SS3",
+      "locator": "Section IV-C, Real-world Evaluation",
+      "claim": "Real-world demonstrations include a 4.5 kg box and 4.5/5.5 kg chairs, but no aggregate real-world success rate is reported.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://github.com/amazon-far/ResMimic/blob/fa20d98dbbf9b5b903db20435d90a4964bcf09d9/legged_gym/legged_gym/envs/g1/g1_hoi.py#L190-L200",
+      "locator": "g1_hoi.py lines 190-200 at fa20d98dbbf9b5b903db20435d90a4964bcf09d9",
+      "claim": "The official example samples 1,024 centered surface points with seed 2024.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/amazon-far/ResMimic/blob/fa20d98dbbf9b5b903db20435d90a4964bcf09d9/legged_gym/legged_gym/envs/g1/g1_hoi_config.py#L59-L97",
+      "locator": "g1_hoi_config.py lines 59-97 at fa20d98dbbf9b5b903db20435d90a4964bcf09d9",
+      "claim": "The official example sets object-far threshold 0.3, point-cloud reward weight 2.0, and residual final-layer gain 0.01.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/amazon-far/ResMimic/blob/fa20d98dbbf9b5b903db20435d90a4964bcf09d9/rsl_rl/rsl_rl/runners/on_policy_dagger_runner.py#L286-L290",
+      "locator": "on_policy_dagger_runner.py lines 286-290 at fa20d98dbbf9b5b903db20435d90a4964bcf09d9",
+      "claim": "The official runner adds residual and base actions before the environment step.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/amazon-far/ResMimic/blob/fa20d98dbbf9b5b903db20435d90a4964bcf09d9/legged_gym/legged_gym/envs/g1/g1_hoi.py#L694-L706",
+      "locator": "g1_hoi.py lines 694-706 and 784-786 at fa20d98dbbf9b5b903db20435d90a4964bcf09d9",
+      "claim": "The official example computes mean corresponding-point distance and applies an exp(-10 * distance) reward kernel.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

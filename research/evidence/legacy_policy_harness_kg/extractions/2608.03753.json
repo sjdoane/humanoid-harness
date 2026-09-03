@@ -1,0 +1,580 @@
+{
+  "paper": {
+    "id": "2608.03753",
+    "arxiv_id": "2608.03753",
+    "doi": "10.48550/arXiv.2608.03753",
+    "title": "GORDON: Graph-based Object-centric Rewards for Decomposition of Long-Horizon Manipulation",
+    "authors": [
+      "Andrea Protopapa",
+      "Davide Buoso",
+      "Francesca Pistilli",
+      "Georgia Chalvatzaki",
+      "Giuseppe Averta"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/abs/2608.03753v1",
+    "source_version": "arXiv v1, submitted 2026-08-04 14:43:41 UTC; versioned PDF SHA-256 2b068c624a58db12eae36bc71d54709395df888ad56ced794eacafe9a93a0725; TeX archive SHA-256 4b63c782d88322613a2a808b43f55d409ab14b7a2aad0da2affc179623f92839; official project page pinned at c617d3678f88a7ded57304eb804cfa47eaf51c65"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It supplies an executable object-centric reward form and a reward-trace-to-ordered-stage mechanism, while its separate subpolicies, stage-specific initialization, and motion planner make the fixed-trainer boundary explicit.",
+    "not_evidence_for": [
+      "An implemented RL-Sculptor reward or oracle",
+      "Robot reference-motion composition or a policy-conditioning clock",
+      "A fixed-trainer causal effect of reward decomposition alone",
+      "Raw-video object detection or real-world perception reliability",
+      "Branching, recovery, predicate-conditioned, preference-conditioned, or learned-oracle execution",
+      "Equal total training compute across single-policy and multi-subpolicy methods",
+      "A reproducible public implementation at the pinned official-project commit"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mechanism:2608.03753:scene-graph-representation",
+      "name": "Object-centric scene-graph representation",
+      "description": "Each video frame is converted to a fully connected graph whose nodes carry semantic class and 2D or 3D bounding-box geometry and whose edges encode pairwise spatial distance between boxes.",
+      "tags": ["task_reward", "object_centric", "scene_graph", "bounding_box"],
+      "evidence_ids": ["GOR-E02"]
+    },
+    {
+      "id": "mechanism:2608.03753:activity-weighted-robot-masking",
+      "name": "Persistent activity weighting with robot masking",
+      "description": "Scale-normalized box-center displacement marks active objects, active non-robot nodes receive higher pooling weight, activity persists after first activation, and robot nodes are removed before message passing and pooling.",
+      "tags": ["task_reward", "weighted_pooling", "activity", "robot_masking"],
+      "evidence_ids": ["GOR-E03", "GOR-E08"]
+    },
+    {
+      "id": "mechanism:2608.03753:self-supervised-graph-embedding",
+      "name": "Temporally aligned reconstructive graph embedding",
+      "description": "A GraphTransformer, weighted pooling operator, and projection head are trained with temporal cycle consistency plus class and bounding-box reconstruction, then frozen for policy optimization.",
+      "tags": ["reward_learning", "graph_transformer", "tcc", "reconstruction", "frozen_encoder"],
+      "evidence_ids": ["GOR-E04", "GOR-E08"]
+    },
+    {
+      "id": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "name": "Goal-distance reward with classifier-gated terminal bonus",
+      "description": "The dense term is negative Euclidean distance from the current graph embedding to the mean final-frame embedding; a goal classifier trained on the last portion of demonstrations adds a thresholded terminal bonus.",
+      "tags": ["task_reward", "dense_reward", "goal_embedding", "terminal_bonus", "classifier"],
+      "evidence_ids": ["GOR-E05", "GOR-E13"]
+    },
+    {
+      "id": "mechanism:2608.03753:reward-gradient-segmentation",
+      "name": "Reward-gradient stage discovery and local reward learning",
+      "description": "After temporal normalization, significant changes in the full-task reward gradient define an ordered segmentation; each segment supplies demonstrations for a separately trained encoder, local goal, and local reward.",
+      "tags": ["reference_composition", "oracle", "task_decomposition", "reward_gradient", "local_reward"],
+      "evidence_ids": ["GOR-E06", "GOR-E11"]
+    },
+    {
+      "id": "mechanism:2608.03753:sequential-subpolicy-executor",
+      "name": "Sequential specialized-subpolicy executor",
+      "description": "One policy is optimized for each discovered stage; deployment switches on detected stage completion, while training perturbs stage starts and a collision-aware planner repositions the arm between stages.",
+      "tags": ["policy_composition", "sequential_executor", "motion_planning", "fixed_trainer_boundary"],
+      "evidence_ids": ["GOR-E07"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "scene_graph_structure",
+      "value": {
+        "topology": "fully connected",
+        "node_features": ["semantic class", "2D or 3D bounding-box geometry"],
+        "edge_feature": "Euclidean distance between bounding boxes"
+      },
+      "units": null,
+      "context": "Per-frame object-centric reward-model input.",
+      "evidence_ids": ["GOR-E02"]
+    },
+    {
+      "name": "activity_weighting",
+      "value": {
+        "active_non_robot_weight_alpha": 2.0,
+        "temporal_window_frames_k": 40,
+        "normalized_displacement_threshold_tau": 0.005,
+        "robot_pooling_weight": 0,
+        "activity_persists_after_trigger": true
+      },
+      "units": null,
+      "context": "Pooling and masking configuration used in all experiments.",
+      "evidence_ids": ["GOR-E03", "GOR-E08"]
+    },
+    {
+      "name": "representation_loss_weights",
+      "value": {
+        "reconstruction_lambda_rec": 0.5,
+        "box_lambda_box": 0.9,
+        "generalized_iou_lambda_giou": 0.1,
+        "class_lambda_cls": 1.0
+      },
+      "units": null,
+      "context": "TCC plus bounding-box, centroid, generalized-IoU, and class reconstruction objective.",
+      "evidence_ids": ["GOR-E04", "GOR-E08"]
+    },
+    {
+      "name": "learned_reward_configuration",
+      "value": {
+        "dense_term": "negative L2 distance to mean final-frame goal embedding",
+        "terminal_bonus_beta": 5,
+        "positive_goal_window_percent_q": 3,
+        "classifier_threshold_tau_c": "selected per task on validation split; values not reported"
+      },
+      "units": null,
+      "context": "Full-task and segment-local learned rewards use the same construction.",
+      "evidence_ids": ["GOR-E05", "GOR-E08"]
+    },
+    {
+      "name": "subtask_count_rule",
+      "value": "M-1 detected reward-gradient transitions produce M ordered segments",
+      "units": null,
+      "context": "The number of stages is not fixed a priori; numerical detection settings are not reported.",
+      "evidence_ids": ["GOR-E06"]
+    },
+    {
+      "name": "demonstration_counts",
+      "value": {
+        "MAGICAL_MatchRegions": 100,
+        "each_ManiSkill3_task": 25
+      },
+      "units": "demonstrations",
+      "context": "Action-free videos are teleoperated in simulation; reward-model object inputs use simulator annotations.",
+      "evidence_ids": ["GOR-E08"]
+    },
+    {
+      "name": "evaluation_design",
+      "value": {
+        "tasks_total": 7,
+        "short_horizon_tasks": 3,
+        "long_horizon_tasks": 4,
+        "random_seeds": 5,
+        "episodes_per_seed": 16
+      },
+      "units": null,
+      "context": "MAGICAL plus six ManiSkill3 tasks inspired by RLBench; success uses simulator-state predicates.",
+      "evidence_ids": ["GOR-E08", "GOR-E09"]
+    },
+    {
+      "name": "detection_noise_stress",
+      "value": {
+        "center_sigma_cm_per_axis": 1,
+        "half_extent_scale_sigma_percent_per_axis": 5
+      },
+      "units": null,
+      "context": "Gaussian bounding-box perturbations applied at every validation frame.",
+      "evidence_ids": ["GOR-E12"]
+    },
+    {
+      "name": "long_horizon_full_task_success",
+      "value": {
+        "GORDON_percent": 74.4,
+        "decomposed_environmental_reward_percent": 49.0,
+        "RoboHorizon_percent": 39.1,
+        "single_environmental_reward_percent": 0.0,
+        "XIRL_percent": 0.0,
+        "GraphIRL_percent": 0.0,
+        "gain_over_decomposed_environmental_reward_percentage_points": 25.4,
+        "gain_over_RoboHorizon_percentage_points": 35.3
+      },
+      "units": null,
+      "context": "Mean over PutItemInDrawer, PutShoesInBox, PutShoesOutBox, and EmptyContainer; RoboHorizon values are imported from its paper.",
+      "evidence_ids": ["GOR-E09", "GOR-E10"]
+    },
+    {
+      "name": "robot_masked_reward_discrimination",
+      "value": {
+        "standard_rho": 0.629,
+        "color_shift_rho": 0.629,
+        "detection_noise_rho": 0.583
+      },
+      "units": null,
+      "context": "PutShoesInBox cumulative-return ratio rho; lower is defined as better by the paper.",
+      "evidence_ids": ["GOR-E12"]
+    },
+    {
+      "name": "put_shoes_in_box_terminal_bonus_ablation",
+      "value": {
+        "learned_reward_no_bonus_composed_success_percent": 0.0,
+        "learned_reward_plus_environment_bonus_composed_success_percent": 58.0,
+        "learned_reward_plus_environment_bonus_std_percent": 52.9,
+        "learned_reward_plus_learned_bonus_composed_success_percent": 81.5,
+        "learned_reward_plus_learned_bonus_std_percent": 12.0
+      },
+      "units": null,
+      "context": "Sequential composition of three PutShoesInBox subtask policies.",
+      "evidence_ids": ["GOR-E13"]
+    },
+    {
+      "name": "representation_objective_ablation",
+      "value": {
+        "TCC_only_rho": 0.798,
+        "reconstruction_only_rho": 0.837,
+        "combined_rho": 0.629
+      },
+      "units": null,
+      "context": "PutShoesInBox reward-discrimination ratio; lower is better.",
+      "evidence_ids": ["GOR-E14"]
+    },
+    {
+      "name": "rlbench_maniskill_diagnostic",
+      "value": {
+        "RLBench_success_percent": 100.0,
+        "RLBench_steps": 900000,
+        "RLBench_time_minutes": 474,
+        "ManiSkill3_serial_success_percent": 100.0,
+        "ManiSkill3_serial_steps": 150000,
+        "ManiSkill3_serial_time_minutes": 57,
+        "ManiSkill3_parallel_environments": 32,
+        "ManiSkill3_parallel_steps": 50000,
+        "ManiSkill3_parallel_time_minutes": 27
+      },
+      "units": null,
+      "context": "One-task TakeUmbrellaOut correspondence diagnostic under matched learning settings.",
+      "evidence_ids": ["GOR-E15"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "failure:2608.03753:full-task-goal-ambiguity",
+      "name": "Final-goal distance loses internal stage guidance",
+      "description": "States can be close to the final embedding without satisfying semantic completion; in long-horizon tasks, full-task environmental and learned baselines make partial progress but fail later stages and score zero full-task success.",
+      "tags": ["long_horizon", "reward_ambiguity", "partial_progress", "failure_mode"],
+      "evidence_ids": ["GOR-E05", "GOR-E10", "GOR-E16", "GOR-E18"]
+    },
+    {
+      "id": "failure:2608.03753:terminal-bonus-dependence",
+      "name": "Dense reward is insufficient for contact-rich completion",
+      "description": "On PutShoesInBox, the learned distance reward without a terminal bonus solves opening only, scores 2.5% on first-shoe placement, 0% on second-shoe placement, and 0% after composition.",
+      "tags": ["task_reward", "terminal_bonus", "contact_rich", "sparse_completion"],
+      "evidence_ids": ["GOR-E13"]
+    },
+    {
+      "id": "failure:2608.03753:annotation-perception-gap",
+      "name": "Privileged object-annotation dependence",
+      "description": "All experiments construct reward graphs from simulator-provided boxes, semantic classes, and robot labels; moderate synthetic noise does not validate a detector or raw-video deployment pipeline.",
+      "tags": ["simulator_annotations", "perception", "sim_to_real", "evidence_gap"],
+      "evidence_ids": ["GOR-E08", "GOR-E12"]
+    },
+    {
+      "id": "failure:2608.03753:underspecified-stage-oracle",
+      "name": "Under-specified stage boundary and switch logic",
+      "description": "The paper gives no numerical reward-gradient threshold, temporal normalization/alignment details, smoothing rule, or per-task classifier thresholds, and it does not fully specify how detected completion drives switching.",
+      "tags": ["reference_composition", "oracle", "reproducibility", "missing_parameter"],
+      "evidence_ids": ["GOR-E05", "GOR-E06", "GOR-E07", "GOR-E08"]
+    },
+    {
+      "id": "failure:2608.03753:bundled-fixed-trainer-confound",
+      "name": "Reward decomposition is bundled with trainer-side interventions",
+      "description": "Long-horizon GORDON jointly changes reward models, policy count, stage initial-state distributions, switching, and inter-stage motion planning; the paper does not normalize total compute across the resulting number of subpolicies.",
+      "tags": ["causal_confounding", "fixed_trainer", "policy_composition", "compute_budget"],
+      "evidence_ids": ["GOR-E06", "GOR-E07", "GOR-E09"]
+    },
+    {
+      "id": "failure:2608.03753:limited-comparison-and-statistics",
+      "name": "Simulation-only and partially unmatched evaluation",
+      "description": "Results use five seeds and 16 simulator episodes per seed, some task standard deviations are large, and RoboHorizon is a semantically matched published-result comparison without rollouts for identical cumulative predicates.",
+      "tags": ["evaluation", "simulation", "variance", "baseline_comparison"],
+      "evidence_ids": ["GOR-E09", "GOR-E10", "GOR-E18"]
+    },
+    {
+      "id": "failure:2608.03753:self-referential-reward-diagnostic",
+      "name": "Reward discrimination is not an independent objective metric",
+      "description": "The paper's rho diagnostic is a ratio of cumulative returns produced by the learned reward itself; it can inspect reward separation but cannot replace simulator-predicate task success in Sam's evaluator.",
+      "tags": ["evaluation", "generated_reward", "metric_boundary", "reward_discrimination"],
+      "evidence_ids": ["GOR-E12"]
+    },
+    {
+      "id": "failure:2608.03753:no-public-implementation",
+      "name": "No public implementation at the pinned version",
+      "description": "The official project repository contains the project page and media but marks code as coming soon, so algorithmic details and reported settings cannot be checked against executable source.",
+      "tags": ["reproducibility", "code", "preprint", "evidence_gap"],
+      "evidence_ids": ["GOR-E17"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "evaluation:2608.03753:seven-task-sac-suite",
+      "name": "Seven-task SAC policy evaluation",
+      "description": "Three short-horizon and four long-horizon simulation tasks use common reported policy architecture, action space, and training budget, with success averaged over five seeds and 16 simulator-predicate episodes per seed.",
+      "tags": ["evaluation", "SAC", "MAGICAL", "ManiSkill3", "success_rate"],
+      "evidence_ids": ["GOR-E08", "GOR-E09", "GOR-E10"]
+    },
+    {
+      "id": "evaluation:2608.03753:long-horizon-stage-success",
+      "name": "Full-task and cumulative stage success",
+      "description": "Table I reports 74.4% mean GORDON full-task success across four long-horizon tasks; Table II reports ordered cumulative and conditional stage success to expose where sequences fail.",
+      "tags": ["long_horizon", "full_task_success", "cumulative_success", "conditional_success"],
+      "evidence_ids": ["GOR-E10", "GOR-E18"]
+    },
+    {
+      "id": "evaluation:2608.03753:boundary-alignment",
+      "name": "Reward-profile boundary alignment",
+      "description": "Figure 6 visually compares inferred reward-profile boundaries against simulator-annotated stage endings for three representative long-horizon tasks; no numeric boundary metric is reported.",
+      "tags": ["task_decomposition", "boundary_detection", "qualitative", "simulator_annotation"],
+      "evidence_ids": ["GOR-E11"]
+    },
+    {
+      "id": "evaluation:2608.03753:reward-robustness",
+      "name": "Appearance and localization reward-discrimination stress test",
+      "description": "PutShoesInBox reward discrimination compares raw-pixel, object-centric, robot-included, and robot-masked models under color shifts and synthetic bounding-box noise.",
+      "tags": ["robustness", "appearance_shift", "detection_noise", "reward_discrimination"],
+      "evidence_ids": ["GOR-E12"]
+    },
+    {
+      "id": "evaluation:2608.03753:terminal-bonus-ablation",
+      "name": "Terminal-bonus and subtask-transfer ablation",
+      "description": "PutShoesInBox compares environmental bonus only, environmental reward, learned reward without bonus, learned reward with environmental bonus, and learned reward with its classifier bonus for individual and composed policies.",
+      "tags": ["ablation", "task_reward", "terminal_bonus", "policy_composition"],
+      "evidence_ids": ["GOR-E13"]
+    },
+    {
+      "id": "evaluation:2608.03753:representation-loss-ablation",
+      "name": "TCC and reconstruction objective ablation",
+      "description": "Holding encoder, pooling, and validation split fixed, the combined objective yields rho 0.629 versus 0.798 for TCC only and 0.837 for reconstruction only.",
+      "tags": ["ablation", "TCC", "reconstruction", "reward_discrimination"],
+      "evidence_ids": ["GOR-E14"]
+    },
+    {
+      "id": "evaluation:2608.03753:simulator-correspondence-diagnostic",
+      "name": "One-task RLBench-to-ManiSkill3 correspondence diagnostic",
+      "description": "TakeUmbrellaOut reaches 100% in both simulators; the paper reports lower steps and wall time for ManiSkill3, including a 32-environment parallel run, but tests only one task.",
+      "tags": ["benchmark", "RLBench", "ManiSkill3", "throughput", "diagnostic"],
+      "evidence_ids": ["GOR-E15"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2608.03753",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.03753:scene-graph-representation",
+      "evidence_ids": ["GOR-E02"]
+    },
+    {
+      "source": "2608.03753",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "evidence_ids": ["GOR-E05"]
+    },
+    {
+      "source": "2608.03753",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.03753:reward-gradient-segmentation",
+      "evidence_ids": ["GOR-E06"]
+    },
+    {
+      "source": "mechanism:2608.03753:self-supervised-graph-embedding",
+      "relation": "USES",
+      "target": "mechanism:2608.03753:scene-graph-representation",
+      "evidence_ids": ["GOR-E02", "GOR-E04"]
+    },
+    {
+      "source": "mechanism:2608.03753:self-supervised-graph-embedding",
+      "relation": "USES",
+      "target": "mechanism:2608.03753:activity-weighted-robot-masking",
+      "evidence_ids": ["GOR-E03", "GOR-E04"]
+    },
+    {
+      "source": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "relation": "CONDITIONS_ON",
+      "target": "mechanism:2608.03753:self-supervised-graph-embedding",
+      "evidence_ids": ["GOR-E04", "GOR-E05"]
+    },
+    {
+      "source": "mechanism:2608.03753:reward-gradient-segmentation",
+      "relation": "USES",
+      "target": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "evidence_ids": ["GOR-E05", "GOR-E06"]
+    },
+    {
+      "source": "mechanism:2608.03753:sequential-subpolicy-executor",
+      "relation": "USES",
+      "target": "mechanism:2608.03753:reward-gradient-segmentation",
+      "evidence_ids": ["GOR-E06", "GOR-E07"]
+    },
+    {
+      "source": "mechanism:2608.03753:sequential-subpolicy-executor",
+      "relation": "COMPOSES",
+      "target": "concept:2608.03753:stage-specific-policies",
+      "evidence_ids": ["GOR-E07"]
+    },
+    {
+      "source": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "relation": "SUPPORTS",
+      "target": "artifact:task_reward_k",
+      "evidence_ids": ["GOR-E05", "GOR-E13"]
+    },
+    {
+      "source": "mechanism:2608.03753:reward-gradient-segmentation",
+      "relation": "MOTIVATES",
+      "target": "artifact:oracle_k",
+      "evidence_ids": ["GOR-E06", "GOR-E11"]
+    },
+    {
+      "source": "mechanism:2608.03753:sequential-subpolicy-executor",
+      "relation": "CONTRASTS_WITH",
+      "target": "boundary:frozen_mdp",
+      "evidence_ids": ["GOR-E07", "GOR-E09"]
+    },
+    {
+      "source": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.03753:seven-task-sac-suite",
+      "evidence_ids": ["GOR-E08", "GOR-E09", "GOR-E10"]
+    },
+    {
+      "source": "mechanism:2608.03753:reward-gradient-segmentation",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.03753:boundary-alignment",
+      "evidence_ids": ["GOR-E11"]
+    },
+    {
+      "source": "mechanism:2608.03753:activity-weighted-robot-masking",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.03753:reward-robustness",
+      "evidence_ids": ["GOR-E12"]
+    },
+    {
+      "source": "mechanism:2608.03753:goal-distance-classifier-reward",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.03753:terminal-bonus-ablation",
+      "evidence_ids": ["GOR-E13"]
+    },
+    {
+      "source": "mechanism:2608.03753:self-supervised-graph-embedding",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.03753:representation-loss-ablation",
+      "evidence_ids": ["GOR-E14"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "GOR-E01",
+      "source_url": "https://arxiv.org/abs/2608.03753v1",
+      "locator": "arXiv metadata and submission history; v1 submitted 2026-08-04 14:43:41 UTC",
+      "claim": "The pinned public source is arXiv:2608.03753v1, a 2026 cs.RO preprint by Andrea Protopapa, Davide Buoso, Francesca Pistilli, Georgia Chalvatzaki, and Giuseppe Averta.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "GOR-E02",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.SS1",
+      "locator": "Section III-A, first two paragraphs",
+      "claim": "Frames are represented as fully connected object graphs with semantic class and 2D/3D bounding-box node descriptors and pairwise box-distance edges.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E03",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.E1",
+      "locator": "Section III-A, Equations 1-3 and Weighted Graph Pooling paragraphs",
+      "claim": "Pooling upweights active objects, activity uses normalized center displacement and persists, and robot nodes are zeroed, disconnected, and assigned zero pooling weight.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E04",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.E4",
+      "locator": "Section III-A, Self-Supervised Pretraining, Equations 4-5",
+      "claim": "The graph encoder combines temporal cycle consistency with bounding-box, centroid, generalized-IoU, and object-class reconstruction.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E05",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.E6",
+      "locator": "Section III-B, Equations 6-8",
+      "claim": "The reward is negative L2 distance to an averaged final-frame goal embedding plus a classifier bonus thresholded by a validation-selected goal probability.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E06",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.SS3",
+      "locator": "Section III-C, Subtasks discovery and Subtask reward and policy learning",
+      "claim": "Significant changes in temporally normalized full-task reward gradients determine ordered segments, and each segment receives a separately trained encoder and local reward.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E07",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S3.SS3",
+      "locator": "Section III-C, Subpolicy training and composition",
+      "claim": "The method trains one policy per stage, switches on detected completion, perturbs each subpolicy's initial states, and uses collision-aware planning to reposition between stages.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E08",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4",
+      "locator": "Section IV, setup paragraphs before Section IV-A",
+      "claim": "The seven-task simulation study uses 100 MAGICAL and 25 per-task ManiSkill3 demonstrations, simulator object annotations, alpha 2.0, k 40, tau 0.005, lambda_rec 0.5, beta 5, lambda_box 0.9, lambda_giou 0.1, lambda_cls 1.0, q 3%, and frozen GraphTransformer encoders during policy optimization.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E09",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4",
+      "locator": "Section IV, baselines and evaluation protocol paragraphs",
+      "claim": "Policies use SAC with the same reported architecture, action space, and training budget; results use five seeds and 16 episodes per seed, while RoboHorizon is a semantically matched published-result comparison without rollout-level predicates.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E10",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.T1",
+      "locator": "Table I and Section IV-A Policy Evaluation Across Tasks",
+      "claim": "GORDON reports 74.4% average long-horizon success, 25.4 percentage points above decomposed environmental reward and 35.3 points above RoboHorizon; the full-task environmental, XIRL, and GraphIRL policies report zero full-task average.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GOR-E11",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.F6",
+      "locator": "Figure 6 and Section IV-A Learned Reward Profiles",
+      "claim": "Inferred reward-profile boundaries visually align with simulator stage endings for three representative long-horizon tasks; the paper reports no numeric boundary-detection metric.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "GOR-E12",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.T3",
+      "locator": "Section IV-B Reward Discrimination and Table III",
+      "claim": "The diagnostic is the ratio of learned cumulative returns on successful and unsuccessful trajectories; with 1 cm center and 5% half-extent Gaussian noise per axis, the robot-masked variant reports rho 0.583 and remains at rho 0.629 under the color shift.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GOR-E13",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.T4",
+      "locator": "Section IV-B Subtask-Level Reward Transfer and Table IV",
+      "claim": "On PutShoesInBox, learned reward without bonus has 0% composed success, while the learned classifier bonus produces 81.5% mean composed success with 12.0% standard deviation.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GOR-E14",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.T5",
+      "locator": "Section IV-B Training Objective Ablation and Table V",
+      "claim": "Reward-discrimination rho is 0.798 for TCC only, 0.837 for reconstruction only, and 0.629 for both objectives.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GOR-E15",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.SS2",
+      "locator": "Section IV-B RLBench vs. ManiSkill",
+      "claim": "TakeUmbrellaOut reaches 100% in both simulators; RLBench uses 900000 steps and 474 minutes, ManiSkill3 serial uses 150000 steps and 57 minutes, and 32-way ManiSkill3 uses 50000 steps and 27 minutes.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E16",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S5",
+      "locator": "Section V, second and third paragraphs",
+      "claim": "The authors state that a single full-task reward is generally insufficient in long-horizon tasks and that early-stage success can collapse on later cumulative stages.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GOR-E17",
+      "source_url": "https://github.com/andreaprotopapa/graph-reward-learning/blob/c617d3678f88a7ded57304eb804cfa47eaf51c65/docs/js/project-data.js#L28-L31",
+      "locator": "Official project repository, commit c617d3678f88a7ded57304eb804cfa47eaf51c65, docs/js/project-data.js lines 28-31",
+      "claim": "The pinned official project page links the paper and marks code as coming soon rather than providing an implementation repository.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "GOR-E18",
+      "source_url": "https://arxiv.org/html/2608.03753v1#S4.T2",
+      "locator": "Table II and Section IV-A Policy Evaluation Across Tasks",
+      "claim": "Ordered cumulative and conditional success rates show that full-task environmental, XIRL, and GraphIRL policies sometimes complete initial stages but fall to zero on later cumulative stages.",
+      "evidence_type": "paper_table"
+    }
+  ]
+}

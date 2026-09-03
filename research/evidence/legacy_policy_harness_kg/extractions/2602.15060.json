@@ -1,0 +1,1002 @@
+{
+  "paper": {
+    "id": "2602.15060",
+    "arxiv_id": "2602.15060",
+    "doi": "10.48550/arXiv.2602.15060",
+    "title": "CLOT: Closed-Loop Global Motion Tracking for Whole-Body Humanoid Teleoperation",
+    "authors": [
+      "Tengjie Zhu",
+      "Guanyu Cai",
+      "Zhaohui Yang",
+      "Guanzhu Ren",
+      "Haohui Xie",
+      "Junsong Wu",
+      "ZiRui Wang",
+      "Jingbo Wang",
+      "Xiaokang Yang",
+      "Yao Mu",
+      "Yichao Yan"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2602.15060v2",
+    "source_version": "arXiv v2, 2026-02-20; latest public arXiv version verified 2026-08-30. Official code evidence pinned to efcea1cf252d4164ece4d90b6d0e3211b5f1814f."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "CLOT explicitly decouples the future reference presented to the actor from the current reference used by the tracking reward, reports task-reward components and independent motion/torque metrics, and exposes a useful boundary between an oracle edit and a trainer-observation edit.",
+    "not_evidence_for": [
+      "automatic motion-clip selection or reference-graph composition",
+      "an OGMP-style state machine or receding-horizon oracle",
+      "a reference-only intervention under a frozen observation contract",
+      "a stateless executable AMP task-reward function",
+      "language or preference steering",
+      "VIBE integration or a frozen foundation controller",
+      "RL-Sculptor implementation of CLOT"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "clot-global-closed-loop-tracking",
+      "name": "Global closed-loop whole-body tracking",
+      "description": "Online IK-retargeted human motion supplies robot reference commands while high-rate external localization supplies measured robot global pose; the policy produces joint-position targets that a low-level PD controller executes.",
+      "tags": [
+        "global_frame",
+        "closed_loop",
+        "teleoperation",
+        "localization_feedback"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E7"
+      ]
+    },
+    {
+      "id": "clot-observation-preshift",
+      "name": "Randomized observation pre-shift",
+      "description": "During training, the reference window in the actor observation is randomly shifted to a future temporal offset while the physical state and history remain at the current time. The mechanism is disabled at inference.",
+      "tags": [
+        "reference_window",
+        "temporal_shift",
+        "training_randomization",
+        "observation_change"
+      ],
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "id": "clot-current-time-reward-alignment",
+      "name": "Current-time reward alignment",
+      "description": "Even when the actor sees a future-shifted goal window, tracking reward is evaluated against the original target at the current timestep. Observation and reward therefore have distinct reference clocks.",
+      "tags": [
+        "reward_reference",
+        "clock_alignment",
+        "trajectory_fidelity"
+      ],
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "id": "clot-tracking-task-reward",
+      "name": "Weighted tracking and safety task reward",
+      "description": "The task reward combines exponentially decaying tracking kernels for body, keypoint, foot, joint, and contact objectives with control, contact, limit, collision, and early-termination penalties.",
+      "tags": [
+        "task_reward",
+        "tracking_reward",
+        "safety_penalties",
+        "reward_weights"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E8"
+      ]
+    },
+    {
+      "id": "clot-amp-style-reward",
+      "name": "Adversarial motion-prior reward",
+      "description": "A learned discriminator supplies log D_phi(s_t) as a style reward, combined with task reward through lambda_style and lambda_task. It requires style data and a discriminator optimization loop.",
+      "tags": [
+        "amp",
+        "learned_reward",
+        "motion_style",
+        "trainer_state"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E11"
+      ]
+    },
+    {
+      "id": "clot-transformer-actor-critic",
+      "name": "Transformer actor-critic",
+      "description": "Actor and critic tokenize historical states, current proprioception, and tracking goals and process them with three Transformer blocks to model the temporal mismatch induced by pre-shift.",
+      "tags": [
+        "transformer",
+        "actor_critic",
+        "temporal_model",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E11",
+        "E16"
+      ]
+    },
+    {
+      "id": "clot-independent-evaluation-suite",
+      "name": "Tracking, control, and task evaluation suite",
+      "description": "Evaluation separates global/local body tracking, root and joint error, mean and temporal variability of torque, task success rate, and completion time from the training reward.",
+      "tags": [
+        "evaluation",
+        "tracking_error",
+        "smoothness",
+        "task_success"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E17",
+        "E19"
+      ]
+    },
+    {
+      "id": "clot-curated-reference-corpus",
+      "name": "Contact- and kinematics-curated human motion corpus",
+      "description": "The training references come from about twenty hours of motion captured under a protocol intended to preserve contact consistency and compatibility with humanoid kinematics.",
+      "tags": [
+        "reference_dataset",
+        "motion_capture",
+        "contact_consistency",
+        "data_curation"
+      ],
+      "evidence_ids": [
+        "E3"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "policy_action_dimension",
+      "value": 23,
+      "units": "joint-position targets",
+      "context": "Goal-conditioned policy action; hand and finger motion is handled with direct PD tracking.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "robot_degrees_of_freedom_excluding_hands",
+      "value": 31,
+      "units": "DoF",
+      "context": "Adam Pro deployment platform as described by the paper.",
+      "evidence_ids": [
+        "E1"
+      ]
+    },
+    {
+      "name": "future_goal_horizon",
+      "value": 10,
+      "units": "reference steps",
+      "context": "Actor goal window g[t+1:t+10].",
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "name": "history_horizon",
+      "value": 10,
+      "units": "steps",
+      "context": "History of proprioception, body features, and actions.",
+      "evidence_ids": [
+        "E4",
+        "E9"
+      ]
+    },
+    {
+      "name": "observation_preshift_definition",
+      "value": "delta in [0,T_max_pre]",
+      "units": "time offset",
+      "context": "Random future shift of the observed reference window; the paper does not state a numerical T_max_pre or shift probability in the method.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "preshift_architecture_ablation_offset",
+      "value": 2.0,
+      "units": "seconds",
+      "context": "Figure 7 comparison in which the Transformer tracks and the MLP falls.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "tracking_reward_kernel",
+      "value": "exp(-err/sigma)",
+      "units": null,
+      "context": "Generic kernel used for tracking terms; sigma is adaptively optimized but no final value is reported.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "composite_reward",
+      "value": "r(s_t)=lambda_style*r_amp+lambda_task*r_task; r_amp=log D_phi(s_t)",
+      "units": null,
+      "context": "AMP style and task objectives; lambda values are not numerically reported.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "reward_weights",
+      "value": {
+        "positive": {
+          "contact_consistency_tracking": 0.5,
+          "joint_limit_satisfaction": 1.0,
+          "extended_body_position_tracking": 1.2,
+          "vr_keypoint_3point_tracking": 1.6,
+          "feet_position_tracking": 1.5,
+          "extended_body_orientation_tracking": 1.5,
+          "extended_body_angular_velocity_tracking": 0.6,
+          "extended_body_linear_velocity_tracking": 0.6,
+          "joint_position_tracking": 1.0,
+          "joint_velocity_tracking": 1.0,
+          "feet_air_time": 160.0,
+          "alive_bonus": 0.2
+        },
+        "penalty": {
+          "feet_height_deviation": -20.0,
+          "torque_limit_violation": -0.0001,
+          "action_rate": -0.1,
+          "action_smoothness": -0.2,
+          "feet_contact_force": -0.0005,
+          "stumbling": -20.0,
+          "feet_slippage": -2.0,
+          "joint_position_limit": -10.0,
+          "joint_velocity_limit": -10.0,
+          "torque_limit": -10.0,
+          "collision": -30.0,
+          "early_termination": -200.0
+        }
+      },
+      "units": "reward coefficients",
+      "context": "Complete reward coefficient vector in Appendix Table V.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "actor_observation_dimensions",
+      "value": {
+        "last_action": [1, 23],
+        "base_angular_velocity": [1, 3],
+        "dof_position": [1, 23],
+        "dof_velocity": [1, 23],
+        "future_difference_position": [10, 29, 3],
+        "future_reference_position": [10, 29, 3],
+        "history_base_angular_velocity": [10, 1, 3],
+        "history_projected_gravity": [10, 1, 3],
+        "history_dof_position": [10, 1, 23],
+        "history_dof_velocity": [10, 1, 23],
+        "history_difference_position": [10, 29, 3],
+        "history_body_position": [10, 29, 3],
+        "history_action": [10, 1, 23]
+      },
+      "units": "tensor dimensions",
+      "context": "Observation specification reported as identical for Unitree G1 and Adam Pro.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "paper_preshift_curriculum",
+      "value": {
+        "sigma": 0.000005,
+        "range": [1, 2]
+      },
+      "units": null,
+      "context": "Appendix Table VIII row labeled Observation Pre-shift; units and mapping to delta are not stated.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "transformer_architecture",
+      "value": {
+        "model_dimension": 192,
+        "heads": 4,
+        "feedforward_dimension": 768,
+        "blocks": 3,
+        "activation": "ReLU",
+        "layer_normalization": true
+      },
+      "units": null,
+      "context": "Actor and critic architecture.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "amp_discriminator_architecture",
+      "value": {
+        "architecture": "MLP",
+        "layers": 4,
+        "hidden_units": 1024,
+        "activation": "ReLU",
+        "layer_normalization": true
+      },
+      "units": null,
+      "context": "Discriminator architecture separate from actor and critic.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "adam_pro_pd_gains",
+      "value": {
+        "hip_pitch": {"kp": 305.0, "kd": 5.0},
+        "hip_roll": {"kp": 255.0, "kd": 3.5},
+        "hip_yaw": {"kp": 255.0, "kd": 3.5},
+        "knee_pitch": {"kp": 305.0, "kd": 5.0},
+        "ankle_pitch": {"kp": 50.0, "kd": 0.8},
+        "ankle_roll": {"kp": 30.0, "kd": 0.35},
+        "waist_roll": {"kp": 255.0, "kd": 3.5},
+        "waist_pitch": {"kp": 305.0, "kd": 5.0},
+        "waist_yaw": {"kp": 255.0, "kd": 3.5},
+        "shoulder_pitch": {"kp": 40.0, "kd": 1.0},
+        "shoulder_roll": {"kp": 40.0, "kd": 1.0},
+        "shoulder_yaw": {"kp": 40.0, "kd": 1.0},
+        "elbow": {"kp": 40.0, "kd": 1.0}
+      },
+      "units": null,
+      "context": "Fixed controller gains across paper experiments; these are a frozen component for Sam's harness comparisons.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "captured_training_motion_duration",
+      "value": 20,
+      "units": "hours, approximate",
+      "context": "Curated human motion used to support policy training.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "publicly_uploaded_motion_duration",
+      "value": 10,
+      "units": "hours, approximate",
+      "context": "Amount stated in the pinned official README, not the complete paper corpus.",
+      "evidence_ids": [
+        "E21"
+      ]
+    },
+    {
+      "name": "training_compute",
+      "value": {
+        "gpus": 8,
+        "gpu_model": "NVIDIA RTX 4090",
+        "duration": "approximately one week",
+        "reported_gpu_hours": ">1300"
+      },
+      "units": null,
+      "context": "Final policy training in MJLab.",
+      "evidence_ids": [
+        "E1",
+        "E13"
+      ]
+    },
+    {
+      "name": "deployment_rates",
+      "value": {
+        "full_body_capture_hz": 120,
+        "finger_capture_hz": 60,
+        "policy_hz": 50,
+        "pd_controller_hz": 400
+      },
+      "units": "Hz",
+      "context": "Real-world closed-loop teleoperation pipeline.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "held_out_motion_test_duration",
+      "value": 30,
+      "units": "minutes",
+      "context": "Simulation test set across Unitree G1 and Adam Pro.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "g1_simulation_clot_vs_twist2",
+      "value": {
+        "metrics": ["E_mgbp", "E_mlbp", "E_mgrp", "E_mdp", "M_jt", "sigma_mjt"],
+        "clot": [0.056, 0.061, 0.054, 0.158, 6.604, 1.806],
+        "twist2": [5.094, 0.340, 5.164, 0.364, 6.270, 11.203]
+      },
+      "units": "not stated in Table II",
+      "context": "Lower is better for all six metrics. TWIST2 uses officially released pretrained weights.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "adam_simulation_full_vs_transformer_only",
+      "value": {
+        "metrics": ["E_mgbp", "E_mlbp", "E_mgrp", "E_mdp", "M_jt", "sigma_mjt"],
+        "full": [0.116, 0.107, 0.122, 0.136, 12.404, 8.906],
+        "transformer_only": [0.410, 0.170, 0.405, 0.291, 12.896, 18.214]
+      },
+      "units": "not stated in Table II",
+      "context": "The aggregate comparison does not separately isolate AMP and observation pre-shift.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "preshift_recovery_ablation",
+      "value": {
+        "absolute_mean_joint_torque": {
+          "with_preshift": {"std": 0.990, "smoothness": 5.485},
+          "without_preshift": {"std": 1.107, "smoothness": 7.015}
+        },
+        "absolute_mean_dof_velocity": {
+          "with_preshift": {"std": 3.468, "smoothness": 20.442},
+          "without_preshift": {"std": 5.059, "smoothness": 28.242}
+        }
+      },
+      "units": "not stated in Table III",
+      "context": "Abrupt reference-motion-change recovery experiment.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "real_task_results",
+      "value": {
+        "T1_clot": {"successes": 27, "trials": 30, "average_success_time_s": 25},
+        "T1_mpc": {"successes": 20, "trials": 30, "average_success_time_s": 22},
+        "T2_clot": {"successes": 24, "trials": 30, "average_success_time_s": 82},
+        "T3_clot": {"successes": 26, "trials": 30, "average_success_time_s": 42}
+      },
+      "units": null,
+      "context": "Real Adam Pro loco-manipulation; only T1 has the MPC baseline.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "long_horizon_real_test",
+      "value": {
+        "duration_minutes": 30,
+        "error_sampling_hz": 1
+      },
+      "units": null,
+      "context": "Uninterrupted teleoperated loco-manipulation. Rendered text reports stable distributions without numerical means.",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "name": "official_release_preshift_configs",
+      "value": {
+        "adam_pro": {
+          "motion_time_advance": true,
+          "advance_initial_degree_s": 1.5,
+          "advance_range_s": [0.5, 1.5],
+          "application_interval": 2,
+          "application_range": [1, 2],
+          "advance_interval_s": [3, 4]
+        },
+        "unitree_g1": {
+          "motion_time_advance": false,
+          "advance_initial_degree_s": 1.5,
+          "advance_range_s": [0.5, 1.5],
+          "application_interval": 2,
+          "application_range": [1, 2],
+          "advance_interval_s": [3, 4]
+        }
+      },
+      "units": null,
+      "context": "Pinned release defaults; the repository does not establish that these exact configs produced every paper checkpoint.",
+      "evidence_ids": [
+        "E22",
+        "E23"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "clot-global-reward-conflict",
+      "name": "Aggressive global-error correction",
+      "description": "The authors report that strong global tracking objectives can conflict with local joint objectives, drive rapid error minimization, produce excessive torque, and converge to unsafe or suboptimal behavior.",
+      "tags": [
+        "reported_failure",
+        "reward_conflict",
+        "unsafe_correction"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "clot-local-frame-drift",
+      "name": "Accumulated global pose drift",
+      "description": "Local-frame trackers lack global pose closure, so global trajectory errors accumulate during long-horizon operation according to the paper's motivating analysis.",
+      "tags": [
+        "reported_failure",
+        "global_drift",
+        "long_horizon"
+      ],
+      "evidence_ids": [
+        "E1",
+        "E18"
+      ]
+    },
+    {
+      "id": "clot-preshift-underspecified",
+      "name": "Under-specified pre-shift distribution",
+      "description": "The paper leaves T_max_pre and the sampling probability numerical values unstated. Its appendix range [1,2] is not unambiguously mapped to delta, and pinned release defaults differ by robot.",
+      "tags": [
+        "reproducibility",
+        "missing_parameter",
+        "paper_code_boundary"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E10",
+        "E22",
+        "E23"
+      ]
+    },
+    {
+      "id": "clot-confounded-aggregate-ablation",
+      "name": "Full-system ablation conflates components",
+      "description": "Table II compares Transformer-only with the full system, jointly changing observation pre-shift and motion-prior machinery. Table III isolates pre-shift only for abrupt-error recovery statistics.",
+      "tags": [
+        "ablation_limit",
+        "causal_attribution",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "clot-external-localization-dependency",
+      "name": "External global-localization dependency",
+      "description": "The real feedback loop depends on OptiTrack. The conclusion identifies lightweight global localization and VR motion tracking as future work.",
+      "tags": [
+        "deployment_limit",
+        "optitrack",
+        "future_work"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E20"
+      ]
+    },
+    {
+      "id": "clot-partial-public-corpus",
+      "name": "Only part of the training corpus is public",
+      "description": "The paper reports about twenty hours of captured motion; the pinned official README says about ten hours have been uploaded.",
+      "tags": [
+        "reproducibility",
+        "data_gap",
+        "reference_dataset"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E21"
+      ]
+    },
+    {
+      "id": "clot-limited-baselines",
+      "name": "Narrow baseline coverage",
+      "description": "TWIST2 is compared on G1 simulation only; MPC is compared on real T1 only; T2 and T3 have no baseline; the external-kick evaluation is qualitative.",
+      "tags": [
+        "evaluation_limit",
+        "baseline_coverage",
+        "qualitative_evidence"
+      ],
+      "evidence_ids": [
+        "E14",
+        "E17",
+        "E18"
+      ]
+    },
+    {
+      "id": "clot-fixed-observation-boundary",
+      "name": "Pre-shift violates a frozen-observation comparison",
+      "description": "For Sam's harness, pre-shift is not a pure reference-composition change if the oracle interface does not already authorize changing the actor's observation target and training distribution.",
+      "tags": [
+        "harness_boundary",
+        "fixed_observations",
+        "not_implementation_claim"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E9"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "clot-g1-simulation-comparison",
+      "name": "G1 held-out motion comparison",
+      "description": "On the held-out simulation corpus, CLOT reports lower four tracking errors and torque variability than TWIST2, while mean torque is slightly higher.",
+      "tags": [
+        "simulation",
+        "unitree_g1",
+        "twist2"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "clot-adam-full-system-comparison",
+      "name": "Adam Pro full versus Transformer-only comparison",
+      "description": "The full system reports lower tracking errors, mean torque, and torque variability than the Transformer-only variant, but the contrast changes more than one component.",
+      "tags": [
+        "simulation",
+        "adam_pro",
+        "aggregate_ablation"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "clot-preshift-recovery-ablation",
+      "name": "Abrupt-reference pre-shift recovery ablation",
+      "description": "With pre-shift, absolute mean joint torque and DOF velocity have lower reported standard deviation and smoothness statistics during abrupt reference-error recovery.",
+      "tags": [
+        "ablation",
+        "reference_discontinuity",
+        "recovery"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "clot-transformer-mlp-ablation",
+      "name": "Transformer versus MLP at 2.0-second pre-shift",
+      "description": "The paper's qualitative trajectory comparison reports stable Transformer tracking and an MLP fall at a 2.0-second shift.",
+      "tags": [
+        "architecture_ablation",
+        "qualitative_result",
+        "trainer_dependency"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "clot-real-locomanipulation-tasks",
+      "name": "Three real loco-manipulation tasks",
+      "description": "Thirty trials per task report 27, 24, and 26 CLOT successes for T1, T2, and T3; only T1 includes an MPC baseline with 20 successes.",
+      "tags": [
+        "real_robot",
+        "success_rate",
+        "completion_time"
+      ],
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "id": "clot-thirty-minute-run",
+      "name": "Thirty-minute uninterrupted teleoperation",
+      "description": "The paper samples tracking errors at one hertz during a thirty-minute real run and reports stable bounded distributions, without numerical means in rendered text.",
+      "tags": [
+        "real_robot",
+        "long_horizon",
+        "drift"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "clot-independent-metric-definitions",
+      "name": "Independent kinematic and torque metrics",
+      "description": "The appendix defines global/local body error, root error, joint error, mean absolute joint torque, and temporal torque variability as evaluation metrics.",
+      "tags": [
+        "metric_definition",
+        "objective_evaluation",
+        "smoothness"
+      ],
+      "evidence_ids": [
+        "E19"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2602.15060",
+      "relation": "INTRODUCES",
+      "target": "clot-global-closed-loop-tracking",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "2602.15060",
+      "relation": "INTRODUCES",
+      "target": "clot-observation-preshift",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "source": "clot-observation-preshift",
+      "relation": "CONDITIONS_ON",
+      "target": "future-shifted reference window",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "source": "clot-current-time-reward-alignment",
+      "relation": "TRACKS",
+      "target": "unshifted current reference",
+      "evidence_ids": ["E5"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "USES",
+      "target": "clot-transformer-actor-critic",
+      "evidence_ids": ["E6", "E11"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "USES",
+      "target": "OptiTrack global pose feedback",
+      "evidence_ids": ["E7"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "OPTIMIZES",
+      "target": "clot-tracking-task-reward",
+      "evidence_ids": ["E4", "E8"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "OPTIMIZES",
+      "target": "clot-amp-style-reward",
+      "evidence_ids": ["E6"]
+    },
+    {
+      "source": "clot-amp-style-reward",
+      "relation": "REQUIRES",
+      "target": "motion-style dataset and discriminator training",
+      "evidence_ids": ["E6", "E11"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "REQUIRES",
+      "target": "clot-curated-reference-corpus",
+      "evidence_ids": ["E3"]
+    },
+    {
+      "source": "clot-observation-preshift",
+      "relation": "ADDRESSES",
+      "target": "clot-global-reward-conflict",
+      "evidence_ids": ["E5", "E15"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "ADDRESSES",
+      "target": "clot-local-frame-drift",
+      "evidence_ids": ["E18"]
+    },
+    {
+      "source": "clot-global-closed-loop-tracking",
+      "relation": "EVALUATES_ON",
+      "target": "Unitree G1 and PNDbotics Adam Pro",
+      "evidence_ids": ["E14", "E17"]
+    },
+    {
+      "source": "clot-independent-evaluation-suite",
+      "relation": "REPORTS",
+      "target": "clot-g1-simulation-comparison",
+      "evidence_ids": ["E14"]
+    },
+    {
+      "source": "clot-independent-evaluation-suite",
+      "relation": "REPORTS",
+      "target": "clot-preshift-recovery-ablation",
+      "evidence_ids": ["E15"]
+    },
+    {
+      "source": "clot-independent-evaluation-suite",
+      "relation": "REPORTS",
+      "target": "clot-real-locomanipulation-tasks",
+      "evidence_ids": ["E17"]
+    },
+    {
+      "source": "clot-independent-evaluation-suite",
+      "relation": "REPORTS",
+      "target": "clot-thirty-minute-run",
+      "evidence_ids": ["E18"]
+    },
+    {
+      "source": "clot-observation-preshift",
+      "relation": "MOTIVATES",
+      "target": "separate observation-reference and reward-reference manifests",
+      "evidence_ids": ["E5", "E9"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2602.15060",
+      "locator": "Abstract and submission history",
+      "claim": "The record identifies the paper, reports over 1300 GPU hours and a 31-DoF full-sized humanoid, and lists v2 on 20 February 2026 as the latest public version.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS1",
+      "locator": "Section III-A, Problem Formulation",
+      "claim": "The controller is a goal-conditioned PPO policy with a 23-dimensional joint-target action.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS2",
+      "locator": "Sections III-B and III-C; Table I",
+      "claim": "The authors captured about twenty hours of motion under contact and kinematic constraints and retarget it with whole-body IK.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS4",
+      "locator": "Section III-D, Basic Components for RL Training; Equation 2",
+      "claim": "The actor uses a ten-step future goal window and ten-step history; tracking rewards use exp(-err/sigma).",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS5.SSS1",
+      "locator": "Section III-E.1, Observation Pre-shift; Equation 3",
+      "claim": "Training randomly future-shifts the actor reference window while reward stays aligned with the current target; pre-shift is disabled at inference.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS5.SSS2",
+      "locator": "Sections III-E.2 and III-E.3; Equations 4-6",
+      "claim": "CLOT uses Transformer actor and critic networks and combines learned AMP style reward with task reward through a discriminator objective.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S3.SS6",
+      "locator": "Section III-F, Closed-Loop Real-World Teleoperation System",
+      "claim": "OptiTrack runs at 120 Hz, Hi5 finger capture at 60 Hz, policy at 50 Hz, and the PD controller at 400 Hz.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A1.T5",
+      "locator": "Appendix Table V, Reward Terms and Their Weights",
+      "claim": "The table enumerates twelve positive coefficients and twelve penalty coefficients used in RL training.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A1.T6",
+      "locator": "Appendix Table VI, Observation Details",
+      "claim": "The table gives complete observation tensor dimensions, including ten future references and ten history steps over 29 body points.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A1.T8",
+      "locator": "Appendix Table VIII, Curriculum Learning Parameters",
+      "claim": "The Observation Pre-shift row reports sigma 5e-6 and range [1,2] without units.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A1.T9",
+      "locator": "Appendix Table IX, Neural Network Architecture Parameters",
+      "claim": "Actor and critic use a 192-dimensional, four-head, three-block Transformer with 768-dimensional feedforward layers; the discriminator is a four-layer 1024-unit MLP.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A1.T10",
+      "locator": "Appendix Table X, PD Controller Parameters",
+      "claim": "The table lists fixed Adam Pro proportional and derivative gains by joint class.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A2.SS1",
+      "locator": "Appendix B-A, Experiment Setup",
+      "claim": "Final policy training used eight RTX 4090 GPUs for approximately one week in MJLab.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S4.T2",
+      "locator": "Section IV-A and Table II, Simulation Performance Comparison",
+      "claim": "The paper reports held-out G1 CLOT/TWIST2 results and Adam full/Transformer-only results over four tracking and two torque metrics.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S4.T3",
+      "locator": "Table III and Figure 6, Observation Pre-shift Ablation",
+      "claim": "With pre-shift, abrupt-error recovery has lower reported joint-torque and DOF-velocity fluctuation and smoothness statistics.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S4.SS1.SSS2",
+      "locator": "Section IV-A.2 and Figure 7, Network Architecture Ablation",
+      "claim": "At a 2.0-second pre-shift, the paper reports stable Transformer tracking while the MLP fails and falls.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S4.T4",
+      "locator": "Section IV-B.1 and Table IV, Real Task Performance",
+      "claim": "The table reports thirty-trial success and average success time for three real tasks, with an MPC comparison only on T1.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S4.SS2.SSS2",
+      "locator": "Section IV-B.2 and Figure 8, Long-horizon Teleoperation Stability",
+      "claim": "The authors ran thirty minutes uninterrupted, sampled tracking errors at one hertz, and report bounded distributions without numerical text summaries.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2602.15060v2#A2.SS2",
+      "locator": "Appendix B-B, Evaluation Metrics",
+      "claim": "The appendix defines global/local body, root, joint, mean-torque, and torque-variability metrics.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2602.15060v2#S5",
+      "locator": "Section V, Conclusion",
+      "claim": "Future work targets lightweight global localization and VR-based human motion tracking.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/zhutengjie/CLOT/blob/efcea1cf252d4164ece4d90b6d0e3211b5f1814f/README.md#L74-L125",
+      "locator": "Official README at efcea1c, lines 74-125",
+      "claim": "The release states that about ten hours are uploaded, defaults to eight RTX 4090 GPUs, and exposes MLP, Transformer, and AMP experiment variants.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/zhutengjie/CLOT/blob/efcea1cf252d4164ece4d90b6d0e3211b5f1814f/humanoidverse/config/domain_rand/main_adam.yaml#L112-L120",
+      "locator": "Official Adam domain-randomization YAML at efcea1c, lines 112-120",
+      "claim": "The pinned Adam default enables motion-time advance and declares a [0.5,1.5] second offset range.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/zhutengjie/CLOT/blob/efcea1cf252d4164ece4d90b6d0e3211b5f1814f/humanoidverse/config/domain_rand/main_g1.yaml#L115-L123",
+      "locator": "Official G1 domain-randomization YAML at efcea1c, lines 115-123",
+      "claim": "The pinned G1 default disables motion-time advance while declaring the same [0.5,1.5] second offset range.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

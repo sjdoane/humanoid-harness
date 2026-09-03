@@ -1,0 +1,577 @@
+{
+  "paper": {
+    "id": "2607.04837",
+    "arxiv_id": "2607.04837",
+    "doi": "10.48550/arXiv.2607.04837",
+    "title": "Athena-WBC: Capability-Aligned Policy Experts for Long-Tail Humanoid Whole-Body Control",
+    "authors": [
+      "Yuan Jiang",
+      "Ningyuan Zhang",
+      "Xicun Yang",
+      "Yuzhi Jiang",
+      "Jie Chen"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/abs/2607.04837v3",
+    "source_version": "Current arXiv v3 (2026-08-24) withdrawn; mechanism extraction from archived v2 (2026-07-07), PDF SHA-256 ce14fd2a8569b9016316883b3190e00eafa41b6349cb2bedcaea9314e2723b5a, source-archive SHA-256 e1bbf1519bad0b205cdf5442d9c17ad79c623635215ae754ab441d4c84a7a5ac; no public code revision linked",
+    "publication_status": "withdrawn"
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "task_reward",
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "Archived v2 gives a concrete reward-decomposition hypothesis, per-motion empirical routing pattern, and threshold/salience-aware evaluation metrics. Current v3 withdrawal makes the dataset and all reported results inadmissible; the node is retained only as a quarantined hypothesis and fixed-trainer counterexample.",
+    "not_evidence_for": [
+      "Any Athena-WBC performance claim, because arXiv v3 tells readers not to rely on the results while dataset authorization and governance are unresolved",
+      "A reference-composition or OGMP oracle method; Athena routes teacher supervision, not references or state-machine modes",
+      "Improvement under Sam's fixed trainer; Athena changes reward, observations, gravity, sampling, teacher count, DAgger, and PPO fine-tuning",
+      "Changing Sam's frozen tracking reward",
+      "Real-robot deployment, code availability, reproducibility, or RL-Sculptor implementation"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "athena.residual_failure_mining",
+      "name": "Residual failure mining",
+      "description": "Evaluate a general privileged teacher for 10 stochastic rollouts per training clip and admit clips with empirical success below 0.8 to one fixed residual set.",
+      "tags": ["long_tail", "clip_scoring", "training_set_coverage"],
+      "evidence_ids": ["ATH-MINE"]
+    },
+    {
+      "id": "athena.dynamic_reward_expert",
+      "name": "Tracking-focused dynamic expert",
+      "description": "Train on residual clips with tracking rewards and physical-constraint penalties retained, effort and temporal-control reward terms removed, and a second-difference actor-mean loss used for smoothness.",
+      "tags": ["task_reward", "reward_decomposition", "policy_regularization"],
+      "evidence_ids": ["ATH-REWARD"]
+    },
+    {
+      "id": "athena.balance_gravity_curriculum",
+      "name": "Balance expert gravity curriculum",
+      "description": "Scale gravity from an unspecified reduced value toward nominal gravity during training to extend early rollouts; evaluate only at nominal dynamics.",
+      "tags": ["curriculum", "balance", "trainer_change"],
+      "evidence_ids": ["ATH-GRAVITY"]
+    },
+    {
+      "id": "athena.motion_teacher_routing",
+      "name": "Per-motion best-teacher routing",
+      "description": "Freeze the general, dynamic, and balance teachers, then assign each training clip to the teacher with the highest empirical rollout success for distillation labels.",
+      "tags": ["routing", "teacher_selection", "not_reference_oracle"],
+      "evidence_ids": ["ATH-ROUTE"]
+    },
+    {
+      "id": "athena.distill_and_finetune",
+      "name": "DAgger distillation and PPO fine-tuning",
+      "description": "Roll out a deployable-observation student, label visited states with the routed privileged teacher, then run critic warm-up, gradual actor unfreezing, and PPO fine-tuning.",
+      "tags": ["DAgger", "PPO", "teacher_student", "trainer_change"],
+      "evidence_ids": ["ATH-DAGGER"]
+    },
+    {
+      "id": "athena.adaptive_clip_sampler",
+      "name": "Max-over-bin adaptive motion sampling",
+      "description": "Smooth threshold-normalized tracking errors per temporal bin, reduce each clip to its maximum bin difficulty, clip extremes, and mix difficulty-weighted sampling with a uniform component.",
+      "tags": ["adaptive_sampling", "data_allocation", "trainer_change"],
+      "evidence_ids": ["ATH-SAMPLER"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "teacher_evaluation_rollouts_per_clip",
+      "value": 10,
+      "units": "rollouts/clip",
+      "context": "Residual failure mining and per-motion teacher routing",
+      "evidence_ids": ["ATH-MINE"]
+    },
+    {
+      "name": "residual_failure_success_threshold",
+      "value": 0.8,
+      "units": "fraction",
+      "context": "A clip is residual when empirical teacher success is strictly below this value",
+      "evidence_ids": ["ATH-MINE"]
+    },
+    {
+      "name": "teacher_bank_size",
+      "value": 3,
+      "units": "policies",
+      "context": "General, dynamic, and balance privileged teachers",
+      "evidence_ids": ["ATH-MINE"]
+    },
+    {
+      "name": "dynamic_expert_reward_terms",
+      "value": {
+        "retained": ["tracking", "joint-position-limit", "joint-velocity-limit", "torque-limit", "foot-slip"],
+        "removed": ["torque-magnitude", "DoF-velocity", "DoF-acceleration", "action-rate", "torque-rate", "action-smoothness"]
+      },
+      "units": null,
+      "context": "Reported semantic reward decomposition; term weights are not provided in the paper",
+      "evidence_ids": ["ATH-REWARD"]
+    },
+    {
+      "name": "gravity_scale_range",
+      "value": "[alpha_min, 1]; alpha_min and schedule not reported",
+      "units": "fraction of nominal gravity",
+      "context": "Balance-expert continuation curriculum",
+      "evidence_ids": ["ATH-GRAVITY", "ATH-REPRO"]
+    },
+    {
+      "name": "actor_observation_dimensions",
+      "value": {"expert_teacher": 1837, "student": 2081},
+      "units": "dimensions",
+      "context": "Privileged expert versus deployable student actor input",
+      "evidence_ids": ["ATH-OBS"]
+    },
+    {
+      "name": "training_corpus",
+      "value": {"clips": 55482, "hours": 175.88},
+      "units": null,
+      "context": "Curated mocap plus AMASS, Bones-Seed, and BEAT subsets; dataset is affected by the v3 governance withdrawal",
+      "evidence_ids": ["ATH-SETUP", "ATH-WITHDRAWAL"]
+    },
+    {
+      "name": "parallel_training_environments",
+      "value": 16384,
+      "units": "environments",
+      "context": "Eight GPUs with 2,048 environments per GPU",
+      "evidence_ids": ["ATH-SETUP", "ATH-PPO"]
+    },
+    {
+      "name": "distributed_workers",
+      "value": 8,
+      "units": "GPUs",
+      "context": "Main policy training setup",
+      "evidence_ids": ["ATH-SETUP", "ATH-PPO"]
+    },
+    {
+      "name": "non_finetuned_training_horizon",
+      "value": 40000,
+      "units": "iterations",
+      "context": "Same stated budget for SONIC-Base, NoSmooth, and capability experts",
+      "evidence_ids": ["ATH-SETUP", "ATH-PPO"]
+    },
+    {
+      "name": "evaluation_training_seeds",
+      "value": 3,
+      "units": "seeds",
+      "context": "All reported values averaged over three training seeds",
+      "evidence_ids": ["ATH-PROTOCOL"]
+    },
+    {
+      "name": "evaluation_rollouts_per_clip_per_seed",
+      "value": 5,
+      "units": "rollouts",
+      "context": "Final deterministic action-mean evaluation under standard domain randomization",
+      "evidence_ids": ["ATH-PROTOCOL"]
+    },
+    {
+      "name": "success_thresholds",
+      "value": {"root_height_m": 0.2, "root_yaw_rad": 0.5, "max_key_body_position_m": 0.5},
+      "units": null,
+      "context": "Any frame exceeding any threshold fails the full-horizon rollout",
+      "evidence_ids": ["ATH-PROTOCOL"]
+    },
+    {
+      "name": "ppo_optimizer",
+      "value": "Adam",
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "ppo_clip_parameter",
+      "value": 0.2,
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "discount_factor",
+      "value": 0.99,
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "gae_lambda",
+      "value": 0.95,
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "learning_rate",
+      "value": 0.00002,
+      "units": null,
+      "context": "Adaptive learning-rate schedule",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "desired_kl",
+      "value": 0.01,
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "ppo_update_shape",
+      "value": {"learning_epochs": 5, "mini_batches": 4},
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "ppo_loss_coefficients",
+      "value": {"value": 50.0, "reconstruction": 1.0, "token": 1.0, "cycle": 1.0, "entropy": 0.005},
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "maximum_gradient_norm",
+      "value": 0.1,
+      "units": null,
+      "context": "Shared ablation configuration",
+      "evidence_ids": ["ATH-PPO"]
+    },
+    {
+      "name": "diagnostic_manifest_sizes",
+      "value": {"dynamic_clips": 1000, "dynamic_families": 133, "balance_clips": 1000, "balance_families": 396},
+      "units": null,
+      "context": "Automatically selected long-tail diagnostic subsets; data validity is affected by withdrawal",
+      "evidence_ids": ["ATH-MANIFEST", "ATH-WITHDRAWAL"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "athena.withdrawn_governance",
+      "name": "Withdrawn for dataset authorization and governance concerns",
+      "description": "Current arXiv v3 says the unresolved concerns affect the experimental dataset and consequently the reported results, and tells readers not to rely on the work.",
+      "tags": ["withdrawn", "data_governance", "evidence_quarantine"],
+      "evidence_ids": ["ATH-WITHDRAWAL"]
+    },
+    {
+      "id": "athena.reference_and_feasibility_confounding",
+      "name": "Reference quality and feasibility confound failure attribution",
+      "description": "Archived v2 states that residual failures may come from imperfect retargeting, data artifacts, or motions near embodiment limits, rather than the policy alone.",
+      "tags": ["reference_quality", "physical_feasibility", "causal_attribution"],
+      "evidence_ids": ["ATH-LIMITS"]
+    },
+    {
+      "id": "athena.coverage_generalization_tradeoff",
+      "name": "RL fine-tuning trades training coverage for held-out metrics",
+      "description": "Archived v2 reports that PPO fine-tuning worsens several full-training and diagnostic-subset metrics relative to the multi-teacher student even as held-out metrics improve.",
+      "tags": ["generalization", "coverage", "tradeoff", "withdrawn_result"],
+      "evidence_ids": ["ATH-LONGTAIL", "ATH-LIMITS", "ATH-WITHDRAWAL"]
+    },
+    {
+      "id": "athena.low_frequency_sway",
+      "name": "Low-frequency sway survives local smoothness regularization",
+      "description": "Archived v2 reports slow periodic sway and says increasing CAPS or Grad-CAPS weight did not eliminate it.",
+      "tags": ["motion_quality", "smoothness", "failure_mode"],
+      "evidence_ids": ["ATH-LIMITS"]
+    },
+    {
+      "id": "athena.reproduction_gap",
+      "name": "Essential mechanism hyperparameters are omitted",
+      "description": "The manuscript does not report alpha_min or the gravity schedule, Grad-CAPS lambda_reg, adaptive-sampler beta/D_max/epsilon/rho, DAgger auxiliary weight, or critic/actor fine-tuning schedules and noise magnitudes.",
+      "tags": ["reproducibility", "missing_parameters", "no_code_pin"],
+      "evidence_ids": ["ATH-REPRO", "ATH-NOCODE"]
+    },
+    {
+      "id": "athena.baseline_scope",
+      "name": "Recipe-level baseline on a different embodiment",
+      "description": "The paper uses a SONIC-recipe reimplementation on an 80 kg XPENG humanoid, not the released SONIC checkpoint, and says absolute numbers are not directly comparable.",
+      "tags": ["baseline", "embodiment", "external_validity"],
+      "evidence_ids": ["ATH-SETUP"]
+    },
+    {
+      "id": "athena.unsaturated_compute",
+      "name": "Behavior under saturated training is not established",
+      "description": "Archived v2 describes its compute budget as relatively small and calls for larger-budget, more-converged experiments.",
+      "tags": ["compute", "scaling", "evidence_gap"],
+      "evidence_ids": ["ATH-LIMITS"]
+    },
+    {
+      "id": "athena.no_quantitative_real_robot_validation",
+      "name": "No systematic quantitative real-robot validation",
+      "description": "Archived v2 says deployment is in progress on an internal, unreleased XPENG platform and defers systematic quantitative real-robot evaluation.",
+      "tags": ["deployment", "sim_to_real", "evidence_gap"],
+      "evidence_ids": ["ATH-LIMITS"]
+    },
+    {
+      "id": "athena.pipeline_complexity",
+      "name": "Multi-stage pipeline violates a fixed-trainer comparison",
+      "description": "Mining, multiple privileged teachers, routing, DAgger, curricula, sampling, and PPO fine-tuning add coupled variables and engineering cost beyond a two-knob harness.",
+      "tags": ["fixed_trainer", "confounding", "engineering_cost"],
+      "evidence_ids": ["ATH-PIPELINE", "ATH-LIMITS"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "athena.eval_protocol",
+      "name": "Full-horizon thresholded rollout evaluation",
+      "description": "Final deployable-observation policies use deterministic action means; each clip receives five domain-randomized rollouts per seed over three training seeds, and any threshold violation fails the rollout.",
+      "tags": ["evaluation", "success_rate", "replication"],
+      "evidence_ids": ["ATH-PROTOCOL"]
+    },
+    {
+      "id": "athena.stc_tis",
+      "name": "Success–Tolerance Curve and Threshold-Integrated Success",
+      "description": "STC scales all three success thresholds by s; TIS integrates SR(s) over s >= 0 with weight (1+s)^-2 to expose threshold sensitivity without selecting a maximum tolerance.",
+      "tags": ["evaluation", "threshold_sensitivity", "objective_metric"],
+      "evidence_ids": ["ATH-METRICS"]
+    },
+    {
+      "id": "athena.mpjpe_w",
+      "name": "Motion-Salience Weighted MPJPE",
+      "description": "Reference-only heading-local cumulative motion, normalized by root-to-point path length, supplies fixed per-clip point weights for tracking error.",
+      "tags": ["evaluation", "motion_salience", "objective_metric"],
+      "evidence_ids": ["ATH-METRICS"]
+    },
+    {
+      "id": "athena.reported_heldout_results_withdrawn",
+      "name": "Archived v2 held-out comparison (withdrawn)",
+      "description": "v2 reports SONIC-Base to RL-finetuned changes of AMASS SR 98.18% to 99.26%, TIS 0.7631 to 0.8034, MPJPE 68.26 to 63.63 mm; Omni SR 91.81% to 94.89%, TIS 0.7123 to 0.7449, MPJPE 70.39 to 65.11 mm. These are not admissible evidence after v3 withdrawal.",
+      "tags": ["withdrawn_result", "held_out", "not_admissible"],
+      "evidence_ids": ["ATH-HELDOUT", "ATH-WITHDRAWAL"]
+    },
+    {
+      "id": "athena.reported_longtail_results_withdrawn",
+      "name": "Archived v2 long-tail comparison (withdrawn)",
+      "description": "v2 reports multi-teacher balance SR 94.73% and MPJPE-W 88.61 mm versus SONIC-Base 90.60% and 101.99 mm, while RL fine-tuning degrades balance SR to 92.55% and MPJPE-W to 93.41 mm. These are not admissible evidence after v3 withdrawal.",
+      "tags": ["withdrawn_result", "long_tail", "not_admissible"],
+      "evidence_ids": ["ATH-LONGTAIL", "ATH-WITHDRAWAL"]
+    },
+    {
+      "id": "athena.reported_smoothness_ablation_withdrawn",
+      "name": "Archived v2 smoothness-placement ablation (withdrawn)",
+      "description": "v2 reports action rate 0.5447 for SONIC-Base, 1.4634 for NoSmooth, 0.8463 for CAPS, and 0.5627 for Grad-CAPS. These are not admissible evidence after v3 withdrawal.",
+      "tags": ["withdrawn_result", "reward_ablation", "smoothness", "not_admissible"],
+      "evidence_ids": ["ATH-SMOOTH", "ATH-WITHDRAWAL"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2607.04837",
+      "relation": "INTRODUCES",
+      "target": "mechanism:athena.dynamic_reward_expert",
+      "evidence_ids": ["ATH-REWARD"]
+    },
+    {
+      "source": "paper:2607.04837",
+      "relation": "INTRODUCES",
+      "target": "mechanism:athena.balance_gravity_curriculum",
+      "evidence_ids": ["ATH-GRAVITY"]
+    },
+    {
+      "source": "paper:2607.04837",
+      "relation": "INTRODUCES",
+      "target": "mechanism:athena.motion_teacher_routing",
+      "evidence_ids": ["ATH-ROUTE"]
+    },
+    {
+      "source": "mechanism:athena.residual_failure_mining",
+      "relation": "CONDITIONS_ON",
+      "target": "metric:per_clip_empirical_success",
+      "evidence_ids": ["ATH-MINE"]
+    },
+    {
+      "source": "mechanism:athena.dynamic_reward_expert",
+      "relation": "OPTIMIZES",
+      "target": "objective:tracking_plus_physical_constraints",
+      "evidence_ids": ["ATH-REWARD"]
+    },
+    {
+      "source": "mechanism:athena.dynamic_reward_expert",
+      "relation": "CONTRASTS_WITH",
+      "target": "objective:effort_and_temporal_reward_penalties",
+      "evidence_ids": ["ATH-REWARD"]
+    },
+    {
+      "source": "mechanism:athena.motion_teacher_routing",
+      "relation": "CONDITIONS_ON",
+      "target": "metric:per_clip_empirical_success",
+      "evidence_ids": ["ATH-ROUTE"]
+    },
+    {
+      "source": "mechanism:athena.motion_teacher_routing",
+      "relation": "SUPPORTS",
+      "target": "mechanism:athena.distill_and_finetune",
+      "evidence_ids": ["ATH-DAGGER"]
+    },
+    {
+      "source": "paper:2607.04837",
+      "relation": "USES",
+      "target": "method:SONIC_recipe_reimplementation",
+      "evidence_ids": ["ATH-SETUP"]
+    },
+    {
+      "source": "paper:2607.04837",
+      "relation": "REQUIRES",
+      "target": "constraint:trainer_changes_beyond_sam_two_knobs",
+      "evidence_ids": ["ATH-PIPELINE"]
+    },
+    {
+      "source": "evaluation:athena.stc_tis",
+      "relation": "SUPPORTS",
+      "target": "decision:independent_threshold_robust_evaluation",
+      "evidence_ids": ["ATH-METRICS"]
+    },
+    {
+      "source": "evaluation:athena.mpjpe_w",
+      "relation": "SUPPORTS",
+      "target": "decision:independent_motion_salience_evaluation",
+      "evidence_ids": ["ATH-METRICS"]
+    },
+    {
+      "source": "paper:2607.04837",
+      "relation": "REPORTS",
+      "target": "status:withdrawn_data_governance",
+      "evidence_ids": ["ATH-WITHDRAWAL"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ATH-WITHDRAWAL",
+      "source_url": "https://arxiv.org/abs/2607.04837v3",
+      "locator": "Status banner, Comments, and Submission history; v3 dated 2026-08-24",
+      "claim": "The paper is withdrawn because unresolved authorization and data-governance concerns affect the experimental dataset and reported results; readers are told not to rely on the work.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "ATH-PIPELINE",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Figure 1 and Method opening",
+      "claim": "The pipeline trains a general teacher, mines residual clips, trains dynamic and balance experts, routes frozen teachers per motion, distills one student, and PPO-fine-tunes it.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "ATH-MINE",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 3.1, equations success_rate, residual_failure_set_gen, and policy_set",
+      "claim": "Residual mining uses 10 rollouts per clip, a strict 0.8 empirical-success cutoff, and a bank of three teachers.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-REWARD",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 2.1 reward_components and Section 3.1 equations caps_reward_family through ppo_gradcaps_loss",
+      "claim": "The dynamic expert keeps tracking and physical-constraint terms, removes effort and temporal reward terms, and adds an actor-mean second-difference regularizer.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-GRAVITY",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 3.1, equation gravity_curriculum",
+      "claim": "The balance expert gradually raises gravity scale from alpha_min to nominal and evaluates under nominal dynamics.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-ROUTE",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 3.2, equations routed_teacher_index and routing_table",
+      "claim": "Each motion is assigned to the frozen teacher with the highest empirical success rate; routing selects supervision during distillation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-DAGGER",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Sections 3.3–3.4, equation distill_loss",
+      "claim": "A student labels its visited states with routed privileged-teacher actions, then receives critic-only warm-up, gradual actor unfreezing, and PPO fine-tuning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-SAMPLER",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Appendix B, equations bin_score through clip_rollout_prob",
+      "claim": "The adaptive sampler smooths per-bin threshold-normalized errors, uses each clip's maximum bin difficulty, clips extremes, and mixes with uniform sampling.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "ATH-OBS",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Table 1",
+      "claim": "The expert actor observation has 1,837 dimensions and the deployable student has 2,081 dimensions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "ATH-SETUP",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 4.1 Experimental Setup",
+      "claim": "The paper reports 55,482 clips/175.88 hours, an 80 kg unreleased XPENG humanoid, a same-platform SONIC recipe reimplementation, 8 GPUs, 16,384 environments, and 40,000 main iterations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-PROTOCOL",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 4.2, equations success_rate_threshold through TIS_def",
+      "claim": "Evaluation averages three seeds and five rollouts per clip and uses 0.20 m root-height, 0.50 rad yaw, and 0.50 m max key-body full-horizon thresholds.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-METRICS",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Section 4.2 and Appendix C, equations STC_s, TIS, and MPJPE_W",
+      "claim": "The paper defines STC, TIS with weighting (1+s)^-2, and reference-derived Motion-Salience Weighted MPJPE.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "ATH-HELDOUT",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Table 3 heldout_results and text immediately below",
+      "claim": "Archived v2 reports held-out SR, TIS, MPJPE, MPJPE-W, and action-rate comparisons; v3 withdrawal makes these results inadmissible.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "ATH-LONGTAIL",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Table 4 long_tail_recovery and analysis",
+      "claim": "Archived v2 reports long-tail expert specialization and worse post-fine-tuning training-subset metrics; v3 withdrawal makes these results inadmissible.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "ATH-SMOOTH",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Table smoothness_ablation and figures smoothness_clip_scatter, smoothness_action_psd, and smoothness_case_timeseries",
+      "claim": "Archived v2 reports a tracking-versus-action-jitter trade-off across reward smoothness, NoSmooth, CAPS, and Grad-CAPS; v3 withdrawal makes these results inadmissible.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "ATH-PPO",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Appendix A, Table ppo-hparams",
+      "claim": "The appendix reports the shared Adam/PPO hyperparameters, 16,384 environments, 8 GPUs, and a 40,000-iteration horizon.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "ATH-MANIFEST",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Appendix D, Generated manifests and scope",
+      "claim": "The diagnostic pipeline reports 1,000 dynamic clips from 133 families and 1,000 balance clips from 396 families.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "ATH-LIMITS",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Limitations section",
+      "claim": "The paper reports incomplete coverage, reference/feasibility confounding, low-frequency sway, pipeline complexity, compute limits, and no systematic quantitative real-robot validation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-REPRO",
+      "source_url": "https://arxiv.org/pdf/2607.04837v2",
+      "locator": "Archived v2, Sections 3.1–3.4 and Appendix A–B; symbolic values contrasted with the hyperparameter table",
+      "claim": "Core mechanism values are absent: alpha_min/gravity schedule, lambda_reg, sampler beta/D_max/epsilon/rho, DAgger lambda_aux, and fine-tuning warm-up/unfreezing/noise schedules.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "ATH-NOCODE",
+      "source_url": "https://export.arxiv.org/e-print/2607.04837v2",
+      "locator": "Archived v2 TeX source, main.tex title metadata: code and webpage fields remain commented placeholders",
+      "claim": "The archived manuscript does not link an official code repository or project page, so no implementation revision can be pinned.",
+      "evidence_type": "paper_text"
+    }
+  ]
+}

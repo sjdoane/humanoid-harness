@@ -1,0 +1,1293 @@
+{
+  "paper": {
+    "id": "2606.12299",
+    "arxiv_id": "2606.12299",
+    "doi": "10.48550/arXiv.2606.12299",
+    "title": "Learning What to Say to Your VLA: Mostly Harmless Vision Language Action Model Steering",
+    "authors": [
+      "Hyun Joe Jeong",
+      "Gokul Swamy",
+      "Andrea Bajcsy"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.12299v1",
+    "source_version": "arXiv v1, submitted 2026-06-10 16:34:49 UTC; sole public revision verified 2026-08-30; versioned PDF SHA-256 fa4dd25e486992ec12456d89120256bca93f2401eea37af0b397b6e5077f402e; TeX-source archive SHA-256 4c83b87ed733f214e15fb0bb7fd0824fa2e4fcd4032cb096732944484827ed0e. Official project page pinned to hyunjjoe/hyunjjoe.github.io commit ade26372286f790bf5a4a6eb19d6b2652f46dadd (2026-06-11); its Code control is a disabled coming-soon placeholder, so no paper implementation revision is public."
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper gives a concrete closed-loop language-steering wrapper around a frozen VLA, an interaction-based candidate-versus-base improvement estimator, and a conformal refusal rule with harmful-intervention metrics. These are useful interface and evaluation evidence for human steering and fallback logic. They are not either allowed RL-Sculptor artifact: the method emits language rather than executable references, leaves its binary task reward fixed and unspecified as code, and trains a new LFP and improvement head outside Sam's two-knob frozen-trainer contract.",
+    "not_evidence_for": [
+      "An executable reference oracle, reference trajectory, composition grammar, phase clock, guard, transition, or recovery state machine",
+      "Generation, revision, or validation of executable task-reward code",
+      "An outer loop that revises Sam's oracle_k or task_reward_k from independent metrics",
+      "A fully fixed trainer when the LFP and improvement head are newly trained",
+      "Universal or distribution-free harmlessness outside calibration/deployment exchangeability",
+      "A guarantee relative to exact expected improvement rather than empirical Monte Carlo labels",
+      "Controller-, embodiment-, task-, or VLA-independent transfer",
+      "A public implementation matched to the reported experiments"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mechanism:2606.12299:language-steering-mdp",
+      "name": "Language steering MDP around a frozen VLA",
+      "description": "Natural-language strings are the high-level actions. At each replan, an LFP maps current RGB and a fixed task description to a language action; the frozen VLA maps RGB, proprioception, and that string to a low-level action chunk, and the composed VLA-world system induces the transition dynamics. The objective is expected binary trajectory success.",
+      "tags": [
+        "language_action",
+        "frozen_vla",
+        "hierarchical_control",
+        "receding_horizon",
+        "binary_task_reward"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:narrated-proposal",
+      "name": "Narrated language-sequence proposal distribution",
+      "description": "Molmo2-8B decomposes and narrates base-VLA videos into per-observation subtask language. Cross-entropy LoRA fine-tuning of Qwen3-VL-4B-Instruct turns those tuples into a structured proposal distribution over language actions instead of searching the full open vocabulary.",
+      "tags": [
+        "narration",
+        "vlm",
+        "supervised_finetuning",
+        "proposal_distribution"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E08",
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:trajectory-level-interactive-search",
+      "name": "Trajectory-level interactive language search",
+      "description": "GPT-5.4 rewrites an entire narrated sequence into 16 semantics-preserving candidates. Independent closed-loop rollouts estimate each sequence's binary-success improvement over repeating the original task instruction, and the highest estimated-improvement sequence is retained.",
+      "tags": [
+        "interactive_search",
+        "trajectory_level",
+        "semantic_perturbation",
+        "monte_carlo",
+        "candidate_selection"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E05",
+        "E09"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:rft-language-feedback-policy",
+      "name": "Rejection-fine-tuned language feedback policy",
+      "description": "Per-step observation, task-description, and selected-language tuples from positive-improvement search results supervise a second LoRA stage, distilling searched sequences into a greedily decoded closed-loop LFP while leaving the base VLA frozen.",
+      "tags": [
+        "rejection_finetuning",
+        "distillation",
+        "language_feedback_policy",
+        "closed_loop"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E08",
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:improvement-head",
+      "name": "Initial-state improvement head",
+      "description": "A small MLP on the frozen RFT model's final hidden state regresses empirical task-level language improvement from the initial observation and task instruction. The uncalibrated policy deploys the LFP only when the predicted improvement is nonnegative.",
+      "tags": [
+        "improvement_prediction",
+        "regression",
+        "initial_state",
+        "refusal"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E10"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:conformal-refusal",
+      "name": "Class-conditional conformal refusal",
+      "description": "Scores from harmful held-out examples, defined by negative empirical improvement, set a finite-sample upper quantile. Deployment steers only above that threshold and otherwise reuses the original instruction; under harmful-class exchangeability, the paper bounds the probability of allowing harmful steering by alpha.",
+      "tags": [
+        "conformal_prediction",
+        "fallback",
+        "harmful_intervention",
+        "false_positive_rate",
+        "calibration"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E12"
+      ]
+    },
+    {
+      "id": "mechanism:2606.12299:closed-loop-deployment",
+      "name": "Replan-synchronous language feedback",
+      "description": "Once steering is admitted, the LFP is queried at each VLA replan and can change its utterance as the RGB observation changes. The frozen VLA then executes a receding-horizon action chunk under the current utterance, creating an observation-to-language-to-action feedback path.",
+      "tags": [
+        "closed_loop",
+        "replanning",
+        "language_feedback",
+        "recovery"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E09",
+        "E13",
+        "E19"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_artifact_hashes",
+      "value": {
+        "pdf_sha256": "fa4dd25e486992ec12456d89120256bca93f2401eea37af0b397b6e5077f402e",
+        "tex_source_sha256": "4c83b87ed733f214e15fb0bb7fd0824fa2e4fcd4032cb096732944484827ed0e"
+      },
+      "units": null,
+      "context": "Exact arXiv v1 bytes retrieved and hashed on 2026-08-30.",
+      "evidence_ids": [
+        "E20",
+        "E21"
+      ]
+    },
+    {
+      "name": "official_project_snapshot",
+      "value": {
+        "repository_commit": "ade26372286f790bf5a4a6eb19d6b2652f46dadd",
+        "project_page_blob_sha": "34d90d03bff29de3c88f9cde29dbd6783723a64b",
+        "official_algorithm_code_revision": null,
+        "code_status": "coming soon"
+      },
+      "units": null,
+      "context": "Paper-linked author project page inspected on 2026-08-30; the Code control is disabled and links to '#'.",
+      "evidence_ids": [
+        "E22"
+      ]
+    },
+    {
+      "name": "base_vla_execution_contract",
+      "value": {
+        "simulation": "pi_0.5-LIBERO",
+        "hardware": "pi_0.5-DROID",
+        "hardware_robot": "Franka Emika",
+        "visual_inputs": [
+          "wrist camera",
+          "third-person camera"
+        ],
+        "vla_updates_during_language_training": false
+      },
+      "units": null,
+      "context": "Base low-level policies used in the simulation and hardware studies.",
+      "evidence_ids": [
+        "E02",
+        "E08"
+      ]
+    },
+    {
+      "name": "task_reward_contract",
+      "value": {
+        "range": [
+          0,
+          1
+        ],
+        "scope": "trajectory-level task success",
+        "generated_or_revised": false,
+        "executable_monitor_specified": false
+      },
+      "units": null,
+      "context": "The fixed binary outcome used to define the language MDP, candidate improvement, and reported success; the paper does not provide its executable implementation or hardware adjudication protocol.",
+      "evidence_ids": [
+        "E02",
+        "E11",
+        "E23"
+      ]
+    },
+    {
+      "name": "language_feedback_policy_backbone",
+      "value": {
+        "model": "Qwen3-VL-4B-Instruct",
+        "adaptation": "LoRA",
+        "decoding": "greedy"
+      },
+      "units": null,
+      "context": "LFP initialization and train/test decoding.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "narrated_demonstrations_per_task",
+      "value": 50,
+      "units": "videos per task",
+      "context": "Base-VLA rollout videos narrated by Molmo2-8B in both simulation and hardware.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "local_language_candidates",
+      "value": {
+        "count": 16,
+        "teacher": "GPT-5.4",
+        "reasoning_mode": "high",
+        "edit_unit": "complete narrated sequence",
+        "edit_types": [
+          "verb",
+          "noun",
+          "mixed"
+        ]
+      },
+      "units": null,
+      "context": "Trajectory-level semantics-preserving perturbations per task/decomposition.",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "name": "interactive_search_rollout_allocation",
+      "value": {
+        "simulation": {
+          "initial_per_candidate": 25,
+          "retained_candidates": 8,
+          "additional_per_retained_candidate": 75
+        },
+        "hardware": {
+          "initial_per_candidate": 10,
+          "retained_candidates": 8,
+          "additional_per_retained_candidate": 20
+        }
+      },
+      "units": "rollouts",
+      "context": "Two-stage Monte Carlo language-improvement estimation; steered and base rollouts are independently initialized from the same initial-state distribution.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "rft_successful_demonstrations",
+      "value": 50,
+      "units": "demonstrations per task",
+      "context": "Successful on-policy demonstrations from the selected language sequence used for rejection fine-tuning.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "calibration_samples",
+      "value": 20,
+      "units": "samples per perturbation combination",
+      "context": "Held-out visual and semantic perturbation calibration in both simulation and hardware.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "conformal_refusal_rule",
+      "value": {
+        "main_alpha": 0.1,
+        "harmful_label": "empirical improvement < 0",
+        "rank": "ceil((m+1)*(1-alpha))",
+        "threshold": "harmful_score_order_statistic_at_rank",
+        "if_rank_exceeds_harmful_count": "+infinity",
+        "deployment_rule": "steer iff predicted improvement >= threshold"
+      },
+      "units": null,
+      "context": "Finite-sample class-conditional calibration; the FPR guarantee requires harmful-class calibration/deployment exchangeability.",
+      "evidence_ids": [
+        "E07",
+        "E12"
+      ]
+    },
+    {
+      "name": "calibration_alpha_sweep",
+      "value": [
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35,
+        0.4
+      ],
+      "units": null,
+      "context": "Simulation reliability evaluation, with 10 held-out episodes per condition and five randomized calibration/test splits.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "deployment_language_update_cadence",
+      "value": {
+        "LIBERO_environment_steps": 5,
+        "DROID_environment_steps": 8
+      },
+      "units": "environment steps per language query",
+      "context": "The LFP is queried at every base-VLA replan.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "narrated_sft_lora",
+      "value": {
+        "rank": 64,
+        "alpha": 128,
+        "dropout": 0,
+        "target_modules": [
+          "q",
+          "k",
+          "v",
+          "o",
+          "gate",
+          "up",
+          "down_proj"
+        ]
+      },
+      "units": null,
+      "context": "Qwen3-VL-4B-Instruct narrated fine-tuning adapter.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "narrated_sft_optimization",
+      "value": {
+        "optimizer": "AdamW",
+        "learning_rate": 0.00001,
+        "weight_decay": 0.01,
+        "batch_size": 1,
+        "gradient_accumulation": false,
+        "epochs": 1,
+        "precision": "bfloat16",
+        "loss": "cross-entropy"
+      },
+      "units": null,
+      "context": "Narrated fine-tuning hyperparameters.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "rejection_finetuning_optimization",
+      "value": {
+        "initialization": "SFT LoRA checkpoint with frozen base",
+        "optimizer": "AdamW",
+        "learning_rate": 0.00001,
+        "weight_decay": 0,
+        "batch_size": 1,
+        "epochs": 1,
+        "precision": "bfloat16",
+        "loss": "cross-entropy"
+      },
+      "units": null,
+      "context": "Expert-iteration/RFT language-policy hyperparameters.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "improvement_head_architecture",
+      "value": {
+        "backbone": "frozen RFT language policy",
+        "feature": "final hidden state",
+        "feature_normalization": "per-dimension z-score",
+        "hidden_width": 64,
+        "output_width": 1,
+        "activation": "ReLU",
+        "dropout": 0.1
+      },
+      "units": null,
+      "context": "Initial-observation/task improvement predictor.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "improvement_head_optimization",
+      "value": {
+        "optimizer": "Adam",
+        "learning_rate": 0.001,
+        "weight_decay": 0.001,
+        "loss": "MSE",
+        "maximum_epochs": 200,
+        "early_stopping": true,
+        "validation_fraction": 0.2
+      },
+      "units": null,
+      "context": "Improvement regression hyperparameters.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "training_hardware",
+      "value": "NVIDIA A6000 Ada",
+      "units": null,
+      "context": "Paper reports this device for all LFP and improvement-head training runs.",
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "name": "simulation_evaluation_design",
+      "value": {
+        "tasks": 10,
+        "visual_conditions": 4,
+        "semantic_conditions_per_visual_condition": 5,
+        "task_visual_semantic_combinations": 200,
+        "rollouts_per_combination": 50,
+        "pooled_rollouts": 10000,
+        "metric": "binary rollout success with standard error"
+      },
+      "units": null,
+      "context": "LIBERO-OOD training and held-out evaluation suite.",
+      "evidence_ids": [
+        "E08",
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "name": "hardware_evaluation_design",
+      "value": {
+        "training_tasks": 4,
+        "conditions_per_training_task": 3,
+        "novel_tasks": 2,
+        "trials_per_task_condition": 30,
+        "robot": "Franka Emika"
+      },
+      "units": null,
+      "context": "Nominal, visual-OOD, semantic-OOD, and novel-task hardware evaluation.",
+      "evidence_ids": [
+        "E08",
+        "E11",
+        "E17"
+      ]
+    },
+    {
+      "name": "simulation_refusal_success",
+      "value": {
+        "always_steer_percent": 70.93,
+        "zero_threshold_refusal_percent": 74.96,
+        "conformal_refusal_percent": 75.96
+      },
+      "units": "percent success",
+      "context": "Ten thousand rollouts pooled across 200 simulation perturbation combinations.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "harmful_steering_confusion_results",
+      "value": {
+        "simulation": {
+          "uncalibrated_fpr_percent": 38.92,
+          "conformal_fpr_percent": 9.31,
+          "uncalibrated_refusal_percent": 43.42,
+          "conformal_refusal_percent": 57.66
+        },
+        "hardware": {
+          "uncalibrated_fpr_percent": 61.11,
+          "conformal_fpr_percent": 2.22,
+          "uncalibrated_refusal_percent": 9.72,
+          "conformal_refusal_percent": 24.72
+        }
+      },
+      "units": "percent",
+      "context": "Zero-threshold RFT versus alpha=0.10 conformal policy.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "simulation_success_by_visual_condition",
+      "value": {
+        "train_environment": {
+          "base_vla": 51.2,
+          "rft": 63.9,
+          "conformal": 63.8
+        },
+        "id_scene_ood_distractor": {
+          "base_vla": 46.7,
+          "rft": 55.0,
+          "conformal": 54.2
+        },
+        "ood_scene_id_distractor": {
+          "base_vla": 92.4,
+          "rft": 92.5,
+          "conformal": 95.0
+        },
+        "ood_scene_ood_distractor": {
+          "base_vla": 89.8,
+          "rft": 88.5,
+          "conformal": 90.9
+        }
+      },
+      "units": "percent success",
+      "context": "Pooled over tasks and semantic perturbations; the last condition is Visual-Scene, where uncalibrated RFT harms the base by 1.3 percentage points.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "search_structure_ablation",
+      "value": {
+        "open_loop_static": {
+          "success_percent": 71.3,
+          "standard_error_percent": 0.5,
+          "refusal_percent": 43.5
+        },
+        "closed_loop_phrase_level": {
+          "success_percent": 70.4,
+          "standard_error_percent": 0.5,
+          "refusal_percent": 45.9
+        },
+        "closed_loop_trajectory_level": {
+          "success_percent": 75.0,
+          "standard_error_percent": 0.4,
+          "refusal_percent": 43.4
+        }
+      },
+      "units": "percent",
+      "context": "Simulation ablation pooled across all perturbation combinations.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "novel_composition_failures",
+      "value": {
+        "tasks_with_zero_success_for_all_methods": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22
+        ],
+        "task_15_success_percent": {
+          "base_vla": 40.0,
+          "direct_vla_finetuning": 46.0,
+          "rft_language_steering": 30.0
+        }
+      },
+      "units": null,
+      "context": "Thirteen unseen Compose tasks; explicit reachable-behavior and steering boundary.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "microwave_semantic_hardware_success",
+      "value": {
+        "base_vla_percent": 66.7,
+        "sft_percent": 40.0,
+        "rft_percent": 46.7,
+        "conformal_percent": 70.0
+      },
+      "units": "percent success",
+      "context": "Less-steerable hardware task under semantic perturbation; uncalibrated RFT harms the base and calibrated refusal recovers above it.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "replanning_latency",
+      "value": {
+        "base_vla": {
+          "milliseconds": 68,
+          "hertz": 14.7
+        },
+        "language_feedback_policy_milliseconds": 204,
+        "composite": {
+          "milliseconds": 274,
+          "hertz": 3.6
+        },
+        "measurement_replans": 50,
+        "environment_rate_hz": 20,
+        "environment_steps_per_replan": 5,
+        "gpu": "NVIDIA A6000 Ada"
+      },
+      "units": null,
+      "context": "Simulation inference-time comparison; autoregressive language generation is the dominant added latency.",
+      "evidence_ids": [
+        "E18"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "failure:2606.12299:unsteerable-or-out-of-support",
+      "name": "Language unsteerability or missing low-level skill",
+      "description": "The frozen VLA can ignore language or map a semantically reasonable edit to unintended actions, and language cannot create a low-level behavior outside the VLA's support. The paper gives pouring with a pick-and-place robot as an example of an unsupported request.",
+      "tags": [
+        "behavioral_support",
+        "language_conditioning",
+        "frozen_controller",
+        "failure"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E14"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:ood-harm",
+      "name": "OOD steering can degrade a successful base policy",
+      "description": "Small-data RFT can produce false-positive interventions under distribution shift. Reported examples include a 1.3-point Visual-Scene loss and a Microwave semantic drop from 66.7% base success to 46.7% under uncalibrated RFT.",
+      "tags": [
+        "distribution_shift",
+        "harmful_intervention",
+        "overfitting",
+        "negative_result"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E15",
+        "E17"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:conditional-conformal-bound",
+      "name": "Harmlessness guarantee is distribution- and label-conditional",
+      "description": "The FPR bound requires calibration and deployment examples to be exchangeable within the harmful class. Harmful labels come from negative empirical Monte Carlo improvement, so the theorem does not certify arbitrary OOD deployment, exact expected improvement, physical safety, or task completion.",
+      "tags": [
+        "exchangeability",
+        "conformal_prediction",
+        "empirical_label",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E07"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:reward-monitor-unspecified",
+      "name": "Binary task reward is not executable or provenance-complete",
+      "description": "The paper defines r as binary trajectory success and reports binary success rates, but does not give a reward program, termination contract, simulation monitor, hardware rater, inter-rater process, or exact outcome-label provenance. It therefore cannot instantiate Sam's executable task-reward artifact.",
+      "tags": [
+        "task_reward",
+        "implementation_gap",
+        "evaluation_provenance",
+        "not_executable"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E11",
+        "E23"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:local-search-coverage",
+      "name": "Local paraphrase search leaves most language space unexplored",
+      "description": "The candidate set is restricted to paraphrases around one narrated sequence. The authors identify efficient coverage of large, diverse, realistic linguistic perturbations as future work.",
+      "tags": [
+        "search_space",
+        "local_search",
+        "coverage",
+        "limitation"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E14"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:fixed-trainer-mismatch",
+      "name": "Frozen VLA does not imply a frozen Sam harness",
+      "description": "Reported fact: although the low-level VLA is frozen, the method trains two new components, the LoRA LFP and improvement head, and inserts them in the control path. Project implication: those are neither oracle_k nor task_reward_k, so adopting them changes Sam's experiment family rather than one permitted artifact.",
+      "tags": [
+        "fixed_trainer",
+        "scope_boundary",
+        "third_artifact",
+        "trainable_wrapper"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:novel-composition-limit",
+      "name": "Language steering does not unlock all novel compositions",
+      "description": "Every evaluated method scores zero on Compose tasks 16 through 22, and RFT underperforms both the base VLA and direct fine-tuning on task 15. Language-level composition remains bounded by the frozen VLA's reachable behaviors and the learned language mapping.",
+      "tags": [
+        "composition",
+        "generalization",
+        "behavioral_support",
+        "negative_result"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:language-generation-latency",
+      "name": "Autoregressive language feedback reduces control cadence",
+      "description": "The reported wrapper adds 204 ms of LFP inference, increasing total replan latency from 68 to 274 ms and reducing frequency from 14.7 to 3.6 Hz on the measured simulation stack.",
+      "tags": [
+        "latency",
+        "replanning",
+        "compute",
+        "deployment"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:qualitative-recovery-only",
+      "name": "Mid-task recovery evidence is qualitative",
+      "description": "The paper shows one adversarial cube-replacement rollout where an updated utterance recovers, but reports no repeated recovery rate, perturbation distribution, or uncertainty for that intervention.",
+      "tags": [
+        "recovery",
+        "qualitative_evidence",
+        "evaluation_gap"
+      ],
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "id": "failure:2606.12299:no-public-implementation",
+      "name": "No public paper implementation",
+      "description": "The exact official project snapshot labels Code as coming soon. The reported implementation therefore cannot be checked against a public revision, dependency lock, checkpoint, simulator version, reward monitor, prompt serialization, or exact API snapshot.",
+      "tags": [
+        "reproducibility",
+        "official_code",
+        "version_pin",
+        "artifact_gap"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E22",
+        "E23"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "evaluation:2606.12299:libero-ood-robustness",
+      "name": "LIBERO-OOD visual-semantic robustness",
+      "description": "Ten LIBERO tasks are crossed with four visual conditions and five semantic instructions for 200 combinations and 50 rollouts each. The paper reports binary success with standard error and separates the LFP training environment from held-out scene, distractor, and language conditions.",
+      "tags": [
+        "simulation",
+        "libero_ood",
+        "visual_shift",
+        "semantic_shift",
+        "success_rate"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E11",
+        "E15"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:franka-hardware",
+      "name": "Franka task and perturbation evaluation",
+      "description": "Thirty trials per condition test four training tasks under nominal, visual-OOD, and semantic-OOD settings plus two unseen tasks with a zero-shot pi_0.5-DROID base VLA.",
+      "tags": [
+        "hardware",
+        "franka",
+        "visual_shift",
+        "semantic_shift",
+        "novel_tasks"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E11",
+        "E17"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:refusal-calibration",
+      "name": "Harmful-intervention refusal evaluation",
+      "description": "Always-steer, zero-threshold refusal, and alpha=0.10 conformal refusal are compared on success, accuracy, TPR, FPR, TNR, FNR, and refusal rate. A separate simulation sweep tests target versus empirical FPR over alpha 0.05 through 0.40 and five randomized splits.",
+      "tags": [
+        "conformal_calibration",
+        "false_positive_rate",
+        "refusal",
+        "harmlessness",
+        "reliability"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E12"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:search-structure-ablation",
+      "name": "Open-loop versus closed-loop search ablation",
+      "description": "Static task-instruction rewriting, independently perturbed closed-loop phrases, and complete trajectory-level closed-loop sequences are compared on pooled simulation success and refusal rate.",
+      "tags": [
+        "ablation",
+        "open_loop",
+        "closed_loop",
+        "trajectory_level"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:data-efficiency",
+      "name": "On-policy data scaling against direct VLA fine-tuning",
+      "description": "RFT language steering and action-labeled VLA LoRA are trained with 10, 30, and 50 successful on-policy rollouts per task. The paper reports that 10 RFT rollouts match or exceed direct VLA fine-tuning with 50. Accounting boundary: this count excludes the LFP's 50 narrated videos per task, teacher-model calls, and interactive-search rollouts; the direct-fine-tuning arm also changes the controller and is outside Sam's fixed boundary.",
+      "tags": [
+        "sample_efficiency",
+        "on_policy_data",
+        "direct_finetuning",
+        "baseline"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E11"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:novel-composition",
+      "name": "Unseen behavior composition suite",
+      "description": "Thirteen new combinations of learned LIBERO behaviors test whether language can recompose skills already in the frozen VLA. Seven tasks are unsolved by every method, exposing a reachable-behavior boundary.",
+      "tags": [
+        "composition",
+        "generalization",
+        "unseen_tasks",
+        "negative_result"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E16"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:qualitative-midtask-recovery",
+      "name": "Adversarial mid-task recovery demonstration",
+      "description": "After a human moves a correctly placed cube back into the scene, the closed-loop LFP emits a corrective language action and recovers while the base VLA misplaces the cube. This is a qualitative demonstration without a repeated recovery metric.",
+      "tags": [
+        "hardware",
+        "recovery",
+        "adversarial_perturbation",
+        "qualitative"
+      ],
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "id": "evaluation:2606.12299:inference-latency",
+      "name": "Component-wise replanning latency",
+      "description": "Fifty simulation replans on one NVIDIA A6000 Ada separate base-VLA latency from language-generation latency and report the resulting control frequency.",
+      "tags": [
+        "latency",
+        "compute",
+        "replanning_frequency",
+        "deployment"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:language-steering-mdp",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:narrated-proposal",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:trajectory-level-interactive-search",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:rft-language-feedback-policy",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:improvement-head",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:conformal-refusal",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2606.12299:closed-loop-deployment",
+      "evidence_ids": [
+        "E02",
+        "E09"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:language-steering-mdp",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:2606.12299:binary-trajectory-task-reward",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:language-steering-mdp",
+      "relation": "REQUIRES",
+      "target": "concept:2606.12299:frozen-pretrained-vla",
+      "evidence_ids": [
+        "E02",
+        "E08"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:trajectory-level-interactive-search",
+      "relation": "OPTIMIZES",
+      "target": "concept:2606.12299:empirical-language-improvement-over-base",
+      "evidence_ids": [
+        "E03",
+        "E05"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:rft-language-feedback-policy",
+      "relation": "USES",
+      "target": "mechanism:2606.12299:trajectory-level-interactive-search",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:improvement-head",
+      "relation": "OPTIMIZES",
+      "target": "concept:2606.12299:empirical-improvement-regression",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:conformal-refusal",
+      "relation": "ADDRESSES",
+      "target": "failure:2606.12299:ood-harm",
+      "evidence_ids": [
+        "E07",
+        "E12"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:conformal-refusal",
+      "relation": "REQUIRES",
+      "target": "concept:2606.12299:harmful-class-exchangeability",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:closed-loop-deployment",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:2606.12299:current-rgb-and-task-instruction",
+      "evidence_ids": [
+        "E02",
+        "E09"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:closed-loop-deployment",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:2606.12299:static-open-loop-prompt",
+      "evidence_ids": [
+        "E13",
+        "E19"
+      ]
+    },
+    {
+      "source": "mechanism:2606.12299:conformal-refusal",
+      "relation": "SUPPORTS",
+      "target": "evaluation:2606.12299:refusal-calibration",
+      "evidence_ids": [
+        "E07",
+        "E12"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2606.12299:libero-ood-robustness",
+      "evidence_ids": [
+        "E08",
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2606.12299:franka-hardware",
+      "evidence_ids": [
+        "E08",
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2606.12299:search-structure-ablation",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2606.12299:data-efficiency",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2606.12299:novel-composition",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "REPORTS",
+      "target": "evaluation:2606.12299:qualitative-midtask-recovery",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "REPORTS",
+      "target": "evaluation:2606.12299:inference-latency",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "REPORTS",
+      "target": "failure:2606.12299:novel-composition-limit",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "source": "2606.12299",
+      "relation": "REPORTS",
+      "target": "failure:2606.12299:no-public-implementation",
+      "evidence_ids": [
+        "E22"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2606.12299v1",
+      "locator": "arXiv record, title/authors block and submission history",
+      "claim": "The record gives the exact title, three authors, arXiv DOI, cs.RO/cs.LG categories, and a single v1 submission at 2026-06-10 16:34:49 UTC.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S3",
+      "locator": "Section 3, Notation and Language Steering as an MDP, Eq. 1",
+      "claim": "The LFP selects a natural-language string at each replan; a frozen VLA maps observation, proprioception, and language to an action chunk; the VLA-world composition induces the dynamics; and r(xi; task) is binary trajectory success.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S4",
+      "locator": "Section 4, Language Improvement, Eq. 2",
+      "claim": "Language improvement is the expected binary task reward of a candidate closed-loop language sequence minus the expected reward of the base VLA receiving the original instruction, with both initial states drawn from the same task/context distribution.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S4.SS1",
+      "locator": "Section 4.1, Phase 1, Eq. 3",
+      "claim": "Observation-only videos paired with task descriptions are decomposed and narrated into observation/task/language tuples, then used for supervised language-policy fine-tuning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S4.SS1",
+      "locator": "Section 4.1, Phase 2, Eqs. 4-5",
+      "claim": "An LLM rewrites complete seed sequences into N semantics-preserving candidates, closed-loop rollouts estimate each candidate's improvement, the maximum is selected, and selected per-step tuples supervise rejection fine-tuning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S4.SS1",
+      "locator": "Section 4.1, improvement head and Phase 3, Eq. 6",
+      "claim": "A square-loss head predicts empirical improvement from the initial observation and task instruction; zero-threshold refusal falls back to the original instruction, and the paper reports OOD harm from false-positive steering.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.SS2",
+      "locator": "Appendix 7.2, Eqs. 8-9",
+      "claim": "For m harmful calibration examples, k=ceil((m+1)(1-alpha)); the threshold is the kth harmful score or positive infinity when k exceeds m. Under harmful-class exchangeability, allowing steering on a harmful example has probability at most alpha.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S5.SS1",
+      "locator": "Section 5.1, Experimental Setup",
+      "claim": "Experiments use frozen pi_0.5-LIBERO and pi_0.5-DROID VLAs, a Qwen3-VL-4B-Instruct LoRA LFP, greedy decoding, 50 videos per task narrated by Molmo2-8B, 16 GPT-5.4 sequence perturbations, LIBERO-OOD, four hardware training tasks, and two novel hardware tasks.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.SS1",
+      "locator": "Appendix 7.1, Interactive Language Search, Conformalization, and Deployment-time Steering",
+      "claim": "GPT-5.4 runs in high-reasoning mode; simulation search uses 25 then 75 rollouts for the top eight, hardware uses 10 then 20 for the top eight, RFT uses 50 successful demonstrations per task, calibration uses 20 samples per perturbation combination, training uses an NVIDIA A6000 Ada, and LFP queries occur every five LIBERO or eight DROID steps.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.T3",
+      "locator": "Appendix Tables 3-5",
+      "claim": "The tables report the exact SFT LoRA targets and rank/alpha/dropout, SFT and RFT optimization settings, and the frozen-backbone d-to-64-to-1 improvement head with its Adam/MSE training settings.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S5.SS2",
+      "locator": "Section 5.2, Methods, Evaluation and Metrics, and data-scaling result",
+      "claim": "Mean binary success with standard error is measured over 50 simulation rollouts per task/perturbation combination and 30 hardware trials; the comparison includes base VLA, direct action-labeled VLA LoRA, off-the-shelf VLM, narrated SFT, RFT, and conformal variants, plus a 10/30/50-rollout data-scaling study.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S5.SS3",
+      "locator": "Section 5.3, Figure 6 and Table 1",
+      "claim": "Across 10,000 pooled simulation rollouts, always-steer, zero-threshold refusal, and conformal refusal achieve 70.93%, 74.96%, and 75.96% success. At alpha 0.10, FPR changes from 38.92% to 9.31% in simulation and 61.11% to 2.22% in hardware; the alpha sweep uses 10 test episodes per condition and five randomized splits.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S5.SS4",
+      "locator": "Section 5.4 and Table 2",
+      "claim": "Static open-loop, phrase-level closed-loop, and trajectory-level closed-loop search report 71.3+/-0.5%, 70.4+/-0.5%, and 75.0+/-0.4% success, with refusal rates 43.5%, 45.9%, and 43.4%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S6",
+      "locator": "Section 6, Limitations",
+      "claim": "The authors state that language is not always the best control authority and that local paraphrase search still leaves a fundamentally large language space unresolved.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.T10",
+      "locator": "Appendix Table 10 and preceding Result Breakdown",
+      "claim": "Per-visual-condition simulation success is tabulated. In the OOD-scene/OOD-distractor condition, base, RFT, and conformal success are 89.8%, 88.5%, and 90.9%, so uncalibrated steering loses 1.3 points and calibration gains 1.1 points over base.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.T11",
+      "locator": "Appendix Table 11 and preceding Result Breakdown",
+      "claim": "On 13 novel Compose tasks, tasks 16-22 have zero success for every method; on task 15, base VLA, direct VLA fine-tuning, and RFT score 40%, 46%, and 30%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.T12",
+      "locator": "Appendix Table 12 and preceding hardware breakdown",
+      "claim": "Thirty-trial hardware results are tabulated by task and condition. On Microwave semantic OOD, base VLA, narrated SFT, RFT, and conformal success are 66.7%, 40.0%, 46.7%, and 70.0%.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S7.T13",
+      "locator": "Appendix 7.4, Inference Time Comparison, Table 13",
+      "claim": "Over 50 replans on one NVIDIA A6000 Ada, the base VLA takes 68 ms at 14.7 Hz; LFP generation takes 204 ms; the composite takes 274 ms at 3.6 Hz, with five 20-Hz environment steps per replan.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S5.F7",
+      "locator": "Section 5.4 and Figure 7",
+      "claim": "In one qualitative mid-task intervention, a person returns a placed cube to the scene; the LFP updates its utterance to put the green block in the blue bin and recovers, while the base VLA puts it in the wrong bin.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/pdf/2606.12299v1",
+      "locator": "Exact versioned PDF retrieved 2026-08-30",
+      "claim": "The reviewed 22-page v1 PDF has SHA-256 fa4dd25e486992ec12456d89120256bca93f2401eea37af0b397b6e5077f402e.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://export.arxiv.org/e-print/2606.12299v1",
+      "locator": "Exact versioned TeX source archive retrieved 2026-08-30",
+      "claim": "The reviewed v1 source archive has SHA-256 4c83b87ed733f214e15fb0bb7fd0824fa2e4fcd4032cb096732944484827ed0e.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/hyunjjoe/hyunjjoe.github.io/blob/ade26372286f790bf5a4a6eb19d6b2652f46dadd/LanguagePolicy/index.html#L209-L227",
+      "locator": "Official author project repository, commit ade2637, LanguagePolicy/index.html lines 209-227",
+      "claim": "The exact project-page source identifies the paper as under review, links arXiv, and renders Code (coming soon) as a disabled control whose href is '#'; no paper implementation revision is linked.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://arxiv.org/html/2606.12299v1#S3",
+      "locator": "Section 3 binary-reward definition; Section 5.2 binary-success protocol; complete v1 source reviewed",
+      "claim": "The paper specifies the reward only as binary trajectory success and reports binary rollout success; it does not supply executable success/reward code, simulation termination logic, or a hardware outcome-adjudication protocol.",
+      "evidence_type": "paper_text"
+    }
+  ]
+}

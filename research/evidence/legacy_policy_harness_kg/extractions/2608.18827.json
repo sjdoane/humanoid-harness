@@ -1,0 +1,976 @@
+{
+  "paper": {
+    "id": "2608.18827",
+    "arxiv_id": "2608.18827",
+    "doi": "10.48550/arXiv.2608.18827",
+    "title": "MLREF: Efficient Module Reuse for Reward Design in Reinforcement Learning via Large Language Models",
+    "authors": [
+      "Chenglin Liu",
+      "Xun Wang",
+      "Ruishuo Chen",
+      "Zhuoran Li",
+      "Longbo Huang"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2608.18827v1",
+    "source_version": "arXiv v1, submitted 2026-08-19 11:36:55 UTC; sole public revision verified 2026-08-30; PDF SHA-256 bfdaf574bb3c241d046be9d447ef2cdceebd0adab387ff77411a668f41863aff; TeX-source SHA-256 eae7c2d2600e2f07009a84ef3534d9ef2a9b183c9f4fd06e2c14cef685462852. No official project or code URL is supplied in v1 or its source archive, so no implementation revision is pinned."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "MLREF directly evolves executable task rewards while keeping each task-local policy-training setup fixed. Its persistent module pool, typed edit operations, component-level credit heuristic, matched candidate budget, and explicit rollback provide transferable reward-harness interfaces; its formal separation of candidate reward from policy fitness also motivates an independent evaluator contract.",
+    "not_evidence_for": [
+      "reference-motion selection, ordering, composition, transition, recovery, or certification",
+      "a reference-conditioned policy, reference oracle, OGMP state machine, or playback clock",
+      "cross-task transfer of reward modules; reuse is demonstrated only across iterations within a task",
+      "natural-language human steering or preference translation",
+      "foundation-controller, VIBE, humanoid motion-tracking, or physical-robot integration",
+      "causal contribution of an individual module from reward-performance correlation",
+      "safe, deterministic, bounded, or side-effect-free execution of LLM-generated Python",
+      "an exact reproducible implementation of the printed UCB selector",
+      "a complete frozen MDP, controller, software, and dependency manifest",
+      "RL-Sculptor implementation of MLREF"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mlref.module_pool",
+      "name": "Persistent reward-module pool",
+      "description": "The persistent optimization object is a pool of named reward modules. A reward function is only a temporary linear combination assembled from selected pool members, so successful modules can survive the function and iteration that introduced them.",
+      "tags": [
+        "task_reward",
+        "module_reuse",
+        "persistent_pool",
+        "executable_reward"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E04"
+      ]
+    },
+    {
+      "id": "mlref.reflection_guided_generation",
+      "name": "Reflection-guided module generation",
+      "description": "Initial task reflection identifies success, useful or harmful behavior, and non-obvious strategies; environment reflection extracts available variable names, types, shapes, and descriptions. Later reflection compares prior and best pools and their outcomes, or analyzes a training error trace, before the LLM plans another pool variant.",
+      "tags": [
+        "task_reflection",
+        "environment_reflection",
+        "feedback_reflection",
+        "training_trace"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E11"
+      ]
+    },
+    {
+      "id": "mlref.specification_and_typed_mutation",
+      "name": "Specification-first modules and typed pool edits",
+      "description": "Initialization separates module specification from implementation. Each specification names the module, typed input variables, and intended behavior; later plans apply add, delete/remove, modify-code-under-fixed-specification, or rewrite-specification-and-code operations with rationales.",
+      "tags": [
+        "module_specification",
+        "typed_inputs",
+        "edit_plan",
+        "lineage"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E11"
+      ]
+    },
+    {
+      "id": "mlref.hybrid_module_credit",
+      "name": "Hybrid semantic and correlation credit",
+      "description": "Each module receives an LLM credit from normalized proposed weights and a correlation credit from lagged Pearson correlations between its reward curve and the policy-performance curve, including raw and slow-difference series. Both are EMA-smoothed, normalized, and fused into a composite score.",
+      "tags": [
+        "credit_assignment",
+        "pearson_correlation",
+        "time_lag",
+        "ema",
+        "llm_judgment"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "id": "mlref.ucb_reward_assembly",
+      "name": "UCB-selected linear reward assembly",
+      "description": "A UCB bonus augments each fused module score to explore underused modules. The top-K modules are selected, and their fused composite scores become the non-negative weights in the executable linear reward combination.",
+      "tags": [
+        "module_selection",
+        "ucb",
+        "reward_weights",
+        "linear_combination"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "id": "mlref.module_merge_and_rollback",
+      "name": "Thresholded merge with rollback",
+      "description": "Parallel pool variants more than margin t below the historical best are discarded. Surviving modules are unioned, same-name collisions retain the best-performing version, and a round with no survivor restores the prior pool while preserving failed attempts for reflection.",
+      "tags": [
+        "rollback",
+        "failure_recovery",
+        "parallel_variants",
+        "module_merge"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E10"
+      ]
+    },
+    {
+      "id": "mlref.fixed_trainer_reward_search",
+      "name": "Task-local fixed-trainer reward search",
+      "description": "Each candidate reward trains PPO in the same task-local environment configuration for 3,000 epochs and returns fitness plus module traces to the reward-design loop. After selection, the final reward trains a policy from scratch for 20,000 epochs on five seeds; the reference/oracle surface is not changed.",
+      "tags": [
+        "fixed_trainer",
+        "ppo",
+        "fitness_feedback",
+        "fresh_seed_evaluation"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E12"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_artifact",
+      "value": {
+        "arxiv_version": "2608.18827v1",
+        "submitted_utc": "2026-08-19T11:36:55Z",
+        "pages": 22,
+        "figures": 5,
+        "tables": 4,
+        "pdf_sha256": "bfdaf574bb3c241d046be9d447ef2cdceebd0adab387ff77411a668f41863aff",
+        "tex_source_sha256": "eae7c2d2600e2f07009a84ef3534d9ef2a9b183c9f4fd06e2c14cef685462852",
+        "official_code_revision": null
+      },
+      "units": null,
+      "context": "Exact public bytes reviewed. The v1 paper and source archive supply no official project or repository URL.",
+      "evidence_ids": [
+        "E01",
+        "E17"
+      ]
+    },
+    {
+      "name": "reward_representation",
+      "value": "R(s,a) = sum_{k=1}^K w_k * m_k(s,a)",
+      "units": null,
+      "context": "Temporary executable reward assembled as a weighted linear combination of selected modules.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "initial_module_count",
+      "value": {
+        "minimum": 4,
+        "maximum": 6
+      },
+      "units": "module specifications per initial pool",
+      "context": "Range requested by the pool-initialization prompt.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "module_specification_fields",
+      "value": [
+        "module name",
+        "input variable names",
+        "input variable types",
+        "natural-language intended-function description"
+      ],
+      "units": null,
+      "context": "Metadata produced before implementation; the implementation prompt requires one Python function returning torch.Tensor and matching the specification.",
+      "evidence_ids": [
+        "E05",
+        "E11"
+      ]
+    },
+    {
+      "name": "pool_improvement_operations",
+      "value": [
+        "add",
+        "delete/remove",
+        "modify code with fixed specification",
+        "rewrite specification and code"
+      ],
+      "units": "operation types",
+      "context": "Permitted per-module mutations; every operation includes a rationale.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "mlref_outer_loop_budget",
+      "value": {
+        "complete_pipeline_runs": 3,
+        "iterations_per_run": 9,
+        "parallel_pool_variants_per_iteration": 3,
+        "derived_candidate_policy_trainings": 81,
+        "selection": "best complete pipeline execution"
+      },
+      "units": "candidate-policy trainings per task",
+      "context": "81 is the exact product 3 x 9 x 3; it is comparable to each 80-candidate baseline budget.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "policy_training_protocol",
+      "value": {
+        "algorithm": "PPO",
+        "candidate_epochs": 3000,
+        "final_epochs": 20000,
+        "final_random_seeds": 5,
+        "initialization": "final policy trained from scratch",
+        "ppo_hyperparameters": "same as EUREKA"
+      },
+      "units": "environment epochs and seeds",
+      "context": "Candidate and final-policy training protocol; v1 does not restate EUREKA's PPO hyperparameters.",
+      "evidence_ids": [
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "name": "pool_merge_margin_t",
+      "value": 0.1,
+      "units": "unspecified fitness margin",
+      "context": "Discard a pool variant when its RL performance falls below the historical best by more than this margin; no normalization or task-metric unit is given.",
+      "evidence_ids": [
+        "E06",
+        "E10"
+      ]
+    },
+    {
+      "name": "correlation_credit_parameters",
+      "value": {
+        "smoothing_window_w_s": 30,
+        "difference_window_w_d": 30,
+        "maximum_lag_L": 10,
+        "raw_correlation_weight_w_raw": 0.5
+      },
+      "units": "training-curve steps except dimensionless weight",
+      "context": "Moving-average, slow-difference, lagged-correlation, and raw/difference mixture settings.",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "credit_fusion_parameters",
+      "value": {
+        "ema_update_rate_alpha": 0.7,
+        "correlation_softmax_temperature_tau": 0.25,
+        "llm_credit_weight_w_LLM": 0.5
+      },
+      "units": null,
+      "context": "Smoothing and equal fusion of normalized LLM and correlation credit.",
+      "evidence_ids": [
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "name": "module_selection_parameters",
+      "value": {
+        "ucb_exploration_gamma": 0.2,
+        "maximum_selected_modules_K": 5
+      },
+      "units": null,
+      "context": "UCB exploration coefficient and maximum modules assembled into one candidate reward.",
+      "evidence_ids": [
+        "E08",
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "name": "llm_configuration",
+      "value": {
+        "model_label": "DeepSeek-V4-Flash",
+        "mode": "reasoning/thinking",
+        "provider_path": "official API",
+        "snapshot_or_api_revision": null
+      },
+      "units": null,
+      "context": "All main MLREF LLM calls; no dated model snapshot, endpoint revision, sampling temperature, or LLM seed is reported.",
+      "evidence_ids": [
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "name": "baseline_outer_loop_budgets",
+      "value": {
+        "EUREKA": {
+          "iterations": 5,
+          "samples_per_iteration": 16,
+          "candidate_trainings": 80
+        },
+        "RF-Agent": {
+          "MCTS_updates": 80
+        }
+      },
+      "units": "candidate evaluations per task",
+      "context": "Original baseline configurations used for candidate-budget matching.",
+      "evidence_ids": [
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "name": "benchmark_task_count",
+      "value": {
+        "paper_labelled_locomotion": 7,
+        "manipulation": 10,
+        "total": 17,
+        "suites": [
+          "Isaac Gym",
+          "Bi-DexHands"
+        ]
+      },
+      "units": "simulation tasks",
+      "context": "Main comparison suite; the seven-task group includes Allegro Hand, Franka Cabinet, and Shadow Hand despite the paper's locomotion label.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "locomotion_aggregate_result",
+      "value": {
+        "MLREF": 3.288,
+        "RF-Agent": 2.625,
+        "EUREKA": 2.135,
+        "relative_gain_over_best_baseline_percent": 25.2,
+        "MLREF_task_wins": 4,
+        "task_count": 7
+      },
+      "units": "average normalized score except percentage and counts",
+      "context": "Per-task normalization is (raw - sparse)/(human - sparse), using sparse and human baselines from RF-Agent.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "manipulation_aggregate_result",
+      "value": {
+        "MLREF": 0.708,
+        "EUREKA": 0.664,
+        "RF-Agent": 0.651,
+        "relative_gain_over_best_baseline_percent": 6.6,
+        "MLREF_task_wins": 2,
+        "task_count": 10
+      },
+      "units": "average raw performance except percentage and counts",
+      "context": "Bi-DexHands manipulation aggregate and individual-task win count.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "three_task_ablation_average",
+      "value": {
+        "full_MLREF_percent": 100.0,
+        "GPT-4o_percent": 40.9,
+        "no_pool_percent": 73.2,
+        "no_reflection_percent": 53.3,
+        "no_weight_optimization_percent": 63.9
+      },
+      "units": "percent of full MLREF",
+      "context": "Average over Ant, Block Stack, and Bottle Cap with other reported settings held identical.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "block_stack_main_result",
+      "value": {
+        "MLREF_mean": 0.313,
+        "MLREF_standard_deviation": 0.244,
+        "RF-Agent_mean": 0.139,
+        "RF-Agent_standard_deviation": 0.096,
+        "EUREKA_mean": 0.116,
+        "EUREKA_standard_deviation": 0.05
+      },
+      "units": "raw task-performance metric",
+      "context": "Sparse-reward manipulation task that the authors identify as retaining modest absolute performance.",
+      "evidence_ids": [
+        "E13",
+        "E16"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "mlref.failure.generated_code_crash",
+      "name": "Invalid generated code can crash RL training",
+      "description": "The paper explicitly states that LLM hallucination can produce invalid code that crashes RL training. MLREF reacts to the returned error trace during feedback reflection rather than documenting a pre-execution proof of safety or validity.",
+      "tags": [
+        "generated_code",
+        "runtime_failure",
+        "hallucination",
+        "post_failure_recovery"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E11"
+      ]
+    },
+    {
+      "id": "mlref.failure.redundant_or_conflicting_modules",
+      "name": "Pool redundancy and conflicting incentives",
+      "description": "The authors identify naive pool accumulation as a source of redundant or conflicting incentives. The merge rule resolves same-name versions by performance, but v1 does not define semantic deduplication for differently named modules.",
+      "tags": [
+        "module_conflict",
+        "redundancy",
+        "pool_growth",
+        "semantic_identity"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E06"
+      ]
+    },
+    {
+      "id": "mlref.failure.correlational_credit",
+      "name": "Correlation credit is not causal attribution",
+      "description": "Lagged Pearson correlation between a module reward curve and the policy-performance curve is associational: policy learning, other modules, and changing assemblies can affect both. No module-level intervention study validates the individual credit scores causally.",
+      "tags": [
+        "credit_assignment",
+        "correlation",
+        "confounding",
+        "causal_evidence_gap"
+      ],
+      "evidence_ids": [
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "id": "mlref.failure.ucb_notation_collision",
+      "name": "Printed UCB selector is self-ambiguous",
+      "description": "Appendix A.3 prints u_i as the UCB score on the left while also defining u_i as the module's selection count in the denominator and prose, then says modules are ranked by u_i. No official code is linked to disambiguate the implementation.",
+      "tags": [
+        "formula_ambiguity",
+        "ucb",
+        "reproducibility",
+        "missing_code"
+      ],
+      "evidence_ids": [
+        "E09",
+        "E17"
+      ]
+    },
+    {
+      "id": "mlref.failure.merge_margin_units",
+      "name": "Merge-margin units are unspecified",
+      "description": "The fixed soft-update threshold is t=0.1, but v1 does not state whether the task-local fitness is normalized before applying the margin or otherwise define its units. This prevents an exact cross-task implementation contract.",
+      "tags": [
+        "threshold",
+        "normalization",
+        "metric_contract",
+        "under_specified"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E10",
+        "E13"
+      ]
+    },
+    {
+      "id": "mlref.failure.sparse_task_performance",
+      "name": "Sparse-reward manipulation remains weak",
+      "description": "The authors call MLREF's absolute Block Stack performance modest despite its improvement over baselines and identify early exploration versus progressive exploitation as unresolved.",
+      "tags": [
+        "sparse_reward",
+        "block_stack",
+        "exploration",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E13",
+        "E16"
+      ]
+    },
+    {
+      "id": "mlref.failure.llm_dependence",
+      "name": "Strong LLM-backbone dependence",
+      "description": "Replacing DeepSeek-V4-Flash with GPT-4o yields only 40.9 percent of full MLREF performance in the three-task ablation. The main experiments use one proprietary API model label, and open-source LLMs are left for future evaluation.",
+      "tags": [
+        "llm_backbone",
+        "generality",
+        "api_model",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E14",
+        "E16"
+      ]
+    },
+    {
+      "id": "mlref.failure.selection_and_significance_gap",
+      "name": "Best-of-three selection without outer-loop uncertainty",
+      "description": "MLREF returns the best of three complete stochastic pipeline runs. The paper reports five-seed final-policy means and standard deviations but not variance across reward-search executions, aggregate confidence intervals, or significance tests.",
+      "tags": [
+        "best_of_n",
+        "selection_bias",
+        "uncertainty",
+        "statistical_evidence"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "id": "mlref.failure.validation_test_protocol_gap",
+      "name": "Validation-to-test claim is under-specified",
+      "description": "The authors state that only full MLREF's validation-selected reward remains best at test on all three ablation tasks, but v1 does not define the validation/test construction, split sizes, selection noise, or separate scores.",
+      "tags": [
+        "validation",
+        "test",
+        "overfitting",
+        "protocol_gap"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "mlref.failure.executable_reward_safety_gap",
+      "name": "Prompt contract is not an execution-safety boundary",
+      "description": "The prompts require a typed single-function TorchScript-compatible reward, but v1 documents no sandbox, static allowlist, purity check, resource bound, bounded-output check, or pre-execution semantic validator.",
+      "tags": [
+        "execution_safety",
+        "torchscript",
+        "generated_python",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E11",
+        "E17"
+      ]
+    },
+    {
+      "id": "mlref.failure.reproduction_pin_gap",
+      "name": "No code, exact model snapshot, or complete runtime pin",
+      "description": "The paper supplies formulas, prompts, and top-level hyperparameters, but no official code URL, implementation revision, dependency lock, environment manifest, exact DeepSeek API snapshot, sampling temperature, or LLM seed; PPO details are inherited by reference to EUREKA.",
+      "tags": [
+        "code_availability",
+        "model_version",
+        "dependencies",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E12",
+        "E17"
+      ]
+    },
+    {
+      "id": "mlref.failure.simulation_only_scope",
+      "name": "Simulation-only and reward-only scope",
+      "description": "All reported tasks are from Isaac Gym or Bi-DexHands. There is no physical-robot, safety, perturbation-recovery, cross-MDP transfer, reference-composition, or oracle experiment.",
+      "tags": [
+        "simulation_only",
+        "external_validity",
+        "reference_boundary",
+        "transfer_gap"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E13",
+        "E16"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "mlref.eval.matched_candidate_budget",
+      "name": "Matched outer-loop candidate budget",
+      "description": "Three MLREF executions of nine iterations and three variants produce 81 candidate-policy trainings per task, compared with 80 EUREKA candidates and 80 RF-Agent MCTS updates. Every candidate receives 3,000 epochs.",
+      "tags": [
+        "compute_budget",
+        "candidate_count",
+        "baseline_protocol",
+        "fixed_trainer"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "id": "mlref.eval.seventeen_task_comparison",
+      "name": "Seventeen-task final-policy comparison",
+      "description": "After five-seed 20,000-epoch PPO retraining from scratch, MLREF reports a 3.288 normalized average on seven paper-labelled locomotion tasks versus RF-Agent's 2.625, and a 0.708 average on ten manipulation tasks versus EUREKA's 0.664. MLREF has the best individual mean on four and two tasks respectively.",
+      "tags": [
+        "isaac_gym",
+        "bi_dexhands",
+        "five_seeds",
+        "baseline_comparison"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "id": "mlref.eval.component_ablation",
+      "name": "Three-task mechanism and model ablation",
+      "description": "On Ant, Block Stack, and Bottle Cap, no pool, no reflection, and no weight optimization average 73.2, 53.3, and 63.9 percent of full MLREF; GPT-4o averages 40.9 percent. Bottle Cap is a negative exception where no pool scores 0.988 versus full MLREF's 0.987.",
+      "tags": [
+        "ablation",
+        "negative_result",
+        "reflection",
+        "module_pool",
+        "weight_optimization"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "mlref.eval.iterative_dynamics",
+      "name": "Best-sample evolution curves",
+      "description": "The authors compare the best candidate at each normalized progress point and report smoother MLREF trajectories on the all-task average, Shadow Hand, and Catch Abreast. MLREF curves use the best variant among three independent runs; all-task curves min-max normalize each task before averaging.",
+      "tags": [
+        "optimization_stability",
+        "evolution_curve",
+        "best_sample",
+        "normalization"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "mlref.eval.validation_test_observation",
+      "name": "Three-task validation-to-test observation",
+      "description": "The paper states that on all three ablation tasks, only full MLREF consistently keeps the validation-selected reward best at test, while ablated variants frequently underperform. No split construction or separate numeric test table is reported.",
+      "tags": [
+        "validation",
+        "test",
+        "overfitting",
+        "qualitative_claim"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "id": "mlref.eval.public_artifact_audit",
+      "name": "Public artifact reproducibility audit",
+      "description": "The exact arXiv v1 PDF and source are pinned and include formulas, prompts, and hyperparameters. They include no official code/project URL; the printed UCB notation is ambiguous and the DeepSeek API model is not snapshot-pinned.",
+      "tags": [
+        "artifact_identity",
+        "paper_hash",
+        "missing_code",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E01",
+        "E09",
+        "E10",
+        "E17"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2608.18827",
+      "relation": "INTRODUCES",
+      "target": "mlref.module_pool",
+      "evidence_ids": [
+        "E02",
+        "E04"
+      ]
+    },
+    {
+      "source": "2608.18827",
+      "relation": "INTRODUCES",
+      "target": "mlref.reflection_guided_generation",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "2608.18827",
+      "relation": "INTRODUCES",
+      "target": "mlref.hybrid_module_credit",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "2608.18827",
+      "relation": "INTRODUCES",
+      "target": "mlref.module_merge_and_rollback",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "mlref.module_pool",
+      "relation": "COMPOSES",
+      "target": "executable_weighted_task_reward",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "mlref.reflection_guided_generation",
+      "relation": "CONDITIONS_ON",
+      "target": "task_description_environment_code_and_training_feedback",
+      "evidence_ids": [
+        "E07",
+        "E11"
+      ]
+    },
+    {
+      "source": "mlref.specification_and_typed_mutation",
+      "relation": "SUPPORTS",
+      "target": "mlref.module_pool",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "source": "mlref.hybrid_module_credit",
+      "relation": "USES",
+      "target": "normalized_llm_weight_credit",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "mlref.hybrid_module_credit",
+      "relation": "USES",
+      "target": "lagged_reward_performance_correlation",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "mlref.ucb_reward_assembly",
+      "relation": "CONDITIONS_ON",
+      "target": "mlref.hybrid_module_credit",
+      "evidence_ids": [
+        "E08",
+        "E09"
+      ]
+    },
+    {
+      "source": "mlref.module_merge_and_rollback",
+      "relation": "ADDRESSES",
+      "target": "reward_evolution_regression",
+      "evidence_ids": [
+        "E06",
+        "E15"
+      ]
+    },
+    {
+      "source": "mlref.fixed_trainer_reward_search",
+      "relation": "OPTIMIZES",
+      "target": "executable_weighted_task_reward",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "mlref.fixed_trainer_reward_search",
+      "relation": "REQUIRES",
+      "target": "task_local_fixed_environment_ppo_and_candidate_budget",
+      "evidence_ids": [
+        "E03",
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "source": "mlref.fixed_trainer_reward_search",
+      "relation": "EVALUATES_ON",
+      "target": "Isaac_Gym_and_Bi-DexHands_17_task_suite",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "source": "2608.18827",
+      "relation": "CONTRASTS_WITH",
+      "target": "EUREKA_and_RF-Agent_function_level_reward_search",
+      "evidence_ids": [
+        "E02",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "source": "mlref.module_pool",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.versioned_reward_module_registry",
+      "evidence_ids": [
+        "E04",
+        "E05"
+      ]
+    },
+    {
+      "source": "mlref.module_merge_and_rollback",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.reward_revision_rollback_gate",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "source": "2608.18827",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.independent_reward_fitness_evaluator",
+      "evidence_ids": [
+        "E03",
+        "E12"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2608.18827v1",
+      "locator": "Submission header and history; official v1 PDF and TeX-source bytes retrieved 2026-08-30",
+      "claim": "The title, authors, arXiv ID, submission timestamp, 22-page/5-figure/4-table metadata, sole v1 history, and exact reviewed PDF/source hashes identify the public paper artifact.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S1.T1",
+      "locator": "Section 1, paragraphs 3-5 and Table 1",
+      "claim": "Function-level reward search loses effective components; naive module accumulation can create redundancy or conflicting incentives; MLREF instead uses a persistent named pool, per-module credit, semantic guidance, and explicit rollback.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S3.SS2",
+      "locator": "Section 3.2, reward-design-problem definition",
+      "claim": "The formal reward-design problem separates fixed environment E and policy optimizer A, candidate reward R, trained policy pi_R, and policy fitness F.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S4.SS1",
+      "locator": "Section 4.1, Equation 1, Figure 1, and Algorithm 1",
+      "claim": "MLREF assembles a temporary weighted linear reward from persistent pool modules, trains parallel candidates, merges or rolls back using fitness, reflects on feedback, and returns the best reward across iterations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S4.SS2.SSS1",
+      "locator": "Sections 4.2.1-4.2.2",
+      "claim": "Module metadata contains name, typed inputs, and intended-function description; initialization separates specification from code, and improvement uses add, delete, modify, and rewrite operations with rationales.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S4.SS2.SSS3",
+      "locator": "Section 4.2.3",
+      "claim": "Variants more than margin t below historical best are discarded; survivor modules are unioned, same-name collisions retain the best-performing version, and no survivor triggers rollback while failures enter later reflection.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S4.SS3",
+      "locator": "Section 4.3 and subsections",
+      "claim": "Task, environment, and feedback reflection precede generation; the paper states that hallucinated invalid code can crash RL training and that an error trace is analyzed after failure.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2608.18827v1#A1",
+      "locator": "Section 4.4 and Appendix A.1-A.3",
+      "claim": "Module selection fuses normalized LLM weight credit with lagged raw/difference Pearson correlation credit, applies EMA smoothing and a UCB exploration bonus, and uses selected modules' fused scores as reward weights.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2608.18827v1#A1.SS3",
+      "locator": "Appendix A.3, UCB equation and immediately following prose",
+      "claim": "The published equation and prose reuse u_i as both the UCB score and module selection count, then use u_i as the ranking quantity, leaving the selector notation self-ambiguous.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2608.18827v1#A2.T4",
+      "locator": "Appendix B, Table 4",
+      "claim": "Table 4 reports I=9, S=3, three runs, five final seeds, t=0.1, correlation and fusion settings, gamma=0.2, K=5, PPO, 3,000/20,000 epochs, DeepSeek-V4-Flash reasoning mode, and 80-evaluation baseline budgets.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2608.18827v1#A4",
+      "locator": "Appendix D.1 and D.4.1-D.4.2",
+      "claim": "The prompts request 4-6 initial module specifications and one typed Python function per module returning torch.Tensor with TorchScript-compatible code and matched specification inputs.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S5.SS1",
+      "locator": "Section 5.1, experimental-setup paragraphs",
+      "claim": "MLREF chooses the best of three complete 9-by-3 pipelines; candidates train 3,000 epochs, selected rewards retrain PPO from scratch for 20,000 epochs on five seeds, DeepSeek-V4-Flash serves all main calls, and environment settings follow EUREKA.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S5.T2",
+      "locator": "Sections 5.1-5.2 and Table 2",
+      "claim": "Across 17 Isaac Gym/Bi-DexHands tasks, MLREF reports 3.288 versus 2.625 best-baseline normalized locomotion average and 0.708 versus 0.664 best-baseline manipulation average, with full per-task means and standard deviations.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S5.SS3",
+      "locator": "Section 5.3 and Table 3",
+      "claim": "The Ant/Block Stack/Bottle Cap ablation reports GPT-4o, no-pool, no-reflection, and no-weight-optimization results and states that only full MLREF consistently retains its validation-selected reward as best at test across the three tasks.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S5.SS4",
+      "locator": "Section 5.4 and Figure 2",
+      "claim": "Evolution plots use the best sample per iteration, the best MLREF variant across three runs, normalized progress axes, and per-task min-max normalization for the all-task average; the authors interpret MLREF as more stable than baselines.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2608.18827v1#S5.SS5",
+      "locator": "Section 5.5, discussion and limitations",
+      "claim": "The authors identify modest absolute performance on sparse Block Stack, narrow LLM coverage including no open-source models, and the single-LLM design as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://export.arxiv.org/e-print/2608.18827v1",
+      "locator": "Complete official v1 TeX source archive: main.tex, sections, references, and 00README.json",
+      "claim": "The complete v1 source archive contains no official project or repository URL, so no author-supplied implementation commit, release, runtime lock, or generated reward artifact can be pinned.",
+      "evidence_type": "supplement"
+    }
+  ]
+}

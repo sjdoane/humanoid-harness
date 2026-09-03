@@ -1,0 +1,985 @@
+{
+  "paper": {
+    "id": "2406.01967",
+    "arxiv_id": "2406.01967",
+    "doi": "10.15607/RSS.2024.XX.094",
+    "title": "DrEureka: Language Model Guided Sim-To-Real Transfer",
+    "authors": [
+      "Yecheng Jason Ma",
+      "William Liang",
+      "Hung-Ju Wang",
+      "Sam Wang",
+      "Yuke Zhu",
+      "Linxi Fan",
+      "Osbert Bastani",
+      "Dinesh Jayaraman"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2406.01967",
+    "source_version": "arXiv v1, 2024-06-04; RSS 2024 proceedings DOI 10.15607/RSS.2024.XX.094. Official code evidence pinned to commit 1d4e00700423170717654516f4ef4b24cb0f3a84, observed 2026-08-30."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "DrEureka provides a source-located executable-reward search loop with task-and-safety instructions, independent task scores, component-level feedback, fixed task-specific PPO training configurations, and reward-isolated ablations. Its RAPP and domain-randomization stages also make the boundary around Sam's fixed transition distribution explicit.",
+    "not_evidence_for": [
+      "reference composition, motion-oracle design, OGMP modes, or state-machine synthesis",
+      "reward-only causality for the headline Tables I and II because reward and domain randomization change jointly",
+      "an experiment with a fixed MDP transition distribution when RAPP or generated domain randomization is enabled",
+      "automatic selection of a deployable policy from simulation",
+      "iterative natural-language preference steering",
+      "robustness across LLM backbones or policy-training stacks",
+      "RL-Sculptor implementation or safe execution of generated reward code"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "dreureka-reward-search",
+      "name": "Executable reward evolution",
+      "description": "A coding LLM receives the task description and environment code, proposes executable reward functions, trains one policy per candidate, and receives independent task scores plus reward-component statistics to reflect and generate improved candidates.",
+      "tags": [
+        "task_reward",
+        "llm_code_generation",
+        "policy_feedback",
+        "reward_reflection"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E14"
+      ]
+    },
+    {
+      "id": "dreureka-safety-conditioned-reward",
+      "name": "Safety-conditioned reward generation",
+      "description": "Task prompts specify stability, smoothness, action-rate, posture, and joint-limit requirements so the LLM can balance safety and task terms while generating the reward instead of appending a fixed penalty afterward.",
+      "tags": [
+        "safety_instruction",
+        "naturalness",
+        "sim_to_real",
+        "reward_terms"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "id": "dreureka-independent-fitness",
+      "name": "Independent task fitness",
+      "description": "The formal objective F evaluates a policy separately from its generated training reward R. Task-specific success criteria rank reward candidates and determine whether physics perturbations are feasible.",
+      "tags": [
+        "evaluation",
+        "objective_metric",
+        "reward_separation"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E13"
+      ]
+    },
+    {
+      "id": "dreureka-rapp",
+      "name": "Reward-Aware Physics Prior",
+      "description": "RAPP rolls out the initial reward-trained policy while varying one physics parameter at a time and leaving all others at defaults; the minimum and maximum successful values form per-parameter feasibility bounds.",
+      "tags": [
+        "domain_randomization",
+        "physics_prior",
+        "one_factor_at_a_time",
+        "out_of_scope_transition_change"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E13",
+        "E15"
+      ]
+    },
+    {
+      "id": "dreureka-dr-hypothesis-generation",
+      "name": "LLM domain-randomization hypothesis generation",
+      "description": "Given RAPP bounds, the LLM selects a subset of physical parameters and proposes narrower randomization ranges. Sixteen configurations are sampled independently, trained in parallel, kept, and evaluated in reality because simulation cannot reliably rank them.",
+      "tags": [
+        "domain_randomization",
+        "llm_hypothesis",
+        "parallel_training",
+        "policy_selection_gap"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E7",
+        "E8",
+        "E19"
+      ]
+    },
+    {
+      "id": "dreureka-fixed-task-trainer",
+      "name": "Fixed task-specific PPO learner",
+      "description": "Within each task, all configurations use the original policy-training code and hyperparameters. Locomotion uses teacher-student PPO; cube rotation uses PPO with a GRU policy inherited from the task implementation.",
+      "tags": [
+        "ppo",
+        "fixed_hyperparameters",
+        "controlled_comparison"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "design_outputs",
+      "value": "reward R and transition-function distribution T",
+      "units": null,
+      "context": "The paper's sim-to-real algorithm changes both quantities; only R belongs to Sam's initial task-reward knob.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "reward_search_iterations",
+      "value": "N",
+      "units": "iterations",
+      "context": "Symbolic hyperparameter in Algorithm 1; the paper says it reuses Eureka hyperparameters but does not restate a numeric N in the main method.",
+      "evidence_ids": [
+        "E3",
+        "E7"
+      ]
+    },
+    {
+      "name": "reward_candidates_per_iteration",
+      "value": "K",
+      "units": "candidates",
+      "context": "Symbolic batch size in Algorithm 1; do not invent a numeric value from outside the pinned paper/code.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "forward_target_velocity",
+      "value": 2.0,
+      "units": "m/s",
+      "context": "Task instruction, generated reward target, training/evaluation command, and success criterion target for locomotion.",
+      "evidence_ids": [
+        "E4",
+        "E7",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "name": "forward_target_torso_height",
+      "value": 0.34,
+      "units": "m",
+      "context": "Safety instruction and generated reward target for Unitree Go1 locomotion.",
+      "evidence_ids": [
+        "E4",
+        "E12"
+      ]
+    },
+    {
+      "name": "forward_reward_velocity_factor",
+      "value": "exp(-abs(v_x - 2.0))",
+      "units": null,
+      "context": "Generated DrEureka forward-locomotion reward component.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "forward_reward_height_factor",
+      "value": "exp(-5.0 * abs(z - 0.34))",
+      "units": null,
+      "context": "Generated DrEureka forward-locomotion reward component.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "forward_reward_orientation_factor",
+      "value": "exp(-5.0 * norm(projected_gravity - [0,0,-1]))",
+      "units": null,
+      "context": "Generated DrEureka forward-locomotion reward component.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "forward_reward_smoothness_factor",
+      "value": "exp(-0.1 * norm(a_t - a_t-1))",
+      "units": null,
+      "context": "Generated DrEureka forward-locomotion reward component.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "forward_reward_combination",
+      "value": "velocity * height * orientation * joint_limit_indicator * smoothness",
+      "units": null,
+      "context": "Multiplicative final forward reward. A zero joint-limit factor gates the whole reward.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "rapp_scan_coupling",
+      "value": "one parameter varied; all others at simulator defaults",
+      "units": null,
+      "context": "Algorithm 2 scan rule. Interaction effects among simultaneous perturbations are not measured by the bound construction.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "locomotion_rapp_friction_search",
+      "value": [
+        0.0,
+        10.0
+      ],
+      "units": null,
+      "context": "Search range, not final DR range.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "locomotion_rapp_restitution_search",
+      "value": [
+        0.0,
+        1.0
+      ],
+      "units": null,
+      "context": "Search range, not final DR range.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "locomotion_rapp_centered_zero_search",
+      "value": [
+        -10.0,
+        10.0
+      ],
+      "units": null,
+      "context": "Search family used for payload mass offset, center-of-mass displacement, and gravity offset; physical units depend on the simulator parameter.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "locomotion_rapp_centered_one_search",
+      "value": [
+        0.0,
+        2.0
+      ],
+      "units": null,
+      "context": "Search family used for motor strength and proportional/derivative gain scale factors.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "backbone_llm",
+      "value": "GPT-4",
+      "units": null,
+      "context": "Reward and DR generation backbone reported in the experiments; exact API snapshot/model suffix is not given.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "domain_randomization_candidates",
+      "value": 16,
+      "units": "configurations per task",
+      "context": "All candidate policies are trained and evaluated in the real world.",
+      "evidence_ids": [
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "name": "training_random_seeds",
+      "value": 3,
+      "units": "seeds per DR configuration",
+      "context": "Reported averages and standard deviations aggregate trials and seeds.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "locomotion_evaluation_track_length",
+      "value": 5,
+      "units": "m",
+      "context": "Real laboratory track; the distance metric saturates at this length.",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "name": "cube_evaluation_duration",
+      "value": 20,
+      "units": "s",
+      "context": "Fixed time interval for in-hand cube rotation.",
+      "evidence_ids": [
+        "E7",
+        "E9"
+      ]
+    },
+    {
+      "name": "cube_deployment_control_rate",
+      "value": 20,
+      "units": "Hz",
+      "context": "Target joint angles are sent to a PID controller at this rate.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "locomotion_success_criterion",
+      "value": "sum_t exp(-(v_x - v_x_target)^2 / 0.25)",
+      "units": "episode score",
+      "context": "Independent fitness for reward selection and RAPP feasibility.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "cube_success_criterion",
+      "value": "sum_t clip(omega_z, -0.25, 0.25)",
+      "units": "episode score",
+      "context": "Independent fitness for reward selection and RAPP feasibility.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "walking_globe_success_criterion",
+      "value": "sum_t 1",
+      "units": "steps",
+      "context": "Episode length used as task score.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "reward_only_safety_ablation_sim_velocity",
+      "value": {
+        "safety_instruction": "1.70 +/- 0.11",
+        "no_safety_instruction": "1.83 +/- 0.05"
+      },
+      "units": "m/s",
+      "context": "Both policies are trained without domain randomization.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "reward_only_safety_ablation_real_velocity",
+      "value": {
+        "safety_instruction": "1.21 +/- 0.39",
+        "no_safety_instruction": "0.0 +/- 0.0"
+      },
+      "units": "m/s",
+      "context": "Cleanest quantitative reward-only transfer evidence in the paper.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "full_pipeline_locomotion_forward_velocity",
+      "value": {
+        "human_designed": "1.32 +/- 0.44",
+        "dreureka_best": "1.83 +/- 0.07",
+        "dreureka_average": "1.66 +/- 0.25"
+      },
+      "units": "m/s",
+      "context": "Joint reward-plus-DR comparison; not reward-only evidence.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "full_pipeline_locomotion_distance",
+      "value": {
+        "human_designed": "4.17 +/- 1.57",
+        "dreureka_best": "5.00 +/- 0.00",
+        "dreureka_average": "4.64 +/- 0.78"
+      },
+      "units": "m",
+      "context": "Joint reward-plus-DR comparison on a 5 m track; not reward-only evidence.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "full_pipeline_cube_rotation",
+      "value": {
+        "human_designed": "3.24 +/- 1.66",
+        "dreureka_best": "9.39 +/- 4.15",
+        "dreureka_average": "4.67 +/- 3.55"
+      },
+      "units": "rad per 20 s",
+      "context": "Joint reward-plus-DR comparison; not reward-only evidence.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "walking_globe_duration",
+      "value": {
+        "simulation": "10.7 +/- 5.20",
+        "real_with_center_support": "15.4 +/- 4.17"
+      },
+      "units": "s",
+      "context": "The real laboratory setup uses center-point support for fall safety.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "ungrounded_dr_unsafe_policies",
+      "value": "15/16",
+      "units": "policies per ablation",
+      "context": "Reported for both Without Prior and Uninformative Prior; policies were jerky or triggered motor protection and were scored zero.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "dr_generation_wall_clock",
+      "value": {
+        "dreureka": 3,
+        "cem": 10,
+        "bayrn": 20
+      },
+      "units": "hours",
+      "context": "DrEureka candidates are parallel; CEM and BayRn use sequential intermediate real-world evaluations.",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "name": "official_code_commit",
+      "value": "1d4e00700423170717654516f4ef4b24cb0f3a84",
+      "units": null,
+      "context": "Pinned public repository main commit observed 2026-08-30; supplementary provenance only.",
+      "evidence_ids": [
+        "E18"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "dreureka-simulation-reward-exploit",
+      "name": "Simulation reward exploit without safety instruction",
+      "description": "The no-safety reward produced slightly higher simulated velocity through an unnatural gait with three feet and the hip dragging, then face-planted at the real start line and achieved zero real velocity.",
+      "tags": [
+        "reward_misspecification",
+        "sim_to_real_gap",
+        "naturalness_failure"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "dreureka-posthoc-safety-dominance",
+      "name": "Post-hoc safety-term dominance",
+      "description": "The authors motivate joint safety-conditioned generation because manually appended safety terms can dominate task terms and induce degenerate over-conservative behavior; this is a design risk, not a general elimination guarantee.",
+      "tags": [
+        "reward_scale",
+        "safety_penalty",
+        "degenerate_behavior"
+      ],
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "id": "dreureka-ungrounded-dr-danger",
+      "name": "Unsafe ungrounded DR hypotheses",
+      "description": "Without RAPP bounds or with uninformative bounds, 15 of 16 generated policies in each condition were jerky or triggered motor power protection, demonstrating that LLM physical priors alone were inadequate.",
+      "tags": [
+        "domain_randomization",
+        "unsafe_deployment",
+        "missing_grounding"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "dreureka-dr-interaction-blindness",
+      "name": "One-factor RAPP interaction blindness",
+      "description": "RAPP scans one physics parameter while all others remain at defaults, so its feasibility intervals do not measure coupled perturbation effects. The LLM later combines parameters inside these independently constructed bounds.",
+      "tags": [
+        "one_factor_at_a_time",
+        "parameter_interactions",
+        "inference_boundary"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "dreureka-policy-selection-gap",
+      "name": "No simulation-based deployment selector",
+      "description": "The method keeps all 16 DR policies and evaluates each in reality because policies trained under different DR distributions are not readily comparable in simulation; the paper names systematic policy selection as missing.",
+      "tags": [
+        "evaluation",
+        "policy_selection",
+        "real_world_risk"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E16"
+      ]
+    },
+    {
+      "id": "dreureka-static-dr",
+      "name": "Static DR during training",
+      "description": "Generated randomization parameters remain fixed over policy training and do not adapt to policy learning or real-world failure feedback.",
+      "tags": [
+        "static_randomization",
+        "missing_feedback"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E16"
+      ]
+    },
+    {
+      "id": "dreureka-no-vision",
+      "name": "Proprioception-only implementation",
+      "description": "The evaluated policies do not integrate visual observations, limiting evidence for visually varying real-world tasks.",
+      "tags": [
+        "proprioception",
+        "vision_missing",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "E16",
+        "E17"
+      ]
+    },
+    {
+      "id": "dreureka-causal-entanglement",
+      "name": "Reward and transition-distribution entanglement",
+      "description": "Headline full-pipeline comparisons change both the generated reward and domain randomization. They cannot identify the causal effect of the reward alone under Sam's fixed-MDP contract.",
+      "tags": [
+        "causal_boundary",
+        "fixed_mdp",
+        "reward_ablation"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "id": "dreureka-globe-simulator-mismatch",
+      "name": "Rigid-ball versus deformable-ball mismatch",
+      "description": "Isaac Gym models the globe as rigid while the real yoga ball is hollow, bouncy, and deformable; real lab trials also add center-point fall support.",
+      "tags": [
+        "sim_to_real_gap",
+        "scene_mismatch",
+        "evaluation_support"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "dreureka-reward-safety-ablation",
+      "name": "Reward-isolated safety-instruction ablation",
+      "description": "With domain randomization disabled in both arms, the safety-conditioned reward reached 1.70+/-0.11 m/s in simulation and 1.21+/-0.39 m/s in reality, whereas the no-safety reward reached 1.83+/-0.05 m/s in simulation and 0.0+/-0.0 m/s in reality.",
+      "tags": [
+        "reward_only",
+        "sim_to_real",
+        "safety",
+        "quantitative"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "dreureka-fixed-dr-reward-comparison",
+      "name": "Reward comparison under fixed Human-Designed DR",
+      "description": "With the Human-Designed DR configuration fixed, the appendix reports that the DrEureka reward is more sample-efficient and reaches higher simulated asymptotic performance; the human reward depends on its velocity curriculum. Numeric curve endpoints are not given in the text.",
+      "tags": [
+        "reward_only",
+        "fixed_domain_randomization",
+        "curriculum_boundary"
+      ],
+      "evidence_ids": [
+        "E20"
+      ]
+    },
+    {
+      "id": "dreureka-locomotion-main",
+      "name": "Real locomotion full-pipeline comparison",
+      "description": "On a 5 m track, DrEureka best and average policies exceed the Human-Designed policy in projected velocity and distance. This comparison combines generated reward and DR effects.",
+      "tags": [
+        "locomotion",
+        "real_robot",
+        "joint_reward_dr"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "dreureka-cube-main",
+      "name": "Real cube-rotation full-pipeline comparison",
+      "description": "Across 20 s trials, the best DrEureka policy reports 9.39+/-4.15 rad rotation versus 3.24+/-1.66 for Human-Designed, with both best rows retaining the cube for 20.00+/-0.00 s. Reward and DR differ jointly.",
+      "tags": [
+        "dexterous_manipulation",
+        "real_robot",
+        "joint_reward_dr"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "dreureka-globe-main",
+      "name": "Walking-globe simulation and real evaluation",
+      "description": "The policy remains on the globe for 10.7+/-5.20 s in randomized simulation and 15.4+/-4.17 s in the real lab with center-point fall support; qualitative outdoor robustness is shown separately.",
+      "tags": [
+        "novel_task",
+        "quadruped",
+        "support_boundary"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E17"
+      ]
+    },
+    {
+      "id": "dreureka-dr-ablation-suite",
+      "name": "Fixed-reward DR ablation suite",
+      "description": "For the locomotion DR ablations, the DrEureka reward is fixed while no DR, human DR, full RAPP ranges, missing/uninformative prior, random sampling, CEM, and BayRn configurations vary. These experiments evaluate DR design, not Sam's reward-only knob.",
+      "tags": [
+        "domain_randomization",
+        "fixed_reward",
+        "out_of_scope_initial_contract"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E19"
+      ]
+    },
+    {
+      "id": "dreureka-controlled-trainer-protocol",
+      "name": "Controlled task-specific training protocol",
+      "description": "All configurations within a task use PPO and the original task implementation's training hyperparameters; each DR configuration uses three random seeds. This controls the learner but not the transition distribution.",
+      "tags": [
+        "fixed_trainer",
+        "ppo",
+        "seeds",
+        "experimental_control"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2406.01967",
+      "relation": "INTRODUCES",
+      "target": "dreureka-pipeline",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "source": "dreureka-reward-search",
+      "relation": "EXTENDS",
+      "target": "Eureka",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "dreureka-reward-search",
+      "relation": "CONDITIONS_ON",
+      "target": "task-and-safety-instruction",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "dreureka-reward-search",
+      "relation": "OPTIMIZES",
+      "target": "independent-task-fitness-F",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E13"
+      ]
+    },
+    {
+      "source": "dreureka-reward-search",
+      "relation": "REPORTS",
+      "target": "executable-task-reward-R",
+      "evidence_ids": [
+        "E3",
+        "E12"
+      ]
+    },
+    {
+      "source": "dreureka-rapp",
+      "relation": "USES",
+      "target": "initial-reward-trained-policy",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "dreureka-rapp",
+      "relation": "REPORTS",
+      "target": "per-parameter-feasible-physics-bounds",
+      "evidence_ids": [
+        "E5",
+        "E15"
+      ]
+    },
+    {
+      "source": "dreureka-dr-hypothesis-generation",
+      "relation": "CONDITIONS_ON",
+      "target": "reward-aware-physics-prior",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "dreureka-dr-hypothesis-generation",
+      "relation": "REPORTS",
+      "target": "16-static-domain-randomization-configurations",
+      "evidence_ids": [
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "source": "dreureka-fixed-task-trainer",
+      "relation": "USES",
+      "target": "PPO",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "2406.01967",
+      "relation": "EVALUATES_ON",
+      "target": "Unitree-Go1-forward-locomotion",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "source": "2406.01967",
+      "relation": "EVALUATES_ON",
+      "target": "LEAP-hand-cube-rotation",
+      "evidence_ids": [
+        "E7",
+        "E9"
+      ]
+    },
+    {
+      "source": "2406.01967",
+      "relation": "EVALUATES_ON",
+      "target": "Unitree-Go1-walking-globe",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "dreureka-safety-conditioned-reward",
+      "relation": "SUPPORTS",
+      "target": "Sams-task-reward-knob",
+      "evidence_ids": [
+        "E11",
+        "E20"
+      ]
+    },
+    {
+      "source": "dreureka-rapp",
+      "relation": "CONTRASTS_WITH",
+      "target": "Sams-fixed-transition-distribution-contract",
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E15"
+      ]
+    },
+    {
+      "source": "dreureka-independent-fitness",
+      "relation": "SUPPORTS",
+      "target": "independent-evaluation-contract",
+      "evidence_ids": [
+        "E2",
+        "E13"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2406.01967",
+      "locator": "arXiv submission history and metadata; cross-check RSS record https://www.roboticsproceedings.org/rss20/p094.html",
+      "claim": "The assigned paper is arXiv:2406.01967v1, submitted 4 June 2024 and published in RSS 2024 with DOI 10.15607/RSS.2024.XX.094.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section III, Equations 1-4",
+      "claim": "The method formally outputs both a reward R and a transition-function distribution, trains a policy with them, and evaluates it using a separate true task objective F.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section IV-A, Equation 5 and Algorithm 1",
+      "claim": "Reward search trains policies for generated reward code, evaluates independent task scores and component statistics, and reflects that feedback into subsequent LLM generations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section IV-B, Equation 6; Appendix A1, Prompts 2-4",
+      "claim": "Safety instructions are included during reward generation; task prompts specify concrete stability, smoothness, posture, speed, and joint-limit requirements.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section IV-C, Algorithm 2",
+      "claim": "RAPP varies one physics parameter at a time with all others at defaults and returns the minimum and maximum values that satisfy the success criterion.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section IV-D, Equation 7",
+      "claim": "The LLM selects DR parameters and ranges inside RAPP bounds; independent static configurations are trained, retained, and evaluated in reality because simulation does not provide a reliable selector.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section V, Methods and Policy Training and Evaluation; Appendix D2",
+      "claim": "Experiments use GPT-4, 16 DR configurations, PPO with original task training hyperparameters, and three seeds per DR configuration; task protocols and the 20 Hz cube controller are specified.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section VI, Table I and footnote",
+      "claim": "Table I reports locomotion outcomes for full DrEureka, Human-Designed, fixed-reward DR ablations, CEM, and BayRn; 15 of 16 no-prior and uninformative-prior policies were unsafe and scored zero.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section VI, Table II",
+      "claim": "Cube-rotation best, average, and Human-Designed rotation and time-to-fall metrics are reported over 20-second trials.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section VI-C, Table III and accompanying setup text",
+      "claim": "Walking-globe duration is reported in simulation and reality; the simulator uses a rigid ball while the real ball deforms, and lab trials use center-point fall support.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix reward analysis, Table XVI and Figure 13 discussion",
+      "claim": "With DR disabled in both arms, safety-conditioned reward training transfers at 1.21+/-0.39 m/s while the no-safety reward achieves 0.0+/-0.0 m/s after exploiting simulation with an unnatural gait.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix B1, Prompts 12-14; Appendix C, Table VIII",
+      "claim": "The appendix publishes executable generated rewards and exact coefficients for locomotion, cube rotation, and walking globe.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix A5, Table IV",
+      "claim": "Independent success criteria are specified for locomotion, cube rotation, and walking globe and summed over the episode.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix B3, Generation 4",
+      "claim": "Reward reflection uses task score and reward-component statistics to rescale, rewrite, or remove terms; the walking-globe example changes functional forms and scales.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix D1-D3, Tables XII-XIV",
+      "claim": "The paper enumerates physics parameters and RAPP search ranges for locomotion, cube rotation, and walking globe.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section VIII, Limitations",
+      "claim": "The authors identify missing visual inputs, static DR parameters, and lack of a policy-selection mechanism as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://eureka-research.github.io/dr-eureka/",
+      "locator": "DrEureka Components; Rewards, DR Parameters, and Policies; Failure Videos and Limitations",
+      "claim": "The official project page summarizes the three-stage pipeline, publishes task artifacts and demonstrations, and states the proprioception-only and missing-real-feedback boundaries.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/eureka-research/DrEureka/tree/1d4e00700423170717654516f4ef4b24cb0f3a84",
+      "locator": "Repository tree and README at commit 1d4e00700423170717654516f4ef4b24cb0f3a84",
+      "claim": "The official public repository exposes reward generation, RAPP, DR generation, and task environments; this commit pins the supplementary implementation inspected on 30 August 2026.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Section VI-B, DrEureka surpasses DR optimization baselines",
+      "claim": "The paper reports 3 hours for parallel DrEureka generation/training versus 10 for CEM and 20 for BayRn, whose sequential procedures use intermediate real-world evaluations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2406.01967",
+      "locator": "Appendix reward analysis, Figure 12 discussion",
+      "claim": "With Human-Designed DR fixed, the DrEureka reward is reported as more sample-efficient and higher asymptotically in simulation; the human reward relies on a velocity curriculum.",
+      "evidence_type": "paper_figure"
+    }
+  ]
+}

@@ -1,0 +1,663 @@
+{
+  "paper": {
+    "id": "2502.04692",
+    "arxiv_id": "2502.04692",
+    "doi": "10.48550/arXiv.2502.04692",
+    "title": "STRIDE: Automating Reward Design, Deep Reinforcement Learning Training and Feedback Optimization in Humanoid Robotics Locomotion",
+    "authors": [
+      "Zhenwei Wu",
+      "Jinxiong Lu",
+      "Yuxiao Chen",
+      "Yunxin Liu",
+      "Yueting Zhuang",
+      "Luhui Hu"
+    ],
+    "year": 2025,
+    "primary_url": "https://arxiv.org/abs/2502.04692v3",
+    "source_version": "arXiv v3, submitted 2025-02-12; PDF SHA-256 9ce5f177a62818fc25f8112dd7af633d9802419c491e91a9f0ffa568a8016907; source-archive SHA-256 a200c875b5e6b70bdb86ca15f27d51f15686c64b6f1075e670c926a50a66aac7; no official code repository is linked in v3"
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "task_reward",
+      "evaluation"
+    ],
+    "why_admitted": "STRIDE gives a source-located interface for generating executable task-reward code, training candidates, selecting them through policy-level fitness, and reflecting on component traces, plus humanoid simulation comparisons that expose evaluator and reproducibility requirements.",
+    "not_evidence_for": [
+      "RL-Sculptor implementing STRIDE",
+      "reference composition or closed-loop oracle design",
+      "a reward-only causal improvement under Sam's fixed controller, tracking reward, MDP, trainer, budget, and seed protocol",
+      "safe execution of generated reward code",
+      "template-free reward generation across tasks",
+      "cross-morphology generalization",
+      "physical-robot transfer",
+      "reliable human steering or safety alignment",
+      "independent reproduction of the reported results"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "stride:reward_generation_problem",
+      "name": "Reward generation around a policy-level fitness query",
+      "description": "The paper formalizes a fixed world model M and learning algorithm A_M around a mutable reward program R; a policy-level fitness function F scores the policy produced by training on R.",
+      "tags": [
+        "task_reward",
+        "program_synthesis",
+        "fitness_query",
+        "fixed_trainer_interface"
+      ],
+      "evidence_ids": [
+        "E-ST-02"
+      ]
+    },
+    {
+      "id": "stride:environment_grounded_reward_generation",
+      "name": "Environment- and task-conditioned reward generation",
+      "description": "Raw environment code, a URDF-derived robot description, and motion-task text condition a coding LLM that emits TorchScript-oriented Python rewards with a total tensor and named component tensors.",
+      "tags": [
+        "environment_as_context",
+        "task_description",
+        "URDF",
+        "executable_reward"
+      ],
+      "evidence_ids": [
+        "E-ST-03",
+        "E-ST-04",
+        "E-ST-07"
+      ]
+    },
+    {
+      "id": "stride:best_of_k_reward_refinement",
+      "name": "Best-of-K policy-training and reflection loop",
+      "description": "Each search round samples K reward programs, trains/evaluates policies, selects an argmax candidate, and sends the selected reward and textual reflection back to the LLM for another round.",
+      "tags": [
+        "iterative_search",
+        "best_of_k",
+        "policy_training",
+        "reflection"
+      ],
+      "evidence_ids": [
+        "E-ST-03",
+        "E-ST-05",
+        "E-ST-08"
+      ]
+    },
+    {
+      "id": "stride:component_trace_reflection",
+      "name": "Reward-component diagnostic reflection",
+      "description": "The reflection prompt examines component minima, means, maxima, variance, dominant magnitudes, stagnation, success rate, and episode length, then requests term rescaling, normalization, deletion, rewriting, or addition.",
+      "tags": [
+        "reward_diagnostics",
+        "component_statistics",
+        "credit_assignment",
+        "textual_feedback"
+      ],
+      "evidence_ids": [
+        "E-ST-06"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "coding_model",
+      "value": "GPT-4o mini",
+      "units": null,
+      "context": "Underlying LLM named for STRIDE experiments; no exact model snapshot or API version is reported.",
+      "evidence_ids": [
+        "E-ST-08"
+      ]
+    },
+    {
+      "name": "robot_degrees_of_freedom",
+      "value": 16,
+      "units": "DoF",
+      "context": "Custom SolidWorks humanoid exported to URDF: twelve lower-body and four upper-body joint degrees of freedom.",
+      "evidence_ids": [
+        "E-ST-04"
+      ]
+    },
+    {
+      "name": "terrain_suite",
+      "value": [
+        "flat",
+        "wave",
+        "random uniform"
+      ],
+      "units": null,
+      "context": "Isaac Gym terrain conditions used for the reported comparison.",
+      "evidence_ids": [
+        "E-ST-09"
+      ]
+    },
+    {
+      "name": "independent_search_runs_per_environment",
+      "value": 10,
+      "units": "runs",
+      "context": "Reported number of independent STRIDE runs for each environment.",
+      "evidence_ids": [
+        "E-ST-08"
+      ]
+    },
+    {
+      "name": "search_iterations_per_run",
+      "value": 3,
+      "units": "iterations",
+      "context": "Reported reward-search depth in every run.",
+      "evidence_ids": [
+        "E-ST-08"
+      ]
+    },
+    {
+      "name": "reward_samples_per_iteration",
+      "value": 10,
+      "units": "reward programs",
+      "context": "K in the best-of-K candidate generation step.",
+      "evidence_ids": [
+        "E-ST-05",
+        "E-ST-08"
+      ]
+    },
+    {
+      "name": "max_success_score_policy_repeats",
+      "value": 5,
+      "units": "independent DRL training runs",
+      "context": "Max Success Score is defined as the maximum task-completion rate across these repeats; the relation to the ten search runs is not specified.",
+      "evidence_ids": [
+        "E-ST-10"
+      ]
+    },
+    {
+      "name": "table_1_success_rate_by_iteration",
+      "value": {
+        "iterations": [
+          1,
+          2,
+          3
+        ],
+        "EUREKA": [
+          0.1,
+          0.4,
+          0.0
+        ],
+        "STRIDE": [
+          0.2,
+          0.5,
+          0.3
+        ],
+        "STRIDE_human_initialization": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      },
+      "units": "rate",
+      "context": "Exact Table 1 values; the paper does not specify whether this success rate is executable-code success, task completion, or another aggregation.",
+      "evidence_ids": [
+        "E-ST-12"
+      ]
+    },
+    {
+      "name": "task_specific_bolt_prompt_targets",
+      "value": {
+        "hip_forward_swing_degrees": [
+          60,
+          80
+        ],
+        "hip_backward_extension_degrees": [
+          -20,
+          -10
+        ],
+        "knee_swing_flexion_degrees": [
+          90,
+          120
+        ],
+        "knee_stance_flexion_degrees": [
+          20,
+          40
+        ],
+        "ankle_toe_off_plantar_flexion_degrees": [
+          10,
+          15
+        ],
+        "ankle_landing_dorsiflexion_degrees": [
+          0,
+          5
+        ],
+        "shoulder_swing_degrees": [
+          45,
+          60
+        ],
+        "elbow_flexion_degrees": [
+          90,
+          120
+        ],
+        "torso_forward_tilt_degrees": [
+          20,
+          25
+        ],
+        "step_length_meters": [
+          2.5,
+          3.0
+        ]
+      },
+      "units": "mixed degrees and meters",
+      "context": "Human-specified biomechanics embedded in Appendix Prompt 2 for the Bolt-like running experiment; evidence against a template-free interpretation.",
+      "evidence_ids": [
+        "E-ST-14"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "stride:non_executable_candidates",
+      "name": "Generated rewards may not execute",
+      "description": "The authors state that zero-shot rewards are not always executable; Figure 2's illustrative log depicts several candidate execution errors before training.",
+      "tags": [
+        "code_failure",
+        "validation",
+        "negative_path",
+        "generated_code"
+      ],
+      "evidence_ids": [
+        "E-ST-16",
+        "E-ST-03"
+      ]
+    },
+    {
+      "id": "stride:task_specific_prompt_dependency",
+      "name": "Template-free claim conflicts with the supplied prompt",
+      "description": "The abstract and method claim no task-specific prompt/template dependence, but Appendix Prompt 2 encodes Bolt-specific posture, joint-angle, coordination, and step-length targets.",
+      "tags": [
+        "prompt_dependency",
+        "generality",
+        "claim_boundary",
+        "human_prior"
+      ],
+      "evidence_ids": [
+        "E-ST-01",
+        "E-ST-03",
+        "E-ST-14"
+      ]
+    },
+    {
+      "id": "stride:algorithm_specification_ambiguity",
+      "name": "Pseudocode control flow is not executable specification",
+      "description": "Algorithm 1 prints Return before the iteration loop ends and selects the current round's argmax without explicitly comparing it to the prior global best, although the experiment reports three search iterations.",
+      "tags": [
+        "pseudocode",
+        "control_flow",
+        "best_so_far",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E-ST-05",
+        "E-ST-08"
+      ]
+    },
+    {
+      "id": "stride:fixed_trainer_reproduction_gap",
+      "name": "Fixed trainer and reward artifacts are not reconstructible",
+      "description": "The paper names Isaac Gym but does not report its version, the DRL algorithm, policy architecture, optimizer, training steps, termination contract, seed list, exact fitness code, final reward programs, or an official implementation.",
+      "tags": [
+        "fixed_trainer",
+        "missing_configuration",
+        "code_release",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E-ST-02",
+        "E-ST-09",
+        "E-ST-10",
+        "E-ST-15"
+      ]
+    },
+    {
+      "id": "stride:evaluator_definition_gap",
+      "name": "Fitness, success, and correlation are underdefined",
+      "description": "F remains symbolic; Max Success Score takes a maximum across five training runs; Table 1 does not identify which success rate it reports; and Figure 8 does not define the correlation target or calculation.",
+      "tags": [
+        "evaluation",
+        "metric_definition",
+        "selection_bias",
+        "independence_gap"
+      ],
+      "evidence_ids": [
+        "E-ST-02",
+        "E-ST-10",
+        "E-ST-12",
+        "E-ST-13"
+      ]
+    },
+    {
+      "id": "stride:comparison_protocol_gap",
+      "name": "Run nesting, model matching, and compute are not reported",
+      "description": "The paper reports ten independent runs per environment and a maximum over five DRL runs but does not state their nesting, seeds, policy-training budget, candidate failure accounting, or matched total compute; STRIDE uses GPT-4o mini while EUREKA is described with GPT-4, without an equal-model ablation.",
+      "tags": [
+        "run_protocol",
+        "matched_budget",
+        "seed_protocol",
+        "baseline_fairness",
+        "LLM_confound"
+      ],
+      "evidence_ids": [
+        "E-ST-08",
+        "E-ST-09",
+        "E-ST-10"
+      ]
+    },
+    {
+      "id": "stride:headline_aggregation_gap",
+      "name": "Headline average and efficiency claim is not reconciled",
+      "description": "The abstract claims around 250 percent average improvement in efficiency and task performance, while the results text gives terrain-specific relative Max Success Scores and no efficiency metric or aggregation formula.",
+      "tags": [
+        "headline_claim",
+        "aggregation",
+        "efficiency",
+        "reporting_gap"
+      ],
+      "evidence_ids": [
+        "E-ST-01",
+        "E-ST-10",
+        "E-ST-11"
+      ]
+    },
+    {
+      "id": "stride:simulation_and_morphology_scope",
+      "name": "One described morphology and simulation-only evaluation",
+      "description": "The method describes one custom 16-DoF humanoid and three Isaac Gym terrains, with no hardware trial or second specified morphology despite broader cross-morphology language.",
+      "tags": [
+        "simulation",
+        "embodiment",
+        "generalization",
+        "hardware_gap"
+      ],
+      "evidence_ids": [
+        "E-ST-01",
+        "E-ST-04",
+        "E-ST-09"
+      ]
+    },
+    {
+      "id": "stride:human_steering_evidence_gap",
+      "name": "Human initialization lacks a steering protocol",
+      "description": "The paper offers one example preference and a correlation plot but reports no number of users, prompts, trials, translation rule, preference study, safety metric, or held-out response to steering.",
+      "tags": [
+        "human_feedback",
+        "steering",
+        "study_design",
+        "safety_gap"
+      ],
+      "evidence_ids": [
+        "E-ST-13"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "stride:terrain_max_success_comparison",
+      "name": "Isaac Gym terrain comparison against EUREKA",
+      "description": "Across flat, wave, and random-uniform terrains, the authors report STRIDE above EUREKA; body text states three times the Max Success Score on wave terrain and approximately 250 percent of EUREKA's best score on random-uniform terrain.",
+      "tags": [
+        "Isaac_Gym",
+        "terrain",
+        "EUREKA",
+        "Max_Success_Score"
+      ],
+      "evidence_ids": [
+        "E-ST-09",
+        "E-ST-11"
+      ]
+    },
+    {
+      "id": "stride:iteration_success_table",
+      "name": "Three-iteration success-rate table",
+      "description": "Table 1 reports EUREKA 0.1/0.4/0.0, STRIDE 0.2/0.5/0.3, and human-initialized STRIDE 0.7/0.7/0.7 across iterations one through three, without operationally defining the rate.",
+      "tags": [
+        "iteration",
+        "success_rate",
+        "human_initialization",
+        "metric_ambiguity"
+      ],
+      "evidence_ids": [
+        "E-ST-12"
+      ]
+    },
+    {
+      "id": "stride:human_initialization_plot",
+      "name": "Human-initialization success/correlation plot",
+      "description": "Figure 8 plots EUREKA, STRIDE, and human-initialized STRIDE against Max Success Score and an undefined correlation axis; the text claims improved alignment but provides no user-study protocol.",
+      "tags": [
+        "human_feedback",
+        "correlation",
+        "alignment",
+        "protocol_gap"
+      ],
+      "evidence_ids": [
+        "E-ST-13"
+      ]
+    },
+    {
+      "id": "stride:evaluation_protocol_boundary",
+      "name": "Author-reported, max-selected simulation evidence",
+      "description": "The evaluator selects a maximum over five policy-training runs, while ten search runs per environment are also reported; raw seed outcomes, confidence intervals, statistical tests, exact fitness code, and hardware validation are absent.",
+      "tags": [
+        "evidence_boundary",
+        "seed_reporting",
+        "statistics",
+        "simulation_only"
+      ],
+      "evidence_ids": [
+        "E-ST-08",
+        "E-ST-10",
+        "E-ST-15"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2502.04692",
+      "relation": "INTRODUCES",
+      "target": "stride:reward_generation_problem",
+      "evidence_ids": [
+        "E-ST-02"
+      ]
+    },
+    {
+      "source": "paper:2502.04692",
+      "relation": "INTRODUCES",
+      "target": "stride:best_of_k_reward_refinement",
+      "evidence_ids": [
+        "E-ST-03",
+        "E-ST-05"
+      ]
+    },
+    {
+      "source": "stride:environment_grounded_reward_generation",
+      "relation": "CONDITIONS_ON",
+      "target": "context:environment_code_URDF_and_task_text",
+      "evidence_ids": [
+        "E-ST-03",
+        "E-ST-04"
+      ]
+    },
+    {
+      "source": "stride:best_of_k_reward_refinement",
+      "relation": "OPTIMIZES",
+      "target": "artifact:executable_task_reward",
+      "evidence_ids": [
+        "E-ST-02",
+        "E-ST-05",
+        "E-ST-07"
+      ]
+    },
+    {
+      "source": "stride:best_of_k_reward_refinement",
+      "relation": "REQUIRES",
+      "target": "process:policy_training_and_fitness_queries",
+      "evidence_ids": [
+        "E-ST-02",
+        "E-ST-03",
+        "E-ST-05"
+      ]
+    },
+    {
+      "source": "stride:component_trace_reflection",
+      "relation": "USES",
+      "target": "feedback:reward_component_statistics_and_global_metrics",
+      "evidence_ids": [
+        "E-ST-06"
+      ]
+    },
+    {
+      "source": "paper:2502.04692",
+      "relation": "CONTRASTS_WITH",
+      "target": "paper:2310.12931",
+      "evidence_ids": [
+        "E-ST-09",
+        "E-ST-11",
+        "E-ST-12"
+      ]
+    },
+    {
+      "source": "paper:2502.04692",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:Isaac_Gym_flat_wave_random_uniform_terrains",
+      "evidence_ids": [
+        "E-ST-09",
+        "E-ST-11"
+      ]
+    },
+    {
+      "source": "stride:best_of_k_reward_refinement",
+      "relation": "SUPPORTS",
+      "target": "project_knob:task_reward",
+      "evidence_ids": [
+        "E-ST-02",
+        "E-ST-03",
+        "E-ST-05"
+      ]
+    },
+    {
+      "source": "stride:terrain_max_success_comparison",
+      "relation": "REPORTS",
+      "target": "result:STRIDE_over_EUREKA_on_three_simulated_terrains",
+      "evidence_ids": [
+        "E-ST-11"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-ST-01",
+      "source_url": "https://arxiv.org/abs/2502.04692v3",
+      "locator": "Version header, submission history, and abstract",
+      "claim": "arXiv v3 is dated 12 February 2025; the abstract claims around 250 percent average improvement in efficiency and task performance and describes broad morphology/terrain applicability.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E-ST-02",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 3, Definition 3.1 and Reward Generation Problem",
+      "claim": "The reward-design tuple separates world M, reward space, learning algorithm A_M, and policy fitness F; reward program R is selected to maximize F(A_M(R)).",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-03",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Figures 1-2; Sections 4.1-4.2",
+      "claim": "The pipeline feeds environment code and task descriptions to an LLM, samples Python rewards, trains policies in simulation, and returns feedback for iterative reward refinement.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E-ST-04",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 4.3, Humanoid Robot Description and Why Environment Code",
+      "claim": "The described custom humanoid has 16 DoF; URDF structure and environment observations such as joints, velocities, torso position, and step frequency condition reward generation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-05",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Algorithm 1, STRIDE Framework",
+      "claim": "Each iteration samples K rewards, evaluates them, chooses an argmax, and reflects on the selected reward; the printed Return precedes the end-for and prior global-best preservation is not explicit.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-06",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 4.4; Appendix A, Prompt 3 Reward Reflection and Feedback",
+      "claim": "Reflection uses per-component minima, means, maxima, variance/dominance diagnostics and global success/episode-length trends to rescale, normalize, remove, rewrite, or add reward terms; epoch frequency is an unresolved placeholder.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-ST-07",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Appendix A, Prompts 1 and 4",
+      "claim": "Generated rewards are requested as TorchScript-compatible Python returning a total reward tensor plus a dictionary of named component tensors, with type, dimension, and device checks.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-ST-08",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5, opening paragraph",
+      "claim": "STRIDE uses GPT-4o mini and reports ten independent runs per environment, three search iterations per run, and K equal to ten samples per iteration.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-09",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5.1, Environments and Baselines; Figure 3",
+      "claim": "Experiments use Isaac Gym on flat, wave, and random-uniform terrains; the baseline is EUREKA described as using GPT-4.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-10",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5.1, Evaluation Metrics",
+      "claim": "Max Success Score is the maximum task-completion rate across five independent DRL training runs, and code-generation success rate is also named; exact formulas and nesting are not supplied.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-ST-11",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5.2, STRIDE outperforms EUREKA; Figures 5-7",
+      "claim": "The authors report STRIDE at three times EUREKA's Max Success Score on wave terrain and approximately 250 percent of EUREKA's best score on random-uniform terrain; no numeric results table is provided for these plots.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E-ST-12",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5.2, Table 1",
+      "claim": "Across iterations one through three, Table 1 reports EUREKA 0.1/0.4/0.0, STRIDE 0.2/0.5/0.3, and human-initialized STRIDE 0.7/0.7/0.7, while labeling the quantity only as success rate.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E-ST-13",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 5.3, STRIDE with Human Init.; Figure 8",
+      "claim": "A user may describe a desired improvement such as prioritizing stability over speed; the section provides a correlation plot but no participant count, steering translation, trial protocol, correlation formula, or safety metric.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E-ST-14",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Appendix A, Prompt 2 Initial User Prompt",
+      "claim": "The published sprinting prompt encodes Bolt-specific hip, knee, ankle, shoulder, elbow, torso, step-length, coordination, and posture targets, despite template-free claims in the abstract and method.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-ST-15",
+      "source_url": "https://export.arxiv.org/e-print/2502.04692v3",
+      "locator": "Complete v3 source-archive member list and TeX URL scan; archive SHA-256 a200c875b5e6b70bdb86ca15f27d51f15686c64b6f1075e670c926a50a66aac7",
+      "claim": "The pinned source archive contains TeX, bibliography/style files, and figure assets but no runnable STRIDE implementation, final generated reward programs, environment/URDF files, raw results, or repository URL.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-ST-16",
+      "source_url": "https://arxiv.org/pdf/2502.04692v3",
+      "locator": "Section 4.4, Feedback-Driven Reward Optimization",
+      "claim": "The authors explicitly state that zero-shot initial reward designs are not always optimal or executable.",
+      "evidence_type": "paper_text"
+    }
+  ]
+}

@@ -1,0 +1,1120 @@
+{
+  "paper": {
+    "id": "2406.06005",
+    "arxiv_id": "2406.06005",
+    "doi": null,
+    "title": "WoCoCo: Learning Whole-Body Humanoid Control with Sequential Contacts",
+    "authors": [
+      "Chong Zhang",
+      "Wenli Xiao",
+      "Tairan He",
+      "Guanya Shi"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2406.06005v2",
+    "source_version": "arXiv:2406.06005v2, 7 November 2024; PDF SHA-256 812ced4443bd525bbfbbfe5a0851745f7b8c10dd1e21c60f9cbb518aff695527"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "WoCoCo is a direct, source-located example of composing a long-horizon task into an ordered contact-stage oracle and coupling that oracle state to dense contact, stage-progress, and exploration rewards. Its ablations expose reward-stalling and under-exploration failure modes that Sam's harness should test while holding the trainer fixed.",
+    "not_evidence_for": [
+      "Automatic search, ranking, or composition of reference datasets",
+      "Natural-language steering or preference learning",
+      "A learned, branching, or predicate-synthesized oracle",
+      "Reference-motion tracking or dynamics feasibility of a composed motion",
+      "An oracle-only or reward-only causal effect under a frozen trainer, observation space, curriculum, and controller",
+      "VIBE or foundation-controller integration",
+      "Quantified real-world reliability or safety",
+      "A complete public reproduction of all four humanoid tasks"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "wococo.contact_stage_specification",
+      "name": "Contact-stage specification",
+      "description": "A task is manually decomposed into an ordered sequence of stages. Each stage contains a contact goal for selected end effectors and an additional task goal; stage fulfillment requires both goals simultaneously.",
+      "tags": [
+        "oracle",
+        "reference_composition",
+        "contact_sequence",
+        "manual_design"
+      ],
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "id": "wococo.stage_transition_automaton",
+      "name": "Feedback-gated linear stage automaton",
+      "description": "Contact or human feedback marks the current stage fulfilled; after a predefined dwell period, an integer stage index advances monotonically to the next predefined stage.",
+      "tags": [
+        "oracle",
+        "state_machine",
+        "closed_loop",
+        "linear_sequence"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E19"
+      ]
+    },
+    {
+      "id": "wococo.goal_conditioned_policy",
+      "name": "Goal-conditioned whole-body policy",
+      "description": "The end-to-end policy receives proprioception and a task-specific representation of the active or near-future contact/task goals, then emits joint position targets for a low-level PD controller.",
+      "tags": [
+        "policy_conditioning",
+        "goal_representation",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "id": "wococo.reward_stack",
+      "name": "Oracle-coupled reward stack",
+      "description": "The reward sums task-agnostic contact/stage/curiosity terms, task-agnostic sim-to-real regularizers, and one or two task-specific terms; several components read the automaton's stage state or goal predicates.",
+      "tags": [
+        "task_reward",
+        "reward_composition",
+        "oracle_reward_coupling"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E11",
+        "E12"
+      ]
+    },
+    {
+      "id": "wococo.dense_contact_reward",
+      "name": "Dense correct/wrong-contact reward",
+      "description": "Every correct end-effector contact contributes positively, wrong contacts are penalized after the first stage, and simultaneous contact/task-goal fulfillment receives a quadratic-in-end-effectors bonus.",
+      "tags": [
+        "task_reward",
+        "dense_reward",
+        "contact"
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "id": "wococo.stage_count_reward",
+      "name": "Task-gated stage-count reward",
+      "description": "The reward pays the number of completed stages only while the task goal is fulfilled, intended to counter policies that stay in an easy stage to avoid later risk.",
+      "tags": [
+        "task_reward",
+        "progress_reward",
+        "anti_stalling"
+      ],
+      "evidence_ids": [
+        "E04",
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.hash_count_curiosity",
+      "name": "Random-hash count curiosity",
+      "description": "A frozen random neural network maps normalized base/end-effector state to a binary hash bucket; intrinsic reward decays with the bucket visit count and is symmetry averaged.",
+      "tags": [
+        "task_reward",
+        "intrinsic_reward",
+        "exploration",
+        "random_hash"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E14",
+        "E21"
+      ]
+    },
+    {
+      "id": "wococo.sim_to_real_curriculum",
+      "name": "Three-phase sim-to-real curriculum",
+      "description": "Training proceeds without domain randomization, then with domain randomization, then with progressively stronger regularization; curiosity is active only in phase one.",
+      "tags": [
+        "training_schedule",
+        "domain_randomization",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E06",
+        "E16"
+      ]
+    },
+    {
+      "id": "wococo.training_stack",
+      "name": "Paper training and control stack",
+      "description": "PPO with symmetry augmentation trains end-to-end MLP actor/critic networks in Isaac Gym; actions are joint position targets tracked by a higher-rate PD loop.",
+      "tags": [
+        "ppo",
+        "isaac_gym",
+        "mlp",
+        "pd_control",
+        "fixed_component"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E13",
+        "E17"
+      ]
+    },
+    {
+      "id": "wococo.public_demo_release",
+      "name": "Clap-and-dance public demonstration",
+      "description": "The pinned repository exposes one H1 jump-jack/clap-and-dance reward and MDP example, not the full parkour, box, cliffside, and dinosaur experiment suite.",
+      "tags": [
+        "official_code",
+        "partial_release",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E18",
+        "E19",
+        "E20",
+        "E22"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_artifact",
+      "value": {
+        "version": "arXiv v2",
+        "revision_date": "2024-11-07",
+        "pdf_sha256": "812ced4443bd525bbfbbfe5a0851745f7b8c10dd1e21c60f9cbb518aff695527"
+      },
+      "units": null,
+      "context": "Exact paper bytes reviewed for this extraction.",
+      "evidence_ids": [
+        "E01"
+      ]
+    },
+    {
+      "name": "official_code_artifact",
+      "value": {
+        "repository": "LeCAR-Lab/wococo",
+        "commit": "c44d31284ba79ee1e87130150c394591c6130e32",
+        "commit_date": "2024-11-07T10:31:10+01:00"
+      },
+      "units": null,
+      "context": "Exact public code commit pinned on 30 August 2026.",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "name": "contact_stage_definition",
+      "value": "stage i is fulfilled iff contact goal g_i^con and task goal g_i^task are both fulfilled",
+      "units": null,
+      "context": "Manually predefined linear contact-stage oracle.",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "name": "policy_goal_conditioning",
+      "value": "a_t = pi*(s_t | g^con_{i:I}, g^task_{i:I})",
+      "units": null,
+      "context": "Extended-MDP objective in the paper; actual task encodings expose only selected current/near-future goals.",
+      "evidence_ids": [
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "name": "reward_decomposition",
+      "value": "r = (r_WoCoCo + r_reg) + r_task",
+      "units": null,
+      "context": "Task-agnostic WoCoCo and regularization components plus task-specific reward.",
+      "evidence_ids": [
+        "E03"
+      ]
+    },
+    {
+      "name": "wococo_reward_decomposition",
+      "value": "r_WoCoCo = w_con r_con + w_stage r_stage + w_curi r_curi",
+      "units": null,
+      "context": "Three task-agnostic contact/exploration terms.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "dense_contact_reward",
+      "value": "r_con = n_corr - n_con n_wrong 1(n_stage>0) + 2 n_con^2 F_con F_task",
+      "units": null,
+      "context": "Wrong-contact penalty is masked in the first stage; n_con is the maximum participating end-effector count.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "stage_count_reward",
+      "value": "r_stage = n_stage F_task",
+      "units": null,
+      "context": "Task-goal gate is intended to prevent collecting accumulated stage reward while intentionally violating the task goal.",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "name": "curiosity_hash",
+      "value": "bucket_id(o_curi) = BIN2DEC[f_curi(o_curi) > 0]",
+      "units": null,
+      "context": "f_curi is randomly initialized and frozen.",
+      "evidence_ids": [
+        "E05"
+      ]
+    },
+    {
+      "name": "curiosity_reward",
+      "value": "r_curi = 1 / sqrt(number of visits to bucket(o_curi))",
+      "units": null,
+      "context": "Paper equation; the released demo code increments the count and then evaluates 1/sqrt(1+count), so it should not be treated as byte-equivalent to the equation.",
+      "evidence_ids": [
+        "E05",
+        "E21"
+      ]
+    },
+    {
+      "name": "wococo_reward_weights",
+      "value": {
+        "parkour": {
+          "w_con": 120,
+          "w_stage": 160,
+          "w_curi": 20000
+        },
+        "box_loco_manipulation": {
+          "w_con": 40,
+          "w_stage": 160,
+          "w_curi": 40000
+        },
+        "dancing": {
+          "w_con": 10,
+          "w_stage": 5,
+          "w_curi": 5000
+        },
+        "cliffside": {
+          "w_con": 20,
+          "w_stage": 40,
+          "w_curi": 10000
+        }
+      },
+      "units": null,
+      "context": "Per-task weights; task-agnostic means shared reward form, not shared numerical coefficients.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "task_specific_reward_weights",
+      "value": {
+        "parkour": {
+          "w_task": 30
+        },
+        "box_loco_manipulation": {
+          "w_hand": 100,
+          "w_box": 200,
+          "destination_angle_gate_rad": 1.5707963267948966,
+          "box_angle_gate_rad": 0.5235987755982988
+        },
+        "dancing": {
+          "w_hand": 5,
+          "w_foot": 10,
+          "foot_distance_scale_m": 0.1
+        },
+        "cliffside": {
+          "w_base": 50,
+          "w_ee": 5,
+          "end_effector_distance_scale_m": 0.2
+        }
+      },
+      "units": null,
+      "context": "Exact constants from task-specific reward equations.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "goal_lookahead",
+      "value": {
+        "parkour": "future two stages",
+        "box_loco_manipulation": "current stage",
+        "dancing": "current stage",
+        "cliffside": "current and next stages"
+      },
+      "units": "stages",
+      "context": "Appendix H first says all non-parkour tasks receive only the current stage, but its cliffside subsection specifies current and next; preserve this source-level inconsistency.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "actor_critic_hidden_units",
+      "value": [
+        512,
+        256,
+        128
+      ],
+      "units": "units per layer",
+      "context": "Actor and critic MLP architecture for the paper policies.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "proprioceptive_history",
+      "value": 3,
+      "units": "control steps",
+      "context": "Joint positions, joint velocities, and previous actions are stacked over three control steps.",
+      "evidence_ids": [
+        "E06",
+        "E13"
+      ]
+    },
+    {
+      "name": "curiosity_hash_network",
+      "value": {
+        "hidden_layers": 1,
+        "hidden_units": 32,
+        "output_bits": 16,
+        "paper_reported_preprocessing": "normalize to [0,pi], then concatenate sine and cosine"
+      },
+      "units": null,
+      "context": "Reported curiosity network and preprocessing; official demo code additionally multiplies by stage index plus one.",
+      "evidence_ids": [
+        "E14",
+        "E21"
+      ]
+    },
+    {
+      "name": "sim_to_real_curriculum",
+      "value": {
+        "phase_1": "train to convergence without domain randomization; curiosity active",
+        "phase_2": "resume with domain randomization to convergence",
+        "phase_3": "increase regularization weights by 20 percent every 2000 iterations until doubled"
+      },
+      "units": null,
+      "context": "This changes training schedule and therefore lies outside an oracle/reward-only fixed-trainer comparison unless frozen as infrastructure.",
+      "evidence_ids": [
+        "E06"
+      ]
+    },
+    {
+      "name": "domain_randomization_ranges",
+      "value": {
+        "friction": [
+          0.2,
+          1.1
+        ],
+        "base_com_offset_m": [
+          -0.1,
+          0.1
+        ],
+        "link_mass_multiplier": [
+          0.7,
+          1.3
+        ],
+        "p_gain_multiplier": [
+          0.75,
+          1.25
+        ],
+        "d_gain_multiplier": [
+          0.75,
+          1.25
+        ],
+        "torque_rfi_fraction_of_limit": 0.1,
+        "control_delay_ms": [
+          0,
+          20
+        ],
+        "push_interval_s": 5,
+        "push_delta_v_xy_m_per_s": 0.25
+      },
+      "units": null,
+      "context": "Shared reported domain-randomization settings for the humanoid tasks.",
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "name": "deployment_rates",
+      "value": {
+        "policy_hz": 50,
+        "pd_hz": 200,
+        "pd_target_low_pass_hz": 4
+      },
+      "units": "Hz",
+      "context": "Real-robot control and action-filter rates.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "stability_seed_count",
+      "value": 5,
+      "units": "random seeds",
+      "context": "Parkour learning curves shown for training stability; no tabulated dispersion statistic is reported.",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "name": "sim_to_real_curriculum_ablation_progress",
+      "value": {
+        "domain_randomization_from_phase_1": "below 0.6",
+        "standard_wococo": "above 0.75"
+      },
+      "units": "fraction of contact stages fulfilled",
+      "context": "Parkour average-progress convergence reported for the curriculum ablation.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "public_demo_stage_parameters",
+      "value": {
+        "sequence_length": 10,
+        "end_effectors": 4,
+        "stage_dwell_seconds": [
+          0.4,
+          0.8
+        ],
+        "curiosity_observation_dim": 29,
+        "curiosity_hash_bits": 16
+      },
+      "units": null,
+      "context": "Pinned clap-and-dance code example only; not evidence for every paper task.",
+      "evidence_ids": [
+        "E19",
+        "E22"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "wococo.failure.stage_stalling",
+      "name": "Intentional stage stalling",
+      "description": "Without the stage-count term, the parkour policy intentionally avoids satisfying the active contact goal so it need not enter harder later stages.",
+      "tags": [
+        "reward_hacking",
+        "local_optimum",
+        "reported_ablation"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.failure.sparse_contact_underexploration",
+      "name": "Sparse-contact under-exploration",
+      "description": "The 0-1 contact baseline and the no-curiosity ablation remain in posture-tracking behavior instead of jumping over the stones.",
+      "tags": [
+        "underexploration",
+        "sparse_reward",
+        "reported_ablation"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.failure.rnd_risky_attractor",
+      "name": "RND risky-behavior attractor",
+      "description": "The RND baseline leans backward in a risky posture, which the authors interpret as over-exploring rare but behaviorally unhelpful states.",
+      "tags": [
+        "intrinsic_reward",
+        "overexploration",
+        "unsafe_behavior"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.failure.unknown_length_stage_reward_exploit",
+      "name": "Unknown-length stage-count exploitation",
+      "description": "The authors warn that if sequence length is not known a priori, the stage-count reward may require heuristic clamping to prevent exploitation.",
+      "tags": [
+        "reward_hacking",
+        "unknown_horizon",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "wococo.failure.no_failure_predictor",
+      "name": "No controller failure predictor",
+      "description": "Unlike a model-based solver, the learned controller does not provide a feasibility/failure certificate.",
+      "tags": [
+        "safety",
+        "feasibility",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E09"
+      ]
+    },
+    {
+      "id": "wococo.failure.external_stage_feedback",
+      "name": "External stage-transition feedback",
+      "description": "Stage switching requires explicit contact feedback from sensors or human observers; transition predicates are not inferred by the policy.",
+      "tags": [
+        "oracle",
+        "sensing_dependency",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E09"
+      ]
+    },
+    {
+      "id": "wococo.failure.heuristic_oracle",
+      "name": "Heuristic predefined oracle",
+      "description": "The contact sequence and stage partition are supplied by humans; the work does not learn or optimize the oracle itself.",
+      "tags": [
+        "oracle",
+        "manual_design",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E02",
+        "E09"
+      ]
+    },
+    {
+      "id": "wococo.failure.limited_ablation_scope",
+      "name": "Single-task reward ablations",
+      "description": "Reward ablations and five-seed stability plots are run on parkour; the paper does not repeat them across the other humanoid tasks.",
+      "tags": [
+        "evaluation_gap",
+        "generalization",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.failure.goal_lookahead_inconsistency",
+      "name": "Goal-lookahead description inconsistency",
+      "description": "Appendix H says non-parkour tasks receive only the current stage, but the cliffside subsection says its policy receives current and next-stage goal regions.",
+      "tags": [
+        "evidence_gap",
+        "observation_contract",
+        "source_inconsistency"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "wococo.failure.partial_code_release",
+      "name": "Partial public implementation",
+      "description": "The official repository explicitly provides a clap-and-dance example, so it cannot by itself reproduce the paper's full task suite or every reported reward configuration.",
+      "tags": [
+        "reproducibility",
+        "official_code",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "id": "wococo.failure.paper_code_curiosity_mismatch",
+      "name": "Paper/code curiosity mismatch",
+      "description": "The paper reports preprocessing method (2) and 1/sqrt(visits); the public demo applies stage-index rescaling and increments the count before evaluating 1/sqrt(1+count).",
+      "tags": [
+        "reproducibility",
+        "official_code",
+        "implementation_mismatch"
+      ],
+      "evidence_ids": [
+        "E05",
+        "E14",
+        "E21"
+      ]
+    },
+    {
+      "id": "wococo.failure.fixed_trainer_confound",
+      "name": "Fixed-trainer confound",
+      "description": "The paper's method jointly changes policy goal observations, reward, curiosity, domain randomization, regularization schedule, and low-level deployment details; it is not evidence that changing only Sam's oracle or task reward improves a frozen trainer.",
+      "tags": [
+        "fixed_trainer",
+        "causal_boundary",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E03",
+        "E06",
+        "E13",
+        "E15",
+        "E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "wococo.eval.task_suite",
+      "name": "Five-task, two-embodiment demonstration suite",
+      "description": "The paper demonstrates parkour, box loco-manipulation, clap-and-tap dancing, and cliffside climbing on humanoids, plus 22-DoF dinosaur ball loco-manipulation; the four humanoid policies are shown in real-world demonstrations.",
+      "tags": [
+        "task_suite",
+        "real_world",
+        "simulation"
+      ],
+      "evidence_ids": [
+        "E07",
+        "E23"
+      ]
+    },
+    {
+      "id": "wococo.eval.parkour_reward_ablation",
+      "name": "Parkour reward-component ablation",
+      "description": "The reported 0-1-contact, no-stage-count, no-curiosity, and RND-curiosity variants exhibit distinct failure behaviors; these results are qualitative/curve-based and restricted to parkour.",
+      "tags": [
+        "ablation",
+        "parkour",
+        "reward_design"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.eval.training_stability",
+      "name": "Five-seed parkour learning curves",
+      "description": "Curiosity and normalized task-progress curves are plotted for five random seeds, but no tabulated confidence interval or hypothesis test is reported.",
+      "tags": [
+        "random_seeds",
+        "training_curve",
+        "evaluation_gap"
+      ],
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "id": "wococo.eval.sim_to_real_curriculum",
+      "name": "Sim-to-real curriculum ablation",
+      "description": "Moving domain randomization into phase one reduces parkour average progress below 0.6 versus above 0.75; omitting phase three yields jerky real-world cliffside behavior and step-out failures.",
+      "tags": [
+        "curriculum",
+        "sim_to_real",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "id": "wococo.eval.real_world_boundary",
+      "name": "Real-world evidence boundary",
+      "description": "Results are demonstrations without a tabulated hardware success rate; real parkour is limited to double-foot sequences with one or two continuous jumps because of facility constraints.",
+      "tags": [
+        "real_world",
+        "quantitative_gap",
+        "boundary"
+      ],
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "id": "wococo.eval.public_code_audit",
+      "name": "Pinned public-code audit",
+      "description": "At commit c44d312, the release contains one constrained 10-stage clap-and-dance environment and exposes paper-like contact/progress/curiosity terms, but it is a partial implementation and contains curiosity details that differ from the paper text.",
+      "tags": [
+        "official_code",
+        "reproducibility",
+        "audit"
+      ],
+      "evidence_ids": [
+        "E18",
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2406.06005",
+      "relation": "INTRODUCES",
+      "target": "wococo.contact_stage_specification",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "INTRODUCES",
+      "target": "wococo.stage_transition_automaton",
+      "evidence_ids": [
+        "E02"
+      ]
+    },
+    {
+      "source": "wococo.stage_transition_automaton",
+      "relation": "COMPOSES",
+      "target": "wococo.contact_stage_specification",
+      "evidence_ids": [
+        "E02",
+        "E19"
+      ]
+    },
+    {
+      "source": "wococo.stage_transition_automaton",
+      "relation": "CONDITIONS_ON",
+      "target": "explicit_contact_and_task_goal_feedback",
+      "evidence_ids": [
+        "E02",
+        "E09"
+      ]
+    },
+    {
+      "source": "wococo.goal_conditioned_policy",
+      "relation": "CONDITIONS_ON",
+      "target": "wococo.stage_transition_automaton",
+      "evidence_ids": [
+        "E03",
+        "E13"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "INTRODUCES",
+      "target": "wococo.reward_stack",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    },
+    {
+      "source": "wococo.reward_stack",
+      "relation": "COMPOSES",
+      "target": "wococo.dense_contact_reward",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "wococo.reward_stack",
+      "relation": "COMPOSES",
+      "target": "wococo.stage_count_reward",
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "source": "wococo.reward_stack",
+      "relation": "COMPOSES",
+      "target": "wococo.hash_count_curiosity",
+      "evidence_ids": [
+        "E04",
+        "E05"
+      ]
+    },
+    {
+      "source": "wococo.dense_contact_reward",
+      "relation": "ADDRESSES",
+      "target": "wococo.failure.sparse_contact_underexploration",
+      "evidence_ids": [
+        "E04",
+        "E08"
+      ]
+    },
+    {
+      "source": "wococo.stage_count_reward",
+      "relation": "ADDRESSES",
+      "target": "wococo.failure.stage_stalling",
+      "evidence_ids": [
+        "E04",
+        "E08"
+      ]
+    },
+    {
+      "source": "wococo.hash_count_curiosity",
+      "relation": "ADDRESSES",
+      "target": "wococo.failure.sparse_contact_underexploration",
+      "evidence_ids": [
+        "E05",
+        "E08"
+      ]
+    },
+    {
+      "source": "wococo.hash_count_curiosity",
+      "relation": "CONTRASTS_WITH",
+      "target": "random_network_distillation_curiosity",
+      "evidence_ids": [
+        "E05",
+        "E08"
+      ]
+    },
+    {
+      "source": "wococo.sim_to_real_curriculum",
+      "relation": "USES",
+      "target": "domain_randomization_and_regularization",
+      "evidence_ids": [
+        "E06",
+        "E15"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "USES",
+      "target": "wococo.training_stack",
+      "evidence_ids": [
+        "E03",
+        "E17"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "EVALUATES_ON",
+      "target": "wococo.eval.task_suite",
+      "evidence_ids": [
+        "E07"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "REPORTS",
+      "target": "wococo.eval.parkour_reward_ablation",
+      "evidence_ids": [
+        "E08"
+      ]
+    },
+    {
+      "source": "paper:2406.06005",
+      "relation": "REPORTS",
+      "target": "wococo.eval.sim_to_real_curriculum",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "source": "wococo.public_demo_release",
+      "relation": "SUPPORTS",
+      "target": "wococo.stage_transition_automaton",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "source": "wococo.public_demo_release",
+      "relation": "SUPPORTS",
+      "target": "wococo.reward_stack",
+      "evidence_ids": [
+        "E20",
+        "E22"
+      ]
+    },
+    {
+      "source": "wococo.public_demo_release",
+      "relation": "CONTRASTS_WITH",
+      "target": "wococo.failure.paper_code_curiosity_mismatch",
+      "evidence_ids": [
+        "E05",
+        "E14",
+        "E21"
+      ]
+    },
+    {
+      "source": "wococo.contact_stage_specification",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.versioned_oracle_manifest",
+      "evidence_ids": [
+        "E02",
+        "E13"
+      ]
+    },
+    {
+      "source": "wococo.reward_stack",
+      "relation": "MOTIVATES",
+      "target": "sam_harness.oracle_reward_interface_contract",
+      "evidence_ids": [
+        "E03",
+        "E04"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2406.06005v2",
+      "locator": "Submission history and citation metadata",
+      "claim": "The reviewed paper is arXiv:2406.06005v2, revised 7 November 2024, by Chong Zhang, Wenli Xiao, Tairan He, and Guanya Shi.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S2",
+      "locator": "Section 2, paragraphs 1-2",
+      "claim": "A task is manually decomposed into ordered contact stages; each requires simultaneous contact- and task-goal fulfillment, and sensors or human observers trigger advancement after a predefined dwell.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S2",
+      "locator": "Section 2, Equation 1 and final two paragraphs",
+      "claim": "The policy is goal-conditioned; reward separates WoCoCo/regularization/task terms; PPO with symmetry augmentation trains an end-to-end MLP in Isaac Gym; actions are joint targets tracked by PD control.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S3.SS1",
+      "locator": "Section 3.1, Equations 2-4",
+      "claim": "WoCoCo sums dense contact, stage-count, and curiosity terms; the paper gives exact dense-contact and task-gated stage-count formulas and their anti-local-optimum rationale.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S3.SS1",
+      "locator": "Section 3.1, Equations 5-6",
+      "claim": "A frozen random neural network creates a sign-bit hash bucket, and the paper's intrinsic reward is the inverse square root of that bucket's visit count.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S3.SS2",
+      "locator": "Section 3.2",
+      "claim": "The three-phase curriculum delays domain randomization, then increases regularization weights by 20 percent every 2000 iterations until doubled; curiosity is active only in phase one and three control steps are stacked.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S4",
+      "locator": "Section 4, subsections 4.1-4.5",
+      "claim": "The paper demonstrates four humanoid tasks in simulation and hardware and a 22-DoF dinosaur task; real parkour is limited to one or two double-foot jumps because of facility constraints.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S5",
+      "locator": "Section 5 and Appendices B-C",
+      "claim": "Parkour ablations report failure with 0-1 contacts, intentional stalling without stage reward, under-exploration without curiosity, and risky leaning with RND; stability curves use five seeds.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2406.06005v2#S6",
+      "locator": "Section 6",
+      "claim": "Reported limitations include no failure predictor, potential stage-count exploitation for unknown sequence length, heuristic contact sequences, motion-capture dependence, and explicit stage-transition feedback.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A5",
+      "locator": "Appendix E, Supplementary Table 1",
+      "claim": "The table reports per-task contact, stage, and curiosity weights for parkour, box loco-manipulation, dancing, and cliffside climbing.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A6",
+      "locator": "Appendix F, Supplementary Table 2",
+      "claim": "The paper specifies the shared regularization terms, formulas, and weights, including task-conditional feet-air-time and no-fly shaping.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A7",
+      "locator": "Appendix G, Equations 8-11",
+      "claim": "The appendix gives exact task-specific reward formulas and constants for the four humanoid tasks.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A8",
+      "locator": "Appendix H",
+      "claim": "Policies combine proprioception with task-specific goal representations and use 512-256-128 MLPs; the general lookahead statement and cliffside subsection disagree about whether cliffside receives next-stage goals.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A9",
+      "locator": "Appendix I",
+      "claim": "Curiosity uses base and end-effector state, a one-hidden-layer 32-unit hash network with 16 outputs, and the reported experiments use sine/cosine preprocessing without stage rescaling.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A10",
+      "locator": "Appendix J, Supplementary Table 3",
+      "claim": "The appendix reports friction, mass, center-of-mass, gain, control-delay, torque-noise, push, and terrain randomization ranges.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A11",
+      "locator": "Appendix K",
+      "claim": "Starting domain randomization in phase one yields parkour progress below 0.6 versus above 0.75; removing phase three produces jerky cliffside behavior and real-world step-out failures.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2406.06005v2#A12",
+      "locator": "Appendix L",
+      "claim": "Deployment uses a 50 Hz policy, 200 Hz PD loop, and a 4 Hz Butterworth filter on PD targets; robot geometry and mass were corrected from the official URDF.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/LeCAR-Lab/wococo/blob/c44d31284ba79ee1e87130150c394591c6130e32/README.md#L65-L85",
+      "locator": "Official repository README at commit c44d312, lines 65-85",
+      "claim": "The release trains h1:jumpjack and explicitly says it provides a clap-and-dance reward/MDP example, with further engineering left to users.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/LeCAR-Lab/wococo/blob/c44d31284ba79ee1e87130150c394591c6130e32/legged_gym/legged_gym/envs/base/h1_jumpjack.py#L37-L45",
+      "locator": "h1_jumpjack.py lines 37-45, 92-125, and 155-171 at commit c44d312",
+      "claim": "The public demo stores a four-end-effector contact sequence and current stage index, advances after fulfillment plus a dwell timer, and exposes the active phase in the policy observation.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/LeCAR-Lab/wococo/blob/c44d31284ba79ee1e87130150c394591c6130e32/legged_gym/legged_gym/envs/base/h1_jumpjack.py#L254-L339",
+      "locator": "h1_jumpjack.py lines 254-339 at commit c44d312",
+      "claim": "The public demo implements whole-body fulfillment, dense correct/wrong-contact scoring, stage-progress reward, and base/end-effector curiosity observations.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://github.com/LeCAR-Lab/wococo/blob/c44d31284ba79ee1e87130150c394591c6130e32/legged_gym/legged_gym/envs/base/curiosity.py#L25-L78",
+      "locator": "curiosity.py lines 25-78 at commit c44d312",
+      "claim": "The demo's hash curiosity symmetry-averages observations, multiplies normalized features by stage index plus one, increments the bucket count, then computes 1/sqrt(1+count).",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/LeCAR-Lab/wococo/blob/c44d31284ba79ee1e87130150c394591c6130e32/legged_gym/legged_gym/envs/h1/h1_jumpjack_config.py#L211-L261",
+      "locator": "h1_jumpjack_config.py lines 211-261 at commit c44d312",
+      "claim": "The demo config pins contact/progress/curiosity scales 10/5/5000, 29 curiosity inputs, a 32-unit hidden layer, 16 hash bits, a 10-stage sequence, and 0.4-0.8 second contact periods.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://lecar-lab.github.io/wococo/",
+      "locator": "Official project page header, overview, and media",
+      "claim": "The authors identify the work as CoRL 2024 and publish official task videos and links to the paper and code.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

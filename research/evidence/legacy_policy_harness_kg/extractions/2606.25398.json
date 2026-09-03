@@ -1,0 +1,1155 @@
+{
+  "paper": {
+    "id": "2606.25398",
+    "arxiv_id": "2606.25398",
+    "doi": "10.48550/arXiv.2606.25398",
+    "title": "MAPL: Multi-Objective Preference Learning for Robot Locomotion",
+    "authors": [
+      "Xiyue Chen",
+      "Muhan Lin",
+      "Shuyang Shi",
+      "Joseph Campbell"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.25398v1",
+    "source_version": "arXiv v1, submitted 2026-06-24; exact 3,698,572-byte source archive SHA-256 8ce6faab1e094823dab7fcf8c4ced43ba939c4c326a8ea15e4dbf53f93bf4115. Official CAMP Lab public record pinned to commit 7624ed21aba13a83682d50c6b9b8f8399da3c37c; its 4,223,359-byte PDF SHA-256 is 31ba53f8f5497f1c67ac505b2f442ad1532af17df6a9fca0840796e0288b507b. No MAPL implementation is listed there; checked 2026-08-30."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "MAPL decomposes a language-specified locomotion objective into separately elicited preferences, learns a multi-head neural reward, and exposes explicit aggregation weights and ablations. This directly informs task-reward artifact design and a possible language-to-reward interface, while its online reward-model updates, overlapping evaluation reward, and incomplete versioning define strict boundaries for Sam's fixed-trainer protocol.",
+    "not_evidence_for": [
+      "Reference selection, reference composition, transition guards, recovery coverage, mode discovery, or oracle logic",
+      "An immutable task-reward artifact held fixed throughout one policy-training run",
+      "Executable or auditable reward code generation",
+      "Permission to replace Sam's frozen tracking reward with MAPL's whole-locomotion velocity, stability, and smoothness reward",
+      "Permission to change terrain curriculum, scene generation, policy architecture, or PPO settings inside Sam's initial reward search",
+      "Reliable human steering, because the paper evaluates fixed author-written prompts and AI rankings rather than human edits",
+      "Elimination of all reward engineering, because aggregation weights are manual and terrain-dependent and rubrics contain embodiment-specific quantities",
+      "Improvement on an untouched reward-independent objective evaluator",
+      "Policy invariance of the undiscounted score-difference reward under gamma 0.99 or across episode resets",
+      "Hardware transfer, another robot embodiment, another trainer, or another observation/action contract",
+      "Exact reproducibility without released MAPL code and pinned simulator, RL-library, and LLM versions",
+      "Numerical headline return differences or statistical significance beyond the plotted curves"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mapl.multi_objective_preference_generation",
+      "name": "Objective-wise LLM preference generation",
+      "description": "Trajectory pairs are downsampled and presented to separate velocity, stability, and smoothness rubrics; the LLM ranks each objective independently, with repeated queries optionally reduced by majority vote.",
+      "tags": [
+        "task_reward",
+        "language_objective",
+        "pairwise_preference",
+        "multi_objective"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4",
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "id": "mapl.multi_head_scoring_model",
+      "name": "Shared Transformer with objective heads",
+      "description": "A shared Transformer backbone has one state-score output head for each of velocity, stability, and smoothness and is trained from objective-specific Bradley-Terry pairwise losses.",
+      "tags": [
+        "learned_reward",
+        "transformer",
+        "multi_head",
+        "bradley_terry"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E4",
+        "E16"
+      ]
+    },
+    {
+      "id": "mapl.manual_preference_aggregation",
+      "name": "Manual linear objective aggregation",
+      "description": "Three objective scores are linearly combined using a manually selected lambda vector; the smoothness weight differs between flat/wave and stair/obstacle terrains.",
+      "tags": [
+        "task_reward",
+        "linear_scalarization",
+        "manual_weight",
+        "terrain_specific"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E7",
+        "E12",
+        "E15"
+      ]
+    },
+    {
+      "id": "mapl.score_difference_reward",
+      "name": "Consecutive-score difference reward",
+      "description": "The scalar policy reward is the aggregate preference score at the current state minus its score at the previous state, rather than the raw learned score.",
+      "tags": [
+        "task_reward",
+        "reward_shaping",
+        "potential_difference",
+        "state_score"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E11"
+      ]
+    },
+    {
+      "id": "mapl.alternating_reward_policy_training",
+      "name": "Alternating reward-model and policy updates",
+      "description": "Policy rollouts refresh preference data and the scoring model at one-hundredth the policy-update frequency while PPO continually consumes the current learned score-difference reward.",
+      "tags": [
+        "online_reward_learning",
+        "feedback_loop",
+        "fixed_trainer_boundary",
+        "nonstationary_reward"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "id": "mapl.language_objective_interface",
+      "name": "Natural-language reward specification interface",
+      "description": "Author-written language rubrics select trajectory channels and comparison rules without an explicit reward equation; this is a candidate interface for steering reward proposals, not evidence that human steering was tested.",
+      "tags": [
+        "human_steering",
+        "language_to_reward",
+        "interface",
+        "evidence_boundary"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E18",
+        "E19",
+        "E20"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "preference_objectives",
+      "value": [
+        "velocity tracking",
+        "stability",
+        "smoothness"
+      ],
+      "units": "objective heads",
+      "context": "The same three semantic objectives are used across all four terrains, with a separate output head and objective-specific prompt for each.",
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "name": "downsampled_states_per_trajectory",
+      "value": 6,
+      "units": "states",
+      "context": "Exact continuous-state count in each appendix preference prompt; the original trajectory horizon and sampling cadence are not reported.",
+      "evidence_ids": [
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "name": "trajectory_pairs_per_llm_request",
+      "value": 20,
+      "units": "trajectory pairs",
+      "context": "Each objective-specific prompt asks for one array containing labels for twenty independently judged pairs.",
+      "evidence_ids": [
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "name": "preference_label_encodings",
+      "value": {
+        "prompt": {
+          "first_better": 0,
+          "second_better": 1,
+          "tie": 2
+        },
+        "loss_definition": {
+          "first_better": 0,
+          "second_better": 1,
+          "tie": 0.5
+        }
+      },
+      "units": null,
+      "context": "The paper does not state how prompt tie label 2 is converted to the theoretical 0.5 target.",
+      "evidence_ids": [
+        "E2",
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "name": "velocity_prompt_feature_shapes",
+      "value": {
+        "base_xy_velocity": [
+          6,
+          2
+        ],
+        "base_yaw_velocity": [
+          6,
+          1
+        ],
+        "xy_yaw_commands": [
+          6,
+          3
+        ],
+        "four_foot_contacts": [
+          6,
+          4
+        ],
+        "linear_to_yaw_importance_ratio": "3:1"
+      },
+      "units": null,
+      "context": "Velocity preference input and its explicit decision priority; trot foot-contact consistency is only a tiebreaker after tracking is close.",
+      "evidence_ids": [
+        "E18"
+      ]
+    },
+    {
+      "name": "stability_prompt_parameters",
+      "value": {
+        "target_base_height_m": 0.34,
+        "base_height_shape": [
+          6,
+          1
+        ],
+        "vertical_velocity_shape": [
+          6,
+          1
+        ],
+        "roll_pitch_angular_velocity_shape": [
+          6,
+          2
+        ]
+      },
+      "units": null,
+      "context": "Embodiment-specific stability preference inputs and target.",
+      "evidence_ids": [
+        "E19"
+      ]
+    },
+    {
+      "name": "smoothness_prompt_feature_shapes",
+      "value": {
+        "summed_joint_action_change": [
+          6,
+          1
+        ],
+        "stumble": [
+          6,
+          1
+        ]
+      },
+      "units": null,
+      "context": "Smoothness inputs; the rubric makes a clear stumble dominate a small action-smoothness advantage.",
+      "evidence_ids": [
+        "E20"
+      ]
+    },
+    {
+      "name": "scoring_model_update_frequency_ratio",
+      "value": {
+        "scoring_model": 1,
+        "policy": 100
+      },
+      "units": "relative updates",
+      "context": "The scoring model is updated one hundred times less frequently than the policy.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "preference_aggregation_weights",
+      "value": {
+        "objective_order": [
+          "velocity",
+          "stability",
+          "smoothness"
+        ],
+        "flat_and_wave": [
+          1.5,
+          1.0,
+          0.1
+        ],
+        "stair_and_obstacle": [
+          1.5,
+          1.0,
+          0.25
+        ]
+      },
+      "units": "score coefficients",
+      "context": "Manually specified terrain-dependent lambda ratios used in the main experiments.",
+      "evidence_ids": [
+        "E5",
+        "E7"
+      ]
+    },
+    {
+      "name": "policy_reward_formula",
+      "value": "r(s_t) = sigma(s_t) - sigma(s_(t-1))",
+      "units": "reward per policy step",
+      "context": "Difference of consecutive aggregate learned scores; no gamma multiplier or episode-boundary convention is specified.",
+      "evidence_ids": [
+        "E2",
+        "E5"
+      ]
+    },
+    {
+      "name": "default_llm_name",
+      "value": "GPT-5-mini",
+      "units": null,
+      "context": "Used for all rankings unless otherwise specified; no exact snapshot, provider settings, temperature, or decoding seed is reported.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "llm_backbone_ablation_names",
+      "value": [
+        "GPT-5-mini",
+        "Claude Sonnet 4.6",
+        "Gemini-2.5-Flash"
+      ],
+      "units": null,
+      "context": "Three-seed Plane comparison of the velocity preference model; exact provider snapshots and decoding configurations are not reported.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "main_preference_training_pairs",
+      "value": 500,
+      "units": "trajectory pairs per preference reward model",
+      "context": "Main locomotion-policy comparison.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "component_ablation_training_pairs",
+      "value": 2000,
+      "units": "trajectory pairs per preference reward model",
+      "context": "Same pair count for each objective subset in the component ablation.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "trajectory_buffer_sensitivity_sizes",
+      "value": [
+        100,
+        200,
+        500,
+        1000
+      ],
+      "units": "trajectories",
+      "context": "Plane-environment sensitivity study; one thousand gives the highest plotted expert evaluation reward and five hundred remains competitive.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "llm_query_repeat_sensitivity",
+      "value": [
+        1,
+        3,
+        5,
+        7
+      ],
+      "units": "queries per trajectory ranking",
+      "context": "Plane-environment majority-vote sensitivity; curves are reported as nearly identical at three or more repeats, but the main default is not stated.",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "name": "reward_transformer_hyperparameters",
+      "value": {
+        "embedding_dimension": 256,
+        "layers": 2,
+        "attention_heads": 4,
+        "feedforward_dimension": 512,
+        "dropout": 0.1,
+        "batch_size": 32,
+        "epochs": 80
+      },
+      "units": null,
+      "context": "Manually tuned preference scoring model.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "reward_transformer_learning_rate_schedule",
+      "value": [
+        {
+          "epoch": 20,
+          "learning_rate": 0.00004
+        },
+        {
+          "epoch": 70,
+          "learning_rate": 0.00003
+        },
+        {
+          "epoch": 80,
+          "learning_rate": 0.00008
+        }
+      ],
+      "units": null,
+      "context": "Learning-rate value paired with the epoch at which the appendix says it is applied.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "shared_ppo_hyperparameters",
+      "value": {
+        "batch_size": 98304,
+        "parallel_environments": 4096,
+        "steps_per_environment": 24,
+        "minibatch_size": 24576,
+        "minibatch_steps_per_environment": 6,
+        "epochs": 5,
+        "clip_range": 0.2,
+        "entropy_coefficient": 0.01,
+        "discount_gamma": 0.99,
+        "gae_lambda": 0.95,
+        "target_kl": 0.01,
+        "learning_rate": "adaptive"
+      },
+      "units": null,
+      "context": "PPO settings reported for every environment and baseline.",
+      "evidence_ids": [
+        "E17"
+      ]
+    },
+    {
+      "name": "main_policy_seeds",
+      "value": 5,
+      "units": "independent random seeds per reward method",
+      "context": "Main policy comparison and score-difference ablation.",
+      "evidence_ids": [
+        "E8",
+        "E11"
+      ]
+    },
+    {
+      "name": "ablation_policy_seeds",
+      "value": 3,
+      "units": "independent random seeds",
+      "context": "Component, LLM-backbone, trajectory-buffer, query-count, and lambda sensitivity studies.",
+      "evidence_ids": [
+        "E9",
+        "E10",
+        "E12"
+      ]
+    },
+    {
+      "name": "plotted_training_iterations_by_terrain",
+      "value": {
+        "plane": 1500,
+        "stair": 2500,
+        "wave": 1500,
+        "obstacle": 2000
+      },
+      "units": "policy iterations",
+      "context": "Main Figure 3 x-axis horizons; methods are compared to the same horizon within each terrain.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "evaluation_velocity_reward_scales",
+      "value": {
+        "linear_sigma": 0.25,
+        "angular_sigma": 0.25
+      },
+      "units": null,
+      "context": "Denominators in the Gaussian linear and angular velocity evaluation rewards.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "expert_reward_weights",
+      "value": {
+        "xy_velocity_tracking": 1.0,
+        "yaw_tracking": 0.5,
+        "z_velocity": -2.0,
+        "roll_pitch_velocity": -0.05,
+        "joint_torques": -0.00001,
+        "joint_accelerations": -2.5e-7,
+        "thigh_calf_collision": -1.0,
+        "joint_limit_violation": -10.0,
+        "feet_air_time": 1.0,
+        "action_smoothing": -0.01
+      },
+      "units": "reward coefficients",
+      "context": "Hand-designed expert reward used as a PPO baseline and as the basis of several evaluation and ranking comparisons.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "velocity_error_command_range",
+      "value": {
+        "minimum": 0.4,
+        "maximum": 1.0,
+        "lateral_command": 0.0,
+        "yaw_command": 0.0
+      },
+      "units": "m/s for linear commands; rad/s for yaw command",
+      "context": "Forward-velocity error evaluation across every terrain.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "velocity_error_rollout_protocol",
+      "value": {
+        "rollout_steps": 500,
+        "averaging_interval_steps": 20
+      },
+      "units": "policy steps",
+      "context": "Velocity errors are computed from interval-averaged velocities.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "preference_query_ranking_accuracy_percent",
+      "value": {
+        "SOSQ_overall": 63,
+        "MOSQ_velocity": 67,
+        "MOSQ_stability": 67,
+        "MOSQ_smoothness": 98,
+        "MOMQ_MAPL_velocity": 88,
+        "MOMQ_MAPL_stability": 76,
+        "MOMQ_MAPL_smoothness": 98,
+        "LAPP_overall": 68
+      },
+      "units": "%",
+      "context": "Accuracy against expert-reward rankings over one hundred trajectory pairs; overall and decomposed-objective columns are not directly interchangeable.",
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "mapl.single_objective_failure",
+      "name": "Single and incomplete objective sets fail",
+      "description": "Velocity-only, stability-only, and smoothness-only rewards converge at low or near-zero expert evaluation return; velocity plus stability also fails to improve, and the full three-term reward is reported near twice the best two-term variant.",
+      "tags": [
+        "reward_ablation",
+        "objective_interaction",
+        "failure_mode"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "mapl.linear_aggregation_limit",
+      "name": "Linear aggregation misses objective interactions",
+      "description": "The authors identify linear scalarization as interpretable but potentially insufficient for interactions among locomotion objectives.",
+      "tags": [
+        "linear_scalarization",
+        "expressiveness",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E15"
+      ]
+    },
+    {
+      "id": "mapl.score_difference_nontransfer",
+      "name": "Score difference does not help every reward model",
+      "description": "Removing score difference degrades MAPL, but adding the same operation to the LLM Reward and LAPP baselines can cause early plateaus or unstable training.",
+      "tags": [
+        "reward_shaping",
+        "instability",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "mapl.llm_ranking_inconsistency",
+      "name": "Stochastic LLM rankings",
+      "description": "Repeated calls can disagree; majority voting is the mitigation, although the Plane sensitivity study reports little benefit beyond three queries.",
+      "tags": [
+        "llm_noise",
+        "majority_vote",
+        "preference_error"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E10"
+      ]
+    },
+    {
+      "id": "mapl.nonstationary_reward_boundary",
+      "name": "Reward changes inside policy training",
+      "description": "The preference model is refreshed from current-policy rollouts while PPO continues, so MAPL is not a comparison of one immutable task reward per complete training run.",
+      "tags": [
+        "fixed_trainer_boundary",
+        "nonstationary_reward",
+        "lineage"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "id": "mapl.evaluation_overlap",
+      "name": "Evaluation overlaps reward design",
+      "description": "Expert velocity rewards form the reported evaluation return and expert-reward decompositions define ranking ground truth, so these studies do not supply an untouched reward-independent objective metric.",
+      "tags": [
+        "evaluation",
+        "metric_contamination",
+        "reward_overfitting"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E10",
+        "E14"
+      ]
+    },
+    {
+      "id": "mapl.tie_encoding_gap",
+      "name": "Tie encoding is unresolved",
+      "description": "The prompts emit 2 for a tie while the theoretical label is 0.5; no official implementation is available to establish the conversion.",
+      "tags": [
+        "label_contract",
+        "reproducibility",
+        "implementation_gap"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E18",
+        "E19",
+        "E20",
+        "E22"
+      ]
+    },
+    {
+      "id": "mapl.runtime_feature_ambiguity",
+      "name": "Runtime reward-model input is underspecified",
+      "description": "Equations score a state, but smoothness supervision depends on action changes and stumble history; v1 does not give the exact feature tensor or online history construction.",
+      "tags": [
+        "reward_interface",
+        "state_action_history",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E20"
+      ]
+    },
+    {
+      "id": "mapl.score_difference_boundary_gap",
+      "name": "Discount and reset semantics are unspecified",
+      "description": "The score difference omits a gamma factor even though PPO uses gamma 0.99, and the paper gives no terminal-state or episode-reset convention or invariance argument.",
+      "tags": [
+        "potential_difference",
+        "discounting",
+        "terminal_handling",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E17"
+      ]
+    },
+    {
+      "id": "mapl.unpinned_runtime",
+      "name": "Public reproduction identity is incomplete",
+      "description": "The paper names Isaac Gym, Legged-Gym, RSL-RL, and GPT-5-mini without versions or commits; the pinned official lab registry exposes a PDF but no MAPL implementation.",
+      "tags": [
+        "software_provenance",
+        "official_code",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E7",
+        "E22",
+        "E23"
+      ]
+    },
+    {
+      "id": "mapl.simulation_only_evidence",
+      "name": "Simulation-only and figure-only headline evidence",
+      "description": "All reported policies use one simulated Unitree Go2 setup; headline returns are smoothed curves with standard errors rather than tabulated effect sizes or hypothesis tests.",
+      "tags": [
+        "simulation_only",
+        "figure_only",
+        "external_validity"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E8",
+        "E9",
+        "E11"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "mapl.simulated_go2_benchmark",
+      "name": "Four-terrain Unitree Go2 benchmark",
+      "description": "Five policy seeds per reward method are trained in Isaac Gym/Legged-Gym on Plane, Wave, Stair, and Obstacle tasks with shared PPO settings and terrain-specific iteration horizons.",
+      "tags": [
+        "quadruped",
+        "isaac_gym",
+        "four_terrains",
+        "five_seeds"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E7",
+        "E8",
+        "E17"
+      ]
+    },
+    {
+      "id": "mapl.expert_reward_evaluation",
+      "name": "Expert-reward and difficulty-weighted evaluation",
+      "description": "Gaussian linear and angular command-tracking terms, and on uneven terrain a difficulty multiplier, measure policy performance; the broader expert reward is also the PPO upper-bound baseline.",
+      "tags": [
+        "evaluation",
+        "expert_reward",
+        "difficulty_weighting",
+        "non_independent_metric"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "id": "mapl.component_ablation",
+      "name": "Preference-component ablation",
+      "description": "Three-seed runs compare every single objective, all pairs, and all three objectives using two thousand trajectory pairs per reward model.",
+      "tags": [
+        "ablation",
+        "multi_objective",
+        "three_seeds"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "mapl.buffer_query_sensitivity",
+      "name": "Trajectory-buffer and LLM-query sensitivity",
+      "description": "Plane experiments vary trajectory count and repeated rankings; five hundred trajectories remain competitive, and three or more queries produce nearly identical curves.",
+      "tags": [
+        "sensitivity",
+        "preference_budget",
+        "llm_queries"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "mapl.score_difference_ablation",
+      "name": "Score-difference ablation",
+      "description": "Five-seed learning curves compare MAPL, LLM Reward, and LAPP with and without consecutive-score difference on all four terrains.",
+      "tags": [
+        "ablation",
+        "potential_difference",
+        "five_seeds"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "mapl.lambda_stability_analysis",
+      "name": "Physical-state distribution and lambda sensitivity",
+      "description": "Plane rollouts compare base-height, roll, and pitch distributions across reward methods, and three-seed runs vary each objective weight among 0.1, 1.0, and 1.5.",
+      "tags": [
+        "stability",
+        "lambda_sensitivity",
+        "physical_state"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "mapl.velocity_error_protocol",
+      "name": "Forward-velocity tracking error",
+      "description": "With lateral and yaw commands set to zero, forward command varies from 0.4 to 1.0 m/s; velocities are averaged over twenty-step intervals in a five-hundred-step rollout.",
+      "tags": [
+        "velocity_tracking",
+        "command_sweep",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "id": "mapl.ranking_accuracy_protocol",
+      "name": "Expert-reward ranking accuracy",
+      "description": "One hundred trajectory pairs compare overall and objective-specific LLM ranking strategies against full or decomposed expert-reward orderings.",
+      "tags": [
+        "ranking_accuracy",
+        "expert_reward_ground_truth",
+        "one_hundred_pairs"
+      ],
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.25398",
+      "relation": "INTRODUCES",
+      "target": "mapl.multi_objective_preference_generation",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "INTRODUCES",
+      "target": "mapl.multi_head_scoring_model",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "INTRODUCES",
+      "target": "mapl.score_difference_reward",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "mapl.multi_objective_preference_generation",
+      "relation": "CONDITIONS_ON",
+      "target": "concept:natural_language_locomotion_objectives",
+      "evidence_ids": [
+        "E3",
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "source": "mapl.multi_objective_preference_generation",
+      "relation": "USES",
+      "target": "concept:llm_pairwise_rankings",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "source": "mapl.multi_head_scoring_model",
+      "relation": "USES",
+      "target": "concept:bradley_terry_pairwise_loss",
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "source": "mapl.manual_preference_aggregation",
+      "relation": "COMPOSES",
+      "target": "concept:objective_specific_preference_scores",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "mapl.manual_preference_aggregation",
+      "relation": "REQUIRES",
+      "target": "concept:terrain_specific_manual_weights",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "mapl.score_difference_reward",
+      "relation": "USES",
+      "target": "mapl.manual_preference_aggregation",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "mapl.score_difference_reward",
+      "relation": "ADDRESSES",
+      "target": "concept:policy_sample_efficiency",
+      "evidence_ids": [
+        "E5",
+        "E11"
+      ]
+    },
+    {
+      "source": "mapl.alternating_reward_policy_training",
+      "relation": "OPTIMIZES",
+      "target": "concept:ppo_locomotion_policy",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "mapl.alternating_reward_policy_training",
+      "relation": "REQUIRES",
+      "target": "concept:online_reward_model_updates",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "source": "mapl.language_objective_interface",
+      "relation": "SUPPORTS",
+      "target": "concept:human_language_reward_specification",
+      "evidence_ids": [
+        "E3",
+        "E18",
+        "E19",
+        "E20"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "EVALUATES_ON",
+      "target": "mapl.simulated_go2_benchmark",
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:expert_designed_locomotion_reward",
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:llm_generated_reward_code",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "CONTRASTS_WITH",
+      "target": "concept:lapp_without_environment_reward",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "source": "2606.25398",
+      "relation": "REPORTS",
+      "target": "mapl.ranking_accuracy_protocol",
+      "evidence_ids": [
+        "E14"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2606.25398v1",
+      "locator": "Header and submission history",
+      "claim": "The active record has one version, submitted 24 June 2026, with title, four authors, cs.RO classification, and arXiv DOI.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S3",
+      "locator": "Figure 1; Algorithm 1; Section III, Equations 2-4",
+      "claim": "MAPL alternates preference-data/scorer updates with policy updates; trajectories receive pairwise labels, a Bradley-Terry loss trains scores, and policy reward is the difference between current and previous scores.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S4.SS1",
+      "locator": "Section IV-A, Locomotion Objectives",
+      "claim": "Velocity tracking, stability, and smoothness are the three natural-language criteria reused without terrain-specific prompt modifications.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S4.SS2",
+      "locator": "Sections IV-B and IV-C",
+      "claim": "Objectives are ranked separately, repeated queries are majority-voted, a shared Transformer has one head per objective, and the scoring model updates one hundred times more slowly than the policy.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S4.SS4",
+      "locator": "Section IV-D, Equations 5 and 6",
+      "claim": "Objective scores use a manually specified linear lambda aggregation, and the policy reward subtracts the previous aggregate score from the current score.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS1",
+      "locator": "Section V-A, Equations 7-9 and Table I",
+      "claim": "All experiments use simulated Unitree Go2 in four Isaac Gym/Legged-Gym terrains; evaluation uses Gaussian velocity rewards, a ten-term expert reward, curriculum, and difficulty weighting.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS1",
+      "locator": "Section V-A, Baselines",
+      "claim": "The baselines share PPO/RSL-RL, LAPP is modified to remove environment reward, lambda ratios are 1.5/1.0/0.1 or 1.5/1.0/0.25 by terrain, and rankings default to the named GPT-5-mini model.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS2",
+      "locator": "Figure 3 and Section V-B",
+      "claim": "Each main preference reward model uses five hundred trajectory pairs, each reward method trains five seeded policies, and plotted curves qualitatively match or exceed expert reward at terrain-specific horizons.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS3",
+      "locator": "Figure 4 and Section V-C",
+      "claim": "Three-seed Figure 4 covers component, LLM-backbone, buffer, and query ablations; the component study uses two thousand trajectory pairs, incomplete objective sets underperform, and the full reward is reported near twice the best two-term result.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS4",
+      "locator": "Figure 4 and Section V-D",
+      "claim": "Plane sensitivity studies test 100/200/500/1000 trajectories and 1/3/5/7 repeated rankings; one thousand trajectories is highest, five hundred remains competitive, and three or more query curves are nearly identical.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS5",
+      "locator": "Figure 6 and Section V-E",
+      "claim": "Five-seed ablations report that score difference improves MAPL on all terrains but can make LLM Reward or LAPP plateau early or train unstably.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS6",
+      "locator": "Sections V-F and V-G, Figures 7 and 8",
+      "claim": "Plane physical-state distributions are sampled from twenty steps in sixteen random objectives; three-seed lambda sensitivity compares 0.1, 1.0, and 1.5 for each objective.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.SS8",
+      "locator": "Figure 5 and Section V-H",
+      "claim": "Forward command varies from 0.4 to 1.0 m/s with zero lateral and yaw commands; velocities use twenty-step averages in a five-hundred-step rollout, and MAPL has the lowest plotted error on every terrain.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S5.T2",
+      "locator": "Table II and Section V-I",
+      "claim": "On one hundred trajectory pairs, MAPL objective ranking accuracy is 88/76/98 percent for velocity/stability/smoothness; MOSQ is 67/67/98 percent and overall SOSQ/LAPP are 63/68 percent against expert-reward ground truth.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://arxiv.org/html/2606.25398v1#S6",
+      "locator": "Section VI, Conclusions",
+      "claim": "The paper identifies linear aggregation as potentially inexpressive for objective interactions and leaves multimodal feedback and loco-manipulation to future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://arxiv.org/html/2606.25398v1#A0.T3",
+      "locator": "Appendix Table III",
+      "claim": "The manually tuned reward Transformer has embedding 256, two layers, four heads, feedforward 512, dropout 0.1, batch 32, eighty epochs, and the reported three-point learning-rate schedule.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://arxiv.org/html/2606.25398v1#A0.T4",
+      "locator": "Appendix Table IV",
+      "claim": "The paper reports batch and minibatch sizes, five PPO epochs, clip 0.2, entropy 0.01, gamma 0.99, GAE lambda 0.95, target KL 0.01, and adaptive learning rate for every environment.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://arxiv.org/html/2606.25398v1#A0.SS2.SSS1",
+      "locator": "Appendix B.1, Velocity Preference Prompt",
+      "claim": "The velocity prompt fixes six-state feature shapes, a 3:1 linear-to-yaw priority, conditional trot preference, twenty pairs per request, and 0/1/2 output labels.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://arxiv.org/html/2606.25398v1#A0.SS2.SSS2",
+      "locator": "Appendix B.2, Stability Preference Prompt",
+      "claim": "The stability prompt uses six-state base height, vertical velocity, and roll/pitch velocity features and specifies a 0.34-meter base-height target.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://arxiv.org/html/2606.25398v1#A0.SS2.SSS3",
+      "locator": "Appendix B.3, Smoothness Preference Prompt",
+      "claim": "The smoothness prompt uses six-state summed action-change and stumble inputs and prioritizes clear stumble avoidance over small action-smoothness differences.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E21",
+      "source_url": "https://export.arxiv.org/e-print/2606.25398v1",
+      "locator": "Exact arXiv v1 source bundle retrieved 2026-08-30",
+      "claim": "The downloaded source bundle is 3,698,572 bytes and has SHA-256 8ce6faab1e094823dab7fcf8c4ced43ba939c4c326a8ea15e4dbf53f93bf4115.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E22",
+      "source_url": "https://github.com/camp-lab-purdue/camp-lab-purdue.github.io/blob/7624ed21aba13a83682d50c6b9b8f8399da3c37c/_bibliography/papers.bib#L440-L450",
+      "locator": "Official CAMP Lab website repository, commit 7624ed21aba13a83682d50c6b9b8f8399da3c37c, bibliography lines 440-450",
+      "claim": "The official lab record classifies MAPL as a 2026 preprint and provides a PDF field but no code or project field.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E23",
+      "source_url": "https://github.com/camp-lab-purdue/camp-lab-purdue.github.io/blob/7624ed21aba13a83682d50c6b9b8f8399da3c37c/assets/pdf/26chen_mapl.pdf",
+      "locator": "Official CAMP Lab PDF blob at commit 7624ed21aba13a83682d50c6b9b8f8399da3c37c, retrieved 2026-08-30",
+      "claim": "The pinned official-lab PDF is 4,223,359 bytes and has SHA-256 31ba53f8f5497f1c67ac505b2f442ad1532af17df6a9fca0840796e0288b507b.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

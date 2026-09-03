@@ -1,0 +1,950 @@
+{
+  "paper": {
+    "id": "2606.27581",
+    "arxiv_id": "2606.27581",
+    "doi": "10.48550/arXiv.2606.27581",
+    "title": "SceneBot: Contact-Prompted General Humanoid Whole Body Tracking with Scene-Interaction",
+    "authors": [
+      "Sirui Chen",
+      "Shibo Zhao",
+      "Zhen Wu",
+      "Jiaman Li",
+      "Guanya Shi",
+      "C. Karen Liu"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2606.27581v1",
+    "source_version": "arXiv v1, submitted 2026-06-25; official demo/runtime repository commit 430c29c1801aceb813506d86f3a8cffeba250df3, checked 2026-08-30"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "SceneBot makes contact intent an explicit, timed reference channel and reports reward/contact ablations on unseen motions, directly informing oracle-manifest design and a carefully bounded task-reward hypothesis while exposing strict fixed-controller and fixed-tracking-reward compatibility conditions.",
+    "not_evidence_for": [
+      "A harness-only gain when the frozen controller does not already consume per-link contact labels",
+      "An autonomous high-level oracle or contact-schedule planner",
+      "A task-reward-only improvement under an otherwise identical policy and observation contract",
+      "Permission to edit contact-tracking terms when Sam's tracking reward is frozen",
+      "Changing scene assets inside Sam's initial fixed-scene experiment",
+      "Object-instance-resolved contact plans in multi-object scenes",
+      "Broad real-world reliability or statistical uncertainty across training seeds",
+      "Availability of the paper's PPO training, hindsight reconstruction code, or released training dataset"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "scenebot.contact_prompted_tracker",
+      "name": "Contact-prompted whole-body tracker",
+      "description": "A single PPO policy consumes a kinematic reference, robot-link × scene-type contact labels, proprioception, and global root state to track free-space, terrain, object, and sitting motions.",
+      "tags": [
+        "whole_body_control",
+        "reference_conditioning",
+        "contact_prompt",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "id": "scenebot.scene_interaction_graph",
+      "name": "Temporal robot-scene interaction graph",
+      "description": "Temporal edges connect five robot key links to terrain or object nodes at contact locations; candidates derive from low relative velocity/acceleration and are pruned for off-interval collision or force-closure infeasibility.",
+      "tags": [
+        "contact_schedule",
+        "temporal_graph",
+        "reference_composition",
+        "scene_type"
+      ],
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "id": "scenebot.hindsight_scene_reconstruction",
+      "name": "Hindsight scene reconstruction",
+      "description": "Retargeted human motion and the interaction graph generate 2.5D terrain plateaus plus plate-based object geometry and trajectories that are consistent with inferred contacts.",
+      "tags": [
+        "data_engine",
+        "scene_reconstruction",
+        "retargeting",
+        "out_of_scope_scene_change"
+      ],
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "id": "scenebot.contact_reward",
+      "name": "Asymmetric correctness and duration reward",
+      "description": "Desired active contacts receive correctness credit; cumulative contact duration is rewarded only up to 0.5 seconds, with a mismatch termination and separate non-ankle/non-wrist contact penalty.",
+      "tags": [
+        "task_reward",
+        "contact_correctness",
+        "contact_duration",
+        "termination"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "scenebot.global_state_estimation",
+      "name": "LiDAR-IMU global root estimation",
+      "description": "SuperOdometry supplies global motion while a pelvis IMU supplies pitch/roll and yaw-rate fusion at 200 Hz, mitigating scene-reference drift.",
+      "tags": [
+        "state_estimation",
+        "global_root",
+        "deployment",
+        "out_of_scope_runtime"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "interaction_key_links",
+      "value": [
+        "left-wrist",
+        "right-wrist",
+        "left-foot",
+        "right-foot",
+        "pelvis"
+      ],
+      "units": null,
+      "context": "Robot nodes used for interaction-graph construction and contact labels.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "interaction_scene_types",
+      "value": [
+        "terrain",
+        "object"
+      ],
+      "units": null,
+      "context": "Broad scene-node types: immovable terrain and movable objects.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "kinematic_command_dimension",
+      "value": 93,
+      "units": "floats",
+      "context": "Reference command containing lower-body desired joint angles/velocities, root-frame head/wrist 6D poses, and global root pose error.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "contact_duration_clip",
+      "value": 0.5,
+      "units": "s",
+      "context": "Upper bound in the duration reward to discourage indefinite object holding.",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "name": "reward_weights",
+      "value": {
+        "root_orientation": 0.5,
+        "root_position": 0.5,
+        "body_link_relative_position": 1.0,
+        "body_link_relative_orientation": 1.0,
+        "body_link_linear_velocity": 1.0,
+        "body_link_angular_velocity": 1.0,
+        "contact_correctness": 0.5,
+        "contact_duration": 0.5,
+        "action_rate": -0.1,
+        "joint_limit": -10.0,
+        "undesired_contacts": -0.1
+      },
+      "units": "reward coefficients",
+      "context": "Complete weights in Appendix Table 2.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "tracking_reward_kernel_scales",
+      "value": {
+        "root_orientation": 0.4,
+        "root_position_m": 0.3,
+        "body_relative_position_m": 0.3,
+        "body_relative_orientation": 0.4,
+        "body_linear_velocity_mps": 1.0,
+        "body_angular_velocity_radps": 3.14
+      },
+      "units": null,
+      "context": "Denominator scales squared inside the six exponential tracking rewards.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "undesired_contact_force_threshold",
+      "value": 1.0,
+      "units": "N",
+      "context": "Threshold for penalizing contacts outside ankles and wrists.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "training_dataset_duration",
+      "value": 7.5,
+      "units": "h",
+      "context": "Reconstructed contact-rich training data reported in the abstract.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "training_dataset_composition",
+      "value": {
+        "total_clips": 2092,
+        "object": {
+          "clips": 974,
+          "percent": 46.6
+        },
+        "flat_terrain": {
+          "clips": 783,
+          "percent": 37.4
+        },
+        "terrain": {
+          "clips": 297,
+          "percent": 14.2
+        },
+        "sit": {
+          "clips": 38,
+          "percent": 1.8
+        }
+      },
+      "units": null,
+      "context": "AMASS, OMOMO, Bones, and Lafan mixture shown in Figure 5.",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "name": "evaluation_sequences_per_category",
+      "value": 20,
+      "units": "unseen motion-scene pairs",
+      "context": "Each of free-space, object, terrain, and sitting in MuJoCo sim-to-sim evaluation.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "success_rate_percent",
+      "value": {
+        "categories": [
+          "free",
+          "object",
+          "terrain",
+          "sit"
+        ],
+        "SceneBot": [
+          100.0,
+          95.0,
+          100.0,
+          100.0
+        ],
+        "SONIC": [
+          100.0,
+          5.0,
+          15.0,
+          0.0
+        ],
+        "No label": [
+          100.0,
+          0.0,
+          60.0,
+          95.0
+        ],
+        "No foot label": [
+          100.0,
+          70.0,
+          60.0,
+          100.0
+        ],
+        "Local": [
+          100.0,
+          20.0,
+          45.0,
+          90.0
+        ],
+        "SceneBot_test_without_foot_label": [
+          null,
+          null,
+          85.0,
+          100.0
+        ],
+        "Synthetic_only": [
+          null,
+          15.0,
+          null,
+          null
+        ]
+      },
+      "units": "%",
+      "context": "Exact Appendix Table 3 results; null denotes unreported cells.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "joint_error_radians",
+      "value": {
+        "categories": [
+          "free",
+          "object",
+          "terrain",
+          "sit"
+        ],
+        "SceneBot": [
+          0.0977,
+          0.1836,
+          0.1406,
+          0.1335
+        ],
+        "SONIC": [
+          0.0784,
+          0.2814,
+          0.339,
+          0.1728
+        ],
+        "No label": [
+          0.0874,
+          0.1729,
+          0.1378,
+          0.1204
+        ],
+        "No foot label": [
+          0.0976,
+          0.2133,
+          0.1392,
+          0.1148
+        ],
+        "Local": [
+          0.0876,
+          0.2471,
+          0.1918,
+          0.1441
+        ]
+      },
+      "units": "rad",
+      "context": "Selected complete rows from Appendix Table 3.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "root_position_error_meters",
+      "value": {
+        "categories": [
+          "free",
+          "object",
+          "terrain",
+          "sit"
+        ],
+        "SceneBot": [
+          0.0893,
+          0.1215,
+          0.1471,
+          0.0702
+        ],
+        "SONIC": [
+          0.0973,
+          0.8491,
+          0.808002,
+          0.2051
+        ],
+        "No label": [
+          0.0812,
+          0.0979,
+          0.3103,
+          0.084
+        ],
+        "No foot label": [
+          0.0661,
+          0.097,
+          0.2834,
+          0.0636
+        ],
+        "Local": [
+          0.1091,
+          0.2782,
+          0.4344,
+          0.1043
+        ]
+      },
+      "units": "m",
+      "context": "Selected complete rows from Appendix Table 3.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "root_orientation_error_radians",
+      "value": {
+        "categories": [
+          "free",
+          "object",
+          "terrain",
+          "sit"
+        ],
+        "SceneBot": [
+          0.0854,
+          0.1225,
+          0.1017,
+          0.1299
+        ],
+        "SONIC": [
+          0.0748,
+          0.5354,
+          0.8046,
+          0.262
+        ],
+        "No label": [
+          0.0888,
+          0.1031,
+          0.289,
+          0.1363
+        ],
+        "No foot label": [
+          0.0883,
+          0.1153,
+          0.2609,
+          0.1234
+        ],
+        "Local": [
+          0.0849,
+          0.1262,
+          0.4178,
+          0.1603
+        ]
+      },
+      "units": "rad",
+      "context": "Selected complete rows from Appendix Table 3.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "state_estimation_rate",
+      "value": 200,
+      "units": "Hz",
+      "context": "SuperOdometry plus pelvis-IMU root-state pipeline.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "state_estimation_hardware_results",
+      "value": {
+        "root_position_error_m": 0.032,
+        "root_orientation_error_rad": 0.018,
+        "root_linear_velocity_error_mps": 0.092,
+        "task_success_percent": 80.0,
+        "experiments": 10
+      },
+      "units": null,
+      "context": "Box-pickup and stage-step scenario against OptiTrack ground truth.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "public_demo_policy_contract",
+      "value": {
+        "observation_dimension": 160,
+        "contact_dimension": 10,
+        "action_dimension": 29,
+        "control_dt_s": 0.02,
+        "simulation_dt_s": 0.005,
+        "onnx_bytes": 33910590,
+        "onnx_sha256": "c0a3caf00809d1ccb26aad6358f2b107098462deccac755e406e522134103d04",
+        "repository_commit": "430c29c1801aceb813506d86f3a8cffeba250df3"
+      },
+      "units": null,
+      "context": "Pinned public demo/runtime artifact; the sources do not establish identity with the paper's evaluation checkpoint.",
+      "evidence_ids": [
+        "E17",
+        "E18",
+        "E19"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "scenebot.retarget_quality_sensitivity",
+      "name": "Retargeting artifacts corrupt inferred contact",
+      "description": "Foot sliding and other low-fidelity retargeting artifacts remove the physical cues required for stable scene-interaction graph construction.",
+      "tags": [
+        "retargeting",
+        "foot_sliding",
+        "data_quality",
+        "limitation"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "scenebot.nonphysical_motion_input",
+      "name": "Nonphysical source-motion failure",
+      "description": "Motion recovered from video or generated by a model may lack physical consistency and destabilize graph construction.",
+      "tags": [
+        "video_motion",
+        "generated_motion",
+        "physics_consistency",
+        "limitation"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "scenebot.under_specified_reconstruction",
+      "name": "Under-specified reconstruction thresholds",
+      "description": "v1 does not numerically specify low-velocity/acceleration contact thresholds, temporal consistency windows, plateau-merging tolerances, force-closure tests, or the contact-mismatch timeout.",
+      "tags": [
+        "reproducibility",
+        "missing_parameter",
+        "contact_inference"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "scenebot.magic_force_dependency",
+      "name": "Heuristic object-stabilization dependency",
+      "description": "Some reconstructed objects do not begin in a resting pose, so training applies a stabilizing force until force-closure grasp; this changes dynamics and may mask grasp failures.",
+      "tags": [
+        "simulation_heuristic",
+        "object_grasp",
+        "dynamics",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "id": "scenebot.external_oracle_required",
+      "name": "No autonomous contact-schedule oracle",
+      "description": "The low-level policy requires an external high-level decision maker to supply contact commands; autonomous perceptive control remains future work.",
+      "tags": [
+        "oracle",
+        "planner",
+        "future_work",
+        "scope_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E14"
+      ]
+    },
+    {
+      "id": "scenebot.contact_interface_specificity",
+      "name": "Scene-type labels omit object identity",
+      "description": "Contact labels encode robot link × terrain/object type, not a specific object instance or desired contact pose; multi-object disambiguation is outside the reported interface.",
+      "tags": [
+        "contact_prompt",
+        "multi_object",
+        "interface_limit"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "id": "scenebot.fixed_contract_mismatch",
+      "name": "Contact channel and scene generation can violate the fixed contract",
+      "description": "Adding contact observations changes a non-contact controller, while reconstructing scene assets changes the fixed scene; neither is a harness-only intervention unless admitted before freezing the MDP.",
+      "tags": [
+        "fixed_trainer",
+        "observation_contract",
+        "scene_contract",
+        "harness_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "scenebot.evaluation_uncertainty_gap",
+      "name": "Evaluation uncertainty gap",
+      "description": "The paper gives exact point estimates and 20 unseen sequences per category but no independent training seeds, confidence intervals, or variance; the hardware state-estimation result covers 10 trials of one scenario.",
+      "tags": [
+        "evaluation",
+        "uncertainty",
+        "sample_size",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E8",
+        "E11"
+      ]
+    },
+    {
+      "id": "scenebot.release_gap",
+      "name": "Training and reconstruction release gap",
+      "description": "The official page marks code/data coming soon; the public pinned repository contains a browser deployment runtime and compiled policy assets but not the reported PPO training, scene reconstruction pipeline, or released training corpus.",
+      "tags": [
+        "code_availability",
+        "data_availability",
+        "reproducibility",
+        "artifact_boundary"
+      ],
+      "evidence_ids": [
+        "E15",
+        "E16",
+        "E17"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "scenebot.unseen_sim2sim_protocol",
+      "name": "Unseen-motion MuJoCo sim-to-sim protocol",
+      "description": "Twenty unseen motion sequences with reconstructed scenes are evaluated in each of four categories using joint error, global root errors, and task-specific binary success.",
+      "tags": [
+        "mujoco",
+        "sim_to_sim",
+        "unseen_motion",
+        "objective_metrics"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E13"
+      ]
+    },
+    {
+      "id": "scenebot.sonic_comparison",
+      "name": "SceneBot versus SONIC",
+      "description": "SceneBot and SONIC both achieve 100% free-space success, while SceneBot reports 95/100/100% on object/terrain/sit versus SONIC's 5/15/0% under the paper's protocol.",
+      "tags": [
+        "baseline",
+        "SONIC",
+        "success_rate",
+        "scene_interaction"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "scenebot.contact_ablation",
+      "name": "Contact-label ablation",
+      "description": "Training without labels yields 0% object and 60% terrain success; retaining the trained model but disabling foot labels at test gives 85% terrain success.",
+      "tags": [
+        "ablation",
+        "contact_prompt",
+        "object_grasp",
+        "terrain"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "id": "scenebot.global_state_ablation",
+      "name": "Global-state ablation",
+      "description": "Removing global root position and linear velocity reduces object success from 95% to 20% and terrain success from 100% to 45%.",
+      "tags": [
+        "ablation",
+        "global_state",
+        "drift",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "id": "scenebot.reconstruction_comparison",
+      "name": "Reconstruction versus OmniRetarget",
+      "description": "On OMOMO, the paper reports better object-interaction tracking with reconstructed scenes than a tuned scene-aware OmniRetarget baseline, attributing failures to hand-object misalignment and penetration tradeoffs.",
+      "tags": [
+        "retargeting",
+        "scene_reconstruction",
+        "OMOMO",
+        "figure_only_result"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "scenebot.hardware_state_estimation",
+      "name": "OptiTrack-referenced hardware state estimation",
+      "description": "Ten box-pickup-and-stage trials report 0.032 m root-position, 0.018 rad orientation, and 0.092 m/s velocity error with 80% task success.",
+      "tags": [
+        "hardware",
+        "state_estimation",
+        "OptiTrack",
+        "Unitree_G1"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2606.27581",
+      "relation": "INTRODUCES",
+      "target": "scenebot.contact_prompted_tracker",
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "source": "scenebot.contact_prompted_tracker",
+      "relation": "CONDITIONS_ON",
+      "target": "kinematic_reference_motion",
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "source": "scenebot.contact_prompted_tracker",
+      "relation": "CONDITIONS_ON",
+      "target": "per_link_scene_type_contact_schedule",
+      "evidence_ids": [
+        "E2",
+        "E4"
+      ]
+    },
+    {
+      "source": "scenebot.scene_interaction_graph",
+      "relation": "COMPOSES",
+      "target": "timed_robot_link_scene_type_contacts",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "scenebot.hindsight_scene_reconstruction",
+      "relation": "USES",
+      "target": "retargeted_robot_motion",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "scenebot.hindsight_scene_reconstruction",
+      "relation": "USES",
+      "target": "scenebot.scene_interaction_graph",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "scenebot.contact_reward",
+      "relation": "OPTIMIZES",
+      "target": "desired_contact_correctness_and_duration",
+      "evidence_ids": [
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "source": "scenebot.global_state_estimation",
+      "relation": "SUPPORTS",
+      "target": "global_reference_alignment",
+      "evidence_ids": [
+        "E9",
+        "E11"
+      ]
+    },
+    {
+      "source": "2606.27581",
+      "relation": "CONTRASTS_WITH",
+      "target": "2511.07820",
+      "evidence_ids": [
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "source": "2606.27581",
+      "relation": "EVALUATES_ON",
+      "target": "unitree_g1_mujoco_and_hardware",
+      "evidence_ids": [
+        "E7",
+        "E8",
+        "E11"
+      ]
+    },
+    {
+      "source": "scenebot.scene_interaction_graph",
+      "relation": "MOTIVATES",
+      "target": "immutable_contact_aware_oracle_manifest",
+      "evidence_ids": [
+        "E2",
+        "E3"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2606.27581v1",
+      "locator": "arXiv submission history and metadata",
+      "claim": "arXiv v1 was submitted 25 June 2026 with the stated title and six authors.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S1",
+      "locator": "Section 1, paragraphs 2–4",
+      "claim": "SceneBot gives a low-level general tracker both reference motion and robot-side per-link contact labels; a high-level decision maker must supply the extra contact command.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S3.SS1",
+      "locator": "Section 3.1 and Appendix A, Algorithm 1",
+      "claim": "Five key robot links, two scene types, temporal candidate/pruning rules, and graph-conditioned terrain/object reconstruction define the hindsight data engine.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S3.SS2",
+      "locator": "Section 3.2, equations 1–3 and following paragraphs",
+      "claim": "The PPO policy consumes a 93-D reference command and contact labels; contact correctness is asymmetric, duration clips at 0.5 s, and object training uses mismatch termination plus a stabilizing force.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2606.27581v1#A2.T2",
+      "locator": "Appendix B, Table 2",
+      "claim": "Table 2 reports all tracking/contact reward equations, weights, penalties, kernel scales, and the 1 N undesired-contact threshold.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S4.F5",
+      "locator": "Abstract; Section 4.1; Figure 5",
+      "claim": "Training uses 7.5 hours of data; Figure 5 reports 974 object, 783 flat-terrain, 297 terrain, and 38 sitting clips.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S4.SS2",
+      "locator": "Section 4.2",
+      "claim": "The MuJoCo sim-to-sim protocol evaluates 20 unseen motion sequences and reconstructed scenes in each of four categories against SONIC and three ablations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2606.27581v1#A3.T3",
+      "locator": "Appendix C, Table 3",
+      "claim": "Table 3 reports exact joint, root-position, root-orientation, and success metrics for SceneBot, SONIC, and all listed ablations.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S4.SS3",
+      "locator": "Sections 4.3–4.4",
+      "claim": "Global-root and contact-label ablations identify drift, grasp, and frequent contact-switch failures; test-time foot-label removal retains 85% terrain success.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S4.SS5",
+      "locator": "Section 4.5 and Figure 8",
+      "claim": "On OMOMO, reconstructed assets outperform tuned OmniRetarget assets; the paper attributes the gap to alignment/penetration tradeoffs and grasp failure.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S4.SS6",
+      "locator": "Section 3.3; Section 4.6; Figure 9",
+      "claim": "The 200 Hz SuperOdometry/pelvis-IMU pipeline reports 0.032 m, 0.018 rad, and 0.092 m/s mean errors plus 80% success over 10 hardware experiments.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S5",
+      "locator": "Section 5",
+      "claim": "Scene reconstruction requires high-fidelity retargeting and is vulnerable to foot sliding and physically inconsistent video/generated motion.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2606.27581v1#A4",
+      "locator": "Appendix D",
+      "claim": "Success is defined separately for terrain, object, sitting, and free-space tasks using falls, root-height error, grasp retention, and pelvis-chair contact.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2606.27581v1#S6",
+      "locator": "Section 6",
+      "claim": "An autonomous perceptive high-level controller is stated as future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/Ericcsr/scenebot/blob/430c29c1801aceb813506d86f3a8cffeba250df3/index.html#L125-L151",
+      "locator": "Pinned project page, publication links",
+      "claim": "The official page marks Data and Code as Coming Soon while separately exposing an interactive demo.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/Ericcsr/scenebot/blob/430c29c1801aceb813506d86f3a8cffeba250df3/README.md#L1-L17",
+      "locator": "Pinned README lines 1–17 and 229–258; recursive repository tree",
+      "claim": "The public repository is a browser deployment demo/runtime with a policy bundle and stitched motion; it does not document or expose the paper's PPO training and hindsight reconstruction pipeline.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/Ericcsr/scenebot/blob/430c29c1801aceb813506d86f3a8cffeba250df3/mujoco_wasm/dist-desktop/scenebot/policy_meta.json",
+      "locator": "Pinned policy_meta.json fields obs_dim, contact_dim, action_dim, control_dt, simulation_dt, onnx_sha256",
+      "claim": "The public demo policy contract is 160 observations, 10 contact channels, 29 actions, 0.02 s control, 0.005 s simulation, with the stated ONNX SHA-256.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/Ericcsr/scenebot/blob/430c29c1801aceb813506d86f3a8cffeba250df3/mujoco_wasm/src/scenebot/contact_utils.js#L17-L29",
+      "locator": "Pinned contact_utils.js lines 17–29 and 80–130",
+      "claim": "The public runtime expands five stored link labels into a ten-channel terrain/object policy mask and validates the final contact dimension.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/Ericcsr/scenebot/blob/430c29c1801aceb813506d86f3a8cffeba250df3/mujoco_wasm/dist-desktop/scenebot/policy.onnx",
+      "locator": "Pinned ONNX blob; repository-tree size 33,910,590 bytes; SHA-256 verified 2026-08-30",
+      "claim": "The pinned public ONNX file is 33,910,590 bytes and hashes to c0a3caf00809d1ccb26aad6358f2b107098462deccac755e406e522134103d04, matching policy_meta.json.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

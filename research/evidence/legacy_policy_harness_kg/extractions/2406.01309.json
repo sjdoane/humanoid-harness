@@ -1,0 +1,856 @@
+{
+  "paper": {
+    "id": "2406.01309",
+    "arxiv_id": "2406.01309",
+    "doi": "10.48550/arXiv.2406.01309",
+    "title": "REvolve: Reward Evolution with Large Language Models using Human Feedback",
+    "authors": [
+      "Rishi Hazra",
+      "Alkis Sygkounas",
+      "Andreas Persson",
+      "Amy Loutfi",
+      "Pedro Zuidberg Dos Martires"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/html/2406.01309v4",
+    "source_version": "arXiv v4, 2025-05-23; latest public arXiv version verified 2026-08-30. Published at ICLR 2025. Official code release v1.0.0 is commit 6ccae3c61a4915b3fb61f75947e21a8dd8232888; latest public main inspected at commit eee636b5dba141bf00cf0ff47852c2a9125dc5d2 (2026-08-24)."
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "REvolve directly searches executable task-reward programs while holding each task's simulator, policy algorithm, hyperparameters, and candidate budget fixed; it adds an island population, LLM mutation/crossover, human Elo fitness, and natural-language feedback, and evaluates the best policies with a fresh human cohort.",
+    "not_evidence_for": [
+      "reference-motion selection, composition, playback, phase conditioning, predicates, branching, or any other oracle mechanism",
+      "safe or sandboxed execution of generated Python reward code",
+      "a turnkey public implementation of the reported human-feedback loop or paper-scale training budget",
+      "portability across controllers, optimizers, simulators, observation contracts, training budgets, or hardware",
+      "real-world behavior or dynamics certification",
+      "deterministic replay or an immutable execution manifest",
+      "RL-Sculptor implementation of REvolve"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "revolve.reward_design_contract",
+      "name": "Fixed-world reward-design contract",
+      "description": "The reward-design problem separates world M=(S,A,T), executable reward R, policy trained on R, rollout distribution, and fitness F; the outer objective chooses R to maximize expected fitness of the resulting policy.",
+      "tags": [
+        "task_reward",
+        "fixed_trainer",
+        "outer_loop",
+        "formal_interface"
+      ],
+      "evidence_ids": [
+        "REV-E03"
+      ]
+    },
+    {
+      "id": "revolve.island_reward_search",
+      "name": "Island-population reward search",
+      "description": "A database stores tuples (reward, trained policy, scalar fitness, text feedback) across I islands. Islands and parents are sampled by fitness; accepted children must meet or exceed the destination island mean; periodic migration resets weaker islands from fitter lineages; final selection takes the highest-fitness tuple.",
+      "tags": [
+        "population_search",
+        "island_model",
+        "fitness_selection",
+        "lineage"
+      ],
+      "evidence_ids": [
+        "REV-E04",
+        "REV-E05"
+      ]
+    },
+    {
+      "id": "revolve.llm_genetic_operators",
+      "name": "LLM mutation and crossover of executable rewards",
+      "description": "GPT-4 Turbo receives task text plus a subset of allowed observation/action variables and emits Python rewards expressed as a sum of named components. Mutation revises one component from one parent; crossover combines high-performing components from two parents using component traces and feedback.",
+      "tags": [
+        "executable_reward",
+        "mutation",
+        "crossover",
+        "component_diagnostics"
+      ],
+      "evidence_ids": [
+        "REV-E05",
+        "REV-E07",
+        "REV-E15"
+      ]
+    },
+    {
+      "id": "revolve.dual_human_feedback",
+      "name": "Pairwise Elo plus natural-language feedback",
+      "description": "Evaluators compare approximately 30-40 second rollout videos, with ties allowed. Pairwise outcomes become Elo fitness; selected positive and negative behavior checkboxes are converted to text and returned to the LLM for reproduction.",
+      "tags": [
+        "human_steering",
+        "pairwise_preference",
+        "elo",
+        "natural_language_feedback"
+      ],
+      "evidence_ids": [
+        "REV-E06",
+        "REV-E12"
+      ]
+    },
+    {
+      "id": "revolve.fixed_trainer_candidate_loop",
+      "name": "Train-every-candidate policy loop",
+      "description": "Every reward candidate trains a new policy under the task's fixed inner algorithm and budget: Clipped Double DDQN in AirSim or SAC in MuJoCo. Rollouts and fitness feed the reward search; policy parameters are not the outer authoring knob.",
+      "tags": [
+        "fixed_trainer",
+        "candidate_evaluation",
+        "policy_training",
+        "compute_intensive"
+      ],
+      "evidence_ids": [
+        "REV-E04",
+        "REV-E08",
+        "REV-E13"
+      ]
+    },
+    {
+      "id": "revolve.public_code_path",
+      "name": "Public research-code execution path",
+      "description": "At the pinned latest commit, the release queries GPT-4, parses a compute_reward function, checks only argument membership and the presence of a return, executes it with Python exec, trains policies in parallel, and evaluates the main loop from velocity logs. Human Elo preprocessing remains a separate script rather than an integrated main-loop evaluator.",
+      "tags": [
+        "official_code",
+        "direct_exec",
+        "implemented_capability",
+        "reproduction_gap"
+      ],
+      "evidence_ids": [
+        "REV-E16",
+        "REV-E22",
+        "REV-E18",
+        "REV-E19",
+        "REV-E20",
+        "REV-E24",
+        "REV-E25",
+        "REV-E26"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "paper_reward_designer",
+      "value": "gpt-4-1106-preview",
+      "units": null,
+      "context": "GPT-4 Turbo snapshot used in the reported experiments.",
+      "evidence_ids": [
+        "REV-E07"
+      ]
+    },
+    {
+      "name": "paper_reward_program_form",
+      "value": "r = sum_i r_i; executable Python returns total reward and named component dictionary",
+      "units": null,
+      "context": "The LLM chooses the component count, functional forms, scales, and transformations while using only exposed environment variables.",
+      "evidence_ids": [
+        "REV-E07",
+        "REV-E15"
+      ]
+    },
+    {
+      "name": "paper_search_configuration",
+      "value": {
+        "generations": 7,
+        "individuals_per_generation": 16,
+        "subpopulations": 13,
+        "mutation_probability": 0.5,
+        "crossover_probability": 0.5
+      },
+      "units": null,
+      "context": "Reported evolutionary search. Mutation uses one parent; crossover uses two; each new candidate trains one policy.",
+      "evidence_ids": [
+        "REV-E05",
+        "REV-E08"
+      ]
+    },
+    {
+      "name": "paper_human_feedback_configuration",
+      "value": {
+        "evaluators_per_generation": 10,
+        "video_pairs_per_evaluator": 20,
+        "rollout_video_seconds_approx_min": 30,
+        "rollout_video_seconds_approx_max": 40,
+        "generations": 7,
+        "paper_estimated_pair_samples": 1400
+      },
+      "units": null,
+      "context": "Training feedback collection; the 1,400 total is the authors' 10 x 20 x 7 estimate in Appendix D.",
+      "evidence_ids": [
+        "REV-E06",
+        "REV-E14"
+      ]
+    },
+    {
+      "name": "paper_elo_configuration",
+      "value": {
+        "initial_rating": 1500,
+        "update_factor": 32,
+        "win_value": 1.0,
+        "tie_value": 0.5,
+        "loss_value": 0.0
+      },
+      "units": null,
+      "context": "Pairwise preference-to-fitness mapping; comparisons include prior generations.",
+      "evidence_ids": [
+        "REV-E12"
+      ]
+    },
+    {
+      "name": "paper_policy_training_budget",
+      "value": {
+        "AirSim": {
+          "algorithm": "Clipped Double Deep Q-Learning",
+          "steps_per_candidate": 500000
+        },
+        "MuJoCo": {
+          "algorithm": "Soft Actor-Critic",
+          "steps_per_candidate": 5000000
+        }
+      },
+      "units": "environment steps",
+      "context": "Fixed inner-loop budgets for each reward candidate in the reported experiments.",
+      "evidence_ids": [
+        "REV-E08"
+      ]
+    },
+    {
+      "name": "paper_sac_key_hyperparameters",
+      "value": {
+        "implementation": "Stable Baselines3 MlpPolicy",
+        "learning_rate": 0.0003,
+        "batch_size": 256,
+        "gamma": 0.99,
+        "entropy_coefficient": "automatic"
+      },
+      "units": null,
+      "context": "Humanoid and Adroit trainer; authors state they use SB3 default SAC hyperparameters.",
+      "evidence_ids": [
+        "REV-E13"
+      ]
+    },
+    {
+      "name": "paper_parallel_compute",
+      "value": {
+        "gpus": 16,
+        "gpu_model": "NVIDIA A100",
+        "memory_per_gpu_gb": 40,
+        "AirSim_hours_per_generation_approx": 50,
+        "MuJoCo_hours_per_generation_approx": 24,
+        "reported_random_seeds": 2
+      },
+      "units": null,
+      "context": "Parallel training of one sixteen-policy generation and the reported statistical scope.",
+      "evidence_ids": [
+        "REV-E08"
+      ]
+    },
+    {
+      "name": "fresh_human_elo_results",
+      "value": {
+        "autonomous_driving": {
+          "REvolve": 1575,
+          "Eureka": 1499,
+          "human_driving": 1586
+        },
+        "humanoid_locomotion": {
+          "REvolve": 1586,
+          "Eureka": 1557,
+          "expert_reward": 1407
+        },
+        "adroit_hand": {
+          "REvolve": 1594,
+          "Eureka": 1522,
+          "expert_reward": 1415
+        }
+      },
+      "units": "Elo points",
+      "context": "Best policies compared by evaluators disjoint from training; all policies initialized at 1500.",
+      "evidence_ids": [
+        "REV-E09"
+      ]
+    },
+    {
+      "name": "unseen_airsim_generalization",
+      "value": {
+        "environment_1": {
+          "REvolve_fitness_mean": 0.86,
+          "REvolve_fitness_std": 0.03,
+          "Eureka_fitness_mean": 0.73,
+          "Eureka_fitness_std": 0.04,
+          "REvolve_steps_mean": 1146,
+          "REvolve_steps_std": 297
+        },
+        "environment_2": {
+          "REvolve_fitness_mean": 0.68,
+          "REvolve_fitness_std": 0.04,
+          "Eureka_fitness_mean": 0.57,
+          "Eureka_fitness_std": 0.05,
+          "REvolve_steps_mean": 135,
+          "REvolve_steps_std": 31
+        }
+      },
+      "units": null,
+      "context": "Policies retrained from scratch with the best reward in two unseen AirSim environments; environment 2 has denser moving traffic.",
+      "evidence_ids": [
+        "REV-E10"
+      ]
+    },
+    {
+      "name": "paper_database_storage_growth",
+      "value": {
+        "per_generation_gb_approx": 2.5,
+        "after_seven_generations_gb": 17.5
+      },
+      "units": "GB",
+      "context": "Authors' estimate for policy weights and metadata retained by the population database.",
+      "evidence_ids": [
+        "REV-E14"
+      ]
+    },
+    {
+      "name": "latest_public_code_defaults",
+      "value": {
+        "commit": "eee636b5dba141bf00cf0ff47852c2a9125dc5d2",
+        "baseline": "revolve_auto",
+        "environment": "HumanoidEnv",
+        "generations": 7,
+        "individuals_per_generation": 15,
+        "islands": 4,
+        "max_island_size": 8,
+        "crossover_probability": 0.5,
+        "migration_probability": 0.3,
+        "policy_total_timesteps": 1000,
+        "configured_gpus": 1
+      },
+      "units": null,
+      "context": "Latest inspected public main defaults; these are not the paper's 7 x 16, 13-island, 5e6-step MuJoCo protocol.",
+      "evidence_ids": [
+        "REV-E17",
+        "REV-E23"
+      ]
+    },
+    {
+      "name": "latest_public_code_llm_request",
+      "value": {
+        "model": "gpt-4-1106-preview",
+        "temperature": 1,
+        "max_tokens": 4096,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "maximum_generation_trials": 10
+      },
+      "units": null,
+      "context": "Pinned public implementation settings; the maximum trial count wraps syntactic/argument validation, not sandboxing.",
+      "evidence_ids": [
+        "REV-E24",
+        "REV-E25"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "revolve.failure_compute_and_seed_scope",
+      "name": "Compute-heavy, low-seed search",
+      "description": "Every reward trains a fresh policy. One sixteen-policy generation takes about 50 hours in AirSim or 24 hours in MuJoCo on sixteen A100s, while main results use only two random seeds; selection and comparisons can therefore remain sensitive to RL variance.",
+      "tags": [
+        "compute",
+        "two_seeds",
+        "rl_variance"
+      ],
+      "evidence_ids": [
+        "REV-E08",
+        "REV-E14"
+      ]
+    },
+    {
+      "id": "revolve.failure_sparse_feedback",
+      "name": "Sparse automatic feedback limits search",
+      "description": "The authors report that velocity-only Humanoid feedback and steps-to-success Adroit feedback are less informative than detailed human feedback; human-guided variants outperform automatic counterparts and gains stabilize around generation five.",
+      "tags": [
+        "feedback_sparsity",
+        "credit_assignment",
+        "convergence"
+      ],
+      "evidence_ids": [
+        "REV-E09"
+      ]
+    },
+    {
+      "id": "revolve.failure_generalization_and_reality",
+      "name": "Limited generalization and no real-world test",
+      "description": "AirSim performance drops in the denser-traffic unseen environment, partly attributed by the authors to missed oncoming cars in the visual module. No analogous MuJoCo variants were available, and real-world applicability is left as future work.",
+      "tags": [
+        "generalization",
+        "visual_failure",
+        "simulation_only"
+      ],
+      "evidence_ids": [
+        "REV-E10",
+        "REV-E11",
+        "REV-E21"
+      ]
+    },
+    {
+      "id": "revolve.failure_closed_llm_and_nonoptimal_selection",
+      "name": "Closed LLM dependence and no optimality guarantee",
+      "description": "The method depends on closed-source GPT-4; the authors state the highest-fitness database policy is not necessarily optimal.",
+      "tags": [
+        "closed_model",
+        "reproducibility",
+        "no_optimality_guarantee"
+      ],
+      "evidence_ids": [
+        "REV-E04",
+        "REV-E11"
+      ]
+    },
+    {
+      "id": "revolve.failure_interface_contradiction",
+      "name": "Adroit observation-contract contradiction",
+      "description": "Main Table 1 reports a 39-dimensional Adroit observation, while Appendix A.1.3 reports 97 dimensions. The exact environment interface cannot be reconstructed from the paper without resolving this contradiction.",
+      "tags": [
+        "interface_mismatch",
+        "observation_shape",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "REV-E08",
+        "REV-E13"
+      ]
+    },
+    {
+      "id": "revolve.failure_public_code_gap",
+      "name": "Paper-to-code protocol gap",
+      "description": "The latest public defaults use fifteen candidates, four islands, and one thousand policy steps rather than the paper's sixteen candidates, thirteen islands, and five million MuJoCo steps. The public main loop uses velocity fitness, while human Elo processing is a separate script that imports a symbol absent from the pinned database module.",
+      "tags": [
+        "official_code",
+        "configuration_drift",
+        "human_loop_not_integrated"
+      ],
+      "evidence_ids": [
+        "REV-E17",
+        "REV-E23",
+        "REV-E19",
+        "REV-E20",
+        "REV-E26",
+        "REV-E27"
+      ]
+    },
+    {
+      "id": "revolve.failure_unsafe_generated_code",
+      "name": "Unsandboxed generated Python",
+      "description": "The public release passes LLM-generated function text to Python exec after checking only exposed argument names and the presence of a return. It does not establish side-effect freedom, resource bounds, or an execution sandbox.",
+      "tags": [
+        "code_execution",
+        "security_boundary",
+        "missing_sandbox"
+      ],
+      "evidence_ids": [
+        "REV-E18",
+        "REV-E24"
+      ]
+    },
+    {
+      "id": "revolve.failure_elo_order_and_pool_dependence",
+      "name": "Released Elo scores depend on row order and pool",
+      "description": "The released script updates Elo sequentially in CSV row order and then min-max normalizes ratings over the current comparison pool. Exact fitness values therefore depend on comparison order and pool composition, even though ranking may be more stable.",
+      "tags": [
+        "elo",
+        "order_dependence",
+        "normalization"
+      ],
+      "evidence_ids": [
+        "REV-E20"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "revolve.evaluation_fresh_human_elo",
+      "name": "Fresh-cohort human ranking",
+      "description": "A cohort disjoint from training compared rollouts from the best policies. REvolve outranked Eureka in autonomous driving (1575 vs 1499), Humanoid (1586 vs 1557), and Adroit (1594 vs 1522); only human driving outranked REvolve in autonomous driving.",
+      "tags": [
+        "human_evaluation",
+        "held_out_evaluators",
+        "elo",
+        "three_tasks"
+      ],
+      "evidence_ids": [
+        "REV-E09"
+      ]
+    },
+    {
+      "id": "revolve.evaluation_task_fitness_curves",
+      "name": "Fixed-budget task-fitness comparison",
+      "description": "Across two seeds, the best policy per generation is evaluated with task-specific fitness. The paper reports REvolve above Eureka, automatic variants, and expert rewards across all three tasks, with gains stabilizing around generation five.",
+      "tags": [
+        "task_fitness",
+        "two_seeds",
+        "generation_curve"
+      ],
+      "evidence_ids": [
+        "REV-E08",
+        "REV-E09"
+      ]
+    },
+    {
+      "id": "revolve.evaluation_operator_ablation",
+      "name": "Mutation/crossover ablation",
+      "description": "In autonomous driving over seven generations, the paper reports combined mutation and crossover above crossover-only, which is above mutation-only; the figure does not tabulate exact endpoint values.",
+      "tags": [
+        "ablation",
+        "mutation",
+        "crossover"
+      ],
+      "evidence_ids": [
+        "REV-E10"
+      ]
+    },
+    {
+      "id": "revolve.evaluation_unseen_airsim",
+      "name": "Unseen-AirSim reward transfer",
+      "description": "Policies were retrained from scratch with the best reward in two unseen AirSim environments. REvolve exceeded Eureka and expert rewards in both, but performance was substantially lower in the denser-traffic second environment.",
+      "tags": [
+        "generalization",
+        "reward_transfer",
+        "AirSim"
+      ],
+      "evidence_ids": [
+        "REV-E10"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2406.01309",
+      "relation": "INTRODUCES",
+      "target": "revolve.island_reward_search",
+      "evidence_ids": [
+        "REV-E04"
+      ]
+    },
+    {
+      "source": "revolve.island_reward_search",
+      "relation": "USES",
+      "target": "revolve.llm_genetic_operators",
+      "evidence_ids": [
+        "REV-E05"
+      ]
+    },
+    {
+      "source": "revolve.island_reward_search",
+      "relation": "CONDITIONS_ON",
+      "target": "revolve.dual_human_feedback",
+      "evidence_ids": [
+        "REV-E04",
+        "REV-E06"
+      ]
+    },
+    {
+      "source": "revolve.llm_genetic_operators",
+      "relation": "OPTIMIZES",
+      "target": "artifact:executable_task_reward",
+      "evidence_ids": [
+        "REV-E05",
+        "REV-E07",
+        "REV-E15"
+      ]
+    },
+    {
+      "source": "revolve.fixed_trainer_candidate_loop",
+      "relation": "USES",
+      "target": "artifact:executable_task_reward",
+      "evidence_ids": [
+        "REV-E04",
+        "REV-E08"
+      ]
+    },
+    {
+      "source": "revolve.reward_design_contract",
+      "relation": "REQUIRES",
+      "target": "trainer:frozen_world_policy_algorithm_and_budget",
+      "evidence_ids": [
+        "REV-E03",
+        "REV-E08"
+      ]
+    },
+    {
+      "source": "revolve.dual_human_feedback",
+      "relation": "CONDITIONS_ON",
+      "target": "evidence:policy_rollout_video_pairs",
+      "evidence_ids": [
+        "REV-E06",
+        "REV-E12"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "CONTRASTS_WITH",
+      "target": "paper:2310.12931",
+      "evidence_ids": [
+        "REV-E05",
+        "REV-E09"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:AirSim_autonomous_driving_plus_MuJoCo_Humanoid_and_Adroit",
+      "evidence_ids": [
+        "REV-E07",
+        "REV-E08"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "REPORTS",
+      "target": "revolve.evaluation_fresh_human_elo",
+      "evidence_ids": [
+        "REV-E09"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "REPORTS",
+      "target": "revolve.evaluation_operator_ablation",
+      "evidence_ids": [
+        "REV-E10"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "REPORTS",
+      "target": "revolve.evaluation_unseen_airsim",
+      "evidence_ids": [
+        "REV-E10"
+      ]
+    },
+    {
+      "source": "revolve.public_code_path",
+      "relation": "SUPPORTS",
+      "target": "revolve.llm_genetic_operators",
+      "evidence_ids": [
+        "REV-E24",
+        "REV-E25"
+      ]
+    },
+    {
+      "source": "revolve.public_code_path",
+      "relation": "CONTRASTS_WITH",
+      "target": "revolve.dual_human_feedback",
+      "evidence_ids": [
+        "REV-E19",
+        "REV-E20",
+        "REV-E26"
+      ]
+    },
+    {
+      "source": "paper:2406.01309",
+      "relation": "MOTIVATES",
+      "target": "harness:versioned_executable_task_reward_population_search",
+      "evidence_ids": [
+        "REV-E03",
+        "REV-E04",
+        "REV-E06"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "REV-E01",
+      "source_url": "https://arxiv.org/abs/2406.01309v4",
+      "locator": "Header and submission history; arXiv v4 dated 23 May 2025",
+      "claim": "The exact analyzed paper is arXiv 2406.01309v4 with the listed title and five authors; the arXiv record marks it published at ICLR 2025.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "REV-E02",
+      "source_url": "https://proceedings.iclr.cc/paper_files/paper/2025/hash/fc8ee7c7ab5b5f6b1615045dfb617ed6-Abstract-Conference.html",
+      "locator": "ICLR 2025 conference abstract record",
+      "claim": "The paper appears in the International Conference on Learning Representations 2025 proceedings.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "REV-E03",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S2",
+      "locator": "Section 2, Equation 1",
+      "claim": "The reward-design problem separates M=(S,A,T), candidate reward R, the policy trained with R, rollout distribution, and fitness F, and optimizes expected policy fitness over R.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E04",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S3",
+      "locator": "Section 3, Algorithm 1, Sections 3.1, 3.3, and 3.4",
+      "claim": "REvolve stores reward-policy-fitness-feedback tuples in islands, trains a policy for each child, accepts fitness at least equal to the island mean, and returns the highest-fitness tuple while disclaiming policy optimality.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E05",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S3.SS2",
+      "locator": "Section 3.2, Figure 2",
+      "claim": "The method samples islands and parents by fitness, uses one parent for mutation and two for crossover, asks GPT-4 to revise or combine reward components, and periodically migrates individuals.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E06",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S3.SS3",
+      "locator": "Section 3.3",
+      "claim": "Evaluators compare approximately 30-40 second rollout videos with ties allowed; Elo yields scalar fitness and selected positive/negative behavior checkboxes yield natural-language feedback for GPT-4.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E07",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S5.SS1",
+      "locator": "Section 5.1",
+      "claim": "Experiments cover AirSim autonomous driving and MuJoCo Humanoid and Adroit; GPT-4 Turbo 1106-preview receives a subset of observation/action variables and emits a sum of self-chosen reward components.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E08",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S5.SS2",
+      "locator": "Section 5.2, Table 1",
+      "claim": "The reported search uses seven generations, sixteen candidates per generation, thirteen islands, mutation probability 0.5, 500,000 AirSim or 5,000,000 MuJoCo steps per candidate, sixteen 40GB A100s, about 50 or 24 hours per generation, and two seeds; Table 1 states a 39-D Adroit observation.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "REV-E09",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S5.SS4",
+      "locator": "Section 5.4, Figure 3 and Table 2",
+      "claim": "The paper reports REvolve above all non-human baselines across three tasks, notes richer human feedback beats sparse automatic feedback, and uses a fresh evaluator cohort for final Elo scores of 1575, 1586, and 1594 for REvolve versus 1499, 1557, and 1522 for Eureka.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "REV-E10",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S5.SS5",
+      "locator": "Section 5.5, Figure 4 and Table 3",
+      "claim": "Combined mutation and crossover outperform either alone in autonomous driving; retraining from the best reward in two unseen AirSim environments beats Eureka and expert rewards, with lower generalization in denser traffic.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "REV-E11",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S5.SS6",
+      "locator": "Section 5.6",
+      "claim": "The authors identify expensive multi-policy training and closed-source GPT-4 dependence as limitations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E12",
+      "source_url": "https://arxiv.org/html/2406.01309v4#A2.SS1",
+      "locator": "Appendix B.1",
+      "claim": "Elo initializes every individual at 1500, uses update factor 32 and win/tie/loss values 1, 0.5, and 0, and recomputes ratings using comparisons within and across generations.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "REV-E13",
+      "source_url": "https://arxiv.org/html/2406.01309v4#A1.SS1",
+      "locator": "Appendix A.1.1-A.1.3, Table 3",
+      "claim": "The appendix specifies AirSim DDQN and SB3 SAC interfaces and hyperparameters; it describes the Adroit observation as 97-D, contradicting the 39-D main-table value.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "REV-E14",
+      "source_url": "https://arxiv.org/html/2406.01309v4#A4",
+      "locator": "Ethics statement and Appendix D",
+      "claim": "The study used ten evaluators per generation and twenty pairs per evaluator; the authors estimate 1,400 pair samples over seven generations and database growth of about 2.5GB per generation, 17.5GB total.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "REV-E15",
+      "source_url": "https://arxiv.org/html/2406.01309v4#A5",
+      "locator": "Appendix E",
+      "claim": "Prompts require executable Python returning total reward plus component diagnostics, constrain inputs to exposed environment variables, and define mutation/crossover using component histories and human feedback.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "REV-E16",
+      "source_url": "https://github.com/RishiHazra/Revolve/commit/6ccae3c61a4915b3fb61f75947e21a8dd8232888",
+      "locator": "Official repository release commit 6ccae3c, tagged v1.0.0",
+      "claim": "The official code release is tag v1.0.0 at commit 6ccae3c61a4915b3fb61f75947e21a8dd8232888.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E17",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/cfg/generate.yaml#L9-L38",
+      "locator": "Latest public commit eee636b, cfg/generate.yaml lines 9-38",
+      "claim": "Current search defaults select revolve_auto on HumanoidEnv with seven generations, fifteen candidates, four islands, max island size eight, crossover 0.5, migration 0.3, and one GPU, which do not reproduce the paper protocol.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E18",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/utils.py#L25-L61",
+      "locator": "Latest public commit eee636b, utils.py lines 25-61",
+      "claim": "The release executes generated Python with exec in a namespace containing Python, NumPy, Torch, copying, and randomness helpers.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E19",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/modules.py#L219-L276",
+      "locator": "Latest public commit eee636b, modules.py lines 219-276 and main.py lines 219-253",
+      "claim": "The main training loop evaluates candidate fitness from logged velocity through return_score and sends those automatic values to the reward database, rather than invoking human Elo collection.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E20",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/human_feedback/elo_scoring.py#L1-L49",
+      "locator": "Latest public commit eee636b, human_feedback/elo_scoring.py lines 1-49",
+      "claim": "Human Elo is processed in a separate script, sequentially in CSV row order and min-max normalized; the script imports a class named RewardsDatabase.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E21",
+      "source_url": "https://arxiv.org/html/2406.01309v4#S6",
+      "locator": "Section 6",
+      "claim": "The paper leaves real-world applicability, sim-to-real transfer, and broader feedback perspectives as future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "REV-E22",
+      "source_url": "https://github.com/RishiHazra/Revolve/commit/eee636b5dba141bf00cf0ff47852c2a9125dc5d2",
+      "locator": "Latest public main commit inspected on 2026-08-30",
+      "claim": "Implementation claims were checked against public main commit eee636b5dba141bf00cf0ff47852c2a9125dc5d2 dated 2026-08-24.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E23",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/rl_agent/main.py#L119-L137",
+      "locator": "Latest public commit eee636b, rl_agent/main.py lines 119-137",
+      "claim": "The public trainer hard-codes one thousand total timesteps in 500-step chunks, far below the paper's five-million-step MuJoCo budget.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E24",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/main.py#L38-L91",
+      "locator": "Latest public commit eee636b, main.py lines 38-91",
+      "claim": "Generated rewards are checked for allowed argument names and at least one return statement; generation retries at most ten times before returning failure.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E25",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/modules.py#L30-L59",
+      "locator": "Latest public commit eee636b, modules.py lines 30-59",
+      "claim": "The public LLM request uses gpt-4-1106-preview, temperature 1, max_tokens 4096, top_p 1, and zero frequency and presence penalties.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E26",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/rewards_database.py#L17-L286",
+      "locator": "Latest public commit eee636b, rewards_database.py class declarations",
+      "claim": "The database module declares RevolveDatabase and EurekaDatabase but no RewardsDatabase class matching the import in the human-feedback script.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "REV-E27",
+      "source_url": "https://github.com/RishiHazra/Revolve/blob/eee636b5dba141bf00cf0ff47852c2a9125dc5d2/README.md#L31-L47",
+      "locator": "Latest public commit eee636b, README lines 31-47",
+      "claim": "The run instructions advertise non-paper overrides and state that the AirSim environment setup script is not yet released.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

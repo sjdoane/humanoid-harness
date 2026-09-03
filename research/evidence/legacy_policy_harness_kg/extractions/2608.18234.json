@@ -1,0 +1,492 @@
+{
+  "paper": {
+    "id": "2608.18234",
+    "arxiv_id": "2608.18234",
+    "doi": "10.48550/arXiv.2608.18234",
+    "title": "GigaBrain-WBC-0.5: A Behavior World Model for Robust Whole-Body Control with Environment Interaction",
+    "authors": [
+      "Ziyang Cheng",
+      "Tianshu Tang",
+      "Jinxin Lan",
+      "Xinze Chen",
+      "Yuhan Gong",
+      "Zhichao Liu",
+      "Changzhong Wu",
+      "Yahao Mao",
+      "Zongyan Deng",
+      "Mingxuan Ma",
+      "Huasen Xi",
+      "Yilong Liu",
+      "Yutong Wu",
+      "Xiaofeng Wang",
+      "Yang Wang",
+      "Yun Ye",
+      "Guan Huang",
+      "Xiaojie Jin",
+      "Zheng Zhu",
+      "Jiwen Lu"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/abs/2608.18234v2",
+    "source_version": "arXiv v2, submitted 2026-08-23 09:07:15 UTC; versioned PDF SHA-256 312ba5cf6b01a0b25833a12b47912c15fa8ffe809934617d951943fd3b8d859d"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It provides a current, explicit causal interface for screening and projecting infeasible reference commands, plus evaluation regimes for terrain, OOD commands, and recovery. The mechanism is directly relevant to oracle/reference composition, while its controller changes define a hard fixed-trainer boundary.",
+    "not_evidence_for": [
+      "An implemented RL-Sculptor oracle or reference-composition mechanism",
+      "Improvement from changing Sam's task reward",
+      "A controller-independent feasibility filter",
+      "A data-matched causal attribution of Table 3 gains to the filter alone",
+      "Human-language steering or iterative harness optimization",
+      "Current public code availability"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mechanism:2608.18234:reference-command-encoding",
+      "name": "Reference-window latent encoding",
+      "description": "A 10-frame, 440-D reference window is noise-perturbed and intermittently root-translation-masked, encoded to a continuous 64-D command, and regularized through a training-only finite scalar quantizer, decoder, and cycle-consistency path.",
+      "tags": ["reference", "latent-command", "root-frame", "masking", "cycle-consistency"],
+      "evidence_ids": ["GIGA-E02", "GIGA-E04"]
+    },
+    {
+      "id": "mechanism:2608.18234:behavior-world-model",
+      "name": "Causal behavior world model",
+      "description": "A six-layer causal Transformer maps proprioception, previous action, and committed latent command to the current action, predicted next proprioceptive state, and a four-component diagonal-Gaussian distribution over the next latent command.",
+      "tags": ["whole-body-control", "causal-transformer", "world-model", "gmm", "fixed-trainer-boundary"],
+      "evidence_ids": ["GIGA-E02", "GIGA-E03"]
+    },
+    {
+      "id": "mechanism:2608.18234:ood-command-filter",
+      "name": "Environment-conditioned latent-command filter",
+      "description": "The previous step's GMM selects a MAP behavior component, tests the raw latent against its Mahalanobis ellipsoid, and radially retracts an OOD command to the ellipsoid boundary while preserving its direction from the component mean.",
+      "tags": ["reference-composition", "oracle", "ood-detection", "mahalanobis", "projection", "causal"],
+      "evidence_ids": ["GIGA-E03", "GIGA-E09"]
+    },
+    {
+      "id": "mechanism:2608.18234:spatial-terrain-annotation",
+      "name": "Automatic spatial terrain annotation",
+      "description": "Kinematic replay detects contact evidence, removes floor and collision-inconsistent points, clusters planar supports, and fits simulator-ready 3D box primitives co-located with each reference motion.",
+      "tags": ["reference-data", "terrain", "contact", "3d-geometry", "dataset-construction"],
+      "evidence_ids": ["GIGA-E04", "GIGA-E08"]
+    },
+    {
+      "id": "mechanism:2608.18234:integrated-fall-recovery",
+      "name": "Integrated fall-recovery curriculum",
+      "description": "Some flat-ground episodes begin from synthetic fallen poses, tracking terms are smoothly gated during recovery, and the same tracking policy is trained to stand and resume the reference without switching controllers.",
+      "tags": ["recovery", "curriculum", "tracking-policy", "reward-gating", "fixed-trainer-boundary"],
+      "evidence_ids": ["GIGA-E05", "GIGA-E07"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "control_interface",
+      "value": {"rate_hz": 50, "actuated_dof": 29, "proprioception_dim": 67, "previous_action_dim": 29, "action_dim": 29},
+      "units": null,
+      "context": "Unitree G1 policy input/output interface.",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "name": "reference_window",
+      "value": {"frames": 10, "spacing_seconds": 0.02, "dimension": 440},
+      "units": null,
+      "context": "Online reference command assembled from joint, root-relative, translation, and gravity blocks.",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "name": "latent_command",
+      "value": {"dimension": 64, "tokens": 2, "token_dimension": 32, "fsq_levels_per_dimension": 32},
+      "units": null,
+      "context": "Continuous control latent; quantization is restricted to an auxiliary reconstruction branch.",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "name": "transformer_architecture",
+      "value": {"layers": 6, "attention_heads": 4, "model_dimension": 256, "local_window_frames": 32, "effective_receptive_field_frames": 187},
+      "units": null,
+      "context": "Causal core with rotary embeddings and per-layer KV cache.",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "name": "next_command_gmm",
+      "value": {"components": 4, "latent_dimension": 64, "head_dimension": 516, "log_sigma_clamp": [-3, 10]},
+      "units": null,
+      "context": "Diagonal Gaussian mixture over the next latent command.",
+      "evidence_ids": ["GIGA-E02", "GIGA-E03"]
+    },
+    {
+      "name": "training_objective_weights",
+      "value": {"reconstruction": 0.01, "cycle": 1.0, "next_state_mse": 0.01, "negative_gmm_log_likelihood": 0.005},
+      "units": null,
+      "context": "Auxiliary terms added to the PPO loss; next-step terms are masked across episode boundaries.",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "name": "root_translation_mask",
+      "value": {"masked_probability": 0.6666666667, "resample_interval_seconds": [2, 5], "deployment_value": 0},
+      "units": null,
+      "context": "Training-time intermittent access to global root-reference translation; block is zero in deployment and evaluation.",
+      "evidence_ids": ["GIGA-E02", "GIGA-E06"]
+    },
+    {
+      "name": "ood_filter",
+      "value": {"deployed_safety_radius": 3, "latent_dimension": 64, "mixture_weight_epsilon": 1e-10, "cost_upper_bound_ms": 1, "control_period_ms": 20},
+      "units": null,
+      "context": "Previous-step MAP-component Mahalanobis test and radial boundary projection.",
+      "evidence_ids": ["GIGA-E03", "GIGA-E09"]
+    },
+    {
+      "name": "contact_detection",
+      "value": {"normal_speed_max_mps": 0.2, "tangential_speed_max_mps": 0.3, "deceleration_min_mps2": 1.0, "required_prior_frames": 2, "prior_window_frames": 10, "termination_drift_m": 0.05, "minimum_duration_frames": 10},
+      "units": null,
+      "context": "Per-surface-sample state machine used by automatic terrain annotation.",
+      "evidence_ids": ["GIGA-E04"]
+    },
+    {
+      "name": "terrain_geometry_filters",
+      "value": {"floor_height_cutoff_m": 0.1, "voxel_size_m": 0.001, "minimum_outward_support_offset_m": 0.05, "normal_agreement_degrees": 40, "normal_offset_max_m": 0.1, "primitive_thickness_m": 0.01},
+      "units": null,
+      "context": "Filtering, clustering, and primitive-fitting thresholds.",
+      "evidence_ids": ["GIGA-E04"]
+    },
+    {
+      "name": "terrain_sampling_ratio",
+      "value": 0.2,
+      "units": null,
+      "context": "Controlled terrain-to-flat-ground mixing rate during training.",
+      "evidence_ids": ["GIGA-E04", "GIGA-E05"]
+    },
+    {
+      "name": "source_corpus_hours",
+      "value": {"Bones-Seed": {"total": 288, "terrain_identified": 12.5}, "MotionMillion": {"total": 900, "terrain_identified": 22.22}, "MotionDecode": {"total": 1000, "terrain_identified": 37.85}},
+      "units": "hours",
+      "context": "Retargeted motion corpora and identified spatial-terrain subsets before cleaning/filtering.",
+      "evidence_ids": ["GIGA-E05"]
+    },
+    {
+      "name": "parallel_training_environments",
+      "value": {"flat_ground": 4096, "terrain_and_fallen_initialization": 512},
+      "units": "environments",
+      "context": "Isaac Lab PPO rollout parallelism.",
+      "evidence_ids": ["GIGA-E05"]
+    },
+    {
+      "name": "tracking_reward_terms",
+      "value": {
+        "anchor_position": {"weight": 1.0, "sigma": 0.3},
+        "anchor_orientation": {"weight": 0.5, "sigma": 0.4},
+        "relative_body_position": {"weight": 1.0, "sigma": 0.3},
+        "relative_body_orientation": {"weight": 1.0, "sigma": 0.4},
+        "body_linear_velocity": {"weight": 1.0, "sigma": 1.0},
+        "body_angular_velocity": {"weight": 1.0, "sigma": 3.14},
+        "local_head_wrist_points": {"weight": 2.0, "sigma": 0.1},
+        "local_wrist_orientation": {"weight": 2.0, "sigma": 0.3},
+        "local_feet_position": {"weight": 1.0, "sigma": 0.15},
+        "action_rate": {"weight": -0.1},
+        "joint_limit": {"weight": -10.0},
+        "undesired_contacts": {"weight": -0.1},
+        "anti_shake_angular_velocity": {"weight": -0.005},
+        "ankle_joint_acceleration": {"weight": -0.0000025}
+      },
+      "units": null,
+      "context": "Paper's fixed controller tracking objective. Tracking errors use exp(-||e||^2/sigma^2); this is not Sam's generated task reward.",
+      "evidence_ids": ["GIGA-E05"]
+    },
+    {
+      "name": "evaluation_split_sizes",
+      "value": {"standard_clips": 136, "ood_clips": 136, "terrain_clips": 150, "fall_reference_clips": 136},
+      "units": "clips",
+      "context": "Four held-out evaluation regimes; Fall reuses Standard references with fallen initialization.",
+      "evidence_ids": ["GIGA-E06"]
+    },
+    {
+      "name": "reported_primary_results",
+      "value": {"standard_success_percent": 96.3, "standard_mpkpe_mm": 76.6, "terrain_success_percent": 81.3, "terrain_mpkpe_mm": 93.3, "ood_success_percent": 83.1, "ood_mpkpe_mm": 158.0, "fall_recovery_percent": 99.3, "fall_jerk_rad_per_s3": 1050.6},
+      "units": null,
+      "context": "GigaBrain-WBC-0.5 with deployed R_safe=3 in the sim-to-sim MuJoCo comparison.",
+      "evidence_ids": ["GIGA-E07"]
+    },
+    {
+      "name": "terrain_annotation_audit",
+      "value": {"sampled_total": 200, "overall_correct_percent": 92, "stairs_steps_percent": 92, "chair_seat_percent": 94, "box_platform_percent": 98, "other_percent": 84},
+      "units": null,
+      "context": "Human audit of Bones-Seed annotations, 50 random motions per category.",
+      "evidence_ids": ["GIGA-E08"]
+    },
+    {
+      "name": "safety_radius_tradeoff",
+      "value": {"unfiltered_to_radius_3_ood_gain_points": 2.9, "unfiltered_to_radius_3_standard_mpkpe_cost_mm": 12.7, "radius_3_to_radius_1_additional_ood_gain_points": 2.2, "radius_3_to_radius_1_additional_standard_mpkpe_cost_mm": 46.7},
+      "units": null,
+      "context": "Reported sweep of robustness versus in-distribution tracking fidelity.",
+      "evidence_ids": ["GIGA-E09"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "failure:2608.18234:platform-calibration",
+      "name": "Checkpoint- and platform-specific radius calibration",
+      "description": "The authors require R_safe to be recalibrated per checkpoint and platform before the filter is trusted on hardware.",
+      "tags": ["calibration", "hardware", "safety-radius"],
+      "evidence_ids": ["GIGA-E10"]
+    },
+    {
+      "id": "failure:2608.18234:risk-proxy",
+      "name": "Distribution similarity is not physical-risk reasoning",
+      "description": "The filter identifies commands unlike training experience, so interception of physically infeasible commands is probabilistic rather than guaranteed.",
+      "tags": ["ood", "risk", "uncertainty", "safety"],
+      "evidence_ids": ["GIGA-E10"]
+    },
+    {
+      "id": "failure:2608.18234:unfiltered-boundaries",
+      "name": "Unfiltered first and reset steps",
+      "description": "The first step and steps after a behavior switch, temporal reset, or PD hand-off pass through unfiltered because no previous-step mixture is retained.",
+      "tags": ["causality", "reset", "deployment-boundary"],
+      "evidence_ids": ["GIGA-E03"]
+    },
+    {
+      "id": "failure:2608.18234:partial-scene-reconstruction",
+      "name": "Contact-only scene reconstruction",
+      "description": "Annotation recovers supports actually touched by the motion, not unused surfaces or complete non-supporting scene geometry.",
+      "tags": ["terrain", "dataset", "coverage", "geometry"],
+      "evidence_ids": ["GIGA-E10"]
+    },
+    {
+      "id": "failure:2608.18234:comparison-confound",
+      "name": "Non-data-matched baseline comparison",
+      "description": "The compared trackers use different corpora and retargeting pipelines; the authors explicitly characterize Table 3 as generalization evidence, not a data-matched ablation.",
+      "tags": ["evaluation", "baseline", "confounding", "causal-attribution"],
+      "evidence_ids": ["GIGA-E06"]
+    },
+    {
+      "id": "failure:2608.18234:incomplete-release-evaluation",
+      "name": "Missing promised ablations and hardware latency",
+      "description": "The technical report says a broader evaluation with real-robot latency and component ablations will be added later.",
+      "tags": ["evidence-gap", "ablation", "latency", "preprint"],
+      "evidence_ids": ["GIGA-E06"]
+    },
+    {
+      "id": "failure:2608.18234:root-velocity-tradeoff",
+      "name": "Hardware-compatible masking degrades root-velocity tracking",
+      "description": "The paper attributes its 211.1 mm/s Standard root-velocity error versus HoloMotion-1's 121.3 mm/s to intermittent root-translation masking.",
+      "tags": ["tradeoff", "root-frame", "deployability", "tracking"],
+      "evidence_ids": ["GIGA-E07"]
+    },
+    {
+      "id": "failure:2608.18234:unreleased-code",
+      "name": "No public implementation at extraction time",
+      "description": "The official project page displayed 'Code coming soon' on 2026-08-30, so paper claims cannot yet be checked against a public implementation.",
+      "tags": ["reproducibility", "code", "preprint"],
+      "evidence_ids": ["GIGA-E11"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "evaluation:2608.18234:standard",
+      "name": "Standard flat-ground tracking",
+      "description": "AMASS test split, 136 clips, full-length MuJoCo rollouts; reported 76.6 mm MPKPE, 211.1 mm/s root-velocity error, and 96.3% success.",
+      "tags": ["amass", "tracking", "flat-ground", "sim-to-sim"],
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "id": "evaluation:2608.18234:terrain",
+      "name": "Terrain-interaction tracking",
+      "description": "Bones-Seed terrain test subset, 150 clips with annotated geometry; reported 93.3 mm MPKPE, 100.7 mm root-position error, and 81.3% success.",
+      "tags": ["terrain", "interaction", "sim-to-sim", "root-position"],
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "id": "evaluation:2608.18234:ood",
+      "name": "Physically implausible command robustness",
+      "description": "MotionMillion OOD subset, 136 infeasible clips; with R_safe=3 the system reports 158.0 mm MPKPE and 83.1% survival.",
+      "tags": ["ood", "infeasible-reference", "survival", "projection"],
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "id": "evaluation:2608.18234:fall",
+      "name": "Fallen-initialization recovery",
+      "description": "Standard references initialized from fallen poses; recovery is return to tracking, yielding 99.3% recovery and 1050.6 rad/s^3 mean joint jerk.",
+      "tags": ["fall", "recovery", "jerk", "sim-to-sim"],
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "id": "evaluation:2608.18234:annotation-audit",
+      "name": "Human audit of terrain annotations",
+      "description": "A strict 200-motion audit reports 92% overall correctness, with category results from 84% to 98%.",
+      "tags": ["annotation", "human-audit", "data-quality", "terrain"],
+      "evidence_ids": ["GIGA-E08"]
+    },
+    {
+      "id": "evaluation:2608.18234:safety-radius-sweep",
+      "name": "Robustness-fidelity frontier",
+      "description": "Sweeping R_safe measures Standard MPKPE against OOD survival; R_safe=3 is the selected operating point, but the report does not provide a component-isolated ablation table.",
+      "tags": ["tradeoff", "calibration", "ood", "tracking-fidelity"],
+      "evidence_ids": ["GIGA-E09"]
+    },
+    {
+      "id": "evaluation:2608.18234:hardware-qualitative",
+      "name": "Qualitative hardware interaction and robustness",
+      "description": "Project and paper figures show live-command terrain/object contact, missing-support responses, disturbance recovery, and G1-to-L01 transfer, but no quantitative real-robot latency or success-rate study is reported in this release.",
+      "tags": ["hardware", "qualitative", "interaction", "transfer"],
+      "evidence_ids": ["GIGA-E06", "GIGA-E10", "GIGA-E11"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2608.18234",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.18234:behavior-world-model",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "source": "paper:2608.18234",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.18234:ood-command-filter",
+      "evidence_ids": ["GIGA-E03"]
+    },
+    {
+      "source": "paper:2608.18234",
+      "relation": "INTRODUCES",
+      "target": "mechanism:2608.18234:spatial-terrain-annotation",
+      "evidence_ids": ["GIGA-E04"]
+    },
+    {
+      "source": "mechanism:2608.18234:behavior-world-model",
+      "relation": "CONDITIONS_ON",
+      "target": "mechanism:2608.18234:reference-command-encoding",
+      "evidence_ids": ["GIGA-E02"]
+    },
+    {
+      "source": "mechanism:2608.18234:ood-command-filter",
+      "relation": "USES",
+      "target": "mechanism:2608.18234:behavior-world-model",
+      "evidence_ids": ["GIGA-E03"]
+    },
+    {
+      "source": "mechanism:2608.18234:spatial-terrain-annotation",
+      "relation": "SUPPORTS",
+      "target": "mechanism:2608.18234:behavior-world-model",
+      "evidence_ids": ["GIGA-E04", "GIGA-E05"]
+    },
+    {
+      "source": "mechanism:2608.18234:behavior-world-model",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.18234:standard",
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "source": "mechanism:2608.18234:behavior-world-model",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.18234:terrain",
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "source": "mechanism:2608.18234:ood-command-filter",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.18234:ood",
+      "evidence_ids": ["GIGA-E06", "GIGA-E07", "GIGA-E09"]
+    },
+    {
+      "source": "mechanism:2608.18234:integrated-fall-recovery",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.18234:fall",
+      "evidence_ids": ["GIGA-E06", "GIGA-E07"]
+    },
+    {
+      "source": "mechanism:2608.18234:spatial-terrain-annotation",
+      "relation": "EVALUATES_ON",
+      "target": "evaluation:2608.18234:annotation-audit",
+      "evidence_ids": ["GIGA-E08"]
+    },
+    {
+      "source": "mechanism:2608.18234:ood-command-filter",
+      "relation": "MOTIVATES",
+      "target": "failure:2608.18234:platform-calibration",
+      "evidence_ids": ["GIGA-E09", "GIGA-E10"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "GIGA-E01",
+      "source_url": "https://arxiv.org/abs/2608.18234v2",
+      "locator": "arXiv metadata and submission history; v2 submitted 2026-08-23 09:07:15 UTC",
+      "claim": "The pinned public source is arXiv:2608.18234v2; it is a 20-page technical report with 8 figures and 4 tables.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "GIGA-E02",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S3",
+      "locator": "Figure 2; Sections 3.1-3.2; Equations (1)-(2)",
+      "claim": "The policy consumes a 10-frame reference through a 64-D latent and jointly emits action, next state, and a four-component next-command GMM from a six-layer causal Transformer.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GIGA-E03",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S3.SS4",
+      "locator": "Section 3.4; Equations (3)-(4)",
+      "claim": "The causal OOD filter uses the previous-step mixture, MAP component selection, a Mahalanobis-radius test, and radial retraction to the selected ellipsoid boundary; the first/reset step is unfiltered and the deployed radius is tunable.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GIGA-E04",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S3.SS3",
+      "locator": "Section 3.3; Figure 3",
+      "claim": "The annotation pipeline derives 3D support geometry from motion using velocity/deceleration contact detection, penetration filtering, clustering, and oriented-box fitting, then co-locates terrain with its reference.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GIGA-E05",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S3.SS5",
+      "locator": "Section 3.5; Figure 4; Table 2; Equation (5)",
+      "claim": "Training uses PPO over three retargeted corpora, controlled terrain mixing, fallen initializations, recovery gating, force randomization, specified tracking terms, and 4096 or 512 parallel environments depending on geometry.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GIGA-E06",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S4.SS1",
+      "locator": "Section 4.1",
+      "claim": "Four held-out regimes use regime-specific metrics and full-length MuJoCo rollouts; baseline comparisons are not data-matched, and the report defers broader ablations and real-robot latency evaluation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GIGA-E07",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S4.SS2",
+      "locator": "Table 3; Section 4.2",
+      "claim": "With R_safe=3, the paper reports 96.3% Standard success, 81.3% Terrain success, 83.1% OOD success, and 99.3% Fall recovery, with the stated errors and jerk.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GIGA-E08",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S4.SS3",
+      "locator": "Table 4; Section 4.3",
+      "claim": "A human audit of 200 randomly sampled Bones-Seed terrain annotations reports 92% overall correctness under a strict all-support/no-spurious-primitive criterion.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "GIGA-E09",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S4.SS4",
+      "locator": "Section 4.4; Figure 6",
+      "claim": "The safety-radius sweep measures a robustness-fidelity frontier and selects R_safe=3 as the reported knee/operating point.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "GIGA-E10",
+      "source_url": "https://arxiv.org/html/2608.18234v2#S5",
+      "locator": "Section 5, limitation paragraph",
+      "claim": "The authors require per-platform/checkpoint filter calibration, describe it as a training-distribution proxy rather than direct risk reasoning, and state that terrain reconstruction is limited to contacted supports.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "GIGA-E11",
+      "source_url": "https://shepherd1226.github.io/gigabrain-wbc-0.5/",
+      "locator": "Project-page header, checked 2026-08-30: 'Code coming soon'",
+      "claim": "The official project page did not expose a public code repository at extraction time.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

@@ -1,0 +1,714 @@
+{
+  "paper": {
+    "id": "2409.14393",
+    "arxiv_id": "2409.14393",
+    "doi": "10.1145/3687951",
+    "title": "MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting",
+    "authors": [
+      "Chen Tessler",
+      "Yunrong Guo",
+      "Ofir Nabati",
+      "Gal Chechik",
+      "Xue Bin Peng"
+    ],
+    "year": 2024,
+    "primary_url": "https://arxiv.org/abs/2409.14393v1",
+    "source_version": "arXiv v1, submitted 2024-09-22; camera-ready ACM TOG 43(6), article 209, DOI 10.1145/3687951"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "evaluation"
+    ],
+    "why_admitted": "The paper gives a concrete closed-loop pattern for composing time-indexed partial reference goals with finite-state machines while reusing one controller, plus task-level metrics and ablations for that interface.",
+    "not_evidence_for": [
+      "RL-Sculptor implementing MaskedMimic",
+      "automatic synthesis of oracle state machines",
+      "automatic natural-language steering of Sam's harness",
+      "improvement of a task reward",
+      "real-robot transfer",
+      "benefit under Sam's fixed controller, scene, training budget, and tracking reward"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "mm:two_stage_distillation",
+      "name": "Full-reference teacher to partial-goal student",
+      "description": "An RL fully-constrained tracker observes complete future reference poses; a partially-constrained student interacts with the environment and is trained by DAgger on teacher action labels while seeing masked goals.",
+      "tags": [
+        "motion_tracking",
+        "behavior_cloning",
+        "DAgger",
+        "teacher_student"
+      ],
+      "evidence_ids": [
+        "E-MM-01",
+        "E-MM-02"
+      ]
+    },
+    {
+      "id": "mm:partial_goal_interface",
+      "name": "Multimodal partial-goal interface",
+      "description": "The controller accepts any-joint-any-time position/rotation targets, text, object representations, or simultaneous combinations of these modalities.",
+      "tags": [
+        "partial_reference",
+        "multimodal_conditioning",
+        "oracle_interface"
+      ],
+      "evidence_ids": [
+        "E-MM-02"
+      ]
+    },
+    {
+      "id": "mm:conditional_vae",
+      "name": "Conditional VAE with residual encoder",
+      "description": "A learned prior maps partial goals to a latent distribution; a full-goal encoder supplies a residual during training; the decoder maps state and latent to deterministic PD-target actions. Only the prior and decoder are used at inference.",
+      "tags": [
+        "C-VAE",
+        "learned_prior",
+        "multimodality"
+      ],
+      "evidence_ids": [
+        "E-MM-03"
+      ]
+    },
+    {
+      "id": "mm:structured_temporal_masking",
+      "name": "Structured temporal masking",
+      "description": "Joint and modality masks persist across nearby timesteps and include explicit fully masked gaps, so the student must solve genuinely underspecified partial-goal problems instead of reconstructing from cross-frame leakage.",
+      "tags": [
+        "masking",
+        "temporal_consistency",
+        "reference_sparsity"
+      ],
+      "evidence_ids": [
+        "E-MM-04",
+        "E-MM-05"
+      ]
+    },
+    {
+      "id": "mm:goal_engineering_fsm",
+      "name": "Closed-loop goal-engineering FSM",
+      "description": "A hand-authored finite-state machine reads current system state and switches among partial-goal modalities and timings; the fixed trained controller executes each active goal without task-specific retraining.",
+      "tags": [
+        "finite_state_machine",
+        "oracle",
+        "reference_composition",
+        "closed_loop"
+      ],
+      "evidence_ids": [
+        "E-MM-06",
+        "E-MM-07",
+        "E-MM-08"
+      ]
+    },
+    {
+      "id": "mm:independent_task_evaluation",
+      "name": "Task-specific success and error evaluation",
+      "description": "The paper evaluates the same unified controller on separate success and error metrics for tracking, locomotion, steering, reach, and object interaction rather than using the training reward as the sole outcome.",
+      "tags": [
+        "evaluation",
+        "success_metric",
+        "error_metric"
+      ],
+      "evidence_ids": [
+        "E-MM-09",
+        "E-MM-10",
+        "E-MM-11"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "future_pose_slots",
+      "value": 11,
+      "units": "poses",
+      "context": "Ten slots are immediate future frames; the eleventh is a randomly sampled long-term pose.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "near_term_mask_repeat_probability",
+      "value": 0.98,
+      "units": "probability",
+      "context": "For each of the first ten future poses, the previous sparsity pattern is retained with 98% probability; a random joint/type subset is sampled with 2% probability.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "time_gap_probability",
+      "value": 0.01,
+      "units": "probability",
+      "context": "Probability of beginning a completely masked near-term gap.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "time_gap_length",
+      "value": [
+        1,
+        9
+      ],
+      "units": "frames inclusive",
+      "context": "Uniformly sampled masked-gap length; multiplied by four when a text, object, or long-term target condition is present.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "high_level_condition_gap_multiplier",
+      "value": 4,
+      "units": "multiplier",
+      "context": "Extends fully masked near-term gaps in the presence of text, object, or long-term target conditioning.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "episode_modality_mask_probabilities",
+      "value": {
+        "object_hidden": 0.2,
+        "text_hidden": 0.8,
+        "long_term_target_present": 0.2
+      },
+      "units": "probability",
+      "context": "Episode-level masking probabilities reported in the supplement.",
+      "evidence_ids": [
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "pose_history",
+      "value": {
+        "window": 40,
+        "stride": 8,
+        "tokens": 5
+      },
+      "units": "timesteps",
+      "context": "Five past-pose observations are subsampled from the previous forty timesteps.",
+      "evidence_ids": [
+        "E-MM-04",
+        "E-MM-05"
+      ]
+    },
+    {
+      "name": "latent_dimension",
+      "value": 64,
+      "units": "dimensions",
+      "context": "Conditional-VAE latent space.",
+      "evidence_ids": [
+        "E-MM-12"
+      ]
+    },
+    {
+      "name": "KL_schedule",
+      "value": {
+        "start": 0.0001,
+        "end": 0.01,
+        "start_epoch": 3000,
+        "duration_epochs": 6000
+      },
+      "units": null,
+      "context": "Linear schedule for the student C-VAE KL coefficient.",
+      "evidence_ids": [
+        "E-MM-04",
+        "E-MM-12"
+      ]
+    },
+    {
+      "name": "runtime_rates",
+      "value": {
+        "policy": 30,
+        "simulation": 120
+      },
+      "units": "Hz",
+      "context": "Controller and physics-simulation frequencies.",
+      "evidence_ids": [
+        "E-MM-09"
+      ]
+    },
+    {
+      "name": "training_scale",
+      "value": {
+        "parallel_environments": 16384,
+        "GPUs": 4,
+        "GPU_model": "A100",
+        "duration_days_approx": 14,
+        "fully_constrained_steps_approx": 30000000000,
+        "partially_constrained_steps_approx": 10000000000
+      },
+      "units": null,
+      "context": "Reported author training scale; not Sam's fixed budget.",
+      "evidence_ids": [
+        "E-MM-09",
+        "E-MM-12"
+      ]
+    },
+    {
+      "name": "supported_joint_conditioning_subset",
+      "value": [
+        "left ankle",
+        "right ankle",
+        "pelvis",
+        "head",
+        "left hand",
+        "right hand"
+      ],
+      "units": null,
+      "context": "Body parts used for joint conditioning during partially-constrained training.",
+      "evidence_ids": [
+        "E-MM-09"
+      ]
+    },
+    {
+      "name": "path_oracle_schedule",
+      "value": {
+        "near_term_targets": 5,
+        "long_term_horizon_seconds": 0.8,
+        "drop_near_term_if_error_exceeds_meters": 0.4,
+        "failure_threshold_meters": 2
+      },
+      "units": null,
+      "context": "Goal-engineering schedule used for path following; the controller receives only the distant target when path error exceeds 0.4 m.",
+      "evidence_ids": [
+        "E-MM-07"
+      ]
+    },
+    {
+      "name": "object_interaction_FSM",
+      "value": {
+        "switch_distance_meters": 2,
+        "approach_speed_meters_per_second": 1,
+        "approach_conditions": [
+          "direction",
+          "walk normally text"
+        ],
+        "terminal_condition": "object bounding box"
+      },
+      "units": null,
+      "context": "Hand-authored modality switch for approach-and-sit behavior.",
+      "evidence_ids": [
+        "E-MM-08"
+      ]
+    },
+    {
+      "name": "task_evaluation_episodes",
+      "value": 5000,
+      "units": "random episodes per task",
+      "context": "Reported average statistics for goal-engineered tasks.",
+      "evidence_ids": [
+        "E-MM-06"
+      ]
+    },
+    {
+      "name": "fully_constrained_tracking_reward_weights_as_reported",
+      "value": {
+        "global_rotation_gr": 0.3,
+        "global_translation_gt": 0.5,
+        "joint_velocity_jv": 0.1,
+        "joint_angular_velocity_jav": 0.1,
+        "root_height_rh": 0.2,
+        "energy_enrg": 0.0005
+      },
+      "units": null,
+      "context": "Appendix notation for the paper's teacher tracking reward. This is not a task reward and is outside Sam's allowed initial modifications.",
+      "evidence_ids": [
+        "E-MM-12"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "mm:failure_long_horizon_text",
+      "name": "Weak long-horizon text reasoning",
+      "description": "The model handles simple atomic text behaviors but struggles with commands such as taking four steps and then raising the hands; the authors speculate the short observation history is responsible.",
+      "tags": [
+        "long_horizon",
+        "text_control",
+        "reported_limitation"
+      ],
+      "evidence_ids": [
+        "E-MM-14"
+      ]
+    },
+    {
+      "id": "mm:failure_motion_quality",
+      "name": "Jitter and difficult motion gaps",
+      "description": "Some generated motions jitter, and the controller does not reproduce all challenging training motions, including backflips and breakdancing.",
+      "tags": [
+        "motion_quality",
+        "jitter",
+        "coverage"
+      ],
+      "evidence_ids": [
+        "E-MM-13"
+      ]
+    },
+    {
+      "id": "mm:failure_foothold_planning",
+      "name": "Weak terrain-aware foothold planning",
+      "description": "On irregular terrain, the character tends to reuse standard walking rather than plan foot placements around rugged regions; the authors connect this to naive flat-to-terrain retargeting.",
+      "tags": [
+        "terrain",
+        "planning",
+        "retargeting"
+      ],
+      "evidence_ids": [
+        "E-MM-13"
+      ]
+    },
+    {
+      "id": "mm:failure_manual_goal_design",
+      "name": "Manual goal engineering",
+      "description": "Designing natural goals for more complex scenes or groups of characters may be labor-intensive; automatic goal engineering is proposed as future work, not demonstrated.",
+      "tags": [
+        "oracle_synthesis",
+        "manual_design",
+        "future_work"
+      ],
+      "evidence_ids": [
+        "E-MM-13"
+      ]
+    },
+    {
+      "id": "mm:failure_static_scene_scope",
+      "name": "Static-scene interaction scope",
+      "description": "Dynamic object manipulation, tool use, and multi-agent interactions are outside the demonstrated capabilities.",
+      "tags": [
+        "scope_boundary",
+        "dynamic_scene",
+        "multi_agent"
+      ],
+      "evidence_ids": [
+        "E-MM-13"
+      ]
+    },
+    {
+      "id": "mm:caveat_stochastic_evaluation",
+      "name": "Tracking metrics use the prior mean",
+      "description": "Quantitative evaluation conditions on the mean latent because random samples improve diversity but can select less likely solutions and slightly degrade raw tracking metrics.",
+      "tags": [
+        "evaluation_protocol",
+        "stochasticity",
+        "metric_caveat"
+      ],
+      "evidence_ids": [
+        "E-MM-09"
+      ]
+    },
+    {
+      "id": "mm:caveat_simulation_only",
+      "name": "Simulation-only evidence",
+      "description": "Experiments use an Isaac Gym 69-DoF neutral-SMPL humanoid; the paper does not report physical-robot deployment.",
+      "tags": [
+        "simulation",
+        "embodiment",
+        "transfer_boundary"
+      ],
+      "evidence_ids": [
+        "E-MM-09",
+        "E-MM-12"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "mm:eval_flat_tracking",
+      "name": "AMASS flat-terrain tracking",
+      "description": "Author-reported test results: partially-constrained full-body tracking 99.2% success and 35.1 mm MPJPE; sparse VR tracking 98.1% success, 58.1 mm full-body MPJPE, and 45.8 mm observed-joint error.",
+      "tags": [
+        "AMASS",
+        "motion_tracking",
+        "VR_tracking"
+      ],
+      "evidence_ids": [
+        "E-MM-10"
+      ]
+    },
+    {
+      "id": "mm:eval_irregular_terrain",
+      "name": "AMASS irregular-terrain tracking",
+      "description": "Author-reported test results: partially-constrained full-body tracking 95.4% success and 62.9 mm MPJPE; VR tracking 93.6% success and 69.4 mm observed-joint error.",
+      "tags": [
+        "terrain",
+        "motion_tracking",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "E-MM-10"
+      ]
+    },
+    {
+      "id": "mm:eval_goal_tasks",
+      "name": "Goal-engineered task suite",
+      "description": "Across 5,000 random episodes per task, reported success is 96.3% for locomotion on both flat and irregular terrain, 97.8%/93.8% for flat/terrain steering, and 88.7%/87.3% for flat/terrain reaching.",
+      "tags": [
+        "goal_engineering",
+        "locomotion",
+        "steering",
+        "reach"
+      ],
+      "evidence_ids": [
+        "E-MM-06",
+        "E-MM-11"
+      ]
+    },
+    {
+      "id": "mm:eval_sitting_ablation",
+      "name": "Object-interaction ablation",
+      "description": "Reported sitting success is 96.9% for the full model, 94.9% without history, 93.2% without VAE, 21.1% without residual prior, and 0% without structured masking.",
+      "tags": [
+        "object_interaction",
+        "ablation",
+        "structured_masking"
+      ],
+      "evidence_ids": [
+        "E-MM-15"
+      ]
+    },
+    {
+      "id": "mm:eval_boundary_author_reported",
+      "name": "Author-reported simulation evidence",
+      "description": "The quantitative tables compare simulated tasks and published baselines; this extraction does not establish independent reproduction or hardware validity.",
+      "tags": [
+        "evidence_boundary",
+        "simulation",
+        "reproducibility"
+      ],
+      "evidence_ids": [
+        "E-MM-09",
+        "E-MM-10",
+        "E-MM-11"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2409.14393",
+      "relation": "INTRODUCES",
+      "target": "mm:partial_goal_interface",
+      "evidence_ids": [
+        "E-MM-01",
+        "E-MM-02"
+      ]
+    },
+    {
+      "source": "mm:two_stage_distillation",
+      "relation": "USES",
+      "target": "method:DAgger",
+      "evidence_ids": [
+        "E-MM-01",
+        "E-MM-03"
+      ]
+    },
+    {
+      "source": "mm:partial_goal_interface",
+      "relation": "CONDITIONS_ON",
+      "target": "goal:any_joint_any_time_text_object",
+      "evidence_ids": [
+        "E-MM-02"
+      ]
+    },
+    {
+      "source": "mm:goal_engineering_fsm",
+      "relation": "COMPOSES",
+      "target": "mm:partial_goal_interface",
+      "evidence_ids": [
+        "E-MM-06",
+        "E-MM-07",
+        "E-MM-08"
+      ]
+    },
+    {
+      "source": "mm:goal_engineering_fsm",
+      "relation": "EVALUATES_ON",
+      "target": "mm:eval_goal_tasks",
+      "evidence_ids": [
+        "E-MM-11"
+      ]
+    },
+    {
+      "source": "mm:structured_temporal_masking",
+      "relation": "SUPPORTS",
+      "target": "mm:eval_sitting_ablation",
+      "evidence_ids": [
+        "E-MM-15"
+      ]
+    },
+    {
+      "source": "mm:partial_goal_interface",
+      "relation": "TRACKS",
+      "target": "data:partial_reference_constraints",
+      "evidence_ids": [
+        "E-MM-02",
+        "E-MM-10"
+      ]
+    },
+    {
+      "source": "paper:2409.14393",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:AMASS",
+      "evidence_ids": [
+        "E-MM-09",
+        "E-MM-10"
+      ]
+    },
+    {
+      "source": "mm:two_stage_distillation",
+      "relation": "OPTIMIZES",
+      "target": "objective:teacher_action_likelihood_plus_KL",
+      "evidence_ids": [
+        "E-MM-03"
+      ]
+    },
+    {
+      "source": "paper:2409.14393",
+      "relation": "MOTIVATES",
+      "target": "research_problem:automatic_goal_engineering",
+      "evidence_ids": [
+        "E-MM-13"
+      ]
+    },
+    {
+      "source": "paper:2409.14393",
+      "relation": "CONTRASTS_WITH",
+      "target": "approach:task_specific_controllers_and_rewards",
+      "evidence_ids": [
+        "E-MM-16"
+      ]
+    },
+    {
+      "source": "paper:2409.14393",
+      "relation": "REPORTS",
+      "target": "venue:ACM_TOG_43_6_article_209",
+      "evidence_ids": [
+        "E-MM-17"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-MM-01",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§4 System Overview, Figure 3",
+      "claim": "The framework first trains a full-reference RL tracker and then distills it into a masked-input partially-constrained controller.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E-MM-02",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§6.1 Partial Goals",
+      "claim": "Partial goals include any-joint-any-time position/rotation targets, text, objects, and simultaneous combinations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-03",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§6.2 Modeling Diversity with Conditional VAEs, Eq. 3",
+      "claim": "The student interacts with the environment, receives teacher action labels through DAgger, and optimizes action likelihood plus encoder-prior KL divergence; the encoder is discarded at inference.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-04",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§6.3 Training",
+      "claim": "Training uses structured masking, KL scheduling, episode-fixed latent noise, and five pose observations subsampled from forty past timesteps.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-05",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "Appendix B, Prior Construction—Masking",
+      "claim": "The supplement specifies eleven future-pose slots, 98% mask repetition, 1% gaps of one to nine frames, a fourfold gap extension, and episode-level object/text/long-term-pose masking rates.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-MM-06",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§7.3 Tasks; §8.2 Goal-Engineering",
+      "claim": "Simple finite-state machines read system state and transition among goals; task statistics are averaged over 5,000 random episodes per task.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-07",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.2 Goal-Engineering—Path-Following",
+      "claim": "Path following uses five near-term targets plus a 0.8-second target and drops near-term constraints above 0.4 m error, exposing a reported flexibility-versus-user-control tradeoff.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-08",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.3 Object Interaction and Ablation",
+      "claim": "The sitting FSM approaches at 1 m/s using direction and walking text until within 2 m, then switches to object-bounding-box conditioning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-09",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§7 Experimental Setup and §7.2 Evaluation",
+      "claim": "Experiments use Isaac Gym with 16,384 environments on four A100 GPUs, 30 Hz control and 120 Hz simulation; quantitative evaluation uses the prior mean and separate success/error metrics.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-10",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.1 Motion Tracking, Tables 1–4",
+      "claim": "The paper reports flat and irregular-terrain full-body, VR, and sparse-joint tracking success and position errors on AMASS train/test motions.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E-MM-11",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.2 Goal-Engineering, Table 5",
+      "claim": "The paper reports success and error for locomotion, steering, and reach on flat and irregular terrain.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E-MM-12",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "Appendix B, Training hyperparameters",
+      "claim": "The supplement reports reward weights, optimizer settings, KL schedule, 64D latent, 30 Hz decisions, 16,384 environments across four A100 GPUs, and about fourteen days of training.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E-MM-13",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§9 Limitations and Future Work",
+      "claim": "The authors report jitter, incomplete coverage of hard motions, weak terrain-aware foothold planning, labor-intensive complex goal engineering, and no dynamic-scene or multi-agent demonstrations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-14",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.4 Text Control",
+      "claim": "Atomic text commands can work, but long sequential commands fail; the authors speculate that short observation history limits long-term reasoning.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-15",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§8.3 Object Interaction and Ablation, Table 6",
+      "claim": "Reported sitting success is 96.9% for the full model and 0% without structured masking, with intermediate ablations for history, VAE, and residual prior.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E-MM-16",
+      "source_url": "https://arxiv.org/pdf/2409.14393v1",
+      "locator": "§1 Introduction",
+      "claim": "The paper positions partial constraints and one reusable controller as an alternative to task-specific controllers and bespoke reward engineering.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E-MM-17",
+      "source_url": "https://arxiv.org/abs/2409.14393v1",
+      "locator": "Submission history and front matter",
+      "claim": "arXiv v1 was submitted 22 September 2024; the camera-ready front matter identifies ACM TOG 43(6), article 209, DOI 10.1145/3687951.",
+      "evidence_type": "publisher_metadata"
+    }
+  ]
+}

@@ -1,0 +1,758 @@
+{
+  "paper": {
+    "id": "2603.03279",
+    "arxiv_id": "2603.03279",
+    "doi": "10.48550/arXiv.2603.03279",
+    "title": "ULTRA: Unified Multimodal Control for Autonomous Humanoid Whole-Body Loco-Manipulation",
+    "authors": [
+      "Xialin He",
+      "Sirui Xu",
+      "Xinyao Li",
+      "Runpei Dong",
+      "Liuyu Bian",
+      "Yu-Xiong Wang",
+      "Liang-Yan Gui"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/pdf/2603.03279v1",
+    "source_version": "arXiv v1, submitted 2026-03-03"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "ULTRA is a 2026 whole-body loco-manipulation system that makes the reference-data transform, dense-versus-sparse conditioning, goal/progress task reward, and independent physical evaluation concrete. These interfaces inform Sam's two authorable harness outputs even though ULTRA's controller and trainer remain fixed-context evidence, not proposed changes.",
+    "not_evidence_for": [
+      "That RL-Sculptor currently implements ULTRA or its retargeter",
+      "That VIBE uses or reproduces ULTRA",
+      "That the foundation controller, policy architecture, observation space, tracking reward, or training budget should change in the initial harness study",
+      "That anisotropic scaling preserves immutable artifact identity or Tier-D certification",
+      "That the RL-finetuning task-reward coefficients and every success threshold are disclosed",
+      "That results on OMOMO box interactions transfer to other robots, objects, or task families"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "ultra:physics_neural_retargeter",
+      "name": "Physics-driven neural retargeter",
+      "description": "A single privileged RL policy maps scaled SMPL-X plus object trajectories to physically feasible Unitree G1 rollouts. Sparse end-effector anchors, normalized link directions, object tracking, palm-to-surface offsets, contact matching, and simulator transitions address embodiment and contact mismatch; anisotropic trajectory and independent object scaling augment the output corpus without retraining.",
+      "tags": [
+        "reference-generation",
+        "retargeting",
+        "contact",
+        "augmentation"
+      ],
+      "evidence_ids": [
+        "U01",
+        "U03",
+        "U07",
+        "U16"
+      ]
+    },
+    {
+      "id": "ultra:privileged_dense_teacher",
+      "name": "Privileged dense-reference teacher",
+      "description": "A separate actor-critic tracks retargeted G1 rollouts with full state, dense reference residuals, object/contact signals, deployment actuation limits, domain randomization, and perturbations to provide recovery-aware supervision.",
+      "tags": [
+        "dense-reference",
+        "teacher-policy",
+        "tracking",
+        "privileged-state"
+      ],
+      "evidence_ids": [
+        "U01",
+        "U04",
+        "U08",
+        "U18"
+      ]
+    },
+    {
+      "id": "ultra:masked_multimodal_student",
+      "name": "Availability-masked multimodal student",
+      "description": "DAgger-style distillation trains one transformer policy from proprioception, local dense references, long-horizon root/object goals, object state, point clouds, and an availability mask. A prior-plus-privileged-residual latent is used during training; deployment uses the prior only.",
+      "tags": [
+        "distillation",
+        "multimodal",
+        "modality-mask",
+        "latent-policy"
+      ],
+      "evidence_ids": [
+        "U01",
+        "U02",
+        "U05",
+        "U12"
+      ]
+    },
+    {
+      "id": "ultra:conditioning_modes",
+      "name": "Dense-reference and sparse-goal conditioning modes",
+      "description": "The same student tracks when local time-indexed reference inputs are available, follows long-horizon root/object transforms when references are masked, and uses egocentric point clouds when MoCap object state is masked. The availability mask is part of the policy input rather than an external state-machine oracle.",
+      "tags": [
+        "dense-reference",
+        "sparse-goal",
+        "mode-conditioning",
+        "perception"
+      ],
+      "evidence_ids": [
+        "U02",
+        "U05",
+        "U10",
+        "U15"
+      ]
+    },
+    {
+      "id": "ultra:goal_progress_task_reward",
+      "name": "Visibility-gated goal and progress task reward",
+      "description": "RL finetuning adds dense root/object goal proximity, clipped step-to-step progress, a terminal bonus for all visible goals, termination, and smoothness. Goal terms and success checks are disabled when the corresponding target is masked. The paper does not disclose numerical coefficients or every threshold for these task terms.",
+      "tags": [
+        "task-reward",
+        "progress",
+        "terminal-bonus",
+        "visibility-gating"
+      ],
+      "evidence_ids": [
+        "U06",
+        "U09",
+        "U11"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "omomo_box_object_count",
+      "value": 4,
+      "units": "objects",
+      "context": "The study uses four box-shaped OMOMO objects; other objects are excluded because they require dexterous hands.",
+      "evidence_ids": [
+        "U07"
+      ]
+    },
+    {
+      "name": "retargeted_corpus_expansion",
+      "value": 6,
+      "units": "approximately x",
+      "context": "Anisotropic trajectory scaling and object resizing expand the retargeted corpus by approximately six times.",
+      "evidence_ids": [
+        "U07"
+      ]
+    },
+    {
+      "name": "retargeter_contact_mismatch_termination_window",
+      "value": 20,
+      "units": "frames",
+      "context": "Retargeting terminates after falls, excessive deviation, or contact mismatch for this window.",
+      "evidence_ids": [
+        "U03"
+      ]
+    },
+    {
+      "name": "teacher_tracking_temperature_coefficients",
+      "value": {
+        "joint_position_kp": 10.0,
+        "joint_rotation_kr": 5.0,
+        "body_velocity_kpv": 0.1,
+        "joint_velocity_krv": 0.001,
+        "object_position_kop": 5.0,
+        "object_rotation_kor": 0.5,
+        "object_linear_velocity_kopv": 0.1,
+        "palm_surface_kint": 20.0,
+        "contact_match_kct": 5.0
+      },
+      "units": null,
+      "context": "Paper-specific multiplicative teacher tracking reward. This belongs to Sam's frozen tracking reward, not the authorable task-reward knob.",
+      "evidence_ids": [
+        "U11"
+      ]
+    },
+    {
+      "name": "teacher_reference_lookahead",
+      "value": [
+        1,
+        16
+      ],
+      "units": "frames",
+      "context": "Teacher observation concatenates reference-aware observations at the next 1-frame and next 16-frame offsets.",
+      "evidence_ids": [
+        "U18"
+      ]
+    },
+    {
+      "name": "teacher_observation_dimension",
+      "value": 4052,
+      "units": "dimensions",
+      "context": "Privileged teacher state, reference, residual, and interaction-graph observation after concatenating two reference offsets.",
+      "evidence_ids": [
+        "U18"
+      ]
+    },
+    {
+      "name": "student_observation_dimension",
+      "value": 1496,
+      "units": "dimensions",
+      "context": "Student observation including proprioceptive history, object input, goals, and availability masks.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "student_point_cloud",
+      "value": {
+        "points": 64,
+        "coordinates_per_point": 3,
+        "encoded_dimensions": 192
+      },
+      "units": null,
+      "context": "Head-frame point cloud input listed in the student observation table.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "student_policy_architecture",
+      "value": {
+        "latent_dimensions": 64,
+        "token_dimensions": 256,
+        "transformer_layers": 2,
+        "attention_heads": 4,
+        "feedforward_dimensions": 1024,
+        "dropout": 0.0,
+        "film_scale": 0.1
+      },
+      "units": null,
+      "context": "Availability-masked modality-fusion transformer and latent policy.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "distillation_training_geometry",
+      "value": {
+        "parallel_environments": 4096,
+        "horizon": 8,
+        "minibatch_size": 4096,
+        "mini_epochs": 2
+      },
+      "units": null,
+      "context": "On-policy DAgger-style distillation updates.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "dagger_rollout_schedule",
+      "value": {
+        "full_teacher_until_epoch": 500,
+        "full_student_by_epoch": 1500
+      },
+      "units": "epochs",
+      "context": "Linear transition from teacher-driven to student-driven rollouts as described by the paper.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "distillation_learning_rate_schedule",
+      "value": {
+        "initial": 0.0002,
+        "warmup_end_epoch": 500,
+        "final": 0.00005,
+        "final_epoch": 5500
+      },
+      "units": null,
+      "context": "Warmup-and-decay learning-rate schedule for student distillation.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "distillation_kl_weight_schedule",
+      "value": {
+        "start": 0.001,
+        "end": 0.1,
+        "ramp_start_epoch": 500,
+        "ramp_duration_epochs": 3000,
+        "schedule": "cosine"
+      },
+      "units": null,
+      "context": "Privileged posterior to student prior KL alignment.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "rl_finetuning_distillation_environment_fraction",
+      "value": 0.25,
+      "units": "fraction",
+      "context": "One quarter of environments remain assigned to distillation updates during PPO finetuning.",
+      "evidence_ids": [
+        "U06",
+        "U12"
+      ]
+    },
+    {
+      "name": "rl_policy_gradient_warmup",
+      "value": 100,
+      "units": "epochs",
+      "context": "Policy-gradient contribution is gradually enabled while critic loss remains active.",
+      "evidence_ids": [
+        "U12"
+      ]
+    },
+    {
+      "name": "deployment_control_frequency",
+      "value": 59,
+      "units": "approximately Hz",
+      "context": "Simulation configuration lists a control-frequency inverse of 17.",
+      "evidence_ids": [
+        "U19"
+      ]
+    },
+    {
+      "name": "tracking_success_thresholds",
+      "value": {
+        "fall_allowed": false,
+        "per_frame_global_mpjpe_max_m": 0.3,
+        "per_frame_object_position_error_max_m": 0.3
+      },
+      "units": null,
+      "context": "Definition used in the IsaacGym tracking evaluation.",
+      "evidence_ids": [
+        "U08"
+      ]
+    },
+    {
+      "name": "goal_success_terminal_distance",
+      "value": 0.3,
+      "units": "m",
+      "context": "Goal success requires no fall and terminal state within this distance of the goal.",
+      "evidence_ids": [
+        "U09"
+      ]
+    },
+    {
+      "name": "mujoco_goal_ablation_motion_count",
+      "value": 20,
+      "units": "selected motions per setting",
+      "context": "Policies train in IsaacGym and are evaluated in MuJoCo.",
+      "evidence_ids": [
+        "U09"
+      ]
+    },
+    {
+      "name": "mujoco_ood_goal_success_counts",
+      "value": {
+        "point_cloud_without_rl": "5/20",
+        "point_cloud_with_rl": "9/20",
+        "position_without_rl": "4/20",
+        "position_with_rl": "12/20"
+      },
+      "units": "successful motions",
+      "context": "OOD random-goal offsets in sim-to-sim evaluation.",
+      "evidence_ids": [
+        "U09"
+      ]
+    },
+    {
+      "name": "unitree_g1_real_success_counts",
+      "value": {
+        "dense_reference_tracking": "19/26",
+        "sparse_goal_mocap_vertical": "8/10",
+        "sparse_goal_mocap_lateral": "9/10",
+        "sparse_goal_egocentric_vertical": "5/10",
+        "sparse_goal_egocentric_lateral": "6/10",
+        "trials_per_task": 2
+      },
+      "units": "successful trials",
+      "context": "Real Unitree G1 evaluation; MoCap is used for success evaluation in all settings.",
+      "evidence_ids": [
+        "U10"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "ultra:failure_point_cloud_occlusion",
+      "name": "Severe point-cloud occlusion",
+      "description": "Severe occlusion can remove critical object geometry and cause egocentric goal-following failure.",
+      "tags": [
+        "perception",
+        "occlusion",
+        "ood"
+      ],
+      "evidence_ids": [
+        "U13",
+        "U14"
+      ]
+    },
+    {
+      "id": "ultra:failure_mocap_marker_occlusion",
+      "name": "MoCap marker occlusion",
+      "description": "Marker occlusion causes object-pose jitter and drift that can cascade into unstable tracking.",
+      "tags": [
+        "mocap",
+        "state-estimation",
+        "tracking"
+      ],
+      "evidence_ids": [
+        "U13"
+      ]
+    },
+    {
+      "id": "ultra:failure_infeasible_goal_commands",
+      "name": "Aggressive or infeasible goal commands",
+      "description": "Large discontinuous jumps, inconsistent targets, or targets infeasible under current contacts degrade performance.",
+      "tags": [
+        "human-steering",
+        "goal-validation",
+        "contact"
+      ],
+      "evidence_ids": [
+        "U13"
+      ]
+    },
+    {
+      "id": "ultra:failure_direct_rl_partial_observation",
+      "name": "Direct-RL collapse under partial observation",
+      "description": "The authors report that direct RL must jointly discover stabilization and sustained contact; early failures can dominate rollouts and training often collapses. Distillation is the reported mitigation.",
+      "tags": [
+        "optimization",
+        "partial-observation",
+        "contact"
+      ],
+      "evidence_ids": [
+        "U08"
+      ]
+    },
+    {
+      "id": "ultra:tradeoff_unified_id_tracking",
+      "name": "Unified-policy ID tracking tradeoff",
+      "description": "Unified dense-and-sparse training reports lower ID tracking success than tracking-only distillation while largely preserving OOD tracking.",
+      "tags": [
+        "tradeoff",
+        "tracking",
+        "multitask"
+      ],
+      "evidence_ids": [
+        "U08",
+        "U17"
+      ]
+    },
+    {
+      "id": "ultra:evidence_gap_goal_evaluation",
+      "name": "Limited goal-conditioned comparison and trial count",
+      "description": "Audit caveat: tracking-only baselines are declared inapplicable for sparse goals, so goal following is compared through ULTRA ablations. Sim-to-sim settings use 20 selected motions and real tasks use two trials each.",
+      "tags": [
+        "evidence-gap",
+        "evaluation",
+        "sample-size"
+      ],
+      "evidence_ids": [
+        "U09",
+        "U10"
+      ]
+    },
+    {
+      "id": "ultra:failure_hardware_gap",
+      "name": "Hardware friction and recovery-margin failures",
+      "description": "Real failures include friction gaps causing grasp slip and disturbances outside the recovery margin learned under domain randomization.",
+      "tags": [
+        "sim-to-real",
+        "friction",
+        "robustness"
+      ],
+      "evidence_ids": [
+        "U14"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "ultra:eval_retargeting_physics",
+      "name": "Physical interaction quality",
+      "description": "Retargeted motions are compared with PHC, GMR, and OmniRetarget on penetration duration/depth, foot-skating duration/velocity, and lost hand-object contact duration in MuJoCo.",
+      "tags": [
+        "retargeting",
+        "physical-validity",
+        "independent-metrics"
+      ],
+      "evidence_ids": [
+        "U16"
+      ]
+    },
+    {
+      "id": "ultra:eval_dense_tracking",
+      "name": "ID and OOD dense tracking",
+      "description": "IsaacGym evaluation reports humanoid and humanoid-plus-object success, global/local joint error, jitter, and object pose error for the unified student, teacher, direct RL, tracking-only distillation, HDMI, and OmniRetarget variants.",
+      "tags": [
+        "tracking",
+        "id",
+        "ood",
+        "ablation"
+      ],
+      "evidence_ids": [
+        "U08",
+        "U17"
+      ]
+    },
+    {
+      "id": "ultra:eval_goal_rl_ablation",
+      "name": "RL-finetuning goal ablation",
+      "description": "A before/after RL comparison evaluates 20 selected motions per ID/OOD and point-cloud/position setting after IsaacGym training and MuJoCo transfer.",
+      "tags": [
+        "goal-reaching",
+        "reward-ablation",
+        "sim-to-sim"
+      ],
+      "evidence_ids": [
+        "U09"
+      ]
+    },
+    {
+      "id": "ultra:eval_real_unitree_g1",
+      "name": "Real Unitree G1 deployment",
+      "description": "Dense tracking, MoCap sparse-goal following, and egocentric sparse-goal following are evaluated on hardware, with counts and denominators reported and MoCap used for success measurement.",
+      "tags": [
+        "real-robot",
+        "unitree-g1",
+        "tracking",
+        "goal-reaching"
+      ],
+      "evidence_ids": [
+        "U10",
+        "U14",
+        "U15"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2603.03279",
+      "relation": "INTRODUCES",
+      "target": "ultra:physics_neural_retargeter",
+      "evidence_ids": [
+        "U01",
+        "U03"
+      ]
+    },
+    {
+      "source": "ultra:physics_neural_retargeter",
+      "relation": "COMPOSES",
+      "target": "dataset:omomo_into_physical_g1_rollouts",
+      "evidence_ids": [
+        "U03",
+        "U07"
+      ]
+    },
+    {
+      "source": "ultra:privileged_dense_teacher",
+      "relation": "TRACKS",
+      "target": "dataset:omomo_into_physical_g1_rollouts",
+      "evidence_ids": [
+        "U04",
+        "U08"
+      ]
+    },
+    {
+      "source": "ultra:masked_multimodal_student",
+      "relation": "USES",
+      "target": "ultra:privileged_dense_teacher",
+      "evidence_ids": [
+        "U04",
+        "U05"
+      ]
+    },
+    {
+      "source": "ultra:masked_multimodal_student",
+      "relation": "CONDITIONS_ON",
+      "target": "ultra:conditioning_modes",
+      "evidence_ids": [
+        "U02",
+        "U05"
+      ]
+    },
+    {
+      "source": "ultra:conditioning_modes",
+      "relation": "CONTRASTS_WITH",
+      "target": "controller:dense_reference_only_tracking",
+      "evidence_ids": [
+        "U02",
+        "U15"
+      ]
+    },
+    {
+      "source": "ultra:goal_progress_task_reward",
+      "relation": "OPTIMIZES",
+      "target": "objective:sparse_goal_completion",
+      "evidence_ids": [
+        "U06",
+        "U11"
+      ]
+    },
+    {
+      "source": "ultra:eval_goal_rl_ablation",
+      "relation": "REPORTS",
+      "target": "result:ultra_mujoco_ood_rl_gain",
+      "evidence_ids": [
+        "U09"
+      ]
+    },
+    {
+      "source": "ultra:eval_real_unitree_g1",
+      "relation": "EVALUATES_ON",
+      "target": "robot:unitree_g1",
+      "evidence_ids": [
+        "U10",
+        "U15"
+      ]
+    },
+    {
+      "source": "ultra:physics_neural_retargeter",
+      "relation": "SUPPORTS",
+      "target": "ultra:privileged_dense_teacher",
+      "evidence_ids": [
+        "U01",
+        "U03",
+        "U04"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "U01",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Figure 1 and Method opening paragraph",
+      "claim": "ULTRA uses four stages: neural retargeting, privileged tracking, student distillation plus RL finetuning, and deployment.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "U02",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Problem Formulation and Preliminaries > Task Interface > Goal specification",
+      "claim": "Dense conditioning provides time-indexed intermediate motion, while sparse conditioning gives long-horizon root/object targets and leaves intermediate motion underdetermined.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U03",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Method > General Motion Tracking for Neural Retargeting",
+      "claim": "The retargeter combines relaxed sparse anchor tracking, object/interaction/contact rewards, simulator dynamics, 20-frame mismatch termination, and scale augmentation in one policy.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U04",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Method > Dense Motion Tracking for Teacher Policy",
+      "claim": "A separate teacher tracks retargeted humanoid rollouts with full state, dense residuals, deployment actuation limits, randomized physics, and perturbations.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U05",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Method > Multimodal Student Policy > Multimodal observation, Distillation, Deployment versatility",
+      "claim": "Availability masking and DAgger-style teacher queries train one student for local-reference tracking, sparse-goal control, and point-cloud-based manipulation; deployment samples the latent prior only.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U06",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Method > Multimodal Student Policy > RL finetuning",
+      "claim": "Finetuning partitions parallel simulators between continuing imitation and PPO goal-reaching under randomized goal and initialization offsets.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U07",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Experimental Results > Experimental Setup > Dataset",
+      "claim": "The experiments use four box-shaped OMOMO objects and report an approximately six-fold corpus expansion from trajectory and object scaling.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U08",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Table I (tracking_main) and General Motion Tracking",
+      "claim": "The paper reports ID/OOD tracking success and errors for unified ULTRA, its teacher, direct RL, tracking-only distillation, HDMI, and OmniRetarget; direct RL is substantially below distillation and unified training reduces ID tracking versus tracking-only distillation.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U09",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Table III (ultra_succ) and Goal-Conditioned Following",
+      "claim": "Across 20 selected motions per setting, RL finetuning changes OOD point-cloud success from 5/20 to 9/20 and OOD position success from 4/20 to 12/20; goal success requires no fall and terminal distance below 0.3 m.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U10",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Table IV (real_world)",
+      "claim": "On Unitree G1, dense tracking succeeds 19/26; sparse MoCap succeeds 8/10 vertical and 9/10 lateral; egocentric sparse control succeeds 5/10 vertical and 6/10 lateral, with two trials per task and MoCap used for evaluation.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U11",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Appendix Tables V, VI, X (teacher-reward-track, teacher-reward-smooth, reward)",
+      "claim": "Teacher tracking multiplies nine exponential tracking terms with stated coefficients; RL task reward instead uses visibility-gated dense goal, clipped progress, terminal bonus, termination, and smoothness components without numerical task-term coefficients.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U12",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Appendix > Additional Details on Student Policy; Tables VIII and IX",
+      "claim": "The appendix specifies the 1,496-dimensional input, 64-dimensional latent, transformer architecture, DAgger schedule, loss ramps, training geometry, one-quarter distillation split during PPO, and 100-epoch policy-gradient warmup.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "U13",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Appendix > Limitations",
+      "claim": "Stated limitations are severe point-cloud occlusion, MoCap marker occlusion causing pose jitter/drift, and overly aggressive, inconsistent, or contact-infeasible goals.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "U14",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Experimental Results > Real-World Deployment > Failure analysis",
+      "claim": "Hardware failures mainly arise from friction gaps, depth noise or occlusion breaking point-cloud extraction, and disturbances beyond the learned recovery margin.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U15",
+      "source_url": "https://ultra-humanoid.github.io/",
+      "locator": "Header; General Interaction Tracking; MoCap Goal Following; Egocentric Goal Following; BibTeX",
+      "claim": "The official page identifies IROS 2026 and presents dense tracking, MoCap sparse-goal, and egocentric sparse-goal modes on a real Unitree G1.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "U16",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Table II (interaction_quality) and Motion Retargeting > Metrics",
+      "claim": "Reference outputs are evaluated independently on penetration, foot-skating, and contact-floating measures against PHC, GMR, and OmniRetarget.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U17",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "General Motion Tracking > All-task training induces a motion prior",
+      "claim": "The authors report that unified training reduces ID tracking success relative to tracking-only distillation while largely preserving OOD performance; the proposed motion-prior explanation is explicitly a hypothesis.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "U18",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Appendix Table VII (teacher-obs)",
+      "claim": "The teacher observation totals 4,052 dimensions and concatenates reference-aware observations for the next 1 and 16 frames.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "U19",
+      "source_url": "https://arxiv.org/pdf/2603.03279v1",
+      "locator": "Appendix Table XV (sim-config)",
+      "claim": "The simulation configuration lists 4,096 parallel environments and a control-frequency inverse of 17, approximately 59 Hz.",
+      "evidence_type": "supplement"
+    }
+  ]
+}

@@ -1,0 +1,576 @@
+{
+  "paper": {
+    "id": "2511.07820",
+    "arxiv_id": "2511.07820",
+    "doi": "10.1126/scirobotics.aed4592",
+    "title": "SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control",
+    "authors": [
+      "Zhengyi Luo",
+      "Ye Yuan",
+      "Tingwu Wang",
+      "Chenran Li",
+      "Fernando Castañeda",
+      "Sirui Chen",
+      "Zi-Ang Cao",
+      "Jiefeng Li",
+      "David Minor",
+      "Qingwei Ben",
+      "Jinhyung Park",
+      "David Sami",
+      "Zi Wang",
+      "Xingye Da",
+      "Runyu Ding",
+      "Cyrus Hogg",
+      "Lina Song",
+      "Edy Lim",
+      "Eugene Jeong",
+      "Tairan He",
+      "Haoru Xue",
+      "Wenli Xiao",
+      "Simon Yuen",
+      "Jan Kautz",
+      "Yan Chang",
+      "Umar Iqbal",
+      "Linxi Jim Fan",
+      "Yuke Zhu"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2511.07820v4",
+    "source_version": "arXiv v4, revised 2026-08-13; Science Robotics 11(117), eaed4592, published 2026-08-12"
+  },
+  "decision_relevance": {
+    "tier": "anchor",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "SONIC defines a concrete, high-capacity humanoid tracking trainer with explicit reference-command formats, reward terms, training parameters, deployment timing, and independent evaluation metrics. It therefore supplies a candidate frozen-trainer contract and baseline settings for both harness knobs.",
+    "not_evidence_for": [
+      "An agent that searches or composes reference datasets",
+      "Automatic reward search or prompt-to-reward synthesis",
+      "Natural-language human steering of the training loop",
+      "OGMP state-machine or branching-oracle execution",
+      "Embodiment-independent tracking",
+      "Dynamic feasibility of arbitrary composed references",
+      "VIBE integration",
+      "Apple-Silicon training of the reported system"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "sonic.motion_command_contract",
+      "name": "Three-format motion command contract",
+      "description": "Robot joint trajectories, SMPL human joint positions, or hybrid current upper-body keypoints plus lower-body robot trajectories are expressed in the robot-local frame and sampled over encoder-specific future horizons.",
+      "tags": ["reference", "interface", "local_frame", "future_horizon"],
+      "evidence_ids": ["E02", "E04"]
+    },
+    {
+      "id": "sonic.multi_encoder",
+      "name": "Specialized aligned encoders",
+      "description": "Robot, human, and hybrid MLP encoders map synchronized command formats into one latent space; pairwise token and cycle-consistency losses align the modalities.",
+      "tags": ["encoder", "retargeting", "representation_alignment"],
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "id": "sonic.universal_token",
+      "name": "Universal FSQ token",
+      "description": "Finite Scalar Quantization produces two 32-dimensional tokens with 32 scalar levels per dimension in the default configuration, yielding a 64-dimensional controller interface.",
+      "tags": ["fsq", "token", "control_interface"],
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "id": "sonic.control_decoder",
+      "name": "Proprioception-conditioned action decoder",
+      "description": "A shared MLP combines the universal token with ten steps of proprioceptive history and outputs 29 desired joint positions for joint-level PD control.",
+      "tags": ["policy", "controller", "pd_control", "fixed_trainer"],
+      "evidence_ids": ["E02", "E03", "E04"]
+    },
+    {
+      "id": "sonic.training_objective",
+      "name": "Joint PPO and representation objective",
+      "description": "PPO, robot-reference reconstruction, cross-encoder token alignment, and human-to-robot cycle consistency are optimized jointly with an asymmetric privileged critic.",
+      "tags": ["ppo", "asymmetric_actor_critic", "auxiliary_loss"],
+      "evidence_ids": ["E03"]
+    },
+    {
+      "id": "sonic.tracking_reward",
+      "name": "Generic engineered tracking reward",
+      "description": "Seven pose/velocity tracking terms and five stability or regularization penalties provide one shared reward across downstream applications.",
+      "tags": ["reward", "tracking", "regularization", "task_reward"],
+      "evidence_ids": ["E02", "E05"]
+    },
+    {
+      "id": "sonic.adaptive_sampler",
+      "name": "Failure-weighted motion-bin sampling",
+      "description": "Fixed-duration bins are sampled using capped failure weights blended with uniform coverage, concentrating practice without abandoning dataset breadth.",
+      "tags": ["curriculum", "reference_sampling", "training"],
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "id": "sonic.kinematic_planner",
+      "name": "Short-horizon generative kinematic planner",
+      "description": "A masked latent in-betweening model maps user commands and endpoint keyframes into 0.8-to-2.4-second motion segments that the frozen tracker consumes as references.",
+      "tags": ["reference_generator", "planner", "in_betweening"],
+      "evidence_ids": ["E08"]
+    },
+    {
+      "id": "sonic.motion_sequence",
+      "name": "Unified deployment motion interface",
+      "description": "The official deployment stack stores joint positions, velocities, root poses, and optional SMPL data in one frame-indexed MotionSequence whose encoder-mode field selects the compatible encoder.",
+      "tags": ["deployment", "reference_interface", "artifact_contract"],
+      "evidence_ids": ["E11", "E12"]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "robot_actuated_joints",
+      "value": 29,
+      "units": "joints",
+      "context": "Unitree G1 action dimension and deployment embodiment",
+      "evidence_ids": ["E02", "E04", "E11"]
+    },
+    {
+      "name": "proprioceptive_history",
+      "value": 10,
+      "units": "steps",
+      "context": "Joint pose, joint velocity, root angular velocity, root-frame gravity, and previous actions",
+      "evidence_ids": ["E02"]
+    },
+    {
+      "name": "future_frames_per_encoder",
+      "value": 10,
+      "units": "frames",
+      "context": "Robot, human, and hybrid motion-command inputs in the paper configuration",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "robot_and_hybrid_frame_interval",
+      "value": 0.1,
+      "units": "seconds",
+      "context": "Future-frame spacing for robot and hybrid motion encoders",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "human_frame_interval",
+      "value": 0.02,
+      "units": "seconds",
+      "context": "Future-frame spacing for the SMPL human motion encoder",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "universal_token_count",
+      "value": 2,
+      "units": "tokens",
+      "context": "Default FSQ configuration",
+      "evidence_ids": ["E03", "E04"]
+    },
+    {
+      "name": "fsq_dimensions_per_token",
+      "value": 32,
+      "units": "dimensions",
+      "context": "FSQ-32-32 default",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "fsq_levels_per_dimension",
+      "value": 32,
+      "units": "levels",
+      "context": "FSQ-32-32 default",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "name": "largest_policy_size",
+      "value": 42,
+      "units": "million parameters",
+      "context": "Largest scale and all real-world experiments",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "training_frames",
+      "value": 100000000,
+      "units": "frames, lower bound",
+      "context": "Reported as 100M+ retargeted motion frames at 50 Hz",
+      "evidence_ids": ["E06", "E07"]
+    },
+    {
+      "name": "training_clips",
+      "value": 317189,
+      "units": "clips",
+      "context": "Filtered training split",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "training_duration",
+      "value": 611,
+      "units": "hours",
+      "context": "Filtered training split derived from approximately 700 raw hours",
+      "evidence_ids": ["E06"]
+    },
+    {
+      "name": "largest_training_compute",
+      "value": 21000,
+      "units": "GPU-hours, approximate",
+      "context": "128-GPU, seven-day largest run",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "training_iterations",
+      "value": 50000,
+      "units": "iterations",
+      "context": "Scaling configurations",
+      "evidence_ids": ["E07"]
+    },
+    {
+      "name": "parallel_environments_per_gpu",
+      "value": 4096,
+      "units": "environments",
+      "context": "PPO training",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "rollout_steps_per_environment",
+      "value": 24,
+      "units": "steps",
+      "context": "PPO rollout",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "ppo_discount",
+      "value": 0.99,
+      "units": null,
+      "context": "PPO training",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "gae_lambda",
+      "value": 0.95,
+      "units": null,
+      "context": "PPO training",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "actor_learning_rate",
+      "value": 0.00002,
+      "units": null,
+      "context": "PPO training",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "critic_learning_rate",
+      "value": 0.001,
+      "units": null,
+      "context": "PPO training",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "reward_weights",
+      "value": {
+        "root_position": 0.5,
+        "root_orientation": 0.5,
+        "body_link_position": 1.0,
+        "body_link_orientation": 1.0,
+        "body_link_linear_velocity": 1.0,
+        "body_link_angular_velocity": 1.0,
+        "end_effector_position": 2.0,
+        "action_rate": -0.1,
+        "joint_limit": -10.0,
+        "undesired_contact": -0.1,
+        "anti_shake": -0.005,
+        "feet_acceleration": -0.0000025
+      },
+      "units": null,
+      "context": "Complete Table S3 baseline reward vector",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "name": "adaptive_sampling_bin_size",
+      "value": 1,
+      "units": "seconds",
+      "context": "Failure-weighted motion curriculum",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "name": "planner_segment_duration",
+      "value": [0.8, 2.4],
+      "units": "seconds",
+      "context": "Variable-length motion generation",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "name": "deployment_rates",
+      "value": {
+        "policy": 50,
+        "command_writer": 500,
+        "operator_input": 100,
+        "kinematic_planner": 10
+      },
+      "units": "Hz",
+      "context": "Onboard multi-rate deployment",
+      "evidence_ids": ["E11"]
+    },
+    {
+      "name": "tracking_failure_height_error",
+      "value": 0.25,
+      "units": "meters",
+      "context": "Root-height or end-effector-height deviation from reference",
+      "evidence_ids": ["E07"]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "sonic.failure.balance_loss",
+      "name": "Balance loss under extreme commands or dynamics",
+      "description": "The tracker may lose balance under more extreme conditions or very dynamic motions despite command randomization and spring filtering.",
+      "tags": ["safety", "robustness", "reported_limitation"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "sonic.failure.no_formal_safety_energy",
+      "name": "No formal safety or energy treatment",
+      "description": "The paper does not formally address safety or energy efficiency for extended deployment.",
+      "tags": ["safety", "energy", "reported_limitation"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "sonic.failure.non_matched_baselines",
+      "name": "Non-data-matched tracker comparison",
+      "description": "Tracker baselines use different source datasets and retargeting pipelines, confounding algorithm, data, and scaling effects.",
+      "tags": ["evaluation", "confound"],
+      "evidence_ids": ["E07", "E10"]
+    },
+    {
+      "id": "sonic.failure.metric_survivorship",
+      "name": "Pose metrics exclude failed rollouts",
+      "description": "MPJPE-L, velocity distance, and acceleration distance are reported only for successfully tracked motions because early termination makes them undefined.",
+      "tags": ["evaluation", "survivorship"],
+      "evidence_ids": ["E10"]
+    },
+    {
+      "id": "sonic.failure.scale_reproduction",
+      "name": "High reproduction cost and partial public corpus",
+      "description": "The largest run used approximately 21k GPU-hours, while the public 288-hour BONES-SEED subset does not equal the 611-hour training corpus.",
+      "tags": ["reproducibility", "compute", "data_access"],
+      "evidence_ids": ["E06", "E07"]
+    },
+    {
+      "id": "sonic.failure.variant_drift",
+      "name": "Checkpoint and interface drift",
+      "description": "The current release contains default, low-latency, and v1.1 variants with distinct lookahead and normalization contracts; mixing encoder, decoder, or observation config invalidates the controller contract.",
+      "tags": ["artifact_identity", "deployment", "reproducibility"],
+      "evidence_ids": ["E12", "E13"]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "sonic.eval.ood_scaling",
+      "name": "Largest-vs-smallest OOD scaling result",
+      "description": "On test-content, the 42M model reports 99.6% success and 23.8 mm MPJPE-L versus 98.0% and 27.7 mm for the 1.2M model.",
+      "tags": ["ood", "scaling", "simulation"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "sonic.eval.cross_dataset",
+      "name": "Cross-dataset tracker comparison",
+      "description": "SONIC reports 98.5%, 99.2%, and 97.2% success on test-content, test-repetition, and PHUMA; the comparison is not data-matched.",
+      "tags": ["benchmark", "cross_dataset"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "sonic.eval.sim_to_real",
+      "name": "Real-world motion tracking",
+      "description": "The policy completed 123 of 124 real-world motion sequences, reporting 99.2% success and 25.7 mm MPJPE-L versus 100% and 22.3 mm in simulation.",
+      "tags": ["sim_to_real", "unitree_g1"],
+      "evidence_ids": ["E07"]
+    },
+    {
+      "id": "sonic.eval.token_vla",
+      "name": "Universal token versus explicit SMPL for VLA",
+      "description": "Across the three-task action-space ablation, FSQ tokens averaged 68% success versus 27% for explicit SMPL poses, a 42 percentage-point reported difference after rounding.",
+      "tags": ["vla", "action_space", "ablation"],
+      "evidence_ids": ["E09"]
+    },
+    {
+      "id": "sonic.eval.encoder_ablation",
+      "name": "Command-encoder comparison",
+      "description": "Robot, human, and hybrid encoders each exceed 99.2% test-content success; the hybrid encoder has 26.5 mm MPJPE-L versus 23.8 mm for robot input.",
+      "tags": ["encoder", "ablation", "partial_observation"],
+      "evidence_ids": ["E03"]
+    }
+  ],
+  "relations": [
+    {
+      "source": "SONIC",
+      "relation": "INTRODUCES",
+      "target": "Universal FSQ motion-token interface",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "SONIC control decoder",
+      "relation": "CONDITIONS_ON",
+      "target": "Universal token and 10-step proprioceptive history",
+      "evidence_ids": ["E02", "E03"]
+    },
+    {
+      "source": "Robot, human, and hybrid encoders",
+      "relation": "COMPOSES",
+      "target": "Shared motion representation",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "SONIC policy",
+      "relation": "TRACKS",
+      "target": "Robot, human, or hybrid motion commands",
+      "evidence_ids": ["E02"]
+    },
+    {
+      "source": "SONIC training",
+      "relation": "OPTIMIZES",
+      "target": "PPO plus reconstruction, token-alignment, and cycle-consistency losses",
+      "evidence_ids": ["E03"]
+    },
+    {
+      "source": "SONIC PPO",
+      "relation": "USES",
+      "target": "Generic tracking reward and stability penalties",
+      "evidence_ids": ["E05"]
+    },
+    {
+      "source": "Kinematic planner",
+      "relation": "SUPPORTS",
+      "target": "Short-horizon reference generation for SONIC",
+      "evidence_ids": ["E08"]
+    },
+    {
+      "source": "Adaptive motion sampler",
+      "relation": "USES",
+      "target": "Capped per-bin failure rates and uniform-coverage blending",
+      "evidence_ids": ["E04"]
+    },
+    {
+      "source": "SONIC",
+      "relation": "EVALUATES_ON",
+      "target": "test-content, test-repetition, PHUMA, and 124 real-world motions",
+      "evidence_ids": ["E06", "E07"]
+    },
+    {
+      "source": "Universal FSQ token",
+      "relation": "CONTRASTS_WITH",
+      "target": "Explicit SMPL pose action space for VLA",
+      "evidence_ids": ["E09"]
+    },
+    {
+      "source": "Official SONIC deployment",
+      "relation": "REQUIRES",
+      "target": "Matched encoder, decoder, observation config, timing, and checkpoint variant",
+      "evidence_ids": ["E11", "E12"]
+    },
+    {
+      "source": "SONIC trainer contract",
+      "relation": "MOTIVATES",
+      "target": "A frozen trainer behind external reference-composition and reward knobs",
+      "evidence_ids": ["E02", "E05", "E11"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "source_url": "https://arxiv.org/abs/2511.07820",
+      "locator": "Version history; journal reference; related DOI",
+      "claim": "arXiv v4 was submitted 2026-08-13 and is linked to Science Robotics 11(117), eaed4592 (2026).",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E02",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 3.2, Motion Tracking Formulation and Universal Control Policy",
+      "claim": "SONIC defines local-frame proprioceptive and motion-command states, 29 joint-position actions, PD control, a tracking reward, and three command formats.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E03",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 3.2, Figure 6, Equations 1-4; Section 3.6, Table 3",
+      "claim": "Specialized encoders, FSQ, shared control decoder, auxiliary reference decoder, and four joint losses form the universal policy; FSQ-32-32 is the default.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E04",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Supplementary Tables S1-S2",
+      "claim": "The supplement reports encoder/decoder dimensions, ten-frame horizons, frame intervals, PPO settings, and adaptive-sampling parameters.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E05",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Supplementary Table S3",
+      "claim": "The baseline reward contains seven weighted tracking terms and five weighted penalties with explicit equations, scales, and thresholds.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E06",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 3.1 and Table 2",
+      "claim": "The filtered training split contains 317,189 clips, 611 hours, and 100M+ frames; BONES-SEED releases a 288-hour subset.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E07",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 2.1 and Figure 2",
+      "claim": "Scaling, cross-dataset, sim-to-sim, and sim-to-real results are reported with success and motion-error metrics; baseline data are not matched.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E08",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Sections 2.2 and 3.3; Equations 5-8",
+      "claim": "The generative planner produces variable-length kinematic in-betweening references from context, target keyframes, and user commands.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E09",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 2.5 and Table 1",
+      "claim": "A VLA action-space ablation reports higher task success for universal FSQ tokens than explicit SMPL poses.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Section 2.6; Section 3.7; Competing Interests",
+      "claim": "The paper reports missing formal safety and energy treatment, possible balance loss, successful-rollout conditioning of pose metrics, and NVIDIA funding/patent interests.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2511.07820v4",
+      "locator": "Supplementary Section S1.2, Deployment Architecture",
+      "claim": "The deployment system uses four rates and a source-agnostic MotionSequence with frame-indexed motion data and encoder-mode selection.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://huggingface.co/nvidia/GEAR-SONIC/blob/6733128a3d8a523b1418b06bca3cdf61c8b0987f/README.md",
+      "locator": "Model Checkpoints and SONIC v1.1 Inference",
+      "claim": "The official model release distinguishes default, low-latency, and v1.1 contracts and requires each encoder to be paired with its decoder and observation config.",
+      "evidence_type": "official_project"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://github.com/NVlabs/GR00T-WholeBodyControl/blob/a0732b642c0333077e127a2f56ab0014c196bca4/docs/source/user_guide/training.md",
+      "locator": "Overview, Data Processing, and Training",
+      "claim": "The official code exposes named encoder configurations and separate robot and SMPL motion-library inputs for training.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://doi.org/10.5281/zenodo.21273312",
+      "locator": "Archival record and Archive.zip",
+      "claim": "The authors deposited an archival SONIC code and figure-data snapshot on Zenodo.",
+      "evidence_type": "official_project"
+    }
+  ]
+}

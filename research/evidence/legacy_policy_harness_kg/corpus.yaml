@@ -1,0 +1,337 @@
+scope_date: "2026-08-31"
+status: extraction_in_progress
+selection_rule: >-
+  Admit a paper only when it directly informs oracle/reference composition,
+  executable task-reward design, human steering of either knob, or rigorous
+  evaluation of the fixed training loop. VIBE is contextual and remains outside
+  the public-paper corpus until a citable preprint is available.
+papers:
+  - id: "2511.07820"
+    title: "SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control"
+    year: 2025
+    tier: anchor
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_sonic
+    status: extracted
+  - id: "2403.04205"
+    title: "OGMP: Oracle Guided Multi-mode Policies for Agile and Versatile Robot Control"
+    year: 2024
+    tier: anchor
+    expected_knobs: [reference_composition]
+    agent: paper_ogmp
+    status: extracted
+  - id: "2410.01030"
+    title: "Preferenced Oracle Guided Multi-mode Policies for Dynamic Bipedal Loco-Manipulation"
+    year: 2024
+    tier: anchor
+    expected_knobs: [reference_composition, human_steering]
+    agent: paper_preferenced_ogmp
+    status: extracted
+  - id: "2603.03279"
+    title: "ULTRA: Unified Multimodal Control for Autonomous Humanoid Whole-Body Loco-Manipulation"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_ultra
+    status: extracted
+  - id: "2510.05070"
+    title: "ResMimic: From General Motion Tracking to Humanoid Whole-body Loco-Manipulation via Residual Learning"
+    year: 2025
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_resmimic
+    status: extracted
+  - id: "2602.15060"
+    title: "CLOT: Closed-Loop Global Motion Tracking for Whole-Body Humanoid Teleoperation"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition]
+    agent: paper_clot
+    status: extracted
+  - id: "2409.14393"
+    title: "MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting"
+    year: 2024
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_maskedmimic
+    status: extracted
+  - id: "2507.07356"
+    title: "UniTracker: Learning Universal Whole-Body Motion Tracker for Humanoid Robots"
+    year: 2025
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_unitracker
+    status: extracted
+  - id: "2607.12114"
+    title: "GaitSpan: Growing Humanoid Locomotion from Walking to Running"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition]
+    agent: paper_gaitspan
+    status: extracted
+  - id: "2608.18234"
+    title: "GigaBrain-WBC-0.5: A Behavior World Model for Robust Whole-Body Control with Environment Interaction"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_gigabrain_wbc
+    status: extracted
+  - id: "2608.02385"
+    title: "StableMimic: Smooth Human-Like Recovery for Humanoid Motion Tracking - Learning Beyond the Tracking Distribution for Structured Post-Fall Behavior"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_stablemimic
+    status: extracted
+  - id: "2607.19903"
+    title: "What Matters in Humanoid General Motion Tracking? An Empirical Study"
+    year: 2026
+    tier: baseline
+    expected_knobs: [evaluation, fixed_trainer]
+    agent: paper_yahmp
+    status: extracted
+  - id: "2607.04837"
+    title: "Athena-WBC: Capability-Aligned Policy Experts for Long-Tail Humanoid Whole-Body Control"
+    year: 2026
+    tier: supporting
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_athena_wbc
+    status: quarantined_withdrawn
+  - id: "2606.27581"
+    title: "SceneBot: Contact-Prompted General Humanoid Whole Body Tracking with Scene-Interaction"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_scenebot
+    status: extracted
+  - id: "2606.20705"
+    title: "MotionPyramid: Hierarchical Motion Representation and Residual Interfaces"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_motionpyramid
+    status: extracted
+  - id: "2606.10340"
+    title: "OMG: Omni-Modal Motion Generation for Generalist Humanoid Control"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, human_steering]
+    agent: paper_omg
+    status: extracted
+  - id: "2604.17335"
+    title: "Learning Whole-Body Humanoid Locomotion via Motion Generation and Motion Tracking"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_motion_generation_tracking
+    status: extracted
+  - id: "2601.12799"
+    title: "FRoM-W1: Towards General Humanoid Whole-Body Control with Language Instructions"
+    year: 2026
+    tier: supporting
+    expected_knobs: [reference_composition, human_steering]
+    agent: paper_from_w1
+    status: extracted
+  - id: "2608.07746"
+    title: "LUCID: Latent-Skill Unified Control via Imagined Dynamics for Long-Horizon Humanoid Loco-Manipulation"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_lucid
+    status: extracted
+  - id: "2406.06005"
+    title: "WoCoCo: Learning Whole-Body Humanoid Control with Sequential Contacts"
+    year: 2024
+    tier: core
+    expected_knobs: [reference_composition, task_reward]
+    agent: paper_wococo
+    status: extracted
+  - id: "2608.02653"
+    title: "Light-Loco-Parkour: Versatile Perceptive Whole-Body Locomotion via Multi-Skill Distillation"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, fixed_trainer]
+    agent: paper_light_loco_parkour
+    status: extracted
+  - id: "2303.05711"
+    title: "Learning Multimodal Bipedal Locomotion and Implicit Transitions: A Versatile Policy Approach"
+    year: 2023
+    tier: core
+    expected_knobs: [reference_composition]
+    agent: paper_multimodal_biped
+    status: extracted
+  - id: "2310.12931"
+    title: "Eureka: Human-Level Reward Design via Coding Large Language Models"
+    year: 2023
+    tier: anchor
+    expected_knobs: [task_reward]
+    agent: paper_eureka
+    status: extracted
+  - id: "2306.08647"
+    title: "Language to Rewards for Robotic Skill Synthesis"
+    year: 2023
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_language_to_rewards
+    status: extracted
+  - id: "2406.01967"
+    title: "DrEureka: Language Model Guided Sim-To-Real Transfer"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward, evaluation]
+    agent: paper_dreureka
+    status: extracted
+  - id: "2410.14660"
+    title: "A Large Language Model-Driven Reward Design Framework via Dynamic Feedback for Reinforcement Learning"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward, evaluation]
+    agent: paper_card
+    status: extracted
+  - id: "2406.01309"
+    title: "REvolve: Reward Evolution with Large Language Models using Human Feedback"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_revolve
+    status: extracted
+  - id: "2410.17233"
+    title: "ICPL: Few-shot In-context Preference Learning via LLMs"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_icpl
+    status: extracted
+  - id: "2410.09187"
+    title: "Automated Rewards via LLM-Generated Progress Functions"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward]
+    agent: paper_progress_functions
+    status: extracted
+  - id: "2502.04692"
+    title: "STRIDE: Automating Reward Design, Deep Reinforcement Learning Training and Feedback Optimization in Humanoid Robotics Locomotion"
+    year: 2025
+    tier: supporting
+    expected_knobs: [task_reward, evaluation]
+    agent: paper_stride
+    status: extracted
+  - id: "2608.18827"
+    title: "MLREF: Efficient Module Reuse for Reward Design in Reinforcement Learning via Large Language Models"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, evaluation]
+    agent: paper_mlref
+    status: extracted
+  - id: "2606.01672"
+    title: "RDA: Reward Design Agent for Reinforcement Learning"
+    year: 2026
+    tier: anchor
+    expected_knobs: [task_reward, evaluation]
+    agent: paper_rda
+    status: extracted
+  - id: "2606.23280"
+    title: "Causal Reward World Models: Zero-shot Reward Design for Automated Skill Generation"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward]
+    agent: paper_crwm
+    status: extracted
+  - id: "2608.03753"
+    title: "GORDON: Graph-based Object-centric Rewards for Decomposition of Long-Horizon Manipulation"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, reference_composition]
+    agent: paper_gordon
+    status: extracted
+  - id: "2606.25398"
+    title: "MAPL: Multi-Objective Preference Learning for Robot Locomotion"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_mapl
+    status: extracted
+  - id: "2607.01721"
+    title: "CoRe: Combined Rewards with Vision-Language Model Feedback for Preference-Aligned Reinforcement Learning"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_core
+    status: extracted
+  - id: "2606.32027"
+    title: "Freeform Preference Learning for Robotic Manipulation"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_freeform_preference
+    status: extracted
+  - id: "2606.12299"
+    title: "Learning What to Say to Your VLA: Mostly Harmless Vision Language Action Model Steering"
+    year: 2026
+    tier: supporting
+    expected_knobs: [human_steering, evaluation]
+    agent: paper_language_vla_steering
+    status: extracted
+  - id: "2603.26466"
+    title: "Adapt as You Say: Online Interactive Bimanual Skill Adaptation via Human Language Feedback"
+    year: 2026
+    tier: supporting
+    expected_knobs: [human_steering, reference_composition]
+    agent: paper_bisail
+    status: extracted
+  - id: "2410.06401"
+    title: "Trajectory Improvement and Reward Learning from Comparative Language Feedback"
+    year: 2024
+    tier: core
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_comparative_language
+    status: extracted
+  - id: "2602.03973"
+    title: "VLS: Steering Pretrained Robot Policies via Vision-Language Models"
+    year: 2026
+    tier: supporting
+    expected_knobs: [human_steering, task_reward]
+    agent: paper_vls
+    status: extracted
+  - id: "2403.10506"
+    title: "HumanoidBench: Simulated Humanoid Benchmark for Whole-Body Locomotion and Manipulation"
+    year: 2024
+    tier: baseline
+    expected_knobs: [evaluation, fixed_trainer]
+    agent: paper_humanoidbench
+    status: extracted
+  - id: "2502.08844"
+    title: "MuJoCo Playground"
+    year: 2025
+    tier: baseline
+    expected_knobs: [evaluation, fixed_trainer]
+    agent: paper_mujoco_playground
+    status: extracted
+  - id: "2108.13264"
+    title: "Deep Reinforcement Learning at the Edge of the Statistical Precipice"
+    year: 2021
+    tier: baseline
+    expected_knobs: [evaluation]
+    agent: paper_statistical_precipice
+    status: extracted
+  - id: "2310.12921"
+    title: "Vision-Language Models are Zero-Shot Reward Models for Reinforcement Learning"
+    year: 2023
+    tier: supporting
+    expected_knobs: [task_reward, human_steering]
+    agent: paper_vlm_rm
+    status: extracted
+  - id: "2606.22998"
+    title: "TEXEDO: Test Time Scaling for Controller-aware Language-conditioned Humanoid Motion Generation"
+    year: 2026
+    tier: core
+    expected_knobs: [reference_composition, evaluation, fixed_trainer]
+    agent: paper_texedo
+    status: extracted
+  - id: "2601.00675"
+    title: "RoboReward: General-Purpose Vision-Language Reward Models for Robotics"
+    year: 2026
+    tier: core
+    expected_knobs: [task_reward, evaluation, fixed_trainer]
+    agent: paper_roboreward
+    status: extracted

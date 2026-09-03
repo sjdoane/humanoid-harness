@@ -1,0 +1,1016 @@
+{
+  "paper": {
+    "id": "2310.12921",
+    "arxiv_id": "2310.12921",
+    "doi": "10.48550/arXiv.2310.12921",
+    "title": "Vision-Language Models are Zero-Shot Reward Models for Reinforcement Learning",
+    "authors": [
+      "Juan Rocamonde",
+      "Victoriano Montesinos",
+      "Elvis Nava",
+      "Ethan Perez",
+      "David Lindner"
+    ],
+    "year": 2023,
+    "primary_url": "https://arxiv.org/html/2310.12921v2",
+    "source_version": "arXiv v2, 2024-03-14; latest public arXiv version verified 2026-08-30. Presented at ICLR 2024. Official code evidence pinned to AlignmentResearch/vlmrm commit 811d8207abf5f67d1e0514a7acf01ee9b9e62702 (2024-06-25), the public main/HEAD verified 2026-08-30."
+  },
+  "decision_relevance": {
+    "tier": "supporting",
+    "knobs": [
+      "task_reward",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "The paper gives a source-located neural task-reward mechanism: a frozen CLIP scorer maps a human goal prompt and rendered state image to a scalar reward, with an optional baseline-prompt projection. Its renderer, scale, regularization, evaluation, and failure ablations directly constrain how such a reward could be admitted around a fixed trainer.",
+    "not_evidence_for": [
+      "reference-dataset selection, motion composition, phase logic, transition guards, recovery behavior, or any closed-loop reference oracle",
+      "a baseline prompt as a reference-motion baseline; it is only an embedding-space reward direction",
+      "synthesis of inspectable Python reward code with named physical terms, coefficients, or units",
+      "iterative human-feedback steering or inference-time language conditioning of one reusable policy",
+      "reward-only causality when textures, camera, VLM scale, RL algorithm, or training budget change",
+      "temporal or long-horizon reward modeling, because the implemented CLIP reward scores one rendered image at a time",
+      "robustness to optimization pressure, reward hacking, real-robot deployment, or transfer to a different controller and observation contract",
+      "an unbiased independent Humanoid evaluation, because one author labels trajectories and checkpoints are selected by training reward",
+      "RL-Sculptor implementation of VLM-RM"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "p231012921-zero-shot-clip-state-reward",
+      "name": "Zero-shot CLIP state reward",
+      "description": "A frozen CLIP text encoder embeds a natural-language task description, a frozen CLIP image encoder embeds the rendered current state, and their cosine similarity is used directly as the scalar per-state reward without task-specific reward-model training.",
+      "tags": [
+        "task_reward",
+        "vision_language_model",
+        "zero_shot",
+        "dense_state_reward"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E14"
+      ]
+    },
+    {
+      "id": "p231012921-goal-baseline-regularization",
+      "name": "Goal-baseline embedding regularization",
+      "description": "A second prompt describes the default environment; the normalized state embedding is partially projected along the direction between baseline and goal embeddings before its distance to the goal embedding is converted to reward, with alpha controlling the projection strength.",
+      "tags": [
+        "task_reward",
+        "prompt_composition",
+        "embedding_projection",
+        "reward_shaping"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E14"
+      ]
+    },
+    {
+      "id": "p231012921-batched-off-policy-labelling",
+      "name": "Batched off-policy reward labelling",
+      "description": "Environment transitions and rendered frames are buffered, frame batches are scored by CLIP, and the resulting rewards are written into replay-buffer transitions before otherwise standard DQN or SAC gradient updates.",
+      "tags": [
+        "fixed_trainer",
+        "replay_buffer",
+        "batched_inference",
+        "sac",
+        "dqn"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E15"
+      ]
+    },
+    {
+      "id": "p231012921-prompt-configured-task-interface",
+      "name": "Prompt-configured task interface",
+      "description": "Each task is specified by an exact goal sentence and optional baseline sentence. The paper reports using the first prompt tried; the pinned release accepts equally sized prompt lists and averages their text embeddings, but does not implement a dialogue or feedback loop.",
+      "tags": [
+        "human_steering",
+        "task_specification",
+        "prompt_interface",
+        "one_shot"
+      ],
+      "evidence_ids": [
+        "E12",
+        "E14",
+        "E17"
+      ]
+    },
+    {
+      "id": "p231012921-renderer-bound-reward-contract",
+      "name": "Renderer-bound neural reward contract",
+      "description": "Reward values depend on the exact VLM weights and preprocessing plus the renderer, camera, textures, and resolution. The released Humanoid policy consumes numeric Gym observations while rendered RGB frames are carried separately to the CLIP reward path.",
+      "tags": [
+        "task_reward",
+        "fixed_boundary",
+        "renderer_dependency",
+        "artifact_identity",
+        "observation_separation"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E8",
+        "E15",
+        "E16",
+        "E18",
+        "E20"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "clip_state_reward_equation",
+      "value": "R_CLIP(s) = dot(CLIP_L(l), CLIP_I(psi(s))) / (||CLIP_L(l)|| ||CLIP_I(psi(s))||)",
+      "units": null,
+      "context": "Per-state scalar reward for language description l and rendered observation psi(s).",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "name": "goal_baseline_reward_equation",
+      "value": "R_CLIP-Reg(s) = 1 - 0.5 * ||alpha * proj_L(s_vec) + (1-alpha) * s_vec - g_vec||_2^2",
+      "units": null,
+      "context": "g_vec, b_vec, and s_vec are normalized goal, baseline, and state embeddings; L is the line spanned by b_vec and g_vec.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "goal_baseline_alpha_endpoints",
+      "value": {
+        "alpha_0": "ordinary CLIP cosine reward",
+        "alpha_1": "remove all state-embedding components orthogonal to goal minus baseline"
+      },
+      "units": null,
+      "context": "The authors treat intermediate alpha as a hyperparameter because the goal-baseline direction may omit relevant information.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "name": "failed_humanoid_alpha_sweep",
+      "value": [
+        0.0,
+        0.2,
+        0.4,
+        0.6
+      ],
+      "units": null,
+      "context": "Arms crossed, hands on hips, and standing on one leg; alpha 0 and 0.2 were comparable and larger values degraded performance.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "vlm_scaling_models",
+      "value": [
+        "RN50",
+        "ViT-L-14",
+        "ViT-H-14",
+        "ViT-bigG-14"
+      ],
+      "units": null,
+      "context": "Four CLIP scales evaluated on Humanoid kneeling; the three OpenCLIP models are described as trained on LAION-5B.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "official_humanoid_vlm_weight_tag",
+      "value": "ViT-bigG-14/laion2b_s39b_b160k",
+      "units": null,
+      "context": "Exact OpenCLIP model/tag in the pinned official kneeling job; alpha is 0.0.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "humanoid_task_success_rates",
+      "value": {
+        "kneeling": 100,
+        "lotus_position": 100,
+        "standing_up": 100,
+        "arms_raised": 100,
+        "doing_splits": 100,
+        "hands_on_hips": 64,
+        "standing_on_one_leg": 0,
+        "arms_crossed": 0
+      },
+      "units": "percent",
+      "context": "Human-evaluated success after selecting the checkpoint with highest CLIP reward over four random seeds for each task.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "main_humanoid_checkpoint_selection_seeds",
+      "value": 4,
+      "units": "random seeds",
+      "context": "For each task the checkpoint with the highest CLIP reward over these seeds is evaluated.",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "name": "main_humanoid_evaluation_trajectories",
+      "value": 100,
+      "units": "trajectories per task",
+      "context": "One human evaluator labels time spent satisfying the task in each trajectory.",
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "name": "human_evaluation_episode_length",
+      "value": 100,
+      "units": "timesteps",
+      "context": "Raw trajectory labels use five discrete time-in-goal buckets.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "human_evaluation_label_buckets",
+      "value": [
+        0,
+        25,
+        50,
+        75,
+        100
+      ],
+      "units": "successful timesteps",
+      "context": "One author-rater assigns one of five buckets to each 100-step trajectory.",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "name": "human_success_threshold_wording",
+      "value": {
+        "main_text_table_1_table_2": "at least 50 percent of timesteps",
+        "appendix_b_figure_5": "above 50 steps"
+      },
+      "units": null,
+      "context": "The source does not resolve whether the 50-step bucket is counted as success.",
+      "evidence_ids": [
+        "E5",
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "name": "scaling_evaluation_seeds",
+      "value": 2,
+      "units": "random seeds",
+      "context": "Human-evaluated Humanoid kneeling success by VLM scale.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "scaling_success_rates",
+      "value": {
+        "RN50": 0,
+        "ViT-L-14": 0,
+        "ViT-H-14": 0,
+        "ViT-bigG-14": 100
+      },
+      "units": "percent",
+      "context": "Human-evaluated Humanoid kneeling success; EPIC improved smoothly even though policy success changed discontinuously.",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "name": "humanoid_renderer_ablation_success_rates",
+      "value": {
+        "original_camera_original_textures": 36,
+        "original_camera_modified_textures": 91,
+        "modified_camera_modified_textures": 100
+      },
+      "units": "percent",
+      "context": "Kneeling ablation; no modified-camera/original-texture cell is reported.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "humanoid_training_configuration",
+      "value": {
+        "environment_steps": 10000000,
+        "episode_length": 100,
+        "learning_starts": 50000,
+        "sac_updates_per_100_environment_steps": 100,
+        "tau": 0.005,
+        "gamma": 0.95,
+        "learning_rate": 0.0006,
+        "checkpoint_interval_steps": 128000,
+        "clip_reward_batch": 3200
+      },
+      "units": null,
+      "context": "Same SAC configuration for all Humanoid experiments, tuned in preliminary kneeling experiments; final evaluation selects highest training-reward checkpoint.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "paper_compute_layout",
+      "value": {
+        "rl_update_gpus": 1,
+        "render_and_clip_gpus": 4,
+        "gpu_model": "NVIDIA RTX A6000",
+        "simulation_device": "CPU"
+      },
+      "units": null,
+      "context": "Experiment setup reported in the paper.",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "name": "official_humanoid_parallel_configuration",
+      "value": {
+        "requested_gpus": 4,
+        "environments_per_worker": 8,
+        "sac_minibatch": 512,
+        "clip_reward_batch": 3200
+      },
+      "units": null,
+      "context": "Pinned official Kubernetes kneeling job.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "official_humanoid_camera_configuration",
+      "value": {
+        "trackbodyid": 1,
+        "distance": 3.5,
+        "lookat": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "elevation_degrees": -10.0,
+        "azimuth_degrees": 180.0
+      },
+      "units": null,
+      "context": "Pinned official Kubernetes kneeling job.",
+      "evidence_ids": [
+        "E16"
+      ]
+    },
+    {
+      "name": "cartpole_dqn_configuration",
+      "value": {
+        "environment_steps": 3000000,
+        "episode_length": 200,
+        "learning_starts": 75000,
+        "updates_per_200_steps": 200,
+        "learning_rate": 0.0023,
+        "checkpoint_interval_steps": 64000,
+        "hidden_layers": 2,
+        "hidden_width": 256
+      },
+      "units": null,
+      "context": "Classic-control DQN after removing environment termination conditions.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "mountaincar_sac_configuration",
+      "value": {
+        "environment_steps": 3000000,
+        "tau": 0.01,
+        "gamma": 0.9999,
+        "learning_rate": 0.0001,
+        "entropy_coefficient": 0.1,
+        "hidden_layers": 2,
+        "hidden_width": 64
+      },
+      "units": null,
+      "context": "Classic-control SAC after removing termination and making the MountainCar goal absorbing.",
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "name": "epic_state_distributions",
+      "value": {
+        "classic_control": "uniform over states",
+        "humanoid": "state distribution induced by a pretrained expert policy"
+      },
+      "units": null,
+      "context": "EPIC distance is distribution-dependent.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "exact_goal_baseline_prompts",
+      "value": {
+        "CartPole": [
+          "pole vertically upright on top of the cart",
+          "pole and cart"
+        ],
+        "MountainCar": [
+          "a car at the peak of the mountain, next to the yellow flag",
+          "a car in the mountain"
+        ],
+        "Humanoid_kneeling": [
+          "a humanoid robot kneeling",
+          "a humanoid robot"
+        ],
+        "Humanoid_lotus_position": [
+          "a humanoid robot seated down, meditating in the lotus position",
+          "a humanoid robot"
+        ],
+        "Humanoid_standing_up": [
+          "a humanoid robot standing up",
+          "a humanoid robot"
+        ],
+        "Humanoid_arms_raised": [
+          "a humanoid robot standing up, with both arms raised",
+          "a humanoid robot"
+        ],
+        "Humanoid_doing_splits": [
+          "a humanoid robot practicing gymnastics, doing the side splits",
+          "a humanoid robot"
+        ],
+        "Humanoid_hands_on_hips": [
+          "a humanoid robot standing up with hands on hips",
+          "a humanoid robot"
+        ],
+        "Humanoid_arms_crossed": [
+          "a humanoid robot standing up, with its arms crossed",
+          "a humanoid robot"
+        ],
+        "Humanoid_standing_on_one_leg": [
+          "a humanoid robot standing up on one leg",
+          "a humanoid robot"
+        ]
+      },
+      "units": null,
+      "context": "Each array is [goal prompt, baseline prompt]. The authors state these were the first prompts tried, not the result of prompt search.",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "name": "official_policy_and_reward_observations",
+      "value": {
+        "policy": "MlpPolicy over default 376-value numeric Humanoid observation",
+        "reward": "480x480 RGB render"
+      },
+      "units": null,
+      "context": "Pinned release separates the task-policy observation from the CLIP reward image; 378 numeric values are exposed if current positions are included.",
+      "evidence_ids": [
+        "E15",
+        "E16",
+        "E18",
+        "E20"
+      ]
+    },
+    {
+      "name": "official_release_dependency_pins",
+      "value": {
+        "vlmrm": "0.0.1",
+        "open_clip_torch": "2.20.0",
+        "gymnasium": "0.28.1",
+        "stable_baselines3": "2.0.0",
+        "torch": "2.0.1"
+      },
+      "units": null,
+      "context": "Package manifest at the pinned official commit; the full commit remains the code identity.",
+      "evidence_ids": [
+        "E19"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "p231012921-render-distribution-shift",
+      "name": "Reward collapse under abstract or misframed rendering",
+      "description": "The untextured MountainCar task could not be learned. On Humanoid kneeling, changing only textures raised success from 36% to 91%, and also changing camera raised it to 100%; the authors interpret photorealism and framing as critical to CLIP reward quality.",
+      "tags": [
+        "distribution_shift",
+        "renderer",
+        "camera",
+        "textures",
+        "fixed_boundary"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E8"
+      ]
+    },
+    {
+      "id": "p231012921-fine-pose-confusion",
+      "name": "Fine-pose discrimination failure",
+      "description": "Hands on hips reached 64% and arms crossed reached 0%; the authors conjecture CLIP cannot reliably distinguish these subtle body-pose changes from ordinary standing.",
+      "tags": [
+        "visual_discrimination",
+        "spatial_reasoning",
+        "reward_misspecification"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "p231012921-physics-feasibility-confound",
+      "name": "Physics feasibility confound",
+      "description": "Standing on one leg reached 0%, but the authors state that the task may be very hard or impossible in MuJoCo because the humanoid has round feet, preventing attribution of failure solely to the reward model.",
+      "tags": [
+        "simulator",
+        "task_feasibility",
+        "causal_confound"
+      ],
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "id": "p231012921-vlm-scale-threshold",
+      "name": "Policy success threshold across VLM scale",
+      "description": "EPIC distance improved smoothly with model scale, but kneeling success was 0% for RN50, ViT-L-14, and ViT-H-14 and 100% only for ViT-bigG-14, so reward-separation improvement did not locate the policy-learning threshold.",
+      "tags": [
+        "model_scale",
+        "phase_transition",
+        "metric_policy_gap"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "p231012921-regularization-non-rescue",
+      "name": "Goal-baseline regularization does not rescue failed tasks",
+      "description": "For arms crossed, hands on hips, and standing on one leg, alpha 0.0 and 0.2 were comparable and 0.4 or 0.6 degraded performance; the authors report that fuller study was infeasible because human evaluation was costly.",
+      "tags": [
+        "negative_result",
+        "reward_shaping",
+        "human_evaluation_cost"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "id": "p231012921-language-and-vlm-misspecification",
+      "name": "Language and VLM misspecification",
+      "description": "The reward is misspecified when the text omits intended behavior or the VLM generalizes poorly; the authors expect this risk to grow for complex tasks and recommend independent monitoring and richer multi-step specification.",
+      "tags": [
+        "prompt_underspecification",
+        "reward_misspecification",
+        "independent_monitoring"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "p231012921-human-evaluation-ambiguity",
+      "name": "Biased and threshold-ambiguous human evaluation",
+      "description": "One author labels trajectories. The main text, Table 1, and Table 2 define success as at least 50% of steps, while Appendix B Figure 5 says values above 50 steps count, leaving the 50-step bucket unresolved.",
+      "tags": [
+        "evaluation_bias",
+        "single_rater",
+        "threshold_ambiguity"
+      ],
+      "evidence_ids": [
+        "E5",
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "id": "p231012921-selection-evaluation-coupling",
+      "name": "Training-reward selection and evaluation-data coupling",
+      "description": "Final policies are selected by highest training reward; the EPIC human-label dataset is then assembled from all checkpoints of the highest-VLM-reward run using the largest VLM. This is not an untouched task-independent holdout protocol.",
+      "tags": [
+        "checkpoint_selection",
+        "evaluation_coupling",
+        "holdout_boundary"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "p231012921-optimization-robustness-gap",
+      "name": "Optimization robustness remains untested",
+      "description": "The paper identifies robustness and safety under RL optimization pressure as future work and does not test reward hacking, adversarial policies, or deployment monitoring.",
+      "tags": [
+        "reward_hacking",
+        "safety",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "id": "p231012921-image-only-and-release-scope",
+      "name": "Image-only and GPU-bound release scope",
+      "description": "The implemented reward scores single images, while video rewards and dialogue are future work. The release couples fixed-size frame batches to CUDA worker counts and pins a 2023-era simulator/ML stack, so temporal and platform portability are unproven.",
+      "tags": [
+        "temporal_scope",
+        "gpu_dependency",
+        "release_portability"
+      ],
+      "evidence_ids": [
+        "E10",
+        "E17",
+        "E19"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "p231012921-three-way-reward-evaluation",
+      "name": "Three-way reward evaluation protocol",
+      "description": "The paper evaluates trained policies with ground-truth task reward when available, compares reward functions using distribution-dependent EPIC distance, and uses human trajectory labels when no ground-truth Humanoid reward exists.",
+      "tags": [
+        "evaluation",
+        "ground_truth_reward",
+        "epic",
+        "human_labels"
+      ],
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "id": "p231012921-classic-control-evaluation",
+      "name": "CartPole and MountainCar evaluation",
+      "description": "Reward landscapes are inspected against task-relevant state coordinates, and policies are trained in CartPole, original MountainCar, and textured MountainCar; CartPole and textured MountainCar reach 100% for most alpha values while untextured MountainCar is not learned.",
+      "tags": [
+        "classic_control",
+        "reward_landscape",
+        "ground_truth_evaluation",
+        "renderer_ablation"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E13"
+      ]
+    },
+    {
+      "id": "p231012921-humanoid-eight-task-evaluation",
+      "name": "Eight-task MuJoCo Humanoid evaluation",
+      "description": "The highest-CLIP-reward checkpoint over four seeds is evaluated with 100 human-rated trajectories for each of eight tasks; five tasks report 100% success, one 64%, and two 0%.",
+      "tags": [
+        "humanoid",
+        "mujoco",
+        "task_success",
+        "best_checkpoint"
+      ],
+      "evidence_ids": [
+        "E7",
+        "E11"
+      ]
+    },
+    {
+      "id": "p231012921-renderer-ablation-evaluation",
+      "name": "Humanoid texture and camera ablation",
+      "description": "Kneeling success is compared across original camera/original textures, original camera/modified textures, and modified camera/modified textures, yielding 36%, 91%, and 100% respectively.",
+      "tags": [
+        "ablation",
+        "camera",
+        "textures",
+        "fixed_boundary"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "p231012921-vlm-scale-evaluation",
+      "name": "CLIP scale evaluation",
+      "description": "Four CLIP scales are compared on kneeling using EPIC distance to human labels and two-seed human success; EPIC improves near log-linearly while task success changes from 0% to 100% only at ViT-bigG-14.",
+      "tags": [
+        "scaling",
+        "epic",
+        "human_evaluation",
+        "kneeling"
+      ],
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "id": "p231012921-alpha-negative-evaluation",
+      "name": "Goal-baseline failure-task evaluation",
+      "description": "Human-evaluated histograms compare alpha 0.0, 0.2, 0.4, and 0.6 on the three failed Humanoid tasks and find no improvement, with larger values degrading behavior.",
+      "tags": [
+        "negative_result",
+        "alpha_ablation",
+        "human_evaluation"
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2310.12921",
+      "relation": "INTRODUCES",
+      "target": "p231012921-zero-shot-clip-state-reward",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "p231012921-zero-shot-clip-state-reward",
+      "relation": "CONDITIONS_ON",
+      "target": "input:natural_language_goal_prompt",
+      "evidence_ids": [
+        "E2",
+        "E12"
+      ]
+    },
+    {
+      "source": "p231012921-zero-shot-clip-state-reward",
+      "relation": "CONDITIONS_ON",
+      "target": "observation:rendered_current_state_image",
+      "evidence_ids": [
+        "E2",
+        "E15"
+      ]
+    },
+    {
+      "source": "p231012921-goal-baseline-regularization",
+      "relation": "EXTENDS",
+      "target": "p231012921-zero-shot-clip-state-reward",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "source": "p231012921-goal-baseline-regularization",
+      "relation": "COMPOSES",
+      "target": "embedding:goal_and_baseline_prompt_direction",
+      "evidence_ids": [
+        "E3",
+        "E14"
+      ]
+    },
+    {
+      "source": "p231012921-prompt-configured-task-interface",
+      "relation": "USES",
+      "target": "input:human_task_description",
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "source": "p231012921-batched-off-policy-labelling",
+      "relation": "USES",
+      "target": "p231012921-zero-shot-clip-state-reward",
+      "evidence_ids": [
+        "E4",
+        "E15"
+      ]
+    },
+    {
+      "source": "p231012921-batched-off-policy-labelling",
+      "relation": "REQUIRES",
+      "target": "trainer:stable_baselines3_dqn_or_sac",
+      "evidence_ids": [
+        "E4",
+        "E13"
+      ]
+    },
+    {
+      "source": "p231012921-batched-off-policy-labelling",
+      "relation": "OPTIMIZES",
+      "target": "policy:task_specific_control_policy",
+      "evidence_ids": [
+        "E4"
+      ]
+    },
+    {
+      "source": "p231012921-renderer-bound-reward-contract",
+      "relation": "REQUIRES",
+      "target": "dependency:pinned_vlm_preprocess_renderer_camera_textures",
+      "evidence_ids": [
+        "E6",
+        "E8",
+        "E14",
+        "E16"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:cartpole_mountaincar_mujoco_humanoid_v4",
+      "evidence_ids": [
+        "E6",
+        "E7"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "REPORTS",
+      "target": "p231012921-humanoid-eight-task-evaluation",
+      "evidence_ids": [
+        "E7"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "REPORTS",
+      "target": "p231012921-renderer-ablation-evaluation",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "REPORTS",
+      "target": "p231012921-vlm-scale-evaluation",
+      "evidence_ids": [
+        "E9"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "SUPPORTS",
+      "target": "artifact:versioned_renderer_bound_neural_task_reward",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E6",
+        "E14"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "MOTIVATES",
+      "target": "evaluation:independent_reward_monitoring",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "paper:2310.12921",
+      "relation": "CONTRASTS_WITH",
+      "target": "approach:manual_reward_engineering_or_task_specific_reward_learning",
+      "evidence_ids": [
+        "E2"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2310.12921v2",
+      "locator": "arXiv metadata and submission history; v2 dated 14 March 2024",
+      "claim": "The exact analyzed paper is arXiv 2310.12921v2 with the listed title and five authors; arXiv marks it as presented at ICLR 2024.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S3.SS1",
+      "locator": "Section 3.1, Equation 2",
+      "claim": "The concrete VLM-RM uses cosine similarity between a frozen CLIP language embedding of the task sentence and CLIP image embedding of the rendered current state as reward.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S3.SS2",
+      "locator": "Section 3.2, Definition 1 and Equation 3",
+      "claim": "Goal-baseline regularization adds a default-environment prompt and partially projects the normalized state embedding along the baseline-to-goal direction; alpha 0 recovers CLIP reward and alpha 1 removes orthogonal components.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S3.SS3",
+      "locator": "Section 3.3; experiment setup; Appendix C Algorithm 1",
+      "claim": "The method batches replay-buffer observations through CLIP, assigns the resulting rewards, and performs standard DQN or SAC updates; experiments use one A6000 for RL updates and four A6000s for rendering and CLIP while simulation runs on CPU.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S4.SS1",
+      "locator": "Section 4.1 and Appendix A",
+      "claim": "Evaluation uses ground-truth return where available, distribution-dependent EPIC distance, and one-author human labels for Humanoid tasks; classic-control EPIC uses uniform states and Humanoid EPIC uses an expert-induced state distribution.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S4.SS2",
+      "locator": "Section 4.2, Figure 2",
+      "claim": "CartPole and textured MountainCar reach 100% success for most alpha values, but original untextured MountainCar cannot be learned; the authors attribute reward-shape quality to render realism.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S4.SS3",
+      "locator": "Section 4.3, Table 1",
+      "claim": "Five of eight Humanoid tasks report 100% success, hands on hips 64%, and standing on one leg and arms crossed 0%; each task selects the highest-CLIP-reward checkpoint over four seeds and evaluates 100 human-rated trajectories.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S4.SS3",
+      "locator": "Section 4.3, Figure 3",
+      "claim": "Humanoid kneeling success is 36% with original camera/textures, 91% with modified textures, and 100% with modified textures plus camera, showing the reward depends strongly on renderer configuration.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S4.SS4",
+      "locator": "Section 4.4, Figure 4",
+      "claim": "The kneeling scale study compares RN50, ViT-L-14, ViT-H-14, and ViT-bigG-14; EPIC improves smoothly, while two-seed success is 0%, 0%, 0%, and 100% respectively.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2310.12921v2#S6",
+      "locator": "Section 6, Limitations and Future Work",
+      "claim": "The authors identify prompt omission and VLM generalization as reward-misspecification risks, recommend independent monitoring, and leave video rewards, dialogue, and robustness under RL optimization pressure to future work.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2310.12921v2#A2",
+      "locator": "Appendix B, Table 2 and Figures 5-8",
+      "claim": "One author labels 100-step trajectories in 0/25/50/75/100 buckets; the appendix says values above 50 count as success despite at-least-50 wording elsewhere, and alpha 0.0/0.2/0.4/0.6 does not rescue the three failed tasks.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2310.12921v2#A3",
+      "locator": "Appendix C, Table 3",
+      "claim": "The supplement lists exact goal and baseline prompts for CartPole, MountainCar, and eight Humanoid tasks and states that these are the first prompts tried rather than prompt-engineered selections.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2310.12921v2#A3",
+      "locator": "Appendix C.1-C.2",
+      "claim": "The supplement gives classic-control and Humanoid trainer choices, step budgets, episode lengths, learning starts, update schedules, network sizes, SAC parameters, checkpoint intervals, final checkpoint rule, and CLIP batch size.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/src/vlmrm/reward_model.py#L33-L132",
+      "locator": "Official code commit 811d820, src/vlmrm/reward_model.py lines 33-132",
+      "claim": "The pinned release normalizes and averages goal/baseline text embeddings, constructs an alpha-weighted projection, scores normalized image embeddings, and loads an exact OpenCLIP model/tag from config.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E15",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/src/vlmrm/contrib/sb3/clip_rewarded_sac.py#L27-L168",
+      "locator": "Official code commit 811d820, src/vlmrm/contrib/sb3/clip_rewarded_sac.py lines 27-168",
+      "claim": "The pinned SAC extension retains standard policy observations, gathers separately rendered frames, computes CLIP rewards in fixed batches, writes them to the replay buffer, and then trains SAC.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E16",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/kube/job.yaml#L23-L76",
+      "locator": "Official code commit 811d820, kube/job.yaml lines 23-76",
+      "claim": "The pinned kneeling job specifies ViT-bigG-14/laion2b_s39b_b160k, alpha 0, exact prompts and camera, 10 million steps, 8 environments per worker, SAC batch 512, CLIP batch 3200, and four requested GPUs.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E17",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/src/vlmrm/trainer/config.py#L105-L234",
+      "locator": "Official code commit 811d820, src/vlmrm/trainer/config.py lines 105-234",
+      "claim": "Release validation requires nonempty equally sized goal/baseline prompt lists, fixed batch divisibility by GPU workers and complete episode batches, valid OpenCLIP tags, and at least one CUDA device.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E18",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/src/vlmrm/envs/mujoco/clip_rewarded_humanoid.py#L12-L91",
+      "locator": "Official code commit 811d820, src/vlmrm/envs/mujoco/clip_rewarded_humanoid.py lines 12-91",
+      "claim": "The released Humanoid environment exposes a 376-value numeric observation by default (378 with current positions), chooses textured or untextured XML, and renders RGB frames under a camera configuration.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E19",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/setup.py#L5-L34",
+      "locator": "Official code commit 811d820, setup.py lines 5-34",
+      "claim": "The release identifies itself as vlmrm 0.0.1 and pins OpenCLIP 2.20.0, Gymnasium 0.28.1, Stable-Baselines3 2.0.0, Torch 2.0.1, and other dependencies.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "E20",
+      "source_url": "https://github.com/AlignmentResearch/vlmrm/blob/811d8207abf5f67d1e0514a7acf01ee9b9e62702/src/vlmrm/envs/base.py#L10-L14",
+      "locator": "Official code commit 811d820, src/vlmrm/envs/base.py lines 10-14",
+      "claim": "The release fixes RGB render dimensions at 400x600 for CartPole and MountainCar and 480x480 for Humanoid.",
+      "evidence_type": "official_code"
+    }
+  ]
+}

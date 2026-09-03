@@ -1,0 +1,772 @@
+{
+  "paper": {
+    "id": "2608.02385",
+    "arxiv_id": "2608.02385",
+    "doi": "10.48550/arXiv.2608.02385",
+    "title": "StableMimic: Smooth Human-Like Recovery for Humanoid Motion Tracking - Learning Beyond the Tracking Distribution for Structured Post-Fall Behavior",
+    "authors": [
+      "Weihao Wu",
+      "Ming Huang",
+      "Ruofei Liu",
+      "Jinglei Nie",
+      "Shuxiang Guo",
+      "Chunying Li"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/html/2608.02385v1",
+    "source_version": "arXiv v1, submitted 2026-08-03; retrieved 2026-08-30; PDF SHA-256 a682d048fdd10fc16671b7af3bca82414fb70652f039e7fa788b343b0beb86d0; source SHA-256 dec60ed8b8aaff149e33c162eea9742d67681f9cdc68978114a2b2910032c07f"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "task_reward",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "It gives a source-located design for selecting and advancing hidden recovery references, shaping physical successor states, and handing control back to an advancing command, plus an independent post-fall evaluation protocol. Its multi-component intervention makes the fixed-trainer boundary unusually important.",
+    "not_evidence_for": [
+      "A reward-only or oracle-only improvement under Sam's fixed trainer",
+      "A natural-language or LLM-driven policy-training harness",
+      "An external OGMP state machine or predicate-branching oracle",
+      "Formal reachability outside sampled recovery support",
+      "Universal or certified robot safety",
+      "Quantitative real-hardware reliability",
+      "Causal independence of the two Actor experts",
+      "Compatibility with an arbitrary frozen foundation controller"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "stablemimic.training_only_reference_oracle",
+      "name": "Training-only recovery-reference oracle",
+      "description": "A sequence-disjoint get-up library supplies a sampled trajectory and frame, a perturbed reset neighborhood, a hidden advancing reference, and failure-adaptive frame resampling; reference identity and phase are never exposed to the deployed Actor.",
+      "tags": [
+        "reference_composition",
+        "hidden_reference",
+        "failure_adaptive_sampling",
+        "training_only"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E4",
+        "E8"
+      ]
+    },
+    {
+      "id": "stablemimic.hidden_successor_state_reward",
+      "name": "Hidden successor-state recovery reward",
+      "description": "During recovery, the physical successor state is compared with the next hidden get-up state using six Gaussian-kernel error families; the live command remains visible but contributes no tracking reference term until transition.",
+      "tags": [
+        "task_reward",
+        "successor_state",
+        "imitation",
+        "recovery"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E6"
+      ]
+    },
+    {
+      "id": "stablemimic.command_reacquisition",
+      "name": "Reference reacquisition and realignment",
+      "description": "Terminal recovery similarity initiates a 1.5-second transition to the continuously advancing command; horizontal translation is aligned to the recovered pose while command yaw and local motion continuity are retained.",
+      "tags": [
+        "reference_composition",
+        "transition",
+        "alignment",
+        "command_resumption"
+      ],
+      "evidence_ids": [
+        "E4",
+        "E7"
+      ]
+    },
+    {
+      "id": "stablemimic.proprioceptive_dual_expert_moe",
+      "name": "Proprioception-gated dual-expert Actor",
+      "description": "Commanded-motion and recovery experts receive the same deployable command-conditioned history; a proprioception-only soft gate blends their action means continuously and is trained with privileged regime labels.",
+      "tags": [
+        "mixture_of_experts",
+        "soft_gate",
+        "actor_architecture",
+        "fixed_trainer_boundary"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E5",
+        "E14"
+      ]
+    },
+    {
+      "id": "stablemimic.asymmetric_information_boundary",
+      "name": "Asymmetric training/deployment boundary",
+      "description": "Training-only get-up features and simulator state enter reset/reward logic and the privileged Critic, while deployed Actor get-up slots remain permanently zero and routing uses only proprioceptive history.",
+      "tags": [
+        "asymmetric_actor_critic",
+        "deployment",
+        "masked_reference",
+        "privileged_information"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E7"
+      ]
+    },
+    {
+      "id": "stablemimic.load_aware_regularization",
+      "name": "Load-aware recovery regularization",
+      "description": "Action-rate, joint-limit, self-collision, and power penalties discourage aggressive correction during recovery but are explicitly not a safety certification.",
+      "tags": [
+        "task_reward",
+        "regularization",
+        "actuator_load",
+        "safety_boundary"
+      ],
+      "evidence_ids": [
+        "E6"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "observation_dimensions",
+      "value": {
+        "actor_per_frame": 221,
+        "actor_history_frames": 4,
+        "actor_total": 884,
+        "gate": 372,
+        "critic": 1428,
+        "action_mean": 29
+      },
+      "units": "dimensions",
+      "context": "Actor/gate/Critic information boundary and 29-D action mean.",
+      "evidence_ids": [
+        "E2",
+        "E14"
+      ]
+    },
+    {
+      "name": "network_architecture_and_parameter_counts",
+      "value": {
+        "expert_hidden_sizes": [
+          512,
+          256,
+          128
+        ],
+        "single_mlp_hidden_sizes": [
+          1024,
+          512,
+          256
+        ],
+        "activation": "ELU",
+        "moe_actor_parameters": 1298301,
+        "single_actor_parameters": 1569850,
+        "critic_parameters": 896001,
+        "standard_deviation": "shared learned scalar"
+      },
+      "units": null,
+      "context": "Paper-specific controller architecture; outside Sam's frozen-trainer knob set.",
+      "evidence_ids": [
+        "E5",
+        "E14"
+      ]
+    },
+    {
+      "name": "ppo_settings",
+      "value": {
+        "discount_gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip": 0.2,
+        "adaptive_learning_rate": 0.001,
+        "rollout_steps": 24,
+        "epochs": 5,
+        "mini_batches": 4,
+        "max_gradient_norm": 1.0,
+        "entropy_coefficient": 0.05
+      },
+      "units": null,
+      "context": "Standard clipped-PPO settings shared by the MoE and Single-MLP ablation.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "gate_auxiliary_loss_weights",
+      "value": {
+        "cross_entropy": 0.1,
+        "transition": 4.0,
+        "consistency": 0.01,
+        "alignment": 0.01
+      },
+      "units": "loss coefficients",
+      "context": "Training-only supervision for expert routing and transition behavior.",
+      "evidence_ids": [
+        "E5",
+        "E14"
+      ]
+    },
+    {
+      "name": "training_scale_and_regime_schedule",
+      "value": {
+        "parallel_environments": 4096,
+        "control_rate_hz": 50,
+        "episode_horizon_s": 20,
+        "tracking_episode_probability": 0.5,
+        "recovery_episode_probability": 0.5,
+        "transition_duration_s": 1.5,
+        "persistent_error_tolerance_s": 2.0,
+        "recovery_reward_coefficient_ratio": 2.5
+      },
+      "units": null,
+      "context": "Training distribution, recovery-to-command transition, and reward scaling.",
+      "evidence_ids": [
+        "E4",
+        "E6",
+        "E14"
+      ]
+    },
+    {
+      "name": "recovered_like_gate_safeguard",
+      "value": 0.8,
+      "units": "fraction of command base height",
+      "context": "A reset with base height at least this fraction retains the tracking gate target.",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "name": "recovery_reset_position_ranges",
+      "value": {
+        "x_m": [
+          -0.05,
+          0.05
+        ],
+        "y_m": [
+          -0.05,
+          0.05
+        ],
+        "z_m": [
+          -0.01,
+          0.01
+        ],
+        "roll_rad": [
+          -0.1,
+          0.1
+        ],
+        "pitch_rad": [
+          -0.1,
+          0.1
+        ],
+        "yaw_rad": [
+          -0.2,
+          0.2
+        ]
+      },
+      "units": null,
+      "context": "Perturbations around sampled get-up reference frames.",
+      "evidence_ids": [
+        "E3",
+        "E14"
+      ]
+    },
+    {
+      "name": "recovery_reset_velocity_ranges",
+      "value": {
+        "linear_x_mps": [
+          -0.5,
+          0.5
+        ],
+        "linear_y_mps": [
+          -0.5,
+          0.5
+        ],
+        "linear_z_mps": [
+          -0.2,
+          0.2
+        ],
+        "angular_roll_radps": [
+          -0.52,
+          0.52
+        ],
+        "angular_pitch_radps": [
+          -0.52,
+          0.52
+        ],
+        "angular_yaw_radps": [
+          -0.78,
+          0.78
+        ]
+      },
+      "units": null,
+      "context": "Perturbations around sampled get-up reference frames.",
+      "evidence_ids": [
+        "E3",
+        "E14"
+      ]
+    },
+    {
+      "name": "recovery_reset_joint_noise",
+      "value": [
+        -0.1,
+        0.1
+      ],
+      "units": "rad",
+      "context": "Joint perturbation where enabled.",
+      "evidence_ids": [
+        "E14"
+      ]
+    },
+    {
+      "name": "evaluation_simulator_protocol",
+      "value": {
+        "simulator": "MuJoCo",
+        "robot": "Unitree G1",
+        "simulation_step_s": 0.005,
+        "deterministic_action_rate_hz": 50,
+        "recovery_horizon_s": 20,
+        "test_randomization": false,
+        "test_observation_corruption": false,
+        "test_delay": false,
+        "test_early_termination": false
+      },
+      "units": null,
+      "context": "Nominal evaluation environment shared across the matched study protocol.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "matched_push_to_fall_protocol",
+      "value": {
+        "trials": 100,
+        "directions": [
+          "+x",
+          "-x",
+          "+y",
+          "-y"
+        ],
+        "trials_per_direction": 25,
+        "force_duration_s": 0.2,
+        "force_min_n": 525,
+        "force_max_n": 575
+      },
+      "units": null,
+      "context": "Same pre-generated horizontal torso disturbances for every compared method.",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "name": "fall_and_metric_window_definition",
+      "value": {
+        "pelvis_height_threshold_m": 0.5,
+        "pelvis_tilt_threshold_deg": 60,
+        "post_fall_metric_window_s": 3,
+        "key_bodies_for_tracking": 14,
+        "instantaneous_metric_percentile": 95
+      },
+      "units": null,
+      "context": "A fall begins when either threshold is crossed; all trials remain in the denominator.",
+      "evidence_ids": [
+        "E9"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "stablemimic.sampled_support_boundary",
+      "name": "Recovery-support boundary",
+      "description": "The perturbed neighborhoods around get-up trajectories are empirical supports, not formal reachability sets; states beyond them are outside the paper's claim.",
+      "tags": [
+        "coverage",
+        "out_of_distribution",
+        "reachability_gap"
+      ],
+      "evidence_ids": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "stablemimic.safety_claim_boundary",
+      "name": "Load-aware is not safety-certified",
+      "description": "Regularizers and post-fall load metrics support bounded behavior only under the evaluated protocol; they do not certify safety.",
+      "tags": [
+        "safety",
+        "scope_boundary",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "E6",
+        "E11",
+        "E13"
+      ]
+    },
+    {
+      "id": "stablemimic.two_knob_identification_gap",
+      "name": "Two-knob identification gap",
+      "description": "The main system jointly changes references, reset distribution, reward, Actor/Critic architecture, and auxiliary losses; it does not identify the gain from reference composition or task reward alone under a frozen trainer.",
+      "tags": [
+        "fixed_trainer",
+        "causal_attribution",
+        "ablation_gap"
+      ],
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E5",
+        "E6",
+        "E14"
+      ]
+    },
+    {
+      "id": "stablemimic.native_baseline_interfaces",
+      "name": "Non-uniform baseline training and command interfaces",
+      "description": "Full-system baselines retain their original training procedures and receive different native command interfaces, so cross-method rankings are protocol evidence rather than an isolated causal comparison.",
+      "tags": [
+        "baseline",
+        "evaluation_design",
+        "causal_attribution"
+      ],
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "id": "stablemimic.moe_causality_limit",
+      "name": "Descriptive MoE dynamics",
+      "description": "Earlier curve stabilization and lower policy standard deviation are explicitly descriptive, not causal evidence of expert independence.",
+      "tags": [
+        "mixture_of_experts",
+        "causality",
+        "training_curve"
+      ],
+      "evidence_ids": [
+        "E12"
+      ]
+    },
+    {
+      "id": "stablemimic.hardware_evidence_limit",
+      "name": "Qualitative hardware evidence",
+      "description": "Real-G1 dance and standing recoveries are qualitative demonstrations, not a matched hardware architecture comparison or quantitative reliability estimate.",
+      "tags": [
+        "hardware",
+        "qualitative",
+        "evidence_gap"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "stablemimic.complete_sequence_tracking",
+      "name": "Complete LAFAN1 dance tracking",
+      "description": "On the complete retargeted LAFAN1 dance subset, StableMimic reports MPBPE 28.53 mm, MJAE 88.83e-3 rad, MJAVE 798.22e-3 rad/s, and relative acceleration error 2.08 mm/frame^2, the lowest values among five methods in Table III.",
+      "tags": [
+        "tracking",
+        "LAFAN1",
+        "simulation",
+        "independent_metric"
+      ],
+      "evidence_ids": [
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "id": "stablemimic.matched_push_recovery",
+      "name": "Matched push-to-fall recovery",
+      "description": "Across 100 shared disturbances, StableMimic reports 100/100 recovery, limb-speed P95 4.91 m/s, limb path 13.80 m, joint-speed P95 5.26 rad/s, target-rate P95 17.35 rad/s, displacement 1.32 m, torque P95 19.64 N m, and positive energy 0.61 kJ; it is lowest on six of seven motion/load measures, while BFM-Zero has lower target rate.",
+      "tags": [
+        "recovery",
+        "post_fall",
+        "motion",
+        "actuator_load",
+        "independent_metric"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E9",
+        "E11"
+      ]
+    },
+    {
+      "id": "stablemimic.single_mlp_ablation",
+      "name": "Controlled Single-MLP architecture ablation",
+      "description": "With common observations, actions, Critic, reward, and PPO, the larger Single-MLP Actor reports 32.66 mm MPBPE and 98/100 recovery versus 28.53 mm and 100/100 for the MoE; this isolates architecture more closely than it isolates the reference or reward mechanisms.",
+      "tags": [
+        "ablation",
+        "mixture_of_experts",
+        "tracking",
+        "recovery"
+      ],
+      "evidence_ids": [
+        "E8",
+        "E10",
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "id": "stablemimic.real_g1_demonstration",
+      "name": "Real-G1 qualitative deployment",
+      "description": "Separate dance and constant-standing ONNX Actors run at 50 Hz and qualitatively recover after induced falls before resuming their commands; no matched hardware statistics are reported.",
+      "tags": [
+        "hardware",
+        "Unitree_G1",
+        "qualitative",
+        "command_resumption"
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "paper:2608.02385",
+      "relation": "INTRODUCES",
+      "target": "stablemimic.training_only_reference_oracle",
+      "evidence_ids": [
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "source": "paper:2608.02385",
+      "relation": "INTRODUCES",
+      "target": "stablemimic.hidden_successor_state_reward",
+      "evidence_ids": [
+        "E3",
+        "E6"
+      ]
+    },
+    {
+      "source": "stablemimic.training_only_reference_oracle",
+      "relation": "USES",
+      "target": "dataset:LAFAN1_getup_subset",
+      "evidence_ids": [
+        "E8"
+      ]
+    },
+    {
+      "source": "stablemimic.training_only_reference_oracle",
+      "relation": "COMPOSES",
+      "target": "stablemimic.command_reacquisition",
+      "evidence_ids": [
+        "E4",
+        "E7"
+      ]
+    },
+    {
+      "source": "stablemimic.hidden_successor_state_reward",
+      "relation": "TRACKS",
+      "target": "reference:hidden_getup_successor_state",
+      "evidence_ids": [
+        "E3",
+        "E6"
+      ]
+    },
+    {
+      "source": "stablemimic.hidden_successor_state_reward",
+      "relation": "CONDITIONS_ON",
+      "target": "state:training_regime",
+      "evidence_ids": [
+        "E6"
+      ]
+    },
+    {
+      "source": "stablemimic.command_reacquisition",
+      "relation": "SUPPORTS",
+      "target": "behavior:advancing_command_resumption",
+      "evidence_ids": [
+        "E4",
+        "E7"
+      ]
+    },
+    {
+      "source": "paper:2608.02385",
+      "relation": "INTRODUCES",
+      "target": "stablemimic.proprioceptive_dual_expert_moe",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "stablemimic.proprioceptive_dual_expert_moe",
+      "relation": "COMPOSES",
+      "target": "actor:tracking_and_recovery_experts",
+      "evidence_ids": [
+        "E5"
+      ]
+    },
+    {
+      "source": "stablemimic.asymmetric_information_boundary",
+      "relation": "REQUIRES",
+      "target": "critic:privileged_training_only_state",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    {
+      "source": "paper:2608.02385",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:Unitree_G1_MuJoCo_LAFAN1",
+      "evidence_ids": [
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "source": "paper:2608.02385",
+      "relation": "REPORTS",
+      "target": "stablemimic.complete_sequence_tracking",
+      "evidence_ids": [
+        "E10"
+      ]
+    },
+    {
+      "source": "paper:2608.02385",
+      "relation": "REPORTS",
+      "target": "stablemimic.matched_push_recovery",
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "source": "stablemimic.proprioceptive_dual_expert_moe",
+      "relation": "CONTRASTS_WITH",
+      "target": "stablemimic.single_mlp_ablation",
+      "evidence_ids": [
+        "E10",
+        "E11",
+        "E14"
+      ]
+    },
+    {
+      "source": "stablemimic.training_only_reference_oracle",
+      "relation": "MOTIVATES",
+      "target": "policy_harness:reference_composition_hypothesis",
+      "evidence_ids": [
+        "E3",
+        "E4",
+        "E7"
+      ]
+    },
+    {
+      "source": "stablemimic.hidden_successor_state_reward",
+      "relation": "MOTIVATES",
+      "target": "policy_harness:task_reward_hypothesis",
+      "evidence_ids": [
+        "E3",
+        "E6"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_url": "https://arxiv.org/abs/2608.02385v1",
+      "locator": "Versioned metadata and abstract; submitted 3 Aug 2026; arXiv comment: 8 pages, 7 figures, preprint not formally peer reviewed",
+      "claim": "arXiv v1 fixes the title, authors, public date, abstract-level contributions, and preprint status.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "E2",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.SS1",
+      "locator": "Section III-A, Equation (1), Figure 2, and Table II",
+      "claim": "The Actor has four-frame deployable history and permanently zeroed get-up slots; recovery references and privileged state are confined to training-only reset/reward/Critic paths.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E3",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.E2",
+      "locator": "Section III-B, Equation (2) and Figure 3A",
+      "claim": "A sampled perturbed get-up frame initializes recovery, the hidden reference advances, and the physical successor is scored against the next hidden reference state.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E4",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.SS2",
+      "locator": "Section III-B, paragraphs after Equation (2), and Figure 4",
+      "claim": "Failure-adaptive frame sampling, a 2-second error tolerance, and a 1.5-second transition structure the recovery-to-command lifecycle; coverage beyond sampled support is excluded.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E5",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.E3",
+      "locator": "Section III-C, Equation (3), Auxiliary gate supervision",
+      "claim": "A proprioception-only soft gate continuously blends commanded-motion and recovery expert means and receives training-only regime supervision.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E6",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.E4",
+      "locator": "Section III-C, Recovery objective, Equation (4)",
+      "claim": "Regime-conditioned reference reward uses six Gaussian-kernel error families, translated recovery uses root height, the recovery coefficient is 2.5 times nominal, and load-aware regularizers do not certify safety.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E7",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S3.SS4",
+      "locator": "Section III-D, deployment and reference-alignment paragraphs",
+      "claim": "Deployment removes the get-up library and hard switch; horizontal translation is realigned to the recovered pose while command yaw and local continuity remain.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E8",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.SS1",
+      "locator": "Section IV-A, Tasks and protocols and Comparison methods",
+      "claim": "The paper evaluates sequence-disjoint LAFAN1 tracking/get-up subsets on nominal MuJoCo G1 and uses 100 matched pushes; full-system baselines retain native training and command interfaces.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E9",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.E5",
+      "locator": "Section IV-A, Evaluation metrics, Equation (5)",
+      "claim": "Tracking metrics, fall thresholds, recovery denominator, and three-second post-fall motion/control/load metrics are explicitly defined.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E10",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.T3",
+      "locator": "Table III and Section IV-B1",
+      "claim": "StableMimic reports 28.53 mm MPBPE, 88.83e-3 rad MJAE, 798.22e-3 rad/s MJAVE, and 2.08 mm/frame^2 relative acceleration error, the lowest table values among five methods.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E11",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.T4",
+      "locator": "Table IV and Section IV-B2",
+      "claim": "StableMimic reports 100/100 recovery and the lowest six of seven post-fall motion/load measures under the matched disturbance protocol.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "E12",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.SS3",
+      "locator": "Section IV-C, Analysis of the MoE Design",
+      "claim": "Training curves are described as consistent with reduced interference but explicitly not causal evidence of expert independence.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E13",
+      "source_url": "https://arxiv.org/html/2608.02385v1#S4.SS4",
+      "locator": "Section IV-D, Main Hardware Results and Scope",
+      "claim": "Dance and standing policies qualitatively recover on a real G1; the authors state this is not safety certification or a matched hardware architecture comparison.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "E14",
+      "source_url": "https://arxiv.org/html/2608.02385v1#A1",
+      "locator": "Appendix A, Table V",
+      "claim": "The paper tabulates exact network, PPO, gate-loss, training, and recovery-reset settings.",
+      "evidence_type": "paper_table"
+    }
+  ]
+}

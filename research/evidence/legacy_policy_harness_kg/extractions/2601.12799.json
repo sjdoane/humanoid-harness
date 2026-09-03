@@ -1,0 +1,935 @@
+{
+  "paper": {
+    "id": "2601.12799",
+    "arxiv_id": "2601.12799",
+    "doi": "10.48550/arXiv.2601.12799",
+    "title": "FRoM-W1: Towards General Humanoid Whole-Body Control with Language Instructions",
+    "authors": [
+      "Peng Li",
+      "Zihan Zhuang",
+      "Yangfan Gao",
+      "Yi Dong",
+      "Sixian Li",
+      "Changhao Jiang",
+      "Shihan Dou",
+      "Zhiheng Xi",
+      "Enyu Zhou",
+      "Jixuan Huang",
+      "Hui Li",
+      "Jingjing Gong",
+      "Xingjun Ma",
+      "Tao Gui",
+      "Zuxuan Wu",
+      "Qi Zhang",
+      "Xuanjing Huang",
+      "Yu-Gang Jiang",
+      "Xipeng Qiu"
+    ],
+    "year": 2026,
+    "primary_url": "https://arxiv.org/pdf/2601.12799v1",
+    "source_version": "arXiv v1, submitted 2026-01-19; TeX archive SHA-256 e5e138b55a8909bae356e2c33103bed8bba8f2b10de56915b1fe3b227f9e1a28"
+  },
+  "decision_relevance": {
+    "tier": "core",
+    "knobs": [
+      "reference_composition",
+      "human_steering",
+      "evaluation",
+      "fixed_trainer"
+    ],
+    "why_admitted": "FRoM-W1 provides a 2026, source-released language-to-reference pipeline: instruction and generated temporal plan become human motion, embodiment retargeting produces root and joint trajectories, and a modular adapter converts that canonical reference for heterogeneous controllers. This directly informs Sam's oracle/reference output and human-steering interface, while the paper's per-motion RL fine-tuning makes the fixed-trainer boundary explicit by violating it.",
+    "not_evidence_for": [
+      "That RL-Sculptor currently implements FRoM-W1, H-GPT, H-ACT, or RoboJuDo",
+      "That VIBE uses or reproduces FRoM-W1",
+      "That per-motion PPO or DAgger fine-tuning is allowed under Sam's initial fixed-controller, fixed-trainer, fixed-budget contract",
+      "That FRoM-W1's imitation, stability, or regularization rewards are Sam's authorable task reward",
+      "That runtime policy switching or action blending implements a validated OGMP predicate, branch, preference-conditioned oracle, or shared execution manifest",
+      "That kinematic retargeting preserves root-frame semantics, immutable artifact identity, or dynamics feasibility",
+      "That the qualitative real-robot examples establish a hardware success rate",
+      "That all claimed training artifacts are available in the reviewed public release"
+    ]
+  },
+  "mechanisms": [
+    {
+      "id": "fromw1:language_to_robot_reference_pipeline",
+      "name": "Two-stage language-to-robot reference pipeline",
+      "description": "FRoM-W1 composes H-GPT's instruction-to-human-motion mapping with H-ACT's human-motion-to-robot-execution mapping. Human motion is the semantic intermediate between free-form language and a dynamically stabilized humanoid controller.",
+      "tags": [
+        "language-to-motion",
+        "reference-generation",
+        "pipeline-composition",
+        "human-steering"
+      ],
+      "evidence_ids": [
+        "F02"
+      ]
+    },
+    {
+      "id": "fromw1:cot_motion_generator",
+      "name": "Generated-CoT autoregressive motion generator",
+      "description": "GPT-4o-enriched training triples align an instruction, a first-person temporally ordered action plan, and a whole-body human motion. At inference, H-GPT first generates CoT text, then motion tokens conditioned on the instruction and CoT, then decodes them to continuous SMPL-X motion.",
+      "tags": [
+        "chain-of-thought",
+        "language-steering",
+        "motion-tokenization",
+        "smpl-x"
+      ],
+      "evidence_ids": [
+        "F03",
+        "F04",
+        "F05"
+      ]
+    },
+    {
+      "id": "fromw1:embodiment_retargeter",
+      "name": "Human-to-humanoid embodiment retargeter",
+      "description": "A two-stage kinematic transform reconstructs SMPL-X pose from generated 3D keypoints, then solves a robot-specific joint alignment problem with position, orientation, joint-limit, and feasibility terms. Its output is a time-indexed robot reference containing root position, root orientation, and ordered joint targets.",
+      "tags": [
+        "retargeting",
+        "reference-transform",
+        "embodiment",
+        "kinematics"
+      ],
+      "evidence_ids": [
+        "F07"
+      ]
+    },
+    {
+      "id": "fromw1:policy_specific_reference_adapter",
+      "name": "Policy-specific reference adapter",
+      "description": "RoboJuDo converts one canonical retargeted motion into upper/lower commands, compact keypoint or end-effector commands, or full joint/root trajectories, while exposing a shared policy interface. This is an adapter boundary, not evidence that every target controller accepts the same observation or reference contract.",
+      "tags": [
+        "reference-adapter",
+        "controller-interface",
+        "heterogeneous-policies",
+        "fixed-controller"
+      ],
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "id": "fromw1:human_input_controller_manager",
+      "name": "Human-input and trigger controller manager",
+      "description": "Keyboard, joystick, remote, generated-motion, and external-trigger inputs are normalized into shared controller data and commands. A hierarchical manager can switch policies, route data, blend outputs, or trigger composed behavior at runtime.",
+      "tags": [
+        "human-steering",
+        "runtime-trigger",
+        "mode-switching",
+        "command-normalization"
+      ],
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "id": "fromw1:per_motion_rft",
+      "name": "Per-motion reinforcement-learning fine-tuning",
+      "description": "For each target reference, RFT initializes from a pretrained teacher/student controller, fine-tunes the privileged teacher with PPO, and redistills the student through DAgger. It improves reported tracking on 30 AMASS motions but changes policy parameters, training work, and compute for every reference.",
+      "tags": [
+        "per-motion-training",
+        "ppo",
+        "dagger",
+        "fixed-trainer-conflict"
+      ],
+      "evidence_ids": [
+        "F08",
+        "F14"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "public_source_version",
+      "value": "arXiv v1, submitted 2026-01-19",
+      "units": null,
+      "context": "Only public arXiv version in the reviewed submission history.",
+      "evidence_ids": [
+        "F01"
+      ]
+    },
+    {
+      "name": "arxiv_source_archive_sha256",
+      "value": "e5e138b55a8909bae356e2c33103bed8bba8f2b10de56915b1fe3b227f9e1a28",
+      "units": null,
+      "context": "SHA-256 of the public arXiv v1 TeX archive reviewed for this extraction.",
+      "evidence_ids": [
+        "F24"
+      ]
+    },
+    {
+      "name": "hgpt_base_model",
+      "value": {
+        "family": "Llama-3.1",
+        "base_parameters": "8B",
+        "paper_overall_label": "9B"
+      },
+      "units": null,
+      "context": "The implementation section specifies an 8B base; the introduction labels H-GPT as 9B without explaining the additional count.",
+      "evidence_ids": [
+        "F05"
+      ]
+    },
+    {
+      "name": "humanml3dx_motion_tokenizer",
+      "value": {
+        "codebook_entries": 512,
+        "code_dimension": 512,
+        "temporal_downsampling_factor": 4
+      },
+      "units": null,
+      "context": "Shared tokenizer for HumanML3D-X H-GPT models with and without CoT.",
+      "evidence_ids": [
+        "F05"
+      ]
+    },
+    {
+      "name": "hgpt_lora",
+      "value": {
+        "rank": 32,
+        "scaling_factor": 16,
+        "dropout": 0.05,
+        "target": "all linear projection layers",
+        "fully_trainable": [
+          "embedding",
+          "language_modeling_head"
+        ]
+      },
+      "units": null,
+      "context": "Reported H-GPT parameter-efficient adaptation configuration.",
+      "evidence_ids": [
+        "F05"
+      ]
+    },
+    {
+      "name": "reported_hgpt_training",
+      "value": {
+        "gpus": 8,
+        "vqvae_batch_size": 512,
+        "vqvae_epochs": 30000,
+        "language_model_minibatch_size": 8,
+        "language_model_epochs": 600
+      },
+      "units": null,
+      "context": "Transcribed exactly as reported. The paper does not clarify the unusually large VQ-VAE epoch count.",
+      "evidence_ids": [
+        "F05"
+      ]
+    },
+    {
+      "name": "cot_plan_sentence_count",
+      "value": {
+        "minimum": 1,
+        "maximum": 2
+      },
+      "units": "sentences",
+      "context": "GPT-4o data-construction prompt requests a concise first-person temporal plan grounded in video and a motion description.",
+      "evidence_ids": [
+        "F03"
+      ]
+    },
+    {
+      "name": "motionx_training_corpus",
+      "value": 81084,
+      "units": "annotated motion clips",
+      "context": "Motion-X corpus used to train the H-GPT++ variants.",
+      "evidence_ids": [
+        "F06"
+      ]
+    },
+    {
+      "name": "motionx_motion_tokenizer",
+      "value": {
+        "codebook_entries": 1024,
+        "code_dimension": 2048
+      },
+      "units": null,
+      "context": "Configuration selected by the authors for reconstruction performance on Motion-X.",
+      "evidence_ids": [
+        "F06"
+      ]
+    },
+    {
+      "name": "text_to_motion_benchmark_repeats",
+      "value": 3,
+      "units": "runs",
+      "context": "Tables 1 and 2 report mean and 95% confidence intervals over three runs.",
+      "evidence_ids": [
+        "F10",
+        "F11"
+      ]
+    },
+    {
+      "name": "humanml3dx_fid",
+      "value": {
+        "hgpt_without_cot": {
+          "mean": 0.229,
+          "ci95": 0.029
+        },
+        "hgpt_with_cot": {
+          "mean": 0.255,
+          "ci95": 0.008
+        }
+      },
+      "units": "FID",
+      "context": "In-distribution HumanML3D-X primary metric; lower is better, so CoT performs worse here.",
+      "evidence_ids": [
+        "F10"
+      ]
+    },
+    {
+      "name": "delta_humanml3dx_fid",
+      "value": {
+        "instruction_rephrasing": {
+          "without_cot": 0.455,
+          "with_cot": 0.355
+        },
+        "instruction_noising": {
+          "without_cot": 0.83,
+          "with_cot": 0.602
+        }
+      },
+      "units": "FID",
+      "context": "Out-of-distribution instruction perturbations; lower is better.",
+      "evidence_ids": [
+        "F11"
+      ]
+    },
+    {
+      "name": "manual_cot_evaluation",
+      "value": {
+        "complex_instruction_cases": 50,
+        "abstract_instruction_cases": 50,
+        "pairwise_complex_without_vs_with_cot": "23:27",
+        "pairwise_abstract_without_vs_with_cot": "23:30"
+      },
+      "units": null,
+      "context": "Manual comparative judgments without ground-truth motion; ties are allowed, so abstract scores can sum above 50.",
+      "evidence_ids": [
+        "F12"
+      ]
+    },
+    {
+      "name": "canonical_robot_reference_fields",
+      "value": [
+        "root_position",
+        "root_orientation",
+        "target_joint_angles"
+      ],
+      "units": null,
+      "context": "Time-indexed retargeter output and motion command consumed by the whole-body controller.",
+      "evidence_ids": [
+        "F07"
+      ]
+    },
+    {
+      "name": "student_reference_keypoints",
+      "value": {
+        "count": 3,
+        "keypoints": [
+          "head",
+          "left_hand",
+          "right_hand"
+        ]
+      },
+      "units": null,
+      "context": "Default simplified reference goals for the deployable student; the teacher tracks more keypoints.",
+      "evidence_ids": [
+        "F08"
+      ]
+    },
+    {
+      "name": "rpt_embodiment_mapping",
+      "value": {
+        "source_smpl_joints": 24,
+        "unitree_h1_dof": 19,
+        "unitree_g1_dof": 21,
+        "hand_joints_in_rl": false
+      },
+      "units": null,
+      "context": "Reference retargeting used for RL pre-training experiments.",
+      "evidence_ids": [
+        "F13"
+      ]
+    },
+    {
+      "name": "rpt_parallel_environments",
+      "value": 4096,
+      "units": "environments per robot",
+      "context": "PPO optimization in IsaacGym through RSL-RL.",
+      "evidence_ids": [
+        "F13"
+      ]
+    },
+    {
+      "name": "rft_evaluation_motion_count",
+      "value": 30,
+      "units": "random AMASS motions",
+      "context": "Evaluation compares training from scratch, pretraining alone, and per-motion fine-tuning.",
+      "evidence_ids": [
+        "F14"
+      ]
+    },
+    {
+      "name": "rft_reported_improvement_step",
+      "value": 500,
+      "units": "approximately training steps",
+      "context": "The paper reports substantial improvement by roughly this point in the RFT step sweep.",
+      "evidence_ids": [
+        "F14"
+      ]
+    },
+    {
+      "name": "rft_tracking_results",
+      "value": {
+        "h1": {
+          "pretrained_mpjpe": 140.439,
+          "finetuned_mpjpe": 118.362,
+          "pretrained_success_percent": 98.835,
+          "finetuned_success_percent": 99.734
+        },
+        "g1": {
+          "pretrained_mpjpe": 102.402,
+          "finetuned_mpjpe": 90.0223,
+          "pretrained_success_percent": 97.918,
+          "finetuned_success_percent": 98.185
+        }
+      },
+      "units": null,
+      "context": "Raw values encoded in Figure 9 source data; MPJPE is lower-is-better.",
+      "evidence_ids": [
+        "F14"
+      ]
+    },
+    {
+      "name": "official_code_snapshot",
+      "value": {
+        "top_level_commit": "457d84d44e638c1070473dd48cedde19752cad09",
+        "retarget_submodule": "9178cdfdf19ab36a61012a350f751ac57bb9b8cc",
+        "human2humanoid_submodule": "475dcf76de1557971e9d4aa52eca0634e8b6635e",
+        "robojudo_submodule": "806850e46f2fef7f15e48ff8da867d8cb6f7db71"
+      },
+      "units": null,
+      "context": "Exact official Git tree reviewed on 2026-08-30; the top-level commit is dated 2026-06-05.",
+      "evidence_ids": [
+        "F19"
+      ]
+    },
+    {
+      "name": "official_public_artifact_revisions",
+      "value": {
+        "model_repository": "c3c162263f52db7466841b6194695d7bd1c50478",
+        "dataset_repository": "763ae97b0844b5d6bb1467eb05b8b9cde6ec2962"
+      },
+      "units": null,
+      "context": "Exact official Hugging Face revisions reviewed on 2026-08-30.",
+      "evidence_ids": [
+        "F21",
+        "F22"
+      ]
+    }
+  ],
+  "failure_modes": [
+    {
+      "id": "fromw1:semantic_motion_tradeoff",
+      "name": "Semantic robustness and in-distribution fit diverge",
+      "description": "Adding CoT worsens HumanML3D-X FID but improves perturbed-instruction FID. The paper also reports weaker text-motion correlation metrics as distribution fit improves, consistent with common and less distinguishable generated motions.",
+      "tags": [
+        "semantic-alignment",
+        "metric-tradeoff",
+        "cot",
+        "evaluation"
+      ],
+      "evidence_ids": [
+        "F10",
+        "F11",
+        "F12"
+      ]
+    },
+    {
+      "id": "fromw1:generated_reference_feasibility",
+      "name": "Generated-reference feasibility failure",
+      "description": "Unstable starting poses, rapid body or joint changes, noisy generated trajectories, instruction mismatch, and self-collisions can make a reference hard or impossible to track. Filtering clean AMASS data does not improve tracking on the generated-motion set.",
+      "tags": [
+        "reference-quality",
+        "initial-state",
+        "motion-rate",
+        "self-collision"
+      ],
+      "evidence_ids": [
+        "F15",
+        "F16",
+        "F18"
+      ]
+    },
+    {
+      "id": "fromw1:video_data_quality",
+      "name": "Scaled video-motion data quality gap",
+      "description": "Motion-X's video-estimated poses and VLM-generated labels contain distribution and labeling defects; the larger corpus underperforms the cleaner HumanML3D-X training data in the reported experiments.",
+      "tags": [
+        "dataset-quality",
+        "video-pose",
+        "vlm-labels",
+        "scaling"
+      ],
+      "evidence_ids": [
+        "F06"
+      ]
+    },
+    {
+      "id": "fromw1:sim2real_motion_failure",
+      "name": "Extreme-motion sim-to-real failure",
+      "description": "Extreme squats and fast forward target motions can execute in simulation yet fail on hardware. Low-inertia wrist and head joints can exhibit solver-driven high-frequency oscillation; the suggested mitigation freezes or removes those DoFs during training.",
+      "tags": [
+        "sim-to-real",
+        "extreme-motion",
+        "low-inertia",
+        "oscillation"
+      ],
+      "evidence_ids": [
+        "F16",
+        "F17"
+      ]
+    },
+    {
+      "id": "fromw1:fixed_trainer_conflict",
+      "name": "Per-reference training violates fixed-trainer isolation",
+      "description": "RFT changes the teacher and student controller for every target motion, adds PPO and DAgger compute, and varies training work by reference. Its reported gains cannot be attributed to reference-oracle quality while Sam's trainer is held fixed.",
+      "tags": [
+        "scope-boundary",
+        "fixed-trainer",
+        "confounding",
+        "compute-budget"
+      ],
+      "evidence_ids": [
+        "F08",
+        "F14"
+      ]
+    },
+    {
+      "id": "fromw1:evaluation_evidence_gap",
+      "name": "Evaluation and reporting evidence gaps",
+      "description": "Complex and abstract instruction judgments are manual and ground-truth-free; real-robot demonstrations have no reported trial counts; model-size and inference-hardware descriptions are not reconciled across the report.",
+      "tags": [
+        "qualitative-evaluation",
+        "missing-denominator",
+        "reproducibility",
+        "reporting"
+      ],
+      "evidence_ids": [
+        "F05",
+        "F12",
+        "F16",
+        "F23"
+      ]
+    },
+    {
+      "id": "fromw1:release_incompleteness",
+      "name": "Public release is incomplete for full reproduction",
+      "description": "At the pinned code commit, the README marks all H1/G1 teacher checkpoints as TBD and the retargeted AMASS-G1 data link as coming soon, despite the report's broad full-open-source claim.",
+      "tags": [
+        "open-source",
+        "missing-checkpoint",
+        "missing-data",
+        "reproduction"
+      ],
+      "evidence_ids": [
+        "F20"
+      ]
+    }
+  ],
+  "evaluation": [
+    {
+      "id": "fromw1:eval_text_to_motion",
+      "name": "HumanML3D-X text-to-motion benchmark",
+      "description": "H-GPT variants and four retrained baselines are compared on FID, R precision, multimodal distance, diversity, and multimodality over three runs. The primary FID favors H-GPT without CoT over H-GPT with CoT.",
+      "tags": [
+        "humanml3d-x",
+        "fid",
+        "text-to-motion",
+        "baseline-comparison"
+      ],
+      "evidence_ids": [
+        "F10"
+      ]
+    },
+    {
+      "id": "fromw1:eval_instruction_robustness",
+      "name": "Perturbed-instruction robustness benchmark",
+      "description": "Models trained on HumanML3D-X are evaluated without retraining on rephrased and noisy instruction variants in δHumanML3D-X. CoT improves the primary FID in both perturbation types.",
+      "tags": [
+        "delta-humanml3d-x",
+        "instruction-noise",
+        "instruction-rephrasing",
+        "generalization"
+      ],
+      "evidence_ids": [
+        "F11"
+      ]
+    },
+    {
+      "id": "fromw1:eval_manual_cot",
+      "name": "Manual complex and abstract instruction comparison",
+      "description": "Fifty complex and fifty abstract prompts are compared by visual judgment because no ground-truth motion exists. Ties are allowed and no independent or blinded protocol is reported.",
+      "tags": [
+        "manual-evaluation",
+        "abstract-language",
+        "complex-language",
+        "evidence-gap"
+      ],
+      "evidence_ids": [
+        "F12"
+      ]
+    },
+    {
+      "id": "fromw1:eval_reference_tracking",
+      "name": "Pretrained controller reference-tracking evaluation",
+      "description": "H1 and G1 teacher-student policies trained on raw or filtered AMASS references are evaluated on AMASS and H-GPT-generated references using MPJPE, velocity error, acceleration error, and success rate, with qualitative success and failure cases.",
+      "tags": [
+        "motion-tracking",
+        "h1",
+        "g1",
+        "generated-reference"
+      ],
+      "evidence_ids": [
+        "F13",
+        "F15"
+      ]
+    },
+    {
+      "id": "fromw1:eval_per_motion_rft",
+      "name": "Per-motion RFT ablation",
+      "description": "Thirty random AMASS motions compare scratch, pretrained, and fine-tuned controllers on H1 and G1, with MPJPE, velocity, acceleration, success rate, and 0-to-2,000-step curves. The experiment demonstrates controller adaptation, not isolated reference-oracle improvement.",
+      "tags": [
+        "rft",
+        "ablation",
+        "tracking",
+        "fixed-trainer-boundary"
+      ],
+      "evidence_ids": [
+        "F14"
+      ]
+    },
+    {
+      "id": "fromw1:eval_real_robot_qualitative",
+      "name": "Qualitative H1/G1 hardware demonstrations",
+      "description": "The paper shows selected language-conditioned motions with the default policy, HugWBC, and TWIST and shows two failure cases. It does not report per-task trial counts or aggregate hardware success.",
+      "tags": [
+        "real-robot",
+        "unitree-h1",
+        "unitree-g1",
+        "qualitative"
+      ],
+      "evidence_ids": [
+        "F16"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "2601.12799",
+      "relation": "INTRODUCES",
+      "target": "fromw1:language_to_robot_reference_pipeline",
+      "evidence_ids": [
+        "F02"
+      ]
+    },
+    {
+      "source": "fromw1:language_to_robot_reference_pipeline",
+      "relation": "COMPOSES",
+      "target": "fromw1:cot_motion_generator",
+      "evidence_ids": [
+        "F02",
+        "F03"
+      ]
+    },
+    {
+      "source": "fromw1:cot_motion_generator",
+      "relation": "CONDITIONS_ON",
+      "target": "input:natural_language_instruction",
+      "evidence_ids": [
+        "F03"
+      ]
+    },
+    {
+      "source": "fromw1:cot_motion_generator",
+      "relation": "SUPPORTS",
+      "target": "fromw1:embodiment_retargeter",
+      "evidence_ids": [
+        "F02",
+        "F07"
+      ]
+    },
+    {
+      "source": "fromw1:embodiment_retargeter",
+      "relation": "COMPOSES",
+      "target": "reference:canonical_robot_root_and_joint_trajectory",
+      "evidence_ids": [
+        "F07"
+      ]
+    },
+    {
+      "source": "fromw1:policy_specific_reference_adapter",
+      "relation": "USES",
+      "target": "reference:canonical_robot_root_and_joint_trajectory",
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "source": "fromw1:policy_specific_reference_adapter",
+      "relation": "SUPPORTS",
+      "target": "controller:heterogeneous_whole_body_tracker",
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "source": "fromw1:human_input_controller_manager",
+      "relation": "CONDITIONS_ON",
+      "target": "input:human_or_external_runtime_trigger",
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "source": "fromw1:human_input_controller_manager",
+      "relation": "SUPPORTS",
+      "target": "fromw1:policy_specific_reference_adapter",
+      "evidence_ids": [
+        "F09"
+      ]
+    },
+    {
+      "source": "fromw1:per_motion_rft",
+      "relation": "OPTIMIZES",
+      "target": "objective:single_reference_tracking",
+      "evidence_ids": [
+        "F08",
+        "F14"
+      ]
+    },
+    {
+      "source": "fromw1:per_motion_rft",
+      "relation": "CONTRASTS_WITH",
+      "target": "contract:fixed_trainer_and_budget",
+      "evidence_ids": [
+        "F08",
+        "F14"
+      ]
+    },
+    {
+      "source": "fromw1:eval_text_to_motion",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:humanml3d_x",
+      "evidence_ids": [
+        "F10"
+      ]
+    },
+    {
+      "source": "fromw1:eval_instruction_robustness",
+      "relation": "EVALUATES_ON",
+      "target": "benchmark:delta_humanml3d_x",
+      "evidence_ids": [
+        "F11"
+      ]
+    },
+    {
+      "source": "fromw1:eval_reference_tracking",
+      "relation": "EVALUATES_ON",
+      "target": "robot:unitree_h1_and_g1",
+      "evidence_ids": [
+        "F13",
+        "F15"
+      ]
+    },
+    {
+      "source": "fromw1:eval_per_motion_rft",
+      "relation": "REPORTS",
+      "target": "result:fromw1_per_motion_rft_tracking_gain",
+      "evidence_ids": [
+        "F14"
+      ]
+    },
+    {
+      "source": "fromw1:language_to_robot_reference_pipeline",
+      "relation": "REQUIRES",
+      "target": "gate:semantic_kinematic_and_tracking_validation",
+      "evidence_ids": [
+        "F15",
+        "F16",
+        "F18"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "F01",
+      "source_url": "https://arxiv.org/abs/2601.12799v1",
+      "locator": "Submission history and metadata",
+      "claim": "FRoM-W1 arXiv v1 was submitted on 19 January 2026 and is the only public arXiv version in the reviewed history.",
+      "evidence_type": "publisher_metadata"
+    },
+    {
+      "id": "F02",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Figure 1; Section 2.1, Task Formulation",
+      "claim": "The pipeline maps language to whole-body human motion, then retargets that motion and tracks it with a humanoid controller; the complete mapping composes H-GPT and H-ACT.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "F03",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Sections 2.2.1 and 2.2.3; Figure 2; Appendix A.1",
+      "claim": "Training triples contain instruction, GPT-4o-generated temporally ordered CoT, and motion; inference generates CoT first and motion tokens second. The data prompt asks for a one-to-two-sentence first-person plan.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F04",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Sections 2.2.2 and 2.2.3",
+      "claim": "A VQ-VAE discretizes continuous whole-body motion, and an expanded LLM vocabulary interleaves text, CoT, and motion tokens for autoregressive generation.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F05",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Introduction, contributions; Section 3.1, Implementation Details",
+      "claim": "The paper labels H-GPT as 9B but specifies an 8B Llama-3.1 base, a 512-by-512 tokenizer with downsampling four, LoRA rank 32/scale 16/dropout 0.05, and the reported training batches and epochs.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F06",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.1, Data Scaling with Motion-X; Table 3",
+      "claim": "Motion-X contributes 81,084 annotated clips; a 1,024-code, 2,048-dimensional tokenizer is selected, but H-GPT++ does not outperform HumanML3D-X-trained variants and the authors identify pose and label quality problems.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F07",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 2.3.1; Figure 3",
+      "claim": "The retargeter reconstructs SMPL-X pose from 3D keypoints, solves robot joint alignment with kinematic constraints, and outputs a reference trajectory of root position, root orientation, and robot joint targets.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F08",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 2.3.2; Figure 4",
+      "claim": "RPT trains a privileged teacher and DAgger student; RFT fine-tunes the teacher and redistills the student for each target motion. The default student reference uses the head and both hands.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F09",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 2.3.3; Appendix B.2; Figure 15",
+      "claim": "RoboJuDo adapts canonical motion to decoupled, keypoint/end-effector, or full-trajectory policy commands; it normalizes human and autonomous inputs and supports runtime routing, switching, blending, and triggers behind shared interfaces.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "F10",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Table 1; Section 3.1, Results",
+      "claim": "Across three runs, HumanML3D-X FID is 0.229 ± 0.029 without CoT and 0.255 ± 0.008 with CoT; the paper also notes degradation of text-motion correlation metrics as FID improves.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "F11",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Table 2; Section 3.1, Results",
+      "claim": "On δHumanML3D-X, CoT changes instruction-rephrasing FID from 0.455 to 0.355 and instruction-noising FID from 0.830 to 0.602 over three runs.",
+      "evidence_type": "paper_table"
+    },
+    {
+      "id": "F12",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.1, CoT Generation Performance",
+      "claim": "Fifty complex and fifty abstract prompts are judged manually because no ground-truth motion exists; comparisons permit equal winners and no independent or blinded scoring protocol is reported.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F13",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.2, RL Pre-Training",
+      "claim": "RPT maps 24-joint SMPL references to 19-DoF H1 and 21-DoF G1 without hands, uses fixed tracking and stability penalties, and runs PPO in 4,096 environments per robot.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F14",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.2, RL Fine-Tuning; Figures 9 and 10",
+      "claim": "Thirty random AMASS motions compare scratch, pretraining, and target-specific RFT; source data report H1 MPJPE 140.439 to 118.362 and G1 102.402 to 90.0223, with substantial changes by about 500 steps.",
+      "evidence_type": "paper_figure"
+    },
+    {
+      "id": "F15",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.2, RL Pre-Training; Figures 7 and 8",
+      "claim": "Reference initial-pose stability and body/joint change rate affect tracking; filtered-data training improves AMASS evaluation but not the noisier H-GPT-generated reference set, and the proposed noise-robustness explanation is speculative.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F16",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.3, Results; Figures 12–14",
+      "claim": "Selected H1/G1 demonstrations show several policies, but the paper reports no trial counts; stated failures include language-action mismatch, unstable motion, self-collision, extreme squatting, and fast forward tracking across the sim-to-real gap.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F17",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Appendix B.3, Handling Low-Inertia Joints",
+      "claim": "Low-inertia wrist and head joints can develop high-frequency simulation oscillations; the authors recommend removing or freezing those degrees of freedom during training.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "F18",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 5, Conclusion",
+      "claim": "The authors identify the need for higher-quality human motion data, better language-motion alignment, more deployable generated motions, and trackers robust to noisy generated references.",
+      "evidence_type": "paper_text"
+    },
+    {
+      "id": "F19",
+      "source_url": "https://github.com/OpenMOSS/FRoM-W1/tree/457d84d44e638c1070473dd48cedde19752cad09",
+      "locator": "Git tree and .gitmodules at commit 457d84d; submodule entries under H-ACT",
+      "claim": "The reviewed official release is pinned to top-level commit 457d84d with retarget 9178cdf, human2humanoid 475dcf7, and RoboJuDo 806850e submodule commits.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "F20",
+      "source_url": "https://github.com/OpenMOSS/FRoM-W1/blob/457d84d44e638c1070473dd48cedde19752cad09/README.md",
+      "locator": "Datasets > H-ACT; Models > H-ACT",
+      "claim": "At the pinned release, AMASS-G1 is listed as coming soon and teacher checkpoints for H1-Full, H1-Clean, G1-Full, and G1-Clean are all marked TBD.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "F21",
+      "source_url": "https://huggingface.co/OpenMOSS-Team/FRoM-W1/tree/c3c162263f52db7466841b6194695d7bd1c50478",
+      "locator": "Official model repository revision c3c162263f52db7466841b6194695d7bd1c50478",
+      "claim": "The official public model repository is pinned to revision c3c162263f52db7466841b6194695d7bd1c50478 for this extraction.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "F22",
+      "source_url": "https://huggingface.co/datasets/OpenMOSS-Team/FRoM-W1-Datasets/tree/763ae97b0844b5d6bb1467eb05b8b9cde6ec2962",
+      "locator": "Official dataset repository revision 763ae97b0844b5d6bb1467eb05b8b9cde6ec2962",
+      "claim": "The official public dataset repository is pinned to revision 763ae97b0844b5d6bb1467eb05b8b9cde6ec2962 for this extraction.",
+      "evidence_type": "official_code"
+    },
+    {
+      "id": "F23",
+      "source_url": "https://arxiv.org/pdf/2601.12799v1",
+      "locator": "Section 3.3, Setup; Appendix B.1, Inference Server",
+      "claim": "The main experiment setup names one RTX 4090 workstation, while the appendix says all inference used dual RTX 5090 GPUs with 32 GB each; the report does not reconcile the configurations.",
+      "evidence_type": "supplement"
+    },
+    {
+      "id": "F24",
+      "source_url": "https://export.arxiv.org/e-print/2601.12799v1",
+      "locator": "Downloaded arXiv v1 TeX archive",
+      "claim": "The reviewed source archive has SHA-256 e5e138b55a8909bae356e2c33103bed8bba8f2b10de56915b1fe3b227f9e1a28.",
+      "evidence_type": "supplement"
+    }
+  ]
+}
