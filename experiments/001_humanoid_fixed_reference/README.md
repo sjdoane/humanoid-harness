@@ -20,7 +20,7 @@ study.
 3. Establish static-stand tracking feasibility; this is not a dynamics
    certificate for a motion library.
 Experiment 002 separately admits a time-varying reference, freezes its tracker,
-and runs exact, constant-frame, shuffled, and time-shifted interventions.
+and runs exact, zero-input, shuffled, and time-shifted interventions.
 Composition studies remain blocked until that distinct causal-use gate passes.
 
 ## Current evidence

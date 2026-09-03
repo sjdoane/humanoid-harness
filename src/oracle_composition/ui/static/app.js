@@ -152,6 +152,198 @@ async function loadLocalExploration() {
   }
 }
 
+const probe002aConditions = [
+  { id: "C_exact", label: "Exact reference" },
+  { id: "C_zero_input", label: "Zero input" },
+  { id: "C_shuffle_input", label: "Deterministic shuffle" },
+  { id: "C_shift_input", label: "+250-frame shift" },
+];
+
+function requireProbeText(value, field) {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`Experiment 002A ${field} is invalid.`);
+  }
+  return value;
+}
+
+function requireProbeCount(value, field) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Experiment 002A ${field} is invalid.`);
+  }
+  return value;
+}
+
+function probeCount(value, total, field) {
+  return `${requireProbeCount(value, field)} / ${requireProbeCount(total, "snapshot count")}`;
+}
+
+function probeMagnitude(value, field) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Experiment 002A ${field} is invalid.`);
+  }
+  if (value === 0) return "0.000000";
+  if (value < 0.0001) return value.toExponential(3);
+  return value.toFixed(6);
+}
+
+function appendProbe002aCondition(row, displayLabel) {
+  const tableRow = document.createElement("tr");
+  const label = document.createElement("th");
+  label.scope = "row";
+  label.textContent = displayLabel;
+
+  const input = document.createElement("td");
+  input.textContent = probeCount(
+    row.policy_input_changed_count_vs_exact,
+    row.snapshot_count,
+    "policy-input count",
+  );
+  const actor = document.createElement("td");
+  actor.textContent = probeCount(
+    row.actor_output_changed_count_vs_exact,
+    row.snapshot_count,
+    "actor-output count",
+  );
+  const control = document.createElement("td");
+  control.textContent = probeCount(
+    row.composed_action_changed_count_vs_exact,
+    row.snapshot_count,
+    "composed-control count",
+  );
+  const critic = document.createElement("td");
+  critic.textContent = probeCount(
+    row.critic_output_changed_count_vs_exact,
+    row.snapshot_count,
+    "critic-output count",
+  );
+  const rms = document.createElement("td");
+  rms.className = "probe-magnitude";
+  rms.textContent = probeMagnitude(
+    row.composed_action_rms_delta_vs_exact,
+    "control RMS delta",
+  );
+
+  tableRow.append(label, input, actor, control, critic, rms);
+  document.querySelector("#probe-002a-body").append(tableRow);
+}
+
+function renderProbe002aUnavailable(payload) {
+  const badge = document.querySelector("#probe-002a-badge");
+  badge.className =
+    payload.state === "rejected" ? "badge badge-blocked" : "badge badge-neutral";
+  badge.textContent = payload.state === "rejected" ? "receipt rejected" : "no report";
+  document.querySelector("#probe-002a-state").textContent =
+    payload.detail || "No locally validated Experiment 002A report is available.";
+  document.querySelector("#probe-002a-results").hidden = true;
+}
+
+function renderProbe002a(payload) {
+  if (payload.state !== "available") {
+    renderProbe002aUnavailable(payload);
+    return;
+  }
+  if (!Array.isArray(payload.conditions) || payload.conditions.length !== 4) {
+    throw new Error("Experiment 002A must contain exactly four reference arms.");
+  }
+  if (
+    payload.experiment_id !== "experiment_002a" ||
+    payload.evidence_class !== "exploratory" ||
+    payload.snapshot_count !== 8 ||
+    payload.condition_count !== 4 ||
+    payload.independent_unit !== "one_existing_local_checkpoint" ||
+    payload.formal_oracle_comparison_authorized !== false ||
+    payload.tracker_behavior_or_stability_established !== false ||
+    payload.oracle_quality_established !== false
+  ) {
+    throw new Error("Experiment 002A claim or design boundary is invalid.");
+  }
+  const conditions = new Map(payload.conditions.map((row) => [row.condition_id, row]));
+  if (
+    conditions.size !== 4 ||
+    !probe002aConditions.every((condition) => conditions.has(condition.id))
+  ) {
+    throw new Error("Experiment 002A reference-arm identities are incomplete.");
+  }
+
+  const badge = document.querySelector("#probe-002a-badge");
+  if (payload.mechanistic_gate_passed === true) {
+    badge.className = "badge badge-warning";
+    badge.textContent = "passed · exploratory";
+  } else {
+    badge.className = "badge badge-blocked";
+    badge.textContent = "not passed · exploratory";
+  }
+  document.querySelector("#probe-002a-state").textContent =
+    requireProbeText(payload.claim, "claim");
+  document.querySelector("#probe-002a-snapshots").textContent = String(
+    requireProbeCount(payload.snapshot_count, "snapshot count"),
+  );
+  document.querySelector("#probe-002a-conditions").textContent = String(
+    requireProbeCount(payload.condition_count, "condition count"),
+  );
+  document.querySelector("#probe-002a-checkpoints").textContent =
+    payload.independent_unit === "one_existing_local_checkpoint" ? "1" : "—";
+
+  const tableBody = document.querySelector("#probe-002a-body");
+  tableBody.replaceChildren();
+  probe002aConditions.forEach((condition) =>
+    appendProbe002aCondition(conditions.get(condition.id), condition.label),
+  );
+
+  const limitations = document.querySelector("#probe-002a-limitations");
+  limitations.replaceChildren();
+  if (Array.isArray(payload.limitations)) {
+    payload.limitations.forEach((value) => {
+      if (typeof value !== "string" || !value) return;
+      const item = document.createElement("li");
+      item.textContent = value;
+      limitations.append(item);
+    });
+  }
+
+  const receipts = payload.receipts;
+  if (!receipts || typeof receipts !== "object") {
+    throw new Error("Experiment 002A integrity receipt is missing.");
+  }
+  document.querySelector("#probe-002a-authority").textContent = requireProbeText(
+    payload.authority,
+    "authority",
+  );
+  document.querySelector("#probe-002a-report-sha").textContent = requireProbeText(
+    receipts.report_sha256,
+    "report SHA-256",
+  );
+  document.querySelector("#probe-002a-analysis-sha").textContent =
+    requireProbeText(receipts.analysis_payload_sha256, "analysis SHA-256");
+  document.querySelector("#probe-002a-design-sha").textContent = requireProbeText(
+    receipts.design_sha256,
+    "design SHA-256",
+  );
+  document.querySelector("#probe-002a-observations-sha").textContent =
+    requireProbeText(receipts.matched_observation_set_sha256, "observation-set SHA-256");
+  document.querySelector("#probe-002a-controller-sha").textContent =
+    requireProbeText(receipts.residual_controller_content_sha256, "checkpoint SHA-256");
+  document.querySelector("#probe-002a-projection-sha").textContent =
+    requireProbeText(receipts.source_projection_receipt_sha256, "projection SHA-256");
+  document.querySelector("#probe-002a-license").textContent = requireProbeText(
+    payload.dataset_license_status,
+    "dataset status",
+  );
+  document.querySelector("#probe-002a-next-gate").textContent = requireProbeText(
+    payload.next_gate,
+    "next gate",
+  );
+  document.querySelector("#probe-002a-results").hidden = false;
+}
+
+async function loadProbe002a() {
+  try {
+    renderProbe002a(await loadJson("/api/experiments/002a"));
+  } catch (error) {
+    renderProbe002aUnavailable({ state: "rejected", detail: error.message });
+  }
+}
+
 function renderResults(payload) {
   const root = document.querySelector("#results");
   root.replaceChildren();
@@ -202,3 +394,4 @@ document.querySelector("#research-search").addEventListener("submit", async (eve
 loadStatus();
 loadGraphStats();
 loadLocalExploration();
+loadProbe002a();

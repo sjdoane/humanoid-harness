@@ -223,6 +223,66 @@
             </ul>
           </article>
         </div>
+
+        <article class="card section-gap probe-card" id="probe-002a">
+          <div class="card-heading">
+            <div>
+              <p class="card-label">Experiment 002A · matched observations</p>
+              <h2>Does this checkpoint numerically use the reference window?</h2>
+            </div>
+            <span class="badge badge-neutral" id="probe-002a-badge">checking receipt</span>
+          </div>
+
+          <p class="probe-state muted small" id="probe-002a-state" role="status">
+            Checking for a locally validated report…
+          </p>
+
+          <div id="probe-002a-results" hidden>
+            <div class="probe-facts" aria-label="Experiment 002A design facts">
+              <div><strong id="probe-002a-snapshots">—</strong><span>matched observations</span></div>
+              <div><strong id="probe-002a-conditions">—</strong><span>reference arms</span></div>
+              <div><strong id="probe-002a-checkpoints">—</strong><span>local checkpoint</span></div>
+            </div>
+
+            <div class="table-scroll">
+              <table class="result-table probe-table">
+                <caption>Differences from the exact reference at the same eight observations</caption>
+                <thead>
+                  <tr>
+                    <th>reference input</th>
+                    <th>input changed</th>
+                    <th>actor changed</th>
+                    <th>control changed</th>
+                    <th>critic changed</th>
+                    <th>control RMS Δ</th>
+                  </tr>
+                </thead>
+                <tbody id="probe-002a-body"></tbody>
+              </table>
+            </div>
+
+            <div class="boundary-note probe-boundary">
+              <strong>Claim boundary</strong>
+              <span>No simulator state was restored. No action was submitted to Humanoid-v5. This does not establish tracking stability, behavioral usefulness, oracle quality, or authorization for the formal oracle comparison.</span>
+              <ul id="probe-002a-limitations"></ul>
+            </div>
+
+            <details class="receipt-details probe-receipts">
+              <summary>Integrity receipt</summary>
+              <dl>
+                <div><dt>authority</dt><dd id="probe-002a-authority">—</dd></div>
+                <div><dt>report</dt><dd id="probe-002a-report-sha">—</dd></div>
+                <div><dt>analysis</dt><dd id="probe-002a-analysis-sha">—</dd></div>
+                <div><dt>design</dt><dd id="probe-002a-design-sha">—</dd></div>
+                <div><dt>observations</dt><dd id="probe-002a-observations-sha">—</dd></div>
+                <div><dt>checkpoint</dt><dd id="probe-002a-controller-sha">—</dd></div>
+                <div><dt>projection</dt><dd id="probe-002a-projection-sha">—</dd></div>
+                <div><dt>dataset status</dt><dd id="probe-002a-license">—</dd></div>
+                <div><dt>next gate</dt><dd id="probe-002a-next-gate">—</dd></div>
+              </dl>
+            </details>
+          </div>
+        </article>
       </section>
 
       <section class="view" id="research" aria-labelledby="research-title">

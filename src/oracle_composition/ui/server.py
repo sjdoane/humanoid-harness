@@ -16,6 +16,7 @@ from ..research import KnowledgeIndexError, index_stats, query_index
 from ..research.knowledge import DEFAULT_DATABASE
 from ..status import program_status
 from .local_evidence import LocalEvidenceError, local_exploration_status, local_media
+from .local_reference_probe import local_reference_probe_status
 
 STATIC_DIR = Path(__file__).with_name("static")
 STATIC_FILES = {
@@ -214,6 +215,9 @@ class EvidenceRequestHandler(BaseHTTPRequestHandler):
                 )
             else:
                 self._json(local_exploration_status(self.server.project_root))
+            return
+        if request.path == "/api/experiments/002a":
+            self._json(local_reference_probe_status(self.server.project_root))
             return
         if request.path.startswith("/local-evidence/"):
             self._local_media(request.path.removeprefix("/local-evidence/"))
