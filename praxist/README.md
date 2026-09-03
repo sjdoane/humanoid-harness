@@ -22,7 +22,7 @@ tool. Its code is not vendored here.
 | Profile | Codex-native, saved ChatGPT login |
 | Product-usage collection | Denied |
 | User agreement | Accepted by Samuel on 2026-09-02 |
-| Readiness | Codex-native doctor passes; task launch intentionally gated |
+| Readiness | Codex-native doctor passes; research-task initialization and launch are gated |
 
 The PyPI `0.5.0` wheel blanked Codex Desktop's internal originator marker and
 caused an invalid app-server handshake. The isolated tool is pinned to the
@@ -36,6 +36,7 @@ The unmodified doctor now confirms saved-login authentication and the selected
 |---|---|---|
 | Harness engineering | A real baseline and test-owned evaluator canary both execute without PRAXIST | Candidate implementation or diagnostic only |
 | Oracle research | The frozen tracker passes numeric-reference-use gates and the reference pool has same-simulator admission | The separately locked behavioral protocol only |
+| Reward research | The reward sandbox, independent task metric, frozen oracle, and reproducible baseline all pass | The separately locked reward protocol only |
 
 This split lets PRAXIST help build adapters, receipts, and oracle-evaluation
 plumbing without treating its search process as scientific evidence. An
@@ -58,6 +59,24 @@ An oracle-research campaign has additional hard gates: causal numeric-reference
 use, controller-native time-varying reference admission, a frozen tracker and
 trainer, a protected evaluator with pre-data thresholds, paired seeds, and
 sealed tasks. Harness-engineering evidence cannot satisfy those gates.
+
+A reward-research campaign additionally requires an immutable executable reward
+contract, sandboxed validation, a frozen oracle, independent task outcomes, and
+reward-scale plus term-removal controls. Reward-task initialization is deferred
+until those components and a scored baseline exist.
+
+## Why there is no generated research task yet
+
+The intended oracle campaign currently fails two PRAXIST task-initialization
+preconditions:
+
+- no qualifying reference-conditioned tracker checkpoint; and
+- no scored behavioral baseline that the protected evaluator can reproduce.
+
+Creating `praxist_task/task.yaml` now would require a placeholder objective or
+invented baseline. The task-initialization contract forbids both. The runtime
+remains installed and ready; initialize the task after the tracker and
+causal-use canary pass.
 
 Public PRAXIST-generated outputs must carry the attribution required by the
 PRAXIST Fair Source license. Institutional license interpretation remains a

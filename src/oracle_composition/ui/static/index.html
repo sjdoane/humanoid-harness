@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Read-only evidence view for Humanoid Harness research.">
+    <title>Humanoid Harness</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="rail">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">H</span>
+        <span>Humanoid Harness</span>
+      </div>
+      <nav aria-label="Research views">
+        <button class="nav-item is-active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="monitor">Episode monitor</button>
+        <button class="nav-item" data-view="oracle">Oracle</button>
+        <button class="nav-item" data-view="research">Research graph</button>
+      </nav>
+      <div class="rail-note">
+        <span class="status-dot"></span>
+        Read-only local view
+      </div>
+    </aside>
+
+    <main>
+      <section class="view is-visible" id="overview" aria-labelledby="overview-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Research program</p>
+            <h1 id="overview-title">What is true right now?</h1>
+          </div>
+          <span class="badge badge-neutral" id="evidence-class">loading</span>
+        </header>
+
+        <table class="update-table" aria-label="Current research update">
+          <tbody>
+            <tr><th>progress</th><td id="progress">Loading project status…</td></tr>
+            <tr><th>bottleneck</th><td id="bottleneck">Loading project status…</td></tr>
+            <tr><th>next step</th><td id="next-step">Loading project status…</td></tr>
+          </tbody>
+        </table>
+
+        <div class="grid two-up section-gap">
+          <article class="card">
+            <p class="card-label">System loop</p>
+            <div class="flow" aria-label="Agentic research loop">
+              <div class="flow-node">Task + R + r0</div>
+              <span aria-hidden="true">→</span>
+              <div class="flow-node accent">LLM harness</div>
+              <span aria-hidden="true">→</span>
+              <div class="flow-node">O<sub>k</sub> + r<sub>k</sub></div>
+              <span aria-hidden="true">→</span>
+              <div class="flow-node">Trainer</div>
+              <span aria-hidden="true">→</span>
+              <div class="flow-node">Evidence</div>
+            </div>
+            <p class="muted small">Literature, diagnosis, and optional human steering feed the harness. The protected evaluator feeds the next iteration.</p>
+          </article>
+
+          <article class="card">
+            <p class="card-label">Knowledge coverage</p>
+            <div class="stat-row">
+              <div><strong id="paper-count">—</strong><span>papers</span></div>
+              <div><strong id="mechanism-count">—</strong><span>mechanisms</span></div>
+              <div><strong id="failure-count">—</strong><span>failures</span></div>
+            </div>
+            <p class="muted small" id="graph-state">Checking the local index…</p>
+          </article>
+        </div>
+
+        <article class="card section-gap">
+          <div class="card-heading">
+            <div>
+              <p class="card-label">Evidence ladder</p>
+              <h2>Do not skip a gate</h2>
+            </div>
+          </div>
+          <ol class="ladder">
+            <li class="complete"><span>1</span><div><strong>Contracts</strong><small>Implemented and regression-tested</small></div></li>
+            <li class="current"><span>2</span><div><strong>Tracker causal use</strong><small>Blocked: no qualifying trained tracker</small></div></li>
+            <li><span>3</span><div><strong>Matched oracle study</strong><small>Not run</small></div></li>
+            <li><span>4</span><div><strong>Held-out recovery</strong><small>Not run</small></div></li>
+            <li><span>5</span><div><strong>Reward and attribution</strong><small>Not implemented</small></div></li>
+          </ol>
+        </article>
+      </section>
+
+      <section class="view" id="monitor" aria-labelledby="monitor-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Episode inspector</p>
+            <h1 id="monitor-title">Understand the rollout</h1>
+          </div>
+          <span class="badge badge-blocked">no qualifying trace</span>
+        </header>
+
+        <div class="monitor-grid">
+          <article class="stage" aria-label="No trained policy video is available">
+            <div class="empty-figure" aria-hidden="true">
+              <span class="head"></span><span class="body"></span>
+              <span class="arm left"></span><span class="arm right"></span>
+              <span class="leg left"></span><span class="leg right"></span>
+            </div>
+            <div class="stage-copy">
+              <strong>No trained-policy rollout</strong>
+              <span>The existing falling Humanoid is an interface check, not oracle evidence.</span>
+            </div>
+          </article>
+
+          <article class="card inspector">
+            <p class="card-label">Oracle now</p>
+            <dl>
+              <div><dt>mode</dt><dd>unavailable</dd></div>
+              <div><dt>phase</dt><dd>unavailable</dd></div>
+              <div><dt>transition</dt><dd>unavailable</dd></div>
+              <div><dt>guard reason</dt><dd>unavailable</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <article class="card section-gap">
+          <p class="card-label">Required canonical trace coverage</p>
+          <div class="signal-grid">
+            <span>qpos</span><span>qvel</span><span>root state</span><span>contacts</span>
+            <span>actions</span><span>targets</span><span>torque</span><span>energy</span>
+            <span>saturation</span><span>reference window</span><span>mode</span><span>phase</span>
+            <span>guards</span><span>disturbance</span><span>rejoin</span><span>task progress</span>
+          </div>
+          <p class="muted small">Recorded-or-missing coverage is enforced. Behavioral traces require every signal, transition reasons, and exact artifact lineage. Adapter recording is not implemented yet.</p>
+        </article>
+      </section>
+
+      <section class="view" id="oracle" aria-labelledby="oracle-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Reference composition</p>
+            <h1 id="oracle-title">Oracle contract</h1>
+          </div>
+          <span class="badge badge-warning">runtime only</span>
+        </header>
+
+        <div class="grid two-up">
+          <article class="card">
+            <p class="card-label">Implemented</p>
+            <ul class="plain-list">
+              <li>Typed modes and reference spans</li>
+              <li>Observable and privileged signals</li>
+              <li>Prioritized scalar guards</li>
+              <li>Hysteresis and minimum dwell</li>
+              <li>Recovery, rejoin, and phase transfer</li>
+              <li>Deterministic state and immutable hashes</li>
+            </ul>
+          </article>
+          <article class="card">
+            <p class="card-label">Not demonstrated</p>
+            <ul class="plain-list subdued">
+              <li>LLM-generated oracle candidate</li>
+              <li>Phase estimated from a robot rollout</li>
+              <li>Controller using an oracle window</li>
+              <li>Transition or recovery improvement</li>
+              <li>Held-out task composition</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="research" aria-labelledby="research-title">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Source-backed retrieval</p>
+            <h1 id="research-title">Research graph</h1>
+          </div>
+          <span class="badge badge-neutral">derived index</span>
+        </header>
+
+        <form class="search" id="research-search">
+          <label for="query">Search mechanisms, failures, metrics, and evidence</label>
+          <div>
+            <input id="query" name="q" value="phase recovery" autocomplete="off">
+            <button type="submit">Search</button>
+          </div>
+        </form>
+        <div class="results" id="results" aria-live="polite">
+          <p class="muted">Run a search to inspect source-linked records.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

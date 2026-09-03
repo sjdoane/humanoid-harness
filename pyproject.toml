@@ -1,7 +1,7 @@
 [project]
 name = "humanoid-harness"
 version = "0.1.0"
-description = "Research harness for phase-aware reference-oracle composition on Gymnasium MuJoCo Humanoid"
+description = "Agentic research harness for reference-oracle and task-reward design"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 authors = [{ name = "Samuel Doane" }]
@@ -11,6 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
+humanoid-harness = "oracle_composition.cli:main"
 humanoid-fixed-reference = "oracle_composition.experiments.cli:main"
 humanoid-static-study-summary = "oracle_composition.experiments.study_summary:main"
 

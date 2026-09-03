@@ -8,8 +8,9 @@
 
 ## Purpose
 
-Establish the causal reference-consumption baseline that every oracle comparison
-depends on.
+Establish static-stand tracker feasibility under a frozen target and reward.
+This is a tracker-admission prerequisite, not a causal-reference or oracle
+study.
 
 ## Required sequence
 
@@ -18,13 +19,9 @@ depends on.
    normalizers.
 3. Establish static-stand tracking feasibility; this is not a dynamics
    certificate for a motion library.
-4. Admit time-varying, controller-compatible references and train one
-   reference-conditioned tracker with a fixed tracking reward.
-5. Freeze its predetermined checkpoint.
-6. Run exact, constant-frame, shuffled, and time-shifted matched-state
-   reference interventions.
-7. Admit composition studies only if numeric reference content causally changes
-   action and tracking outcomes in the expected direction.
+Experiment 002 separately admits a time-varying reference, freezes its tracker,
+and runs exact, constant-frame, shuffled, and time-shifted interventions.
+Composition studies remain blocked until that distinct causal-use gate passes.
 
 ## Current evidence
 
