@@ -13,7 +13,7 @@ import stat
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .fixed_reference import ExperimentContractError
@@ -85,6 +85,65 @@ class _BoundedSequentialRawWriter(io.RawIOBase):
             os.close(self._descriptor)
 
 
+class _VerifiedSequentialRawReader(io.RawIOBase):
+    """Read-only descriptor adapter that hashes the bytes it actually returns."""
+
+    def __init__(self, descriptor: int, *, expected_size: int) -> None:
+        super().__init__()
+        self._descriptor = descriptor
+        self._expected_size = expected_size
+        self._byte_count = 0
+        self._digest = hashlib.sha256()
+        self._saw_eof = False
+
+    @property
+    def byte_count(self) -> int:
+        return self._byte_count
+
+    @property
+    def sha256(self) -> str:
+        return self._digest.hexdigest()
+
+    @property
+    def saw_eof(self) -> bool:
+        return self._saw_eof
+
+    def readable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return False
+
+    def fileno(self) -> int:
+        self._checkClosed()
+        return self._descriptor
+
+    def readinto(self, target: object) -> int:
+        self._checkClosed()
+        view = memoryview(target).cast("B")
+        bounded = view[: min(len(view), 1024 * 1024)]
+        count = os.readv(self._descriptor, [bounded])
+        if count == 0:
+            self._saw_eof = True
+            return 0
+        if self._byte_count + count > self._expected_size:
+            raise ExperimentContractError("verified artifact grew while it was consumed")
+        self._digest.update(bounded[:count])
+        self._byte_count += count
+        return count
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        try:
+            super().close()
+        finally:
+            os.close(self._descriptor)
+
+
 @dataclass(slots=True)
 class ReservedStreamingArtifact:
     """One bounded sequential stream retained on failure and published once."""
@@ -98,6 +157,46 @@ class ReservedStreamingArtifact:
     writer: io.BufferedWriter
     _max_bytes: int
     _closed: bool = False
+    _retained_path_after_failure: Path | None = field(init=False, default=None)
+
+    @property
+    def retained_path_after_failure(self) -> Path | None:
+        return self._retained_path_after_failure
+
+    def _visible_owned_path(self, *, renamed: bool) -> Path | None:
+        try:
+            verification_parent = _open_parent_directory(
+                self.path.parent,
+                create_missing=False,
+            )
+        except (ExperimentContractError, OSError):
+            return None
+        try:
+            if not _same_file(
+                os.fstat(self._parent_descriptor),
+                os.fstat(verification_parent),
+            ):
+                return None
+            candidates = (
+                (self.path, self.path.name),
+                (self.partial_path, self.partial_path.name),
+            )
+            if not renamed:
+                candidates = tuple(reversed(candidates))
+            for candidate, name in candidates:
+                try:
+                    visible = os.stat(
+                        name,
+                        dir_fd=verification_parent,
+                        follow_symlinks=False,
+                    )
+                except OSError:
+                    continue
+                if _same_file(self._artifact_state, visible):
+                    return candidate
+            return None
+        finally:
+            os.close(verification_parent)
 
     def finalize(self) -> PublishedArtifact:
         """Seal, independently rehash, and atomically publish the stream."""
@@ -204,9 +303,21 @@ class ReservedStreamingArtifact:
                     dir_fd=verification_parent,
                     follow_symlinks=False,
                 )
-                if not _same_file(self._artifact_state, visible_final):
+                reconciled_descriptor = os.fstat(self._artifact_descriptor)
+                if (
+                    not _same_file(self._artifact_state, visible_final)
+                    or not _same_file(self._artifact_state, reconciled_descriptor)
+                    or visible_final.st_nlink != 1
+                    or visible_final.st_size != expected_size
+                    or stat.S_IMODE(visible_final.st_mode) != 0o600
+                    or _descriptor_sha256(
+                        self._artifact_descriptor,
+                        expected_size=expected_size,
+                    )
+                    != expected_sha256
+                ):
                     raise ExperimentContractError(
-                        "streaming artifact is not visible at the requested path"
+                        "streaming artifact changed during final reconciliation"
                     )
             finally:
                 os.close(verification_parent)
@@ -215,16 +326,23 @@ class ReservedStreamingArtifact:
                 sha256=expected_sha256,
                 byte_count=expected_size,
             )
-        except OSError as exc:
-            retained = self.path if renamed else self.partial_path
+        except Exception as exc:
+            retained = self._visible_owned_path(renamed=renamed)
+            self._retained_path_after_failure = retained
+            disposition = (
+                f"descriptor-matched bytes retained at {retained}"
+                if retained is not None
+                else "no descriptor-matched retained pathname remains"
+            )
+            detail = str(exc) if isinstance(exc, ExperimentContractError) else repr(exc)
             raise ExperimentContractError(
-                f"cannot publish streaming artifact; retained at {retained}: {exc}"
+                f"cannot publish streaming artifact: {detail}; {disposition}"
             ) from exc
         finally:
-            self.close()
+            self._close_descriptors()
 
-    def close(self) -> None:
-        """Close descriptors without deleting an incomplete artifact."""
+    def _close_descriptors(self) -> None:
+        """Close all owned descriptors without changing disposition state."""
 
         if self._closed:
             return
@@ -233,6 +351,22 @@ class ReservedStreamingArtifact:
         os.close(self._artifact_descriptor)
         os.close(self._parent_descriptor)
         self._closed = True
+
+    def abort(self) -> Path | None:
+        """Retain incomplete bytes and report only a reverified lexical path."""
+
+        if self._closed:
+            return self._retained_path_after_failure
+        with suppress(Exception):
+            self.writer.close()
+        self._retained_path_after_failure = self._visible_owned_path(renamed=False)
+        self._close_descriptors()
+        return self._retained_path_after_failure
+
+    def close(self) -> None:
+        """Close an unfinished reservation while retaining its bytes."""
+
+        self.abort()
 
 
 @dataclass(slots=True)
@@ -812,7 +946,8 @@ def verified_artifact_reader(
     """Yield a descriptor-bound reader and verify identity before and after use."""
 
     if (
-        len(expected_sha256) != 64
+        type(expected_sha256) is not str
+        or len(expected_sha256) != 64
         or expected_sha256.lower() != expected_sha256
         or any(character not in "0123456789abcdef" for character in expected_sha256)
     ):
@@ -840,11 +975,13 @@ def verified_artifact_reader(
     parent_descriptor = _open_parent_directory(absolute.parent, create_missing=False)
     verification_descriptor: int | None = None
     reader_descriptor: int | None = None
+    raw_reader: _VerifiedSequentialRawReader | None = None
     reader: io.BufferedReader | None = None
     try:
         flags = os.O_RDONLY
         flags |= getattr(os, "O_CLOEXEC", 0)
         flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
         verification_descriptor = os.open(
             absolute.name,
             flags,
@@ -879,12 +1016,27 @@ def verified_artifact_reader(
             != expected_sha256
         ):
             raise ExperimentContractError("verified artifact SHA-256 differs")
-        raw_reader = io.FileIO(reader_descriptor, mode="rb", closefd=True)
+        raw_reader = _VerifiedSequentialRawReader(
+            reader_descriptor,
+            expected_size=expected_size,
+        )
         reader_descriptor = None
         reader = io.BufferedReader(raw_reader, buffer_size=buffer_size)
         try:
             yield reader
         finally:
+            if reader.closed:
+                raise ExperimentContractError(
+                    "verified artifact reader closed before final verification"
+                )
+            while reader.read(buffer_size):
+                pass
+            if (
+                raw_reader.byte_count != expected_size
+                or raw_reader.sha256 != expected_sha256
+                or raw_reader.saw_eof is not True
+            ):
+                raise ExperimentContractError("bytes consumed from verified artifact differ")
             reader.close()
             reader = None
             descriptor_state_after = os.fstat(verification_descriptor)
@@ -918,6 +1070,27 @@ def verified_artifact_reader(
                     raise ExperimentContractError(
                         "verified artifact ancestors changed while in use"
                     )
+                reconciled_visible = os.stat(
+                    absolute.name,
+                    dir_fd=verification_parent,
+                    follow_symlinks=False,
+                )
+                reconciled_descriptor = os.fstat(verification_descriptor)
+                if (
+                    not _same_file(descriptor_state, reconciled_visible)
+                    or not _same_file(descriptor_state, reconciled_descriptor)
+                    or reconciled_visible.st_nlink != 1
+                    or reconciled_visible.st_size != expected_size
+                    or stat.S_IMODE(reconciled_visible.st_mode) != required_mode
+                    or _descriptor_sha256(
+                        verification_descriptor,
+                        expected_size=expected_size,
+                    )
+                    != expected_sha256
+                ):
+                    raise ExperimentContractError(
+                        "verified artifact changed during final reconciliation"
+                    )
             finally:
                 os.close(verification_parent)
     except OSError as exc:
@@ -930,6 +1103,29 @@ def verified_artifact_reader(
         if verification_descriptor is not None:
             os.close(verification_descriptor)
         os.close(parent_descriptor)
+
+
+def read_verified_artifact_bytes(
+    path: Path,
+    *,
+    expected_sha256: str,
+    expected_size: int,
+    max_bytes: int,
+    required_mode: int = 0o600,
+) -> bytes:
+    """Read one bounded artifact into immutable bytes through the verified stream."""
+
+    with verified_artifact_reader(
+        path,
+        expected_sha256=expected_sha256,
+        expected_size=expected_size,
+        max_bytes=max_bytes,
+        required_mode=required_mode,
+    ) as reader:
+        payload = reader.read(max_bytes + 1)
+    if len(payload) != expected_size:
+        raise ExperimentContractError("verified artifact byte count differs")
+    return payload
 
 
 def publish_bytes_without_overwrite(path: Path, encoded: bytes) -> PublishedArtifact:
@@ -1073,6 +1269,7 @@ __all__ = [
     "finite_pretty_json",
     "publish_bytes_without_overwrite",
     "publish_json_without_overwrite",
+    "read_verified_artifact_bytes",
     "reserve_json_artifact",
     "reserve_streaming_artifact",
     "verified_artifact_reader",
