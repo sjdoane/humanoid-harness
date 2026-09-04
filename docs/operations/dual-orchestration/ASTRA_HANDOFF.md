@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | A1 final independent review accepted all six fixes. Parent accepted the software slice after 59 focused tests and lint/format checks. |
-| bottleneck | No live-model result yet. Fable's oracle-goal interpretation and separate B0 handoff remain pending. |
-| next step | Commit A1 and execute the two-call `TASK-A2-live-model-canary.md`; exact run and retained inputs go in `.orchestration/astra-active-run.json`. |
+| progress | A1 accepted and committed at `76a0fe6`. The first live A2 attempt is retained as a rejected iteration; no response was admitted. |
+| bottleneck | CLI transport idle timeout, then parent-requested stop; no final proposal. Fable's oracle-goal interpretation and separate B0 handoff remain pending. |
+| next step | Read `A2_RESULT.md`; perform read-only connection/auth/quota/host checks and define a fresh bounded follow-up only after explaining the failure boundary. Do not retry the stopped canary or launch its revision. |
 
 - Date: 2026-09-04.
-- Last checkpoint: 2026-09-04 22:49 UTC heartbeat.
+- Last checkpoint: 2026-09-04 23:25 UTC, continuation of the 22:49 heartbeat.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -29,7 +29,13 @@
 | A1 independent review | detached Sol/max | completed 20:57:15Z; accept-with-repairs | Five blocking findings and one low-severity origin check |
 | A1 repair | detached Sol/max | completed 21:42:41Z; parent checks pass | Six findings addressed; `A1_RESULT.md` |
 | A1 final targeted review | detached Sol/max | ACCEPT at 22:06:14Z | All six original findings closed; parent corrected B0 sequencing wording |
-| A2 live-model protocol | Astra | prepared; not dispatched | Two calls, synthetic inputs, no B0 execution; `TASK-A2-live-model-canary.md` |
+| A2 live-model protocol | Astra | stopped; one initial call, no revision | `A2_RESULT.md`; transport timeout and retained rejection, no retry |
+
+- Accepted A1 commit: `76a0fe6e86f5c4e5b52231d3b69df3d0c9b317d2` (not pushed or integrated into main).
+- Final acceptance reproduction: `59 passed in 2.35s`, Ruff/format/diff checks pass.
+- A2 inputs: `.orchestration/a2-canary/20260904T2250/`; `baseline.json` binds exact contract, adapter, feedback, corpus, dossier, packet, and source hashes. Every input is synthetic, not a real B0 binding.
+- A2 initial run: `.orchestration/sol-runs/20260904T225403Z-f5fc865b-3d10-496b-8a5b-27e70aad70a4`; packet SHA-256 `b07d7a87a916e39aad7c3a6172bfa9fd8b1bf5944626c30e7665e5fec85f0f71`, 5,925 bytes. Calls launched: 1 of 2.
+- A2 terminal: `INTERRUPTED_TERM`, exit 143, `23:25:32Z`, no escalation. CLI transport idle timeout observed; cause not established. A1 ingestion rejected missing `final.txt`; immutable rejection receipt and iteration are under `initial-records/`. The two-call protocol stopped after its first call; its dependent revision is not authorized.
 
 - A1 builder run: `.orchestration/sol-runs/20260904T201331Z-58120f9b-e141-4e1b-be92-32f634829778`.
 - Builder thread: `01a06e0e-1873-79b3-8b98-52704c2551fb`; terminal
@@ -95,6 +101,8 @@
    synthetic-feedback packets. Use A1 ingestion to verify exact parent and
    dossier identities. This proves real LLM plumbing only; no code execution,
    training, or robot-result claim. Write its concrete packet before dispatch.
+   **This attempt stopped after call 1.** Do not resume this numbered step as
+   permission to retry; follow the current next-step row and `A2_RESULT.md`.
 5. Once Fable hands over reviewed B0, plan the thin validation/evaluator adapter
    and agree compute/run protocol. No unattended heavy job before an atomic
    shared reservation exists.
