@@ -27,6 +27,20 @@ ordering from one track to two.
 | Evidence label | The first cycles are `exploratory`. A confirmatory reward study with sealed tasks and predetermined seeds needs the charter's formal-study gate. |
 | Reuse | The old RL-Sculptor reward-refinement loop, metric-trust pipeline, and sandbox are read-only source material. Only contracts that pass this repository's boundary are ported, with provenance. |
 
+## Design v1, adopted from the 2026-09-04 read-only survey
+
+| item | frozen value |
+|---|---|
+| Family ID | `family-b-target-speed-v1`; instances `v* in {0.5, 1.0, 1.5} m/s`; first cycle `1.0 m/s` only; stock 348-D policy observation with no appended target |
+| Candidate interface | The author writes only `task_term(x)` over two floats, `com_x_velocity_m_s` and `target_speed_m_s`. A trusted compositor adds the stock healthy, control, and contact terms outside the author's reach and applies a frozen affine scale matched on a synthetic velocity grid. Widening the read set is a reviewed design version. |
+| `r_0` | The stock `Humanoid-v5` reward re-expressed in the contract, with a fail-closed output envelope that aborts instead of clipping. Because the stock term is target-unaware, cycle 1's headroom is trivial and tests loop mechanics; a frozen manual target-aware baseline arm enters from cycle 2. |
+| Endpoint | `P_e`: mean over steps `201..1000` of `exp(-0.5 ((v_t - v*)/0.25)^2)` with COM velocity recomputed from simulator state and zero after early termination; hard guardrails on survival, structural action and torque, torque exposure, energy, action rate, and non-foot floor contact; a `10%` relative non-inferiority margin labeled exploratory |
+| Trainer | The Experiment 001 PPO recipe: `1,048,576` steps per arm per seed, `4` environments, seeds `101, 202, 303, 404, 505`, evaluation resets `11001..11020`, final checkpoint only |
+| Compute | Matched `r_0` plus `r_k` cycle projects to `110 min` at the PPO receipt rate; reservation `150 min` CPU, replacing the earlier `2 h` cap |
+| Sandbox | AST static gate; one worker per seed; pipe-framed binary IPC; resource limits; deny-by-default macOS Seatbelt profile with canaries that bypass the static gate |
+| Evidence label | `exploratory_reward_cycle`; never `reward_training` until the sealed confirmatory gate |
+| First slice | `TASK-20260904-B0`: contract, exact stock parity, validator, sandbox, scale calibration, protected evaluator, protocol files; no training |
+
 ## Why
 
 | option | science | cost | why not first |
@@ -46,8 +60,8 @@ metrics computed outside reward code; reward-scale and term-removal controls.
 
 - The writer slot stays with the oracle track's builder when both tracks have
   a slice ready; reward design work runs read-only in parallel.
-- Compute per exploratory cycle is capped at `2 h` CPU unless the handoff
-  records a larger budget.
+- Compute per exploratory matched cycle is reserved at `150 min` CPU; a
+  candidate-only arm with a reusable `r_0` fits about `55 min`.
 - The evaluator gains locomotion task metrics that must be independent of any
   generated code and must stay fixed across the study.
 

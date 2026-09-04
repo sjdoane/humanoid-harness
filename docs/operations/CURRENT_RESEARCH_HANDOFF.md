@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | Builder 03A2 verified the lease, human gate, clean `main`, and the byte-exact 20-path WIP preservation on `wip/tqc-v2-attempt-supervisor` at `5bdae45`. No implementation or payload load occurred. |
-| bottleneck | The mandatory untouched-main full suite failed: `44 failed, 1014 passed, 2 skipped in 108.12s`. The managed builder sandbox denies AF_UNIX/AF_INET socket binds, and frozen runtime checks observed CPU model `arm` instead of `Apple M5 Max`. The packet requires a stop on any pre-change suite failure. |
-| next step | Reproduce `.venv/bin/python -m pytest -q -p no:cacheprovider` on unchanged `main` in the intended host execution context. If it passes, relaunch `TASK-20260904-03A2`; if it still fails, repair the baseline in a separate reviewed slice before relaunch. Do not train or load the external checkpoint. |
+| progress | Both design surveys delivered (`04` reward track, `05` tracker track) and are adopted in ADR 0006 and ADR 0005. The clean `main` baseline suite passed outside the sandbox: `1060 passed` in `122 s` at `48955df`. Packets 03A3, 03B, B0, and the 03A2 reviews `06`/`07` are written. Sibling artifacts (`medium`, `simple`) are being fetched and hash-verified. |
+| bottleneck | The Codex sandbox denies socket binds and reports the CPU as `arm`, so 44 host-fingerprint and socket tests fail inside it; Fable now supplies the true baseline suite receipt and builders compare against their own in-sandbox baseline. No tracker is admitted; causal reference use is unproved. |
+| next step | Commit docs, release the lease, relaunch `TASK-20260904-03A2` (third launch, sandbox-aware). On its receipt launch reviews `06` and `07`, commit, then run B0 while 03A3 and 03B follow the oracle-track order. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T16:58Z`
+- Updated: `2026-09-04T17:13Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -23,6 +23,9 @@
 | `sol-review-sci-20260904-01` | scientific reviewer | `.orchestration/task-packets/TASK-20260904-01-strategy-scientific-review.md` | `.orchestration/sol-runs/20260904T162138Z-91fdd351-b579-46f8-b317-402f78bd2907` | `hh-sol-5538c277-e542-4505-8c92-787b4798b0d8` | `33469` |
 | `sol-review-adv-20260904-02` | adversarial reviewer | `.orchestration/task-packets/TASK-20260904-02-strategy-adversarial-review.md` | `.orchestration/sol-runs/20260904T162140Z-53837dc0-a9f8-4bf5-97f7-ae7e593a60b4` | `hh-sol-f4c09dad-bbe5-40f5-8587-99155b3b88d9` | `33916` |
 | `sol-design-reward-20260904-04` | research designer | `.orchestration/task-packets/TASK-20260904-04-reward-track-design-survey.md` | `.orchestration/sol-runs/20260904T163715Z-ddddde81-0085-49fd-8714-0d512c9d39a0` | `hh-sol-342b73b1-463f-4fd0-9f2d-618598681f8f` | `37865` |
+| `sol-builder-20260904-03a` (write) | builder | `TASK-20260904-03A` | `.orchestration/sol-runs/20260904T164729Z-273705b5-fd1b-49d6-9495-98e63f907b01` | stopped at the `.git` boundary; superseded | `50887` |
+| `sol-builder-20260904-03a2` (write, launch 1) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T165851Z-cde09967-82e9-425c-9b16-91292ac226f5` | stopped: two-dot diff precondition | `58734` |
+| `sol-builder-20260904-03a2` (write, launch 2) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T170134Z-f48b6fc2-905b-4323-87f3-8b88246888c4` | stopped: in-sandbox suite failures | `59876` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -191,3 +194,28 @@ git state change under its own lease after review. Builder 03A stopped at that
 boundary at `16:52Z` with all preconditions verified; Fable completed the WIP
 preservation at `2026-09-04T16:58Z` with `artifacts/bootstrap_tqc_humanoid/wip_preservation_fable_verification.txt`
 as the byte-level receipt.
+
+## Reward-track design adopted `2026-09-04T17:10Z`
+
+Survey `TASK-20260904-04` (thread `01a06d48-1482-73f2-800a-a3bb69d9de5e`,
+run `.orchestration/sol-runs/20260904T163715Z-ddddde81-0085-49fd-8714-0d512c9d39a0`)
+delivered the `family-b-target-speed-v1` design. ADR 0006 records it. Builder
+packet `TASK-20260904-B0` implements the no-training first slice. Review
+packets `06` and `07` are written for the 03A2 diff.
+
+## Baseline suite receipt `2026-09-04T17:13Z`
+
+`.venv/bin/python -m pytest -q -p no:cacheprovider` on clean `main` at
+`48955df`, outside the Sol sandbox: `1060 passed, 2 warnings in 122.17s`
+(`17:08:13Z` to `17:10:16Z`). Software behavior only. Inside the Sol sandbox
+the same tree shows `44 failed` for environment reasons (denied socket binds,
+CPU fingerprint `arm`); builders record their own in-sandbox baseline and must
+not add failures.
+
+## Tracker-track design adopted `2026-09-04T17:13Z`
+
+Survey `TASK-20260904-05` (thread `01a06d4c-b071-7493-863b-fbcdaafa6c5d`,
+run `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80`)
+delivered the same-runtime reference, Tier-D, E3, residual-PPO E4, and E5
+designs. ADR 0005 records the chain. Packets `03A3` and `03B` implement the
+first two slices; packets for E4 and E5 follow their reviews.

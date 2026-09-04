@@ -26,6 +26,18 @@ ADR 0004's tracker-family order, E1-E5 gates, and frozen boundary after selectio
 | Fallback | If the import is refused by the human gate, a hash mismatch, an ABI mismatch, or the development gate, run plain receipted local TQC training through the existing calibration runner extended with final-model persistence and strict actor export. Each attempt has a distinct excluded seed, its own receipt, and a predeclared rule: the first attempt in seed order that passes the development gate becomes the base; every attempt is reported. The current local-attempt budget is zero; receipts audit attempts, they do not authorize them, so any future training packet needs an atomic repository-global authorization ledger consumed before environment construction. Attempts require Samuel's attempt budget, and the finite ordered seed list, maximum attempt count, failure and missing-run rule, checkpoint rule, and gate are frozen before the first attempt. Adding seeds after observed failures is post-hoc selection; the rule earns no seed-robustness claim and feeds no formal inference. |
 | Reference pool direction | Candidate non-self references pending E3: same-embodiment rollouts of the public `medium` and `simple` TQC policies and their Minari datasets (`mujoco/humanoid/medium-v0`, `simple-v0`), plus retimed variants with fresh Tier-D identities and feasibility evidence. Every clip needs Tier-D admission. E3 forks must be individually E2-certified, share byte-identical full integration, wrapper, clock, and non-reference policy state, differ in the numeric future window and executed controls above locked tolerances, include at least one non-expert-generated branch, expose no branch identity outside the window, and report every attempted fork. E5 stays mandatory. |
 
+## Remaining-chain design v1, adopted from the 2026-09-04 tracker survey
+
+| slice | content | packet |
+|---|---|---|
+| 03A3 | Import the public `medium` and `simple` actors through the same importer; actual E1 on the imported expert bytes for both ADR 0004 contenders | `TASK-20260904-03A3` |
+| 03B | Versioned reference identity with `robot_id` and replay provenance; a clip collector recording full integration state, root x/y sidecar, and all-substep contacts; the predetermined `36`-block, three-actor corpus (`108` clips; training `120001-120012`, E4 screen `120101-120120`, sealed E5 `120201-120204`); a full-clip Tier-D certifier with an all-transitions pass rule; E3 fork certification with locked thresholds; the `20`-reset expert development screen recorded as replay bundles | `TASK-20260904-03B` |
+| B | Residual reference-conditioned PPO on the frozen expert base (`708`-D input, `H = 8`, residual scale `0.08`, no running normalizer, balanced clip-origin RSI, exact `TrackingRewardConfig` hash, seeds `121001..121401`, `1,048,576` steps each, final checkpoint only) and the E4 screen (`60` episodes per checkpoint, `>= 57/60`, `>= 4/5` checkpoints); expanded-TQC second, no from-scratch family | after 03B review |
+| C | E5: four sealed blocks, three branches, eight anchors, four arms, matched-state action sensitivity (`>= 77/96` anchors) and closed-loop `64`-step protected degradation with a locked conjunction rule across zero, shuffle, and shift | after E4 |
+
+Reference and reset seeds are asset provenance, not statistical replicates; the
+PPO training seed is the E4 unit and the frozen checkpoint is the E5 unit.
+
 ## Why
 
 | route | science gained before E4/E5 | compute to a base controller | implementation risk | artifact availability | time to a falsifiable causal-use result |
