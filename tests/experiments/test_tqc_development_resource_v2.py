@@ -362,7 +362,9 @@ def _use_monitor_in_fork(monitor: TQCResourceMonitorV2, sender: object) -> None:
         sender.close()
 
 
-@pytest.mark.skipif("fork" not in multiprocessing.get_all_start_methods(), reason="fork unavailable")
+@pytest.mark.skipif(
+    "fork" not in multiprocessing.get_all_start_methods(), reason="fork unavailable"
+)
 def test_resource_monitor_cannot_cross_a_forked_process(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

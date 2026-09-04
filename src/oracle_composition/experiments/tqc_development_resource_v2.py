@@ -329,9 +329,7 @@ class TQCResourceMonitorV2:
         self._output_path = absolute
         self._work_directory_descriptor = descriptor
         self._work_directory_state = _directory_state(observed)
-        self._claimed_work_directory_identity = _identity_from_open_directory(
-            absolute, observed
-        )
+        self._claimed_work_directory_identity = _identity_from_open_directory(absolute, observed)
         self._execution_manifest_sha256: str | None = None
         self._started = _finite_monotonic_seconds()
         self._last_monotonic = self._started
@@ -374,9 +372,7 @@ class TQCResourceMonitorV2:
             raise ExperimentContractError("resource monitor crossed its worker process boundary")
         try:
             held_state = os.fstat(self._work_directory_descriptor)
-            absolute, visible_descriptor, visible_state = _open_work_directory(
-                self._output_path
-            )
+            absolute, visible_descriptor, visible_state = _open_work_directory(self._output_path)
         except Exception as exc:
             self._poison(exc)
             raise
@@ -387,11 +383,10 @@ class TQCResourceMonitorV2:
                 or _directory_state(visible_state) != self._work_directory_state
             ):
                 self._failed_reason = "claimed_work_directory_identity_changed"
-                raise ExperimentContractError(
-                    "resource monitor work directory identity changed"
-                )
+                raise ExperimentContractError("resource monitor work directory identity changed")
         finally:
             os.close(visible_descriptor)
+
     def _poison(self, exc: BaseException) -> None:
         if self._failed_reason is None:
             self._failed_reason = f"{type(exc).__name__}:{exc}"
