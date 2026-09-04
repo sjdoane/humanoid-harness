@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | Builder 03A2R completed the secure external-actor slice: the worker bound Torch's 75-entry default safe-globals list without mutation, the pinned actor imported to a strict NPZ, and source-to-NPZ outputs matched exactly on the fixed `4 x 348` batch. New focused tests are `39 passed`; the full sandbox suite is the exact same 44-failure baseline with `1053 passed, 2 skipped`; Ruff is green. |
-| bottleneck | Evidence remains `external_base_import`, an `interface_check`: the 20-reset screen has not run, neither E1 contender exists, and no tracker, causal reference use, or Humanoid behavior is admitted. The uncommitted slice still needs independent reviews `06` and `07` plus Fable's commit. |
-| next step | Fable verifies the full suite outside the sandbox, commits the 03A2R slice, launches reviews `06` and `07` on that commit, and starts builder B0 as the next writer. Repairs from the reviews become a follow-up slice. Do not launch any 1M-step attempt. |
+| progress | The external actor import slice is committed on `main` as `1d6b461` (outside-sandbox suite `1099 passed`, lint clean): the expert actor now exists as integrity-verified bytes in a strict NPZ with exact fixed-batch equivalence, honest provenance, and a payload policy test. Reviews `06` and `07` are examining that commit. |
+| bottleneck | The slice is `external_base_import` only: no E1 contenders, no development screen, no behavior. The reward track has no contract or sandbox yet. No tracker is admitted; causal reference use is unproved. |
+| next step | Builder B0 (reward contract, stock parity, sandbox, protected endpoint; no training) runs as the writer while reviews `06`/`07` finish. Review repairs become a follow-up slice; then `03A3` and `03B` in oracle-track order. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T18:13Z`
+- Updated: `2026-09-04T18:16Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -28,6 +28,8 @@
 | `sol-builder-20260904-03a2` (write, launch 2) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T170134Z-f48b6fc2-905b-4323-87f3-8b88246888c4` | stopped: in-sandbox suite failures | `59876` |
 | `sol-builder-20260904-03a2` (write, launch 3) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T171428Z-2d37493e-5ef0-455c-8c58-5f9878a2074b` | partial slice in the working tree; stopped at `process safe globals refused` | `62996` |
 | `sol-builder-20260904-03a2r` (write) | builder | `TASK-20260904-03A2R` | `.orchestration/sol-runs/20260904T174545Z-7b364f7f-b3bf-426d-8023-17389e1f0c12` | `SUCCEEDED`: slice complete, thread `01a06d86-cd17-7ee2-b6de-c7d3d07576f9` | `67383` |
+| `sol-review-sci-20260904-06` | scientific reviewer of `1d6b461` | `TASK-20260904-06` | `.orchestration/sol-runs/20260904T181613Z-721ea785-8dc3-4d8f-9eb6-84b4672d1fb3` | `hh-sol-869272fb-cc6c-480d-9b0a-0b3eece424a9` | `74477` |
+| `sol-review-adv-20260904-07` | adversarial reviewer of `1d6b461` | `TASK-20260904-07` | `.orchestration/sol-runs/20260904T181614Z-5bb41e36-fc24-49b0-8fb3-a73409210b5a` | `hh-sol-d7eb4fef-93a3-49a5-9161-140a7d1672a7` | `74544` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
