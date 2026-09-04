@@ -107,6 +107,7 @@ def _preflight_worker(
     wrong_order: bool,
     wrong_receipt_hash: bool,
     wrong_manifest_ack: bool,
+    preflight_delay_seconds: float,
 ) -> None:
     started = float(time.perf_counter())
     deadline = started + 10.0
@@ -137,6 +138,7 @@ def _preflight_worker(
         {"stage_index": 0},
         deadline=deadline,
     )
+    time.sleep(preflight_delay_seconds)
     records = _write_receipts(Path(work_directory))
     if wrong_receipt_hash:
         records[2]["sha256"] = "f" * 64
@@ -178,6 +180,7 @@ def _spawn(
     wrong_order: bool = False,
     wrong_receipt_hash: bool = False,
     wrong_manifest_ack: bool = False,
+    preflight_delay_seconds: float = 0.0,
 ) -> tuple[supervisor.SpawnedTQCWorkerV2, _Preflight]:
     tmp_path.chmod(0o700)
     preflight = _fake_preflight(tmp_path)
@@ -192,6 +195,7 @@ def _spawn(
             wrong_order,
             wrong_receipt_hash,
             wrong_manifest_ack,
+            preflight_delay_seconds,
         ),
     )
     return spawned, preflight
@@ -237,6 +241,24 @@ def test_real_spawned_session_delivers_exact_receipt_bytes(
     finally:
         supervisor.terminate_tqc_worker_v2(spawned)
     assert not spawned.process.is_alive()
+
+
+def test_worker_start_and_preflight_use_distinct_deadlines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spawned, preflight = _spawn(
+        tmp_path,
+        monkeypatch,
+        preflight_delay_seconds=2.2,
+    )
+    monkeypatch.setattr(supervisor, "WORKER_STARTED_TIMEOUT_SECONDS", 2.0)
+    monkeypatch.setattr(supervisor, "PREFLIGHT_TIMEOUT_SECONDS", 5.0)
+    try:
+        bundle = supervisor.receive_tqc_worker_preflight_v2(spawned, preflight)
+        assert bundle.delivery.preflight_receipts_message_sequence_index == 2
+    finally:
+        supervisor.terminate_tqc_worker_v2(spawned)
 
 
 def test_parent_requires_exact_worker_manifest_acknowledgement(

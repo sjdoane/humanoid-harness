@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import math
 import multiprocessing
@@ -26,6 +27,7 @@ from .tqc_development_manifest_v2 import (
 
 ATTEMPT_ID = "dev1m-v2-seed-95001-attempt-01"
 WORKER_STARTED_TIMEOUT_SECONDS = 30.0
+PREFLIGHT_TIMEOUT_SECONDS = 300.0
 TERMINATION_GRACE_SECONDS = 10.0
 JOIN_TIMEOUT_SECONDS = 30.0
 RECEIPT_FILENAMES = (
@@ -434,17 +436,21 @@ def receive_tqc_worker_preflight_v2(
         raise ExperimentContractError("worker preflight requires exact preflight authority")
     if preflight.attempt_id != ATTEMPT_ID:
         raise ExperimentContractError("worker preflight attempt differs")
-    effective_deadline = (
-        spawned.parent_spawn_started_monotonic_seconds + WORKER_STARTED_TIMEOUT_SECONDS
+    preflight_deadline = (
+        spawned.parent_spawn_started_monotonic_seconds + PREFLIGHT_TIMEOUT_SECONDS
         if deadline is None
         else deadline
     )
-    if type(effective_deadline) is not float or not math.isfinite(effective_deadline):
+    if type(preflight_deadline) is not float or not math.isfinite(preflight_deadline):
         raise ExperimentContractError("worker preflight deadline is invalid")
+    worker_started_deadline = min(
+        spawned.parent_spawn_started_monotonic_seconds + WORKER_STARTED_TIMEOUT_SECONDS,
+        preflight_deadline,
+    )
 
-    started = spawned.channel.receive(deadline=effective_deadline)
-    entered = spawned.channel.receive(deadline=effective_deadline)
-    delivered = spawned.channel.receive(deadline=effective_deadline)
+    started = spawned.channel.receive(deadline=worker_started_deadline)
+    entered = spawned.channel.receive(deadline=worker_started_deadline)
+    delivered = spawned.channel.receive(deadline=preflight_deadline)
     started_payload = started["payload"]
     expected_started_keys = {
         "attempt_nonce",
@@ -663,6 +669,39 @@ def revalidate_tqc_worker_manifest_acknowledgement_v2(
     return acknowledgement
 
 
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError as exc:
+        raise ExperimentContractError("cannot verify the owned worker process group") from exc
+    except OSError as exc:
+        if exc.errno == errno.ESRCH:
+            return False
+        raise ExperimentContractError("cannot verify the owned worker process group") from exc
+    return True
+
+
+def _wait_for_worker_absence(
+    spawned: SpawnedTQCWorkerV2,
+    *,
+    deadline: float,
+) -> None:
+    while True:
+        worker_alive = spawned.process.is_alive()
+        group_alive = spawned._group_validated and _process_group_exists(spawned.worker_pid)
+        if not worker_alive and not group_alive:
+            return
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0.0:
+            return
+        if worker_alive:
+            spawned.process.join(timeout=min(remaining, 0.05))
+        else:
+            time.sleep(min(remaining, 0.05))
+
+
 def terminate_tqc_worker_v2(spawned: SpawnedTQCWorkerV2) -> None:
     """Bounded cleanup of the exact child or its validated process group."""
 
@@ -671,20 +710,33 @@ def terminate_tqc_worker_v2(spawned: SpawnedTQCWorkerV2) -> None:
     spawned._assert_owner()
     process = spawned.process
     try:
-        if process.is_alive():
+        group_alive = spawned._group_validated and _process_group_exists(spawned.worker_pid)
+        if process.is_alive() or group_alive:
             if spawned._group_validated:
-                os.killpg(spawned.worker_pid, signal.SIGTERM)
+                with suppress(ProcessLookupError):
+                    os.killpg(spawned.worker_pid, signal.SIGTERM)
             else:
                 process.terminate()
-            process.join(timeout=TERMINATION_GRACE_SECONDS)
-        if process.is_alive():
+            _wait_for_worker_absence(
+                spawned,
+                deadline=float(time.perf_counter() + TERMINATION_GRACE_SECONDS),
+            )
+        group_alive = spawned._group_validated and _process_group_exists(spawned.worker_pid)
+        if process.is_alive() or group_alive:
             if spawned._group_validated:
-                os.killpg(spawned.worker_pid, signal.SIGKILL)
+                with suppress(ProcessLookupError):
+                    os.killpg(spawned.worker_pid, signal.SIGKILL)
             else:
                 process.kill()
-            process.join(timeout=JOIN_TIMEOUT_SECONDS)
-        if process.is_alive():
+            _wait_for_worker_absence(
+                spawned,
+                deadline=float(time.perf_counter() + JOIN_TIMEOUT_SECONDS),
+            )
+        if process.is_alive() or (
+            spawned._group_validated and _process_group_exists(spawned.worker_pid)
+        ):
             raise ExperimentContractError("spawned worker survived bounded cleanup")
+        process.join(timeout=0.0)
     finally:
         spawned.channel.close()
         spawned._closed = True
@@ -693,6 +745,7 @@ def terminate_tqc_worker_v2(spawned: SpawnedTQCWorkerV2) -> None:
 __all__ = [
     "ATTEMPT_ID",
     "JOIN_TIMEOUT_SECONDS",
+    "PREFLIGHT_TIMEOUT_SECONDS",
     "RECEIPT_FILENAMES",
     "TERMINATION_GRACE_SECONDS",
     "WORKER_STARTED_TIMEOUT_SECONDS",
