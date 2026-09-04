@@ -59,10 +59,16 @@ if [[ -n "$claude_bin" ]]; then
   fi
 fi
 
-if command -v codex >/dev/null 2>&1; then
-  pass "Codex CLI $(codex --version 2>/dev/null || true) is installed"
+codex_bin="$(command -v codex 2>/dev/null || true)"
+if [[ -n "$codex_bin" && -x "$codex_bin" ]]; then
+  if codex_version="$("$codex_bin" --version 2>/dev/null)" \
+    && [[ "$codex_version" =~ ^codex-cli[[:space:]][0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    pass "Codex CLI ${codex_version} is installed"
+  else
+    fail "Codex executable is present but its version check failed"
+  fi
 else
-  fail "Codex CLI is not installed or is not on PATH"
+  fail "Codex CLI is unavailable; install it from https://developers.openai.com/codex/cli/"
 fi
 
 if command -v screen >/dev/null 2>&1; then
@@ -71,23 +77,26 @@ else
   fail "GNU screen is required for durable Sol workers"
 fi
 
-if codex login status 2>&1 | rg -q 'Logged in using ChatGPT'; then
-  pass "Codex uses the saved ChatGPT login"
-else
-  fail "Codex ChatGPT login is unavailable: codex login"
-fi
+if [[ -n "$codex_bin" && -x "$codex_bin" ]]; then
+  if codex_login="$("$codex_bin" login status 2>&1)" \
+    && [[ "$codex_login" == "Logged in using ChatGPT" ]]; then
+    pass "Codex uses the saved ChatGPT login"
+  else
+    fail "Codex ChatGPT login is unavailable: $codex_bin login"
+  fi
 
-codex_catalog="$(codex debug models 2>/dev/null || true)"
-if jq -e --arg model "$expected_sol" '
-  any(
-    .models[]?;
-    .slug == $model
-    and any(.supported_reasoning_levels[]?; .effort == "max")
-  )
-' >/dev/null 2>&1 <<<"$codex_catalog"; then
-  pass "Codex advertises ${expected_sol} at max reasoning"
-else
-  fail "Codex does not advertise ${expected_sol} at max reasoning"
+  if codex_catalog="$("$codex_bin" debug models 2>/dev/null)" \
+    && jq -e --arg model "$expected_sol" '
+      any(
+        .models[]?;
+        .slug == $model
+        and any(.supported_reasoning_levels[]?; .effort == "max")
+      )
+    ' >/dev/null 2>&1 <<<"$codex_catalog"; then
+    pass "Codex advertises ${expected_sol} at max reasoning"
+  else
+    fail "Codex does not advertise ${expected_sol} at max reasoning"
+  fi
 fi
 
 plugin_json="$(claude plugin list --json 2>/dev/null || true)"
@@ -109,9 +118,62 @@ else
   fail "Project Claude model policy differs from the reviewed policy"
 fi
 
-if rg -q '^model = "gpt-5\.6-sol"$' "$repo_root/.codex/config.toml" \
-  && rg -q '^model_reasoning_effort = "max"$' "$repo_root/.codex/config.toml" \
-  && rg -q '^multi_agent = false$' "$repo_root/.codex/config.toml"; then
+if awk '
+  function trim(value) {
+    sub(/^[[:space:]]+/, "", value)
+    sub(/[[:space:]]+$/, "", value)
+    return value
+  }
+
+  BEGIN {
+    section = ""
+    model_count = 0
+    effort_count = 0
+    multi_agent_count = 0
+    mismatch = 0
+  }
+
+  {
+    line = $0
+    sub(/[[:space:]]*#.*/, "", line)
+    line = trim(line)
+    if (line == "") {
+      next
+    }
+    if (line ~ /^\[[^]]+\]$/) {
+      section = line
+      next
+    }
+
+    equals = index(line, "=")
+    if (equals == 0) {
+      next
+    }
+    key = trim(substr(line, 1, equals - 1))
+    value = trim(substr(line, equals + 1))
+
+    if (section == "" && key == "model") {
+      model_count++
+      if (value != "\"gpt-5.6-sol\"") mismatch = 1
+    } else if (section == "" && key == "model_reasoning_effort") {
+      effort_count++
+      if (value != "\"max\"") mismatch = 1
+    } else if (section == "[features]" && key == "multi_agent") {
+      multi_agent_count++
+      if (value != "false") mismatch = 1
+    }
+  }
+
+  END {
+    if (mismatch == 0 \
+      && model_count == 1 \
+      && effort_count == 1 \
+      && multi_agent_count == 1) {
+      exit 0
+    }
+    exit 1
+  }
+' "$repo_root/.codex/config.toml"; then
   pass "Project requests Sol workers at max reasoning without nested delegation"
 else
   fail "Project Codex model policy differs from the reviewed policy"

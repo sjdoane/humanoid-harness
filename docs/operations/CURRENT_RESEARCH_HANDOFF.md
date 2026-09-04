@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | The oracle/reward boundary, deterministic oracle contract, evidence UI, and research index exist. Fable-to-Sol orchestration is configured and its fail-closed local paths passed bounded tests. |
+| progress | The oracle/reward boundary, deterministic oracle contract, evidence UI, and research index exist. The Fable-to-Sol preflight now passes from a Terminal-compatible path: Claude is authenticated, the official standalone Codex CLI is authenticated, and Sol/max policy is verified. |
 | bottleneck | No reference-aware Humanoid tracker is admitted. The only visible tracker falls immediately, causal reference use is unproved, and the uncommitted TQC-v2 launcher has unresolved lifecycle risks. |
-| next step | Authenticate and identity-check Fable, let it audit the strategy against the Lokesh goal ledger, then choose the smallest prerequisite experiment. Do not launch the real 1M-step attempt. |
+| next step | Launch and identity-check Fable, let it audit the strategy against the Lokesh goal ledger, then choose the smallest prerequisite experiment. Do not launch the real 1M-step attempt. |
 
-- Updated: `2026-09-04 04:43 PDT`
+- Updated: `2026-09-04 08:39 PDT`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD and `origin/main` before orchestration setup: `dc6db640456c62b2d7ff2c57b20b33fe19060449`
@@ -79,16 +79,20 @@ Additional constraint:
 
 | component | observed state |
 |---|---|
-| Claude Code | `2.1.260`; supports `claude-fable-5-1`; shell login still required |
+| Claude Code | `2.1.260`; authenticated and supports `claude-fable-5-1` |
 | Fable policy | Exact model requested at launch; `switchModelsOnFlag=false`; live response identity gate available |
 | session guard | Project hooks deny requested non-Fable switches and all Claude tool use when the recorded model is not Fable or active effort is not `max`; events remain under ignored `.orchestration/` state |
-| Codex | App-bundled CLI authenticated with ChatGPT; live catalog includes `gpt-5.6-sol` at `max` reasoning |
+| Codex | Official standalone CLI `0.153.2` is installed at `~/.local/bin/codex`, reuses the ChatGPT login, and advertises `gpt-5.6-sol` at `max` reasoning |
 | worker path | `scripts/start-sol-worker` is the strict default: detached GNU screen runner, direct Codex CLI, exact Sol/max request, compact status, and retained JSONL/final/PID/thread receipts; plugin `1.0.6` remains optional because it uses a thin Sonnet router |
 | write control | Atomic 45-minute lease gates primary Fable and Sol write paths and is renewed by the Sol launcher; recorded path scope is audit-only; ambiguous or expired leases fail closed |
 | continuity | Active 30-minute heartbeat is coordination-only; without a valid single-use takeover record it reports status and does not implement; no supported API pushes into a closed Claude Code session or reports its quota transition |
 
 Setup verification note:
 
+- The official standalone Codex installer added `~/.local/bin/codex` and its
+  zsh path entry. A restricted-path preflight with no `rg` passed every local
+  gate. The doctor now avoids false cascades when Codex is missing and no
+  longer requires `rg` to verify authentication or project policy.
 - A shell-shim mistake briefly started Codex thread
   `01a06bdc-8f87-7040-8264-23cd60052ee6` on a harmless launcher test packet.
 - It produced only a startup message, no terminal receipt, no observed repository
@@ -114,20 +118,19 @@ Setup verification note:
 
 ## Resume order
 
-1. Run `claude auth login` once.
-2. Run `./scripts/orchestration-doctor` for the no-usage local checks.
-3. Run `./scripts/start-fable-orchestrator`; authorize its one live identity
+1. Run `./scripts/orchestration-doctor` for the no-usage local checks.
+2. Run `./scripts/start-fable-orchestrator`; authorize its one live identity
    probe when prompted.
-4. Fable reads `CLAUDE.md`, the master prompt, this handoff, the strategy ledger,
+3. Fable reads `CLAUDE.md`, the master prompt, this handoff, the strategy ledger,
    the private transcript, and the proposal.
-5. Samuel runs `/status`; Fable also checks the latest session-start model event.
-6. Fable records questions or a revised strategy before assigning implementation.
-7. Fable uses its session owner for strategy edits, releases that lease, then
+4. Samuel runs `/status`; Fable also checks the latest session-start model event.
+5. Fable records questions or a revised strategy before assigning implementation.
+6. Fable uses its session owner for strategy edits, releases that lease, then
    launches one durable Sol writer through `scripts/start-sol-worker`. Separate
    read-only Sol workers review scientific validity and adversarial failures.
-8. Update this file at least every 30 minutes during active work and at every
+7. Update this file at least every 30 minutes during active work and at every
    control transfer.
-9. The Codex heartbeat must back off while Fable or another write worker owns
+8. The Codex heartbeat must back off while Fable or another write worker owns
    overlapping work.
 
 ## Handoff update contract
