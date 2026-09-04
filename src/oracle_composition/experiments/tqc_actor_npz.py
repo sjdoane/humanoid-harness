@@ -9,7 +9,7 @@ import json
 import os
 import stat
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
@@ -43,6 +43,10 @@ _ARCHIVE_SCHEMA: Mapping[str, tuple[tuple[int, ...], np.dtype[object]]] = {
     "action_high": ((ACTION_WIDTH,), _FLOAT32),
     "format_version": ((1,), _INT64),
 }
+
+# Process-local capability: only the strict file loader may issue this record.
+# It prevents accidental constructor forgery, not hostile in-process code.
+_LOADED_ACTOR_ISSUER = object()
 
 
 class _HashDigest(Protocol):
@@ -335,11 +339,38 @@ def _parse_npy(
 
 @dataclass(frozen=True, slots=True)
 class LoadedTQCActor:
+    """Canonical actor bytes admitted by :func:`load_actor_npz`."""
+
     content_sha256: str
     state_sha256: str
     schema_sha256: str
     byte_count: int
     arrays: Mapping[str, np.ndarray]
+    _issuer: InitVar[object] = None
+
+    def __post_init__(self, _issuer: object) -> None:
+        if _issuer is not _LOADED_ACTOR_ISSUER:
+            raise ExperimentContractError("loaded TQC actors may only be issued by load_actor_npz")
+        for value, field in (
+            (self.content_sha256, "actor content SHA-256"),
+            (self.state_sha256, "actor state SHA-256"),
+            (self.schema_sha256, "actor schema SHA-256"),
+        ):
+            try:
+                _canonical_sha256(value)
+            except ExperimentContractError as exc:
+                raise ExperimentContractError(f"{field} is invalid") from exc
+        if type(self.byte_count) is not int or not 0 < self.byte_count <= MAX_ARCHIVE_BYTES:
+            raise ExperimentContractError("loaded actor byte count is invalid")
+        if self.schema_sha256 != actor_schema_sha256():
+            raise ExperimentContractError("loaded actor schema SHA-256 differs")
+        if actor_state_sha256(self.arrays) != self.state_sha256:
+            raise ExperimentContractError("loaded actor state SHA-256 differs")
+        canonical_payload = encode_actor_npz(self.arrays)
+        if len(canonical_payload) != self.byte_count:
+            raise ExperimentContractError("loaded actor byte count differs from canonical bytes")
+        if hashlib.sha256(canonical_payload).hexdigest() != self.content_sha256:
+            raise ExperimentContractError("loaded actor content differs from canonical bytes")
 
 
 def load_actor_npz(path: Path, *, expected_sha256: str) -> LoadedTQCActor:
@@ -403,6 +434,7 @@ def load_actor_npz(path: Path, *, expected_sha256: str) -> LoadedTQCActor:
         schema_sha256=actor_schema_sha256(),
         byte_count=len(payload),
         arrays=MappingProxyType(immutable),
+        _issuer=_LOADED_ACTOR_ISSUER,
     )
 
 

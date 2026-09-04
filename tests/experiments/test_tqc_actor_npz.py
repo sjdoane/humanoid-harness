@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+from dataclasses import replace
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
@@ -18,6 +19,7 @@ from oracle_composition.experiments.tqc_actor_npz import (
     ACTION_WIDTH,
     MAX_ARCHIVE_BYTES,
     OBSERVATION_WIDTH,
+    LoadedTQCActor,
     actor_schema,
     actor_schema_sha256,
     actor_state_sha256,
@@ -137,6 +139,23 @@ def test_actor_archive_is_deterministic_and_preserves_outputs(tmp_path: Path) ->
     assert torch.equal(source_log_std, restored_log_std)
     assert torch.equal(source_action, restored_action)
     assert torch.equal(source_sample, restored_sample)
+
+    with pytest.raises(ExperimentContractError, match="only be issued by load_actor_npz"):
+        replace(loaded)
+
+
+def test_loaded_actor_record_cannot_be_minted_from_arrays() -> None:
+    arrays = validate_actor_arrays(_arrays(_actor(95001)))
+    payload = encode_actor_npz(arrays)
+
+    with pytest.raises(ExperimentContractError, match="only be issued by load_actor_npz"):
+        LoadedTQCActor(
+            content_sha256=hashlib.sha256(payload).hexdigest(),
+            state_sha256=actor_state_sha256(arrays),
+            schema_sha256=actor_schema_sha256(),
+            byte_count=len(payload),
+            arrays=arrays,
+        )
 
 
 @pytest.mark.parametrize(
