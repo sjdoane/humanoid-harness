@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "fixture_id": "tqc_actor_expansion_transfer_fixture/v1",
+  "design_status": "synthetic_fixture_not_controller_evidence",
+  "evidence_class": "software_identity_fixture",
+  "claim_ceiling": "transfer_implementation_identity_only",
+  "required_e0": {
+    "calibration_id": "tqc_humanoid_resource_calibration/v1",
+    "design_artifact_sha256": "5e911653e6be94bed73a60322565ba6d017a95e88f12b04b2eb43578d7b04b7d",
+    "receipt_sha256": "2436c2e93cac8b5ed357acdcb19cca0b6222792a1c9c0d65f06577509d68a587",
+    "runtime_sha256": "710d524b2936ee29bbeb5be9336ed5bb0e12964919f7035d213d9f19348e0a77",
+    "seed": 92001,
+    "seed_role": "permanently_excluded_disposable_calibration",
+    "environment_id": "Humanoid-v5",
+    "observation_shape": [348],
+    "action_shape": [17],
+    "observation_space_sha256": "07953989de29452db64aa5188067084bf881761072f9d9b1b9e45b442d38506c",
+    "action_space_sha256": "5a2389149db1f0253571a4f07f4f83285844f18c529355502101d5b50030cfb3",
+    "expected_environment_steps": 100000,
+    "expected_vector_steps": 20000,
+    "expected_gradient_updates": 19980
+  },
+  "fixture": {
+    "actor_initialization_seed": 93001,
+    "expanded_scratch_initialization_seed": 93002,
+    "action_sampling_seed": 93003,
+    "residual_sampling_seed": 93004,
+    "observation_batch_size": 4,
+    "base_observation_dim": 348,
+    "reference_window_shape": [8, 45],
+    "action_dim": 17,
+    "hidden_layers": [256, 256],
+    "dtype": "float32",
+    "activation": "torch.nn.ReLU",
+    "use_sde": false,
+    "observation_construction": "integer_affine_grid_float32/v1",
+    "reference_construction": "integer_affine_grid_float32/v1",
+    "observation_set_sha256": "0c6a81b06a88cab7eca0255e75f021008b60025c4ddc4d3719426e3647159ec6",
+    "reference_set_sha256": "ffce030803e735c4d763658df320fec57810fd7c42811797152977538e012d1a",
+    "expanded_observation_space_sha256": "901c0e6ca77dbbb23e47299b90473a6f6ee84565c44a6156d9bc57d5c1320e51",
+    "residual_distribution": "synthetic_zero_mean_squashed_diagonal_gaussian/v1",
+    "residual_log_std": -3.0,
+    "residual_scale": 0.08
+  },
+  "action_transform": {
+    "normalized_low": -1.0,
+    "normalized_high": 1.0,
+    "physical_low": -0.4,
+    "physical_high": 0.4,
+    "method": "stable_baselines3.BasePolicy.unscale_action/v2.9"
+  },
+  "tolerance": {
+    "absolute": 0.000001,
+    "relative": 0.000001
+  },
+  "runtime": {
+    "required_numpy_version": "2.5.2",
+    "required_torch_version": "2.14.0",
+    "required_stable_baselines3_version": "2.9.0",
+    "required_sb3_contrib_version": "2.9.0",
+    "dependency_lock_sha256": "81b92d15dd2da62f27cd770322db78008d5387b530dc71e053f0d56b327f0b40",
+    "tqc_policy_source_sha256": "7cddca54a7cfad31ad7473244ae7db4412037e4d677e4f3ae156443db52c0a55",
+    "sb3_distribution_source_sha256": "416b40a1bc3bf6435f45e79553fc553d796b58f95d28e49d3aa4437dcfe6e251",
+    "sb3_base_policy_source_sha256": "40bfc915633e216d9d620724e3d80029a6e2a2a9c7607ddc75782b2c8cc281e1",
+    "sb3_torch_layers_source_sha256": "5b3293b1139e5175fa77d65434d153a406ea470d75212b6a6d1bdc6e5fa08a40",
+    "fixture_adapter_source_sha256": "6e68ebd86687380e05a4ae62764e767d155a2360992370e3115448b6b8a41a6d",
+    "fixture_contract_source_sha256": "bcaf154150511664e13777f733bd8be8046d58fb37d0ee2be6d632de33093fdc",
+    "fixture_runner_source_sha256": "7d7c05a36b044828e067725d833f36c6072a3ad44a7e8730821d2bd6fcbfe29a"
+  }
+}

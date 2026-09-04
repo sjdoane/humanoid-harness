@@ -255,6 +255,53 @@ def test_unified_cli_failed_tqc_calibration_preserves_json_mode(
     assert json.loads(raw_output)["calibration_gate_passed"] is False
 
 
+def test_unified_cli_dispatches_tqc_transfer_fixture(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    from oracle_composition.experiments import tqc_initialization_identity
+
+    observed: dict[str, Path] = {}
+
+    def run_fixture(**kwargs):
+        observed.update(kwargs)
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "fixture_identity_checks_passed": True,
+                "actual_e1_gate_passed": False,
+            }
+        )
+
+    monkeypatch.setattr(tqc_initialization_identity, "run_transfer_fixture", run_fixture)
+    design_path = tmp_path / "design.json"
+    e0_receipt_path = tmp_path / "e0.json"
+    output_path = tmp_path / "fixture.json"
+    code = main(
+        [
+            "--json",
+            "tracker",
+            "verify-tqc-transfer-fixture",
+            "--design",
+            str(design_path),
+            "--e0-receipt",
+            str(e0_receipt_path),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["fixture_identity_checks_passed"] is True
+    assert result["actual_e1_gate_passed"] is False
+    assert observed == {
+        "design_path": design_path,
+        "e0_receipt_path": e0_receipt_path,
+        "output_path": output_path,
+    }
+
+
 def test_unified_cli_requires_tqc_resource_acknowledgement(tmp_path: Path, capsys) -> None:
     design_path = (
         Path(__file__).resolve().parents[2]

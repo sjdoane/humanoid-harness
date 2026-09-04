@@ -79,6 +79,13 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="confirm a 5.26-GiB replay probe with a sampled 12-GiB RSS failure threshold",
     )
+    transfer_fixture = tracker_commands.add_parser(
+        "verify-tqc-transfer-fixture",
+        help="verify synthetic TQC actor expansion without claiming a trained controller",
+    )
+    transfer_fixture.add_argument("--design", type=Path, required=True)
+    transfer_fixture.add_argument("--e0-receipt", type=Path, required=True)
+    transfer_fixture.add_argument("--output", type=Path, required=True)
 
     ui = commands.add_parser("ui", help="serve the read-only local evidence UI")
     ui.add_argument("--host", default="127.0.0.1")
@@ -153,7 +160,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     residual_controller_path=args.residual_controller,
                     output_path=args.output,
                 ).to_dict()
-            else:
+            elif args.tracker_command == "calibrate-tqc":
                 from .experiments.tqc_calibration import run_tqc_calibration
 
                 calibration = run_tqc_calibration(
@@ -164,6 +171,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = calibration.to_dict()
                 if not calibration.receipt["calibration_gate_passed"]:
                     exit_code = 2
+            else:
+                from .experiments.tqc_initialization_identity import run_transfer_fixture
+
+                fixture = run_transfer_fixture(
+                    design_path=args.design,
+                    e0_receipt_path=args.e0_receipt,
+                    output_path=args.output,
+                )
+                result = fixture.to_dict()
         else:
             from .ui.server import serve
 

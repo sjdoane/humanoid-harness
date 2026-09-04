@@ -81,3 +81,7 @@ final receipt; an interrupted process leaves the provisional status visible.
 
 The Stable-Baselines3 Scientific Agent Skill informed the executable calibration
 pattern. The project records its method citation in Experiment 001.
+
+The successful resource receipt advances only to the bounded
+[E1 initialization-identity fixture](E1_INITIALIZATION_IDENTITY.md). E1 itself
+remains blocked until exact trained actor bytes exist.
