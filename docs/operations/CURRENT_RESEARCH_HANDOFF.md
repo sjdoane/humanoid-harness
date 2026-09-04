@@ -2,17 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | Verified Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12` completed the startup audit: private-source hashes match, the goal ledger gained `LG-13`-`LG-16`, the duplicate ADR index is resolved, and ADR 0005 replaces the local TQC bootstrap with a hash-pinned public expert base controller whose bytes are verified locally. Two read-only Sol reviewers are running on that route. |
-| bottleneck | Both reviews returned `GO-WITH-FIXES` with no P0; their `13` P1 findings are folded into ADR 0005 and a split builder packet. No tracker is admitted; causal reference use is unproved. |
-| next step | Fable commits its documentation slice, releases the lease, and launches builder `TASK-20260904-03A` as the writer. Slice 03B follows after 03A's review. Do not launch any 1M-step attempt. |
+| progress | Builder 03A verified every precondition and stopped because the Sol sandbox denies writes under `.git`. Fable then preserved the 20 TQC-v2 WIP paths byte-exact on branch `wip/tqc-v2-attempt-supervisor` (commit `5bdae45`, verified blob-for-blob) and cleaned `main`. The audit and route decisions are committed (`4a0976d`). |
+| bottleneck | The secure data-only actor import has not been implemented. Sol workers cannot change git state, so Fable commits every slice after review. No tracker is admitted; causal reference use is unproved. |
+| next step | Launch builder `TASK-20260904-03A2` (artifact registration, bounded weights-only import, equivalence, payload policy test) as the writer; on its receipt, run the two read-only reviews of its diff and commit. Surveys `04` and `05` are still running. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T16:46Z`
+- Updated: `2026-09-04T16:58Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
-- Baseline HEAD: `336ded931334475a3b64384f1257e6d1e7d0e776`; nothing committed by Fable yet
+- Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
 - Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
 - Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: none
+- Active write worker: none at this update; `sol-builder-20260904-03a2` launches next
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
 
@@ -100,14 +100,14 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 
 ## Working-tree state
 
-- Pre-existing WIP is untouched: `13` modified tracked files and `7` untracked
-  TQC-v2 files, verified by `git status` at `16:02Z`.
-- Fable edits, uncommitted and pending the review round:
-  - `docs/strategy/RESEARCH_STRATEGY.md` rewritten with the audit;
-  - `docs/strategy/SOURCE_MANIFEST.md`: anchors `LKS-A10`-`LKS-A14`, verification log;
-  - `docs/decisions/0002_stable_tracker_bootstrap.md` renamed to `0004_stable_tracker_bootstrap.md` with `git mv` (staged) and a renumbering note;
-  - `docs/decisions/0005_public_expert_base_controller.md` and `docs/decisions/README.md` created;
-  - this file.
+- Pre-existing WIP remains byte-exact and untouched: the required `13` modified
+  tracked files and `7` untracked TQC-v2 files are still present.
+- `TASK-20260904-03A` changed-files list before stopping:
+  - `artifacts/bootstrap_tqc_humanoid/wip_preservation_snapshot.json` (ignored):
+    complete 20-path pre-cleanup snapshot, independently revalidated;
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`: this blocker handoff only.
+- No staged entry, WIP branch, linked worktree, source cleanup, checkpoint import,
+  derived NPZ, training run, or behavior evaluation was created.
 - Ignored runtime state: packets `01`, `02` (reviews, done), `03`
   (superseded), `03A` (builder, launching), `04` and `05` (surveys, running)
   under `.orchestration/task-packets/`; four run directories under
@@ -191,9 +191,10 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: rerun the identity gate, acquire the strategy lease with the
-scope above, read the two review receipts, record accepted findings, then wait
-for Samuel's Q1 line before launching `TASK-20260904-03`.
+Fable resume: relaunch `TASK-20260904-03A` in a builder session with write
+access to `/Users/samueldoane/Documents/ChatGPT/humanoid-harness/.git`; the exact
+next action is to revalidate the live 20 WIP paths against the saved snapshot
+and rerun `git worktree add --detach .orchestration/worktrees/wip-tqc-v2 HEAD`.
 
 ## Handoff update contract
 
@@ -204,3 +205,12 @@ for Samuel's Q1 line before launching `TASK-20260904-03`.
   IDs, and the next bounded action.
 - Never convert a green test, UI launch, or zero-action smoke test into a
   behavioral claim.
+
+## Git-state rule observed 2026-09-04
+
+The Codex `workspace-write` sandbox denies writes under `.git`. Sol workers
+cannot branch, stage, commit, stash, or create worktrees. Fable performs every
+git state change under its own lease after review. Builder 03A stopped at that
+boundary at `16:52Z` with all preconditions verified; Fable completed the WIP
+preservation at `2026-09-04T16:58Z` with `artifacts/bootstrap_tqc_humanoid/wip_preservation_fable_verification.txt`
+as the byte-level receipt.
