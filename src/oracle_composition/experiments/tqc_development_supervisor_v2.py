@@ -17,8 +17,12 @@ from typing import Any
 
 from .artifact_io import read_verified_artifact_bytes
 from .fixed_reference import ExperimentContractError
+from .tqc_calibration_contract import canonical_json
 from .tqc_development_channel_v2 import TQCWorkerChannelV2
-from .tqc_development_manifest_v2 import ValidatedTQCPreflightContractV2
+from .tqc_development_manifest_v2 import (
+    ValidatedTQCExecutionManifestV2,
+    ValidatedTQCPreflightContractV2,
+)
 
 ATTEMPT_ID = "dev1m-v2-seed-95001-attempt-01"
 WORKER_STARTED_TIMEOUT_SECONDS = 30.0
@@ -35,6 +39,8 @@ MAX_RECEIPT_BYTES = 512 * 1024
 _DELIVERY_ISSUER = object()
 _SPAWN_ISSUER = object()
 _PREFLIGHT_BUNDLE_ISSUER = object()
+_MANIFEST_ACK_ISSUER = object()
+_MANIFEST_ACK_SEAL_ISSUER = object()
 
 
 def _require_sha256(value: object, *, field: str) -> str:
@@ -122,6 +128,7 @@ class SpawnedTQCWorkerV2:
     _creator_pid: int
     _group_validated: bool = False
     _preflight_received: bool = False
+    _manifest_acknowledged: bool = False
     _closed: bool = False
     _issuer: InitVar[object] = None
 
@@ -180,6 +187,121 @@ class SupervisedTQCWorkerPreflightV2:
                 or hashlib.sha256(value).hexdigest() != expected
             ):
                 raise ExperimentContractError(f"supervised preflight receipt {index} differs")
+
+
+@dataclass(slots=True)
+class _TQCWorkerManifestAckSealV2:
+    """Bind a parent-observed acknowledgement to one live worker handle."""
+
+    _payload: bytes = field(repr=False)
+    _creator_pid: int
+    _spawned_identity: int
+    _manifest_identity: int
+    _issuer: InitVar[object] = None
+
+    def __post_init__(self, _issuer: object) -> None:
+        if _issuer is not _MANIFEST_ACK_SEAL_ISSUER:
+            raise ExperimentContractError("worker manifest acknowledgement seals are private")
+        if (
+            not self._payload
+            or self._creator_pid != os.getpid()
+            or self._spawned_identity <= 0
+            or self._manifest_identity <= 0
+        ):
+            raise ExperimentContractError("worker manifest acknowledgement seal is invalid")
+
+    def validate(
+        self,
+        payload: dict[str, object],
+        *,
+        spawned: object,
+        manifest: object,
+    ) -> None:
+        if (
+            os.getpid() != self._creator_pid
+            or id(spawned) != self._spawned_identity
+            or id(manifest) != self._manifest_identity
+            or canonical_json(payload) != self._payload
+        ):
+            raise ExperimentContractError("worker manifest acknowledgement seal differs")
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedTQCWorkerManifestAcknowledgementV2:
+    """Parent-side proof that the worker re-admitted the exact final manifest."""
+
+    attempt_id: str
+    attempt_nonce: str
+    preflight_contract_sha256: str
+    claimed_work_directory_identity: str
+    worker_pid: int
+    manifest_absolute_path: str
+    manifest_sha256: str
+    manifest_byte_count: int
+    acknowledgement_message_sequence_index: int
+    channel_transcript_frame_count: int
+    channel_transcript_sha256: str
+    channel_parent_send_sequence: int
+    channel_parent_receive_sequence: int
+    worker_reverification_passed: bool
+    authorizes_model_construction: bool
+    behavioral_evidence: bool
+    manifest: ValidatedTQCExecutionManifestV2 = field(repr=False, compare=False)
+    spawned: SpawnedTQCWorkerV2 = field(repr=False, compare=False)
+    _seal: _TQCWorkerManifestAckSealV2 = field(repr=False, compare=False)
+    _issuer: InitVar[object] = None
+
+    def __post_init__(self, _issuer: object) -> None:
+        if _issuer is not _MANIFEST_ACK_ISSUER:
+            raise ExperimentContractError(
+                "worker manifest acknowledgements may only be issued by supervision"
+            )
+        self._validate_sealed()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            name: getattr(self, name)
+            for name in self.__dataclass_fields__
+            if name not in {"manifest", "spawned", "_seal", "_issuer"}
+        }
+
+    def _validate_sealed(self) -> None:
+        if type(self._seal) is not _TQCWorkerManifestAckSealV2:
+            raise ExperimentContractError("worker manifest acknowledgement seal is unavailable")
+        self._seal.validate(self.to_dict(), spawned=self.spawned, manifest=self.manifest)
+        if type(self.manifest) is not ValidatedTQCExecutionManifestV2:
+            raise ExperimentContractError("acknowledged execution manifest type differs")
+        if type(self.spawned) is not SpawnedTQCWorkerV2:
+            raise ExperimentContractError("acknowledged spawned worker type differs")
+        manifest_value = self.manifest.to_dict()
+        if (
+            self.attempt_id != ATTEMPT_ID
+            or self.attempt_id != self.manifest.attempt_id
+            or self.attempt_nonce != manifest_value["attempt_nonce"]
+            or self.preflight_contract_sha256 != self.manifest.preflight_contract_sha256
+            or self.claimed_work_directory_identity != self.manifest.claimed_work_directory_identity
+            or self.worker_pid != self.spawned.worker_pid
+            or self.manifest_absolute_path != manifest_value["manifest_absolute_path"]
+            or self.manifest_sha256 != self.manifest.sha256
+            or self.manifest_byte_count != self.manifest.byte_count
+            or self.acknowledgement_message_sequence_index != 3
+            or self.channel_parent_send_sequence != 1
+            or self.channel_parent_receive_sequence != 4
+            or self.channel_transcript_frame_count != 5
+            or self.worker_reverification_passed is not True
+            or self.authorizes_model_construction is not True
+            or self.behavioral_evidence is not False
+            or self.spawned._manifest_acknowledged is not True
+        ):
+            raise ExperimentContractError("worker manifest acknowledgement is inconsistent")
+        for value, field_name in (
+            (self.attempt_nonce, "attempt nonce"),
+            (self.preflight_contract_sha256, "preflight contract SHA-256"),
+            (self.claimed_work_directory_identity, "claimed work directory identity"),
+            (self.manifest_sha256, "execution manifest SHA-256"),
+            (self.channel_transcript_sha256, "channel transcript SHA-256"),
+        ):
+            _require_sha256(value, field=field_name)
 
 
 def _session_worker_adapter(
@@ -434,6 +556,113 @@ def receive_tqc_worker_preflight_v2(
     )
 
 
+def admit_tqc_execution_manifest_v2(
+    spawned: SpawnedTQCWorkerV2,
+    preflight: ValidatedTQCPreflightContractV2,
+    manifest: ValidatedTQCExecutionManifestV2,
+    *,
+    deadline: float,
+) -> ValidatedTQCWorkerManifestAcknowledgementV2:
+    """Deliver one manifest and require the worker's exact acknowledgement."""
+
+    if type(spawned) is not SpawnedTQCWorkerV2:
+        raise ExperimentContractError("manifest delivery requires an exact spawned handle")
+    spawned._assert_owner()
+    if not spawned._preflight_received or not spawned._group_validated:
+        raise ExperimentContractError("manifest delivery requires validated worker preflight")
+    if spawned._manifest_acknowledged:
+        raise ExperimentContractError("execution manifest was already acknowledged")
+    if type(preflight) is not ValidatedTQCPreflightContractV2:
+        raise ExperimentContractError("manifest delivery requires exact preflight authority")
+    if type(manifest) is not ValidatedTQCExecutionManifestV2:
+        raise ExperimentContractError("manifest delivery requires exact execution authority")
+    if (
+        manifest.attempt_id != preflight.attempt_id
+        or manifest.preflight_contract_sha256 != preflight.sha256
+        or manifest.claimed_work_directory_identity != preflight.claimed_work_directory_identity
+    ):
+        raise ExperimentContractError("execution manifest preflight binding differs")
+    if type(deadline) is not float or not math.isfinite(deadline):
+        raise ExperimentContractError("manifest acknowledgement deadline is invalid")
+    manifest_value = manifest.to_dict()
+    manifest_path = Path(manifest_value["manifest_absolute_path"])
+    manifest_bytes = read_verified_artifact_bytes(
+        manifest_path,
+        expected_sha256=manifest.sha256,
+        expected_size=manifest.byte_count,
+        max_bytes=1024 * 1024,
+    )
+    if manifest_bytes != manifest.canonical_bytes:
+        raise ExperimentContractError("execution manifest authority bytes differ from disk")
+    spawned.channel.send(
+        "admit_execution_manifest",
+        "preflight",
+        {
+            "manifest_absolute_path": str(manifest_path),
+            "manifest_byte_count": manifest.byte_count,
+            "manifest_sha256": manifest.sha256,
+        },
+        deadline=deadline,
+    )
+    acknowledged = spawned.channel.receive(deadline=deadline)
+    expected_payload = {
+        "manifest_byte_count": manifest.byte_count,
+        "manifest_sha256": manifest.sha256,
+        "worker_reverification_passed": True,
+    }
+    if (
+        acknowledged["message_type"] != "execution_manifest_acknowledged"
+        or acknowledged["stage"] != "preflight"
+        or acknowledged["sequence_index"] != 3
+        or acknowledged["payload"] != expected_payload
+    ):
+        raise ExperimentContractError("worker execution-manifest acknowledgement differs")
+    spawned._manifest_acknowledged = True
+    payload: dict[str, object] = {
+        "attempt_id": preflight.attempt_id,
+        "attempt_nonce": preflight.attempt_nonce,
+        "preflight_contract_sha256": preflight.sha256,
+        "claimed_work_directory_identity": preflight.claimed_work_directory_identity,
+        "worker_pid": spawned.worker_pid,
+        "manifest_absolute_path": str(manifest_path),
+        "manifest_sha256": manifest.sha256,
+        "manifest_byte_count": manifest.byte_count,
+        "acknowledgement_message_sequence_index": acknowledged["sequence_index"],
+        "channel_transcript_frame_count": spawned.channel.transcript_frame_count,
+        "channel_transcript_sha256": spawned.channel.transcript_sha256,
+        "channel_parent_send_sequence": spawned.channel.send_sequence,
+        "channel_parent_receive_sequence": spawned.channel.receive_sequence,
+        "worker_reverification_passed": True,
+        "authorizes_model_construction": True,
+        "behavioral_evidence": False,
+    }
+    seal = _TQCWorkerManifestAckSealV2(
+        _payload=canonical_json(payload),
+        _creator_pid=os.getpid(),
+        _spawned_identity=id(spawned),
+        _manifest_identity=id(manifest),
+        _issuer=_MANIFEST_ACK_SEAL_ISSUER,
+    )
+    return ValidatedTQCWorkerManifestAcknowledgementV2(
+        **payload,
+        manifest=manifest,
+        spawned=spawned,
+        _seal=seal,
+        _issuer=_MANIFEST_ACK_ISSUER,
+    )
+
+
+def revalidate_tqc_worker_manifest_acknowledgement_v2(
+    acknowledgement: ValidatedTQCWorkerManifestAcknowledgementV2,
+) -> ValidatedTQCWorkerManifestAcknowledgementV2:
+    """Revalidate one parent-observed manifest acknowledgement capability."""
+
+    if type(acknowledgement) is not ValidatedTQCWorkerManifestAcknowledgementV2:
+        raise ExperimentContractError("manifest acknowledgement must be the exact authority")
+    acknowledgement._validate_sealed()
+    return acknowledgement
+
+
 def terminate_tqc_worker_v2(spawned: SpawnedTQCWorkerV2) -> None:
     """Bounded cleanup of the exact child or its validated process group."""
 
@@ -469,8 +698,11 @@ __all__ = [
     "WORKER_STARTED_TIMEOUT_SECONDS",
     "SpawnedTQCWorkerV2",
     "SupervisedTQCWorkerPreflightV2",
+    "ValidatedTQCWorkerManifestAcknowledgementV2",
     "ValidatedTQCWorkerPreflightDeliveryV2",
+    "admit_tqc_execution_manifest_v2",
     "receive_tqc_worker_preflight_v2",
+    "revalidate_tqc_worker_manifest_acknowledgement_v2",
     "spawn_tqc_worker_v2",
     "terminate_tqc_worker_v2",
 ]
