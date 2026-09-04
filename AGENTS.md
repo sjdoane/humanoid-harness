@@ -14,11 +14,19 @@
 - Start research updates with exactly three rows: **progress**, **bottleneck**,
   and **next step**.
 - The current authority is [`docs/PROJECT_CHARTER.md`](docs/PROJECT_CHARTER.md).
-- A live session verified as `claude-fable-5-1` at `max` effort owns
-  `docs/strategy/`. It may challenge, replace, or reorder strategy and create or
-  supersede decision records when the Lokesh goal ledger and evidence support
-  the change. It may not silently change a goal, historical result, frozen
-  scientific gate, or authorization boundary.
+- Samuel's 2026-09-04 dual-orchestrator instruction supersedes exclusive
+  Fable strategy ownership: Fable leads oracle composition and tracker
+  integration; the Codex Astra session leads task-reward generation and its
+  evaluation loop. Each may question and revise its lane's strategy against
+  the Lokesh goal ledger. Shared scientific contracts need an explicit peer
+  agreement recorded before integration.
+- Read `docs/operations/dual-orchestration/README.md` before dual-lane work.
+  Use separate worktrees and one writer per worktree. The in-flight B0 reward
+  slice remains Fable-owned until an explicit completed-slice handoff.
+- Existing strategy documents describe the earlier single-orchestrator setup;
+  this instruction changes ownership, not scientific goals or evidence gates.
+  Do not silently change historical results, frozen comparisons, or model
+  identity. Fable's identity checks remain in force.
 
 ## Frozen scientific boundary
 

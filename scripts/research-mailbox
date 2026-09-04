@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""Small filesystem mailbox for the Astra and Fable research orchestrators."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+AGENTS = ("astra", "fable")
+# The executable also runs under macOS's system Python 3.9.
+UTC = timezone.utc  # noqa: UP017
+KINDS = (
+    "proposal",
+    "acceptance",
+    "rejection",
+    "counterproposal",
+    "acknowledgment",
+    "progress",
+    "question",
+    "review",
+    "handoff",
+    "blocker",
+)
+DECISION_KINDS = ("acceptance", "rejection", "counterproposal")
+MAX_BODY_BYTES = 32 * 1024
+MESSAGE_ID = re.compile(r"^\d{8}T\d{6}\.\d{6}Z-[0-9a-f]{32}$")
+TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$")
+
+
+class MailboxError(Exception):
+    pass
+
+
+def emit(value: Any, *, stream: Any = sys.stdout) -> None:
+    json.dump(value, stream, indent=2, sort_keys=True, ensure_ascii=False)
+    stream.write("\n")
+
+
+class JsonParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        emit({"error": message, "ok": False}, stream=sys.stderr)
+        raise SystemExit(2)
+
+
+def timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def default_root() -> Path:
+    repo = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        raise MailboxError("cannot resolve the Git common directory for this script")
+    common = Path(result.stdout.strip())
+    if not common.is_absolute():
+        common = repo / common
+    return common.resolve() / "harness-coordination"
+
+
+def prepare(root: Path) -> None:
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for name in ("messages", "acks", "status"):
+        (root / name).mkdir(mode=0o700, exist_ok=True)
+
+
+def write_record(path: Path, payload: dict[str, Any], *, overwrite: bool = False) -> bool:
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            data = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+            handle.write(data.encode())
+            handle.flush()
+            os.fsync(handle.fileno())
+        if overwrite:
+            os.replace(temporary_path, path)
+            return True
+        try:
+            os.link(temporary_path, path)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def read_json(path: Path, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise MailboxError(f"{label} does not exist") from error
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise MailboxError(f"{label} is unreadable or malformed: {path.name}") from error
+    if not isinstance(value, dict):
+        raise MailboxError(f"{label} is malformed: {path.name}")
+    return value
+
+
+def valid_id(value: str) -> str:
+    if MESSAGE_ID.fullmatch(value) is None:
+        raise MailboxError(f"invalid message ID: {value!r}")
+    return value
+
+
+def load_message(root: Path, message_id: str) -> dict[str, Any]:
+    message_id = valid_id(message_id)
+    message = read_json(root / "messages" / f"{message_id}.json", "message")
+    required = {
+        "schema_version",
+        "id",
+        "from",
+        "to",
+        "kind",
+        "subject",
+        "body",
+        "reply_to",
+        "sent_at",
+    }
+    valid = (
+        set(message) == required
+        and type(message["schema_version"]) is int
+        and message["schema_version"] == 1
+        and message["id"] == message_id
+        and message["from"] in AGENTS
+        and message["to"] in AGENTS
+        and message["kind"] in KINDS
+        and isinstance(message["subject"], str)
+        and isinstance(message["body"], str)
+        and isinstance(message["sent_at"], str)
+        and TIMESTAMP.fullmatch(message["sent_at"]) is not None
+        and (
+            message["reply_to"] is None
+            or (
+                isinstance(message["reply_to"], str)
+                and MESSAGE_ID.fullmatch(message["reply_to"]) is not None
+            )
+        )
+    )
+    if not valid or len(message.get("body", "").encode()) > MAX_BODY_BYTES:
+        raise MailboxError(f"message record is malformed: {message_id}")
+    return message
+
+
+def load_ack(root: Path, message: dict[str, Any]) -> dict[str, Any] | None:
+    path = root / "acks" / f"{message['id']}.json"
+    if not path.exists():
+        return None
+    ack = read_json(path, "acknowledgment")
+    required = {"schema_version", "message_id", "recipient", "acknowledged_at", "meaning"}
+    if not (
+        set(ack) == required
+        and type(ack["schema_version"]) is int
+        and ack["schema_version"] == 1
+        and ack["message_id"] == message["id"]
+        and ack["recipient"] == message["to"]
+        and isinstance(ack["acknowledged_at"], str)
+        and TIMESTAMP.fullmatch(ack["acknowledged_at"]) is not None
+        and ack["meaning"] == "read_not_agreement"
+    ):
+        raise MailboxError(f"acknowledgment record is malformed: {message['id']}")
+    return ack
+
+
+def all_messages(root: Path) -> list[dict[str, Any]]:
+    messages = [load_message(root, path.stem) for path in (root / "messages").glob("*.json")]
+    return sorted(messages, key=lambda item: (item["sent_at"], item["id"]))
+
+
+def body_text(arguments: argparse.Namespace) -> str:
+    if arguments.body is not None:
+        raw = arguments.body.encode()
+    else:
+        path = Path(arguments.body_file)
+        try:
+            with path.open("rb") as handle:
+                raw = handle.read(MAX_BODY_BYTES + 1)
+        except OSError as error:
+            raise MailboxError(f"cannot read body file: {path}") from error
+    if len(raw) > MAX_BODY_BYTES:
+        raise MailboxError(f"body exceeds {MAX_BODY_BYTES} UTF-8 bytes")
+    try:
+        return raw.decode()
+    except UnicodeDecodeError as error:
+        raise MailboxError("body must be valid UTF-8 text") from error
+
+
+def command_send(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    prior = None
+    if arguments.reply_to is not None:
+        prior = load_message(root, arguments.reply_to)
+        if prior["to"] != arguments.sender or prior["from"] != arguments.recipient:
+            raise MailboxError("reply-to must identify a message from the recipient to the sender")
+    if arguments.kind in DECISION_KINDS and (prior is None or prior["kind"] != "proposal"):
+        raise MailboxError(f"{arguments.kind} requires --reply-to for an existing proposal")
+    body = body_text(arguments)
+    for _ in range(8):
+        message_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ") + f"-{uuid.uuid4().hex}"
+        message = {
+            "schema_version": 1,
+            "id": message_id,
+            "from": arguments.sender,
+            "to": arguments.recipient,
+            "kind": arguments.kind,
+            "subject": arguments.subject,
+            "body": body,
+            "reply_to": arguments.reply_to,
+            "sent_at": timestamp(),
+        }
+        if write_record(root / "messages" / f"{message_id}.json", message):
+            return message
+    raise MailboxError("could not allocate a unique message ID")
+
+
+def command_inbox(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    selected = []
+    for message in all_messages(root):
+        if message["to"] != arguments.agent:
+            continue
+        ack = load_ack(root, message)
+        if ack is None or arguments.all:
+            selected.append({**message, "read_acknowledgment": ack})
+    return {"agent": arguments.agent, "messages": selected}
+
+
+def command_ack(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    message = load_message(root, arguments.message_id)
+    if message["to"] != arguments.agent:
+        raise MailboxError(f"only recipient {message['to']} may acknowledge this message")
+    existing = load_ack(root, message)
+    if existing is not None:
+        return {"acknowledgment": existing, "created": False}
+    ack = {
+        "schema_version": 1,
+        "message_id": message["id"],
+        "recipient": arguments.agent,
+        "acknowledged_at": timestamp(),
+        "meaning": "read_not_agreement",
+    }
+    created = write_record(root / "acks" / f"{message['id']}.json", ack)
+    return {"acknowledgment": ack if created else load_ack(root, message), "created": created}
+
+
+def command_status(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    status = {
+        "schema_version": 1,
+        "agent": arguments.agent,
+        "progress": arguments.progress,
+        "bottleneck": arguments.bottleneck,
+        "next_step": arguments.next_step,
+        "updated_at": timestamp(),
+    }
+    write_record(root / "status" / f"{arguments.agent}.json", status, overwrite=True)
+    return status
+
+
+def load_status(root: Path, agent: str) -> dict[str, Any] | None:
+    path = root / "status" / f"{agent}.json"
+    if not path.exists():
+        return None
+    status = read_json(path, "status")
+    required = {"schema_version", "agent", "progress", "bottleneck", "next_step", "updated_at"}
+    if (
+        set(status) != required
+        or type(status["schema_version"]) is not int
+        or status["schema_version"] != 1
+        or status["agent"] != agent
+        or not all(
+            isinstance(status[field], str)
+            for field in ("progress", "bottleneck", "next_step", "updated_at")
+        )
+        or TIMESTAMP.fullmatch(status["updated_at"]) is None
+    ):
+        raise MailboxError(f"status record is malformed: {agent}")
+    return status
+
+
+def command_board(root: Path, _: argparse.Namespace) -> dict[str, Any]:
+    messages = all_messages(root)
+    mail = {}
+    for agent in AGENTS:
+        addressed = [message for message in messages if message["to"] == agent]
+        unread = sum(load_ack(root, message) is None for message in addressed)
+        mail[agent] = {"total": len(addressed), "unread": unread}
+    return {"mail": mail, "statuses": {agent: load_status(root, agent) for agent in AGENTS}}
+
+
+def parser() -> argparse.ArgumentParser:
+    result = JsonParser(prog="research-mailbox")
+    result.add_argument(
+        "--root", type=Path, help="coordination root override for isolated tests only"
+    )
+    commands = result.add_subparsers(dest="command", required=True)
+    send = commands.add_parser("send")
+    send.add_argument("--from", dest="sender", choices=AGENTS, required=True)
+    send.add_argument("--to", dest="recipient", choices=AGENTS, required=True)
+    send.add_argument("--kind", choices=KINDS, required=True)
+    send.add_argument("--subject", required=True)
+    bodies = send.add_mutually_exclusive_group(required=True)
+    bodies.add_argument("--body")
+    bodies.add_argument("--body-file")
+    send.add_argument("--reply-to")
+    send.set_defaults(handler=command_send)
+    inbox = commands.add_parser("inbox")
+    inbox.add_argument("agent", choices=AGENTS)
+    inbox.add_argument("--all", action="store_true")
+    inbox.set_defaults(handler=command_inbox)
+    ack = commands.add_parser("ack")
+    ack.add_argument("agent", choices=AGENTS)
+    ack.add_argument("message_id")
+    ack.set_defaults(handler=command_ack)
+    status = commands.add_parser("status")
+    status.add_argument("agent", choices=AGENTS)
+    status.add_argument("--progress", required=True)
+    status.add_argument("--bottleneck", required=True)
+    status.add_argument("--next-step", dest="next_step", required=True)
+    status.set_defaults(handler=command_status)
+    board = commands.add_parser("board")
+    board.set_defaults(handler=command_board)
+    return result
+
+
+def main() -> int:
+    arguments = parser().parse_args()
+    try:
+        root = arguments.root.resolve() if arguments.root else default_root()
+        prepare(root)
+        emit(arguments.handler(root, arguments))
+    except (MailboxError, OSError) as error:
+        emit({"error": str(error), "ok": False}, stream=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
