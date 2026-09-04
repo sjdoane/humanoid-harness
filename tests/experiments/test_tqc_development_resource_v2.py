@@ -306,6 +306,25 @@ def test_work_directory_identity_change_poisoned_monitor(
         monitor.sample_lifecycle("post_model_construction")
 
 
+def test_regular_file_creation_preserves_work_directory_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor = _bound_monitor(tmp_path, monkeypatch)
+    work = tmp_path.resolve() / "attempt"
+    identity = monitor.claimed_work_directory_identity
+
+    (work / "tqc_model_step_1000000.zip").write_bytes(b"bounded test artifact")
+
+    assert resource_module.claimed_work_directory_identity(work) == identity
+    monitor.sample_lifecycle("post_model_construction")
+    descriptor = monitor.duplicate_work_directory_descriptor()
+    try:
+        assert resource_module.os.fstat(descriptor).st_ino == work.stat().st_ino
+    finally:
+        resource_module.os.close(descriptor)
+
+
 def test_directory_replace_and_restore_cannot_change_disk_measurement_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -122,11 +122,11 @@ def _open_work_directory(path: Path) -> tuple[Path, int, os.stat_result]:
 
 
 def _directory_state(value: os.stat_result) -> tuple[int, ...]:
+    # APFS changes a directory's link count when regular children are published.
     return (
         int(value.st_dev),
         int(value.st_ino),
         int(value.st_mode),
-        int(value.st_nlink),
         int(value.st_uid),
         int(value.st_gid),
     )
