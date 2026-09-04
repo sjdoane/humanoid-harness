@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | B0FIX2 landed the unresolved venv launch, Seatbelt profile v2, interpreter identity binding, and categorical exit diagnostics; the host now shows the worker starting. Fable's host diagnosis found the last gap: Python cannot list `src` under the profile, so the package resolves as a namespace shell from site-packages; three directory-listing grants fix it. |
-| bottleneck | Nested Seatbelt remains unavailable inside Codex, so 14 OS canaries are explicitly unverified here; profile v2 still needs Fable's host rerun. No tracker is admitted, and causal reference use remains unproved. |
-| next step | Run `B0FIX3` (three directory grants, profile v3) as the writer, verify the `20` canaries on the host, commit B0 as `Slice B0`, launch its two reviews read-only, and run `03A2FIX` in parallel. Do not launch any 1M-step attempt. |
+| progress | Profile v3 works on the host: `18` of `20` reward-sandbox canaries pass, including memory containment by timeout kill. The two failures are probe defects (socket creation and `getpriority` are not Seatbelt-governed operations), not containment gaps. |
+| bottleneck | Nested Seatbelt remains unavailable inside Codex, so 14 OS canaries are explicitly unverified here; profile v3 still needs Fable's host rerun. No tracker is admitted, and causal reference use remains unproved. |
+| next step | Run `B0FIX4` (governed-operation probes) as the writer, verify `20/20` on the host, commit B0 as `Slice B0`, launch its two reviews read-only, and run `03A2FIX` in parallel. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T21:42Z`
+- Updated: `2026-09-04T21:58Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -34,6 +34,7 @@
 | `sol-builder-20260904-b0fix` (write) | builder | `TASK-20260904-B0FIX` | `.orchestration/sol-runs/20260904T202141Z-260b15ed-0b8b-47df-a17b-800bc2267504` | `SUCCEEDED`; thread `01a06e15-8f53-7452-ad7a-00a9d3688a14` | `46776` |
 | `sol-review-adv-20260904-08` | robustness reviewer of `1d6b461` | `TASK-REVIEW-ROBUSTNESS-GENERIC` | `.orchestration/sol-runs/20260904T202141Z-fe0d2655-8bd5-4363-8445-abf0e2d51bda` | `SUCCEEDED`; `ACCEPT-WITH-REPAIRS`; thread `01a06e15-8faa-7453-8319-d724dc56ff5f` | `46844` |
 | `sol-builder-20260904-b0fix2` (write) | builder | `TASK-20260904-B0FIX2` | `.orchestration/sol-runs/20260904T210814Z-f73f6df5-757f-4fab-b3aa-17f8c660935b` | `SUCCEEDED`; thread `01a06e40-2e02-7540-843e-b7b908f1ae37` | `60764` |
+| `sol-builder-20260904-b0fix3` (write) | builder | `TASK-20260904-B0FIX3` | `.orchestration/sol-runs/20260904T214238Z-b4e1b91c-2e42-434c-b3e7-776536d48e50` | `SUCCEEDED`; thread `01a06e5f-ad2e-7852-a327-f8342a75cc73` | `73489` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -197,6 +198,42 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
     `sandbox-exec: sandbox_apply: Operation not permitted`; full suite `44
     failed, 1143 passed, 9 skipped`, with the exact saved 44-test baseline;
     Ruff lint and format checks pass. No training or behavioral evaluation ran.
+- `TASK-20260904-B0FIX3` repair changed-files subset and receipts:
+  - `src/oracle_composition/rewards/sandbox.py`.
+  - `tests/rewards/test_sandbox.py`.
+  - `experiments/family_b_target_speed_v1/PROTOCOL.md`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_sandbox_canaries.json`:
+    canonical SHA-256
+    `3cfc64c0868c606cce9b400cf88493f2b9057d7c7dfe668cfd016b6114bf6238`;
+    file SHA-256
+    `ba1cb6246298d90f7011ed559c1d1829e636b0bf8bf62d82ae4d980146b5a4df`;
+    profile SHA-256
+    `f18216e5c08a0ac2eac8986f8338b032c84d2de24a231083ae28083bb061f44f`.
+  - Profile-delta proof: removing the three literal package-directory rules
+    from v3 reproduces the recorded v2 profile SHA-256
+    `7dcef9b4e429752695700817d0748560f6832e2d8b6b1f6f4ec253f2a423a816`.
+  - Canary verdicts: `source_drift`, `pickle`, `object_dtype`,
+    `oversize_frame`, `extra_frame`, and `malformed_response` pass;
+    `file_read`, `file_write`, `environment_secret`, `network`,
+    `process_creation`, `fork`, `signal`, `tracing`, `repository_read`,
+    `timeout`, `memory_abuse`, `stdout_injection`, `private_fd_injection`, and
+    `worker_crash` are `not_verified_in_builder_sandbox` with exact error
+    `sandbox-exec: sandbox_apply: Operation not permitted`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`:
+    canonical SHA-256
+    `552e2e39a7438d76af9f7025b6413080d63d791c19be1fa398d8c3a34b257ca0`;
+    file SHA-256
+    `5cb1d36a64a27a1eb1055af18deb384291de82139048046de61ce1e8fd1b77e5`;
+    runtime fingerprint SHA-256
+    `d1bf3d270429f1d41d9743f21a6bd090ffadd41e1e500a67b9afeabf5827da50`;
+    unchanged eight-step smoke SHA-256
+    `048cf64ca8b06f6bd9f00c1b591ba1d0b40fb87620114db6f3a3c367f4218bdc`.
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
+  - Verification: sandbox tests `22 passed, 7 skipped` with exact reason
+    `sandbox-exec: sandbox_apply: Operation not permitted`; runtime receipt
+    replay `1 passed`; full suite `44 failed, 1143 passed, 9 skipped`, with
+    observed failure IDs exactly equal to the saved 44-test baseline; Ruff
+    lint and format checks pass. No training or behavioral evaluation ran.
 - Local ignored artifacts created by the slice:
   - `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: SHA-256
     `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`,
@@ -287,10 +324,11 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: rerun the 20 B0 Seatbelt canaries outside the builder sandbox,
-resolve the exact 1 GiB `RLIMIT_AS` startup failure if it repeats, then review
-the scope-only diff and three B0 receipts and commit; do not run training or
-credit fixed-control parity as behavior.
+Fable resume: rerun the 20 B0 Seatbelt canaries outside the builder sandbox
+against profile v3 and require every verdict to pass, with
+`memory_abuse=timeout_kill`; then review the scope-only diff and three B0
+receipts and commit. Do not run training or credit fixed-control parity as
+behavior.
 
 ## Handoff update contract
 
@@ -395,3 +433,12 @@ does not grant. Three literal directory grants (`src`,
 `src/oracle_composition`, `src/oracle_composition/rewards`) let the regular
 package win; the worker then runs to its documented exit paths. Packet
 `TASK-20260904-B0FIX3` applies them as profile v3.
+
+## B0 host verification under profile v3 `2026-09-04T21:58Z`
+
+Host canaries: `18` passed, `2` failed (`network`, `tracing`, exit `4`);
+`memory_abuse` passed with mechanism `timeout_kill`. Host receipt canonical
+SHA-256 `097006bf8becd4a6b4bed5ffb4dbe56174516e9a878a76a71827ac3d34bf7a97`.
+The two failures are probe defects: socket creation and `getpriority` are not
+operations Seatbelt governs. Packet `TASK-20260904-B0FIX4` replaces them with
+`connect`/`bind` and `libproc` probes. No profile change is needed.
