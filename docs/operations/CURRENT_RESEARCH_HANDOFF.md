@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | The external actor import slice is committed on `main` as `1d6b461` (outside-sandbox suite `1099 passed`, lint clean): the expert actor now exists as integrity-verified bytes in a strict NPZ with exact fixed-batch equivalence, honest provenance, and a payload policy test. Reviews `06` and `07` are examining that commit. |
-| bottleneck | The slice is `external_base_import` only: no E1 contenders, no development screen, no behavior. The reward track has no contract or sandbox yet. No tracker is admitted; causal reference use is unproved. |
-| next step | Builder B0 (reward contract, stock parity, sandbox, protected endpoint; no training) runs as the writer while reviews `06`/`07` finish. Review repairs become a follow-up slice; then `03A3` and `03B` in oracle-track order. Do not launch any 1M-step attempt. |
+| progress | Builder B0 delivered the reward contract, exact stock parity, static validator, pipe-based sandbox worker, scale calibration, protected target-speed evaluator, and protocol files (`87` focused tests). Scientific review of the import commit `1d6b461` returned `ACCEPT-WITH-REPAIRS` (three P1); its adversarial review was cut off by the Codex cyber-safety filter after one probe. |
+| bottleneck | On the host, `setrlimit(RLIMIT_AS, 1 GiB)` raises on macOS, so all `14` OS Seatbelt canaries fail in the worker's pre-exec and seven sandbox tests fail outside the Codex sandbox (`1179 passed` otherwise); B0 stays uncommitted until repair B0FIX lands. The import slice needs repair 03A2FIX. No tracker is admitted; causal reference use is unproved. |
+| next step | Run builder `B0FIX` as the writer and the reusable robustness review on `1d6b461` read-only. Then commit B0, review it, run `03A2FIX`, then `03A3` and `03B`. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T18:16Z`
+- Updated: `2026-09-04T20:21Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -30,6 +30,7 @@
 | `sol-builder-20260904-03a2r` (write) | builder | `TASK-20260904-03A2R` | `.orchestration/sol-runs/20260904T174545Z-7b364f7f-b3bf-426d-8023-17389e1f0c12` | `SUCCEEDED`: slice complete, thread `01a06d86-cd17-7ee2-b6de-c7d3d07576f9` | `67383` |
 | `sol-review-sci-20260904-06` | scientific reviewer of `1d6b461` | `TASK-20260904-06` | `.orchestration/sol-runs/20260904T181613Z-721ea785-8dc3-4d8f-9eb6-84b4672d1fb3` | `hh-sol-869272fb-cc6c-480d-9b0a-0b3eece424a9` | `74477` |
 | `sol-review-adv-20260904-07` | adversarial reviewer of `1d6b461` | `TASK-20260904-07` | `.orchestration/sol-runs/20260904T181614Z-5bb41e36-fc24-49b0-8fb3-a73409210b5a` | `hh-sol-d7eb4fef-93a3-49a5-9161-140a7d1672a7` | `74544` |
+| `sol-builder-20260904-b0` (write) | builder | `TASK-20260904-B0` | `.orchestration/sol-runs/20260904T181636Z-8fcc968b-0d9a-4901-ba7f-3a389fc522af` | `SUCCEEDED`; slice uncommitted pending B0FIX; thread `01a06da3-08f9-7a92-b01e-eb2bacdb3502` | `76786` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -110,23 +111,34 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 - Start state was clean at `main` HEAD
   `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
   commit `5bdae45` each list exactly the expected 20 preserved paths.
-- `TASK-20260904-03A2R` tracked or trackable changed-files list:
+- `TASK-20260904-B0` tracked or trackable changed-files list:
   - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
-  - `experiments/README.md`.
-  - `experiments/bootstrap_tqc_humanoid/E1_INITIALIZATION_IDENTITY.md`.
-  - `experiments/bootstrap_tqc_humanoid/PUBLIC_EXPERT_IMPORT.md`.
-  - `research/source_controllers/farama_minari_humanoid_v5_tqc_expert/README.md`.
-  - `research/source_controllers/farama_minari_humanoid_v5_tqc_expert/RECEIPT.json`.
-  - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
-  - `src/oracle_composition/experiments/tqc_actor_equivalence_primitives.py`.
-  - `src/oracle_composition/experiments/tqc_actor_equivalence_v2.py`.
-  - `src/oracle_composition/sources/_external_sb3_actor_worker.py`.
-  - `src/oracle_composition/sources/external_payload_policy.py`.
-  - `src/oracle_composition/sources/external_sb3_actor.py`.
-  - `src/oracle_composition/sources/farama_tqc_registration.py`.
-  - `tests/policy/test_no_external_payload_in_index.py`.
-  - `tests/sources/test_external_sb3_actor.py`.
-  - `tests/sources/test_farama_tqc_registration.py`.
+  - `experiments/family_b_target_speed_v1/PROTOCOL.md`.
+  - `experiments/family_b_target_speed_v1/DECISION_RULE.md`.
+  - `experiments/family_b_target_speed_v1/configs/family_b_target_speed_v1.study.json`.
+  - `experiments/family_b_target_speed_v1/candidates/stock_r0.py`.
+  - `experiments/family_b_target_speed_v1/candidates/manual_target_speed_v1.py`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_sandbox_canaries.json`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_synthetic_scale.json`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`.
+  - `src/oracle_composition/rewards/__init__.py`.
+  - `src/oracle_composition/rewards/contract.py`.
+  - `src/oracle_composition/rewards/stock_humanoid.py`.
+  - `src/oracle_composition/rewards/static_validation.py`.
+  - `src/oracle_composition/rewards/scale_calibration.py`.
+  - `src/oracle_composition/rewards/sandbox.py`.
+  - `src/oracle_composition/rewards/_sandbox_worker.py`.
+  - `src/oracle_composition/experiments/reward_target_speed_evaluator.py`.
+  - `src/oracle_composition/experiments/reward_target_speed_manifest.py`.
+  - `tests/rewards/test_contract.py`.
+  - `tests/rewards/test_stock_humanoid.py`.
+  - `tests/rewards/test_static_validation.py`.
+  - `tests/rewards/test_scale_calibration.py`.
+  - `tests/rewards/test_sandbox.py`.
+  - `tests/experiments/test_reward_target_speed_evaluator.py`.
+  - `tests/experiments/test_reward_target_speed_manifest.py`.
+  - `artifacts/family_b_target_speed_v1/sandbox_baseline_failures.txt` (ignored
+    in-sandbox baseline receipt).
 - Local ignored artifacts created by the slice:
   - `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: SHA-256
     `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`,
@@ -217,10 +229,10 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: inspect the complete 03A2R diff and the four recorded artifact
-identities, launch read-only reviews `TASK-20260904-06` and
-`TASK-20260904-07`, then fold accepted fixes and commit; do not run training or
-credit this interface check as E1 or behavior.
+Fable resume: rerun the 20 B0 Seatbelt canaries outside the builder sandbox,
+resolve the exact 1 GiB `RLIMIT_AS` startup failure if it repeats, then review
+the scope-only diff and three B0 receipts and commit; do not run training or
+credit fixed-control parity as behavior.
 
 ## Handoff update contract
 
@@ -294,3 +306,9 @@ In-sandbox suite: `44 failed, 1053 passed, 2 skipped`, failures identical to
 the frozen baseline; new focused tests `39 passed`; ruff lint and format
 passed. Evidence class `external_base_import`, an `interface_check`. Nothing
 behavioral ran.
+
+## Review round on `1d6b461` and B0 host checks `2026-09-04T20:21Z`
+
+- Scientific review `06` (thread `01a06da2-b496-7cb2-b89a-c87725723b53`): `ACCEPT-WITH-REPAIRS`, `0` P0, `3` P1 (`SCI-03A2-01` nominal payload fingerprint; `-02` sorted safe-globals comparison; `-03` vacuous negatives). Repair packet `TASK-20260904-03A2FIX` also carries the storage-interval overlap check found by the adversarial probe.
+- Adversarial review `07` (thread `01a06da2-b54c-70a1-8ffb-c2a2f033d1e6`): `turn.failed`, flagged by the Codex cyber-safety filter after constructing one overlap probe. Future adversarial packets are phrased as defensive robustness reviews without payload construction (`TASK-REVIEW-ROBUSTNESS-GENERIC`), driven by `.orchestration/review-target-adv.txt`. A matching `TASK-REVIEW-SCI-GENERIC` reads `.orchestration/review-target-sci.txt`.
+- B0 host checks: Seatbelt bootstrap passes on the host; `RLIMIT_AS 1 GiB` raises `ValueError` on macOS; `14` OS canaries fail in pre-exec, `6` protocol canaries pass; host receipt `experiments/family_b_target_speed_v1/receipts/host_sandbox_canaries.json` (canonical SHA-256 `62c2529fd0430b0d9bd9fe7c0920015535961aa9771874aa65f0cecfad161190`); outside-sandbox suite `7 failed, 1179 passed`, all seven in `tests/rewards/test_sandbox.py`; ruff clean. Repair packet `TASK-20260904-B0FIX`.
