@@ -657,7 +657,7 @@ class FinalTQCActorAuthority:
         persistence = self.persistence_authority
         if type(persistence) is not TQCPersistenceAuthorityV2:
             raise ExperimentContractError("final actor persistence authority differs")
-        persistence._validate_payload_seal()
+        persistence._validate_lineage_seal()
         for name in (
             "execution_manifest_sha256",
             "claimed_work_directory_identity",

@@ -21,6 +21,7 @@ from oracle_composition.experiments import tqc_development_training_v2 as traini
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 from oracle_composition.experiments.tqc_actor_equivalence_v2 import (
     admit_final_tqc_checkpoint_actor,
+    revalidate_tqc_actor_equivalence_receipt_v2,
     verify_actor_equivalence_v2,
 )
 
@@ -403,6 +404,7 @@ def test_persistence_and_strict_reload_round_trip_without_two_replays(
     ):
         assert stat.S_IMODE(artifact.path.stat().st_mode) == 0o600
         assert artifact.path.stat().st_size == artifact.byte_count
+    assert revalidate_tqc_actor_equivalence_receipt_v2(equivalence) is equivalence
     assert persistence.revalidate_tqc_strict_reload_authority_v2(reloaded) is reloaded
     with pytest.raises(ExperimentContractError, match="only be issued"):
         replace(authority)

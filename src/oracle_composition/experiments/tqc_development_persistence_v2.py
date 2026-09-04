@@ -144,6 +144,24 @@ class _TQCPersistenceSealV2:
         ):
             raise ExperimentContractError("TQC persistence authority seal differs")
 
+    def validate_lineage(
+        self,
+        payload: Mapping[str, object],
+        *,
+        completion: object,
+        loaded_actor: object,
+    ) -> None:
+        """Validate immutable lineage before or after a successful reload."""
+
+        if (
+            os.getpid() != self._creator_pid
+            or self._phase not in {"issued", "consumed"}
+            or id(completion) != self._completion_identity
+            or id(loaded_actor) != self._loaded_actor_identity
+            or canonical_json(dict(payload)) != self._payload
+        ):
+            raise ExperimentContractError("TQC persistence lineage seal differs")
+
     def begin_reload(
         self,
         payload: Mapping[str, object],
@@ -789,6 +807,15 @@ class TQCPersistenceAuthorityV2:
         if type(self._seal) is not _TQCPersistenceSealV2:
             raise ExperimentContractError("TQC persistence authority seal is unavailable")
         self._seal.validate(
+            self.to_dict(),
+            completion=self.training_completion,
+            loaded_actor=self.loaded_actor,
+        )
+
+    def _validate_lineage_seal(self) -> None:
+        if type(self._seal) is not _TQCPersistenceSealV2:
+            raise ExperimentContractError("TQC persistence authority seal is unavailable")
+        self._seal.validate_lineage(
             self.to_dict(),
             completion=self.training_completion,
             loaded_actor=self.loaded_actor,

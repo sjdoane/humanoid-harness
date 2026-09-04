@@ -60,7 +60,7 @@ class _FakePersistenceAuthority:
         self.loaded_actor = loaded_actor
         self.source_actor_state_sha256 = loaded_actor.state_sha256
 
-    def _validate_payload_seal(self) -> None:
+    def _validate_lineage_seal(self) -> None:
         return None
 
 
