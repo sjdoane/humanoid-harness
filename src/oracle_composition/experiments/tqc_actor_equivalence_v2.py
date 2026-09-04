@@ -14,6 +14,18 @@ import numpy as np
 
 from .artifact_io import PublishedArtifact, read_verified_artifact_bytes
 from .fixed_reference import ExperimentContractError
+from .tqc_actor_equivalence_primitives import (
+    EQUIVALENCE_OBSERVATION_SHA256,
+    EQUIVALENCE_SAMPLING_SEED,
+    LOG_STD_MAX,
+    LOG_STD_MIN,
+    canonical_array_sha256,
+    equivalence_observations,
+)
+from .tqc_actor_equivalence_primitives import (
+    seeded_squashed_normal_sample as _seeded_sample,
+)
+from .tqc_actor_equivalence_primitives import with_seeded_cpu_rng as _with_seeded_cpu_rng
 from .tqc_actor_npz import (
     ACTION_WIDTH,
     OBSERVATION_WIDTH,
@@ -27,11 +39,6 @@ from .tqc_development_persistence_v2 import (
 )
 
 EQUIVALENCE_ID = "strict_tqc_actor_mean_log_std_action_sample_equivalence/v2"
-EQUIVALENCE_OBSERVATION_SHA256 = "0c6a81b06a88cab7eca0255e75f021008b60025c4ddc4d3719426e3647159ec6"
-EQUIVALENCE_OBSERVATION_SHAPE = (4, OBSERVATION_WIDTH)
-EQUIVALENCE_SAMPLING_SEED = 97_001
-LOG_STD_MIN = -20.0
-LOG_STD_MAX = 2.0
 FINAL_ENVIRONMENT_STEP = 1_000_000
 FINAL_UPDATE_COUNT = 199_980
 MAX_TRUSTED_MODEL_ARCHIVE_BYTES = 100 * 1024 * 1024
@@ -61,23 +68,6 @@ def _canonical_json(value: object) -> bytes:
         raise ExperimentContractError(f"value is not canonical JSON: {exc}") from exc
 
 
-def canonical_array_sha256(value: np.ndarray) -> str:
-    """Hash one C-order array with its exact dtype and shape."""
-
-    if not isinstance(value, np.ndarray):
-        raise ExperimentContractError("hashed value must be a NumPy array")
-    if not value.flags.c_contiguous:
-        raise ExperimentContractError("hashed array must use C-order storage")
-    metadata = _canonical_json({"dtype": value.dtype.str, "shape": list(value.shape)})
-    raw = value.tobytes(order="C")
-    digest = hashlib.sha256()
-    digest.update(len(metadata).to_bytes(8, "big"))
-    digest.update(metadata)
-    digest.update(len(raw).to_bytes(8, "big"))
-    digest.update(raw)
-    return digest.hexdigest()
-
-
 def _canonical_sha256(value: object, *, field_name: str) -> str:
     if (
         type(value) is not str
@@ -87,19 +77,6 @@ def _canonical_sha256(value: object, *, field_name: str) -> str:
     ):
         raise ExperimentContractError(f"{field_name} must be a lowercase SHA-256")
     return value
-
-
-def equivalence_observations() -> np.ndarray:
-    """Build the frozen four-observation affine grid."""
-
-    indices = np.arange(4 * OBSERVATION_WIDTH, dtype=np.int64).reshape(
-        EQUIVALENCE_OBSERVATION_SHAPE
-    )
-    values = (((indices * 37 + 11) % 257) - 128).astype("<f4") / np.float32(64.0)
-    result = np.ascontiguousarray(values, dtype="<f4")
-    if canonical_array_sha256(result) != EQUIVALENCE_OBSERVATION_SHA256:
-        raise ExperimentContractError("TQC equivalence observation batch differs")
-    return result
 
 
 def _actor_arrays(actor: object) -> dict[str, np.ndarray]:
@@ -156,30 +133,6 @@ def _actor_arrays(actor: object) -> dict[str, np.ndarray]:
         }
     )
     return validate_actor_arrays(values)
-
-
-def _with_seeded_cpu_rng(computation: object, *, sampling_seed: int) -> object:
-    import torch
-
-    if not callable(computation):
-        raise ExperimentContractError("seeded computation must be callable")
-    before = torch.random.get_rng_state().clone()
-    generator = torch.Generator(device="cpu")
-    generator.manual_seed(sampling_seed)
-    try:
-        torch.random.set_rng_state(generator.get_state())
-        return computation()
-    finally:
-        torch.random.set_rng_state(before)
-
-
-def _seeded_sample(mean: object, log_std: object, *, sampling_seed: int) -> object:
-    import torch
-
-    return _with_seeded_cpu_rng(
-        lambda: torch.tanh(torch.distributions.Normal(mean, torch.exp(log_std)).rsample()),
-        sampling_seed=sampling_seed,
-    )
 
 
 def _trusted_outputs(

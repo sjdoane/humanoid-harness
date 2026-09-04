@@ -2,21 +2,21 @@
 
 | | |
 |---|---|
-| progress | A hash-pinned synthetic actor-expansion fixture and reusable numeric verifier are implemented. |
-| bottleneck | E0 discarded its model by design; no trained TQC actor bytes exist for the actual E1 gate. |
-| next step | Train and retain one trusted local TQC actor under a separate reviewed protocol, then verify these same outputs on its pinned bytes. |
+| progress | The synthetic transfer fixture remains valid, and integrity-verified external actor bytes now exist as a strict NPZ under `external_pretrained_artifact`. |
+| bottleneck | Import equivalence is not E1. The zero-residual and expanded-TQC contenders have not been constructed on the imported actor, so actual initialization identity has not run. |
+| next step | Construct both E1 contenders from the exact imported actor NPZ, then compare the already declared outputs on the pinned observation set without changing its tolerances. |
 
 ## Two distinct results
 
 | result | input | maximum claim |
 |---|---|---|
 | Synthetic transfer fixture | Seeded untrained TQC actor; deterministic `4 x 348` observations; nonzero `4 x (8 x 45)` reference input | The expansion and verifier preserve this fixture's action distribution within `atol=rtol=1e-6` |
-| Actual E1 gate | One trusted, trained, SHA-256-pinned TQC actor and one separately pinned observation set | Initialization identity for those exact controller bytes |
+| Actual E1 gate | One integrity-verified, SHA-256-pinned external TQC actor; both declared contender initializers; one separately pinned observation set | Initialization identity for those exact controller bytes and initializers |
 
 Passing the fixture leaves the actual E1 gate false. It does not establish
 balance, locomotion, tracking, reference use, or oracle quality.
 
-Actual E1 requires both paths to run on the same persisted trained actor:
+Actual E1 requires both paths to run on the same strict imported actor:
 
 - frozen deterministic TQC plus the declared zero-mean residual initializer;
 - the expanded-TQC initializer derived from those exact actor bytes.
@@ -91,17 +91,19 @@ uv run humanoid-harness tracker verify-tqc-transfer-fixture \
 
 The output path is exclusive. The output remains local and ignored.
 
-## Actual E1 remains blocked
+## Actual E1 remains blocked on contender construction
 
 - The resource probe cannot supply controller bytes: its controller was
   deliberately discarded without serialization.
 - Do not substitute the synthetic actor's parameter hash for a trained
   checkpoint identity.
-- Do not load uploaded SB3, pickle, Torch, or raw checkpoint objects.
-- A future execution adapter should consume the strict actor-only NPZ defined
-  for the one-million-step development screen. It must bind the archive,
-  semantic actor-state, schema, source checkpoint, and normalizer identities,
-  then rerun the verifier without changing the pinned observation set or
-  tolerances.
+- The approved bounded importer consumed the exact external `policy.pth` once
+  with `torch.load(weights_only=True)` in an isolated subprocess and exported
+  only the eight actor tensors. Actual E1 consumes the strict actor-only NPZ,
+  never the raw SB3 or Torch checkpoint.
+- The imported actor authority binds the archive, semantic actor-state, schema,
+  source checkpoint, and absence of a normalizer. E1 must construct both
+  contenders before rerunning the verifier; source-to-NPZ equivalence alone is
+  not initialization identity.
 - The fixture receipt's `fixture_execution_authoritative` field applies only to
   this software fixture. It does not grant actual E1 or behavioral authority.
