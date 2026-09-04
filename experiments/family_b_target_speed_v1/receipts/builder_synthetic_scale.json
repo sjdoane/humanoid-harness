@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "evidence_class": "behavior_free_synthetic_fixture",
+  "behavioral_evaluation": false,
+  "training_run": false,
+  "source_utf8": "def task_term(x):\n    return -abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n",
+  "static_validation": {
+    "schema_version": 1,
+    "source_sha256": "6b9a514e98d5ca33aa7cd9824eec37d4b3499fd4d26d898025a6d6eaae033c0a",
+    "source_bytes": 77,
+    "ast_nodes": 20,
+    "read_set": [
+      "com_x_velocity_m_s",
+      "target_speed_m_s"
+    ],
+    "metadata": {},
+    "determinism_sha256": "caf2205880f5c77197a81afd4284b6a1757d17411357491110c116b5aca3ce22",
+    "passed": true
+  },
+  "static_validation_sha256": "1e91fa623a5274627866ef9f97c7bcd8b3fd5a12a6c9a34700a987cb6d077111",
+  "target_speed_axioms": {
+    "schema_version": 1,
+    "grid_sha256": "fc4c0d8d80444de6c0bc91595e4490362d19322877f63959921aa4b404fc8f29",
+    "raw_values_sha256": "6b607e20375158d91b424a7ba62b115fcf9dd9d89588d84bf2705dbb7a82c5a7",
+    "repeated_values_sha256": "6b607e20375158d91b424a7ba62b115fcf9dd9d89588d84bf2705dbb7a82c5a7",
+    "unique_target_maximum": true,
+    "non_increasing_with_absolute_error": true,
+    "target_shift_response": true,
+    "passed": true
+  },
+  "target_speed_axioms_sha256": "1c4987df167eb58ccd50e5533e8af4635c38fb85058fc1ffa4e48e4a7b50ef97",
+  "scale_calibration": {
+    "schema_version": 1,
+    "candidate_source_sha256": "6b9a514e98d5ca33aa7cd9824eec37d4b3499fd4d26d898025a6d6eaae033c0a",
+    "target_speed_m_s": 1.0,
+    "grid_sha256": "fc4c0d8d80444de6c0bc91595e4490362d19322877f63959921aa4b404fc8f29",
+    "raw_values_sha256": "6b607e20375158d91b424a7ba62b115fcf9dd9d89588d84bf2705dbb7a82c5a7",
+    "scaled_values_sha256": "f12f17a863a8ffa1902a984be690ba9bbdc17a4dfa86ab4b36f6bb47a221583d",
+    "raw_mean": -2.0606060606060606,
+    "raw_population_sd": 1.1918763902604326,
+    "stock_mean": 1.25,
+    "stock_population_sd": 2.9755951785595207,
+    "affine_alpha": 2.4965635722588098,
+    "affine_beta": 6.39443402768482,
+    "scaled_mean": 1.25,
+    "scaled_population_sd": 2.9755951785595203,
+    "axiom_receipt_sha256": "1c4987df167eb58ccd50e5533e8af4635c38fb85058fc1ffa4e48e4a7b50ef97",
+    "passed": true
+  },
+  "scale_calibration_sha256": "7e176b7ce74a696a02a2594938e2b35034d96eefbdc71c1587a527111dca4859"
+}

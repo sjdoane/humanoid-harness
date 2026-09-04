@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "sandbox_executable": "/usr/bin/sandbox-exec",
+  "profile_identity": "reward-worker-seatbelt/v3",
+  "profile_sha256": "f18216e5c08a0ac2eac8986f8338b032c84d2de24a231083ae28083bb061f44f",
+  "interpreter": {
+    "launch_path": "/Users/samueldoane/Documents/ChatGPT/humanoid-harness/.venv/bin/python",
+    "launch_file_sha256": "7710b0490e6af648676d7ad163fa1d54bffb75d8505162609a1c3c9b76e1929d",
+    "resolved_path": "/Users/samueldoane/.local/share/uv/python/cpython-3.13.15-macos-aarch64-none/bin/python3.13",
+    "resolved_file_sha256": "7710b0490e6af648676d7ad163fa1d54bffb75d8505162609a1c3c9b76e1929d"
+  },
+  "worker_exit_codes": {
+    "0": "clean_exit_or_os_canary_operation_denied",
+    "2": "command_line_argument_parsing_failed",
+    "4": "os_canary_operation_was_not_denied",
+    "5": "os_canary_invocation_missing_context_or_unknown_kind",
+    "64": "required_invocation_file_descriptor_missing",
+    "65": "environment_sanitization_failed",
+    "66": "declared_resource_limit_application_failed",
+    "67": "unexpected_internal_resource_limit_setup_failure",
+    "70": "source_bootstrap_or_static_validation_failed",
+    "71": "request_frame_or_task_evaluation_failed",
+    "86": "intentional_worker_crash_canary"
+  },
+  "address_space_limit": {
+    "requested_bytes": 1073741824,
+    "enforced": false,
+    "reason": "darwin_refuses_finite_rlimit_as"
+  },
+  "canaries": {
+    "file_read": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "file_write": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "environment_secret": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "network": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "process_creation": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "fork": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "signal": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "tracing": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "repository_read": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "source_drift": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    },
+    "timeout": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "memory_abuse": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "stdout_injection": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "private_fd_injection": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "pickle": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    },
+    "object_dtype": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    },
+    "oversize_frame": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    },
+    "extra_frame": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    },
+    "worker_crash": {
+      "verdict": "not_verified_in_builder_sandbox",
+      "error": "sandbox-exec: sandbox_apply: Operation not permitted",
+      "mechanism": null
+    },
+    "malformed_response": {
+      "verdict": "passed",
+      "error": null,
+      "mechanism": null
+    }
+  },
+  "all_passed": false
+}
