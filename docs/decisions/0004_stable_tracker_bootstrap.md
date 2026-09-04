@@ -1,4 +1,8 @@
-# ADR 0002: stable tracker bootstrap
+# ADR 0004: stable tracker bootstrap
+
+Renumbered from a duplicate `0002` filename on 2026-09-04 by the Fable strategy
+audit; the body below is unchanged. ADR 0005 supersedes only the local 1M/20M
+TQC execution plan and one-attempt supervisor that followed from this record.
 
 | | |
 |---|---|

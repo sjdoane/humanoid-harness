@@ -4,7 +4,7 @@
 |---|---|
 | progress | The exact transcript and proposal snapshots are hash-pinned, and stable evidence anchors are defined without committing the raw private files. |
 | bottleneck | The transcript is a one-line automatic transcription without timestamps or speaker labels; speaker attribution remains inferential. |
-| next step | Fable must verify the hashes, use anchor IDs in strategy changes, and ask Samuel when speaker identity or wording changes a decision. |
+| next step | Fable verified both hashes on 2026-09-04 and added anchors `LKS-A10` to `LKS-A14`; ask Samuel when speaker identity or wording changes a decision. |
 
 Raw paths stay in ignored `CLAUDE.local.md`. This file contains provenance, not
 permission to publish either source.
@@ -32,6 +32,11 @@ fragments are lookup keys, not authoritative quotations.
 | `LKS-A07` | `37262` | `a paper would be amazing` | paper/preprint is a desired outcome | Lokesh | medium |
 | `LKS-A08` | `38152` | `good open source repo` | reusable open-source implementation is the primary impact path | Lokesh | medium |
 | `LKS-A09` | `40646` | `points over Paris` | terse, structured research communication | Lokesh | medium |
+| `LKS-A10` | `4846` | `fine tuning parallel` | fine-tuning of a pretrained controller replaces from-scratch training | Lokesh | medium |
+| `LKS-A11` | `14467` | `pre-trained whole body tractor` | a pretrained whole-body tracker sits inside the lab's training block | Lokesh | medium |
+| `LKS-A12` | `32172` | `in a couple of weeks` | expected timing of VIBE access | Lokesh | medium |
+| `LKS-A13` | `33097` | `maximize the speed` | reward-only iteration on an already-solved locomotion MDP as a first exercise | Lokesh | medium |
+| `LKS-A14` | `22576` | `we may have to build MCPs` | local CLI or MCP interface expectation | Lokesh | medium |
 
 ## Proposal anchors
 
@@ -51,3 +56,10 @@ fragments are lookup keys, not authoritative quotations.
 - Treat the proposal as Samuel's written plan, not proof of a result.
 - Treat every transcript speaker attribution as uncertain unless Samuel or
   Lokesh confirms it.
+
+## Verification log
+
+| date (UTC) | session | source | result |
+|---|---|---|---|
+| 2026-09-04 16:02 | Fable `807bcdb2-462c-4ea8-803a-1e4b41259e12` | `SRC-LOKESH-TRANSCRIPT-01` | `42,294` bytes; SHA-256 matches |
+| 2026-09-04 16:02 | Fable `807bcdb2-462c-4ea8-803a-1e4b41259e12` | `SRC-PROPOSAL-01` | `166,679` bytes; SHA-256 matches |
