@@ -19,6 +19,7 @@ from oracle_composition.experiments import (
     checkpoint_receipt,
     load_study_design,
 )
+from oracle_composition.experiments import runtime_identity as runtime_identity_module
 from oracle_composition.experiments.fixed_reference import (
     CANONICAL_EXECUTION_CALLABLE_AUTHORITY,
     MAX_STUDY_DESIGN_BYTES,
@@ -442,6 +443,32 @@ def test_source_tree_digest_changes_with_included_source_bytes(tmp_path: Path) -
     source.write_text("VALUE = 2\n", encoding="utf-8")
 
     assert source_tree_sha256(package) != initial
+
+
+def test_source_tree_rejects_file_swapped_to_symlink_during_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = tmp_path / "oracle_composition"
+    package.mkdir()
+    source = package / "reference.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    outside = tmp_path / "outside.py"
+    outside.write_text("VALUE = 2\n", encoding="utf-8")
+    real_open = runtime_identity_module.os.open
+    swapped = False
+
+    def swapping_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        nonlocal swapped
+        if path == "reference.py" and kwargs.get("dir_fd") is not None and not swapped:
+            swapped = True
+            source.unlink()
+            source.symlink_to(outside)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(runtime_identity_module.os, "open", swapping_open)
+    with pytest.raises(RuntimeError, match="cannot read source-tree file"):
+        source_tree_sha256(package)
 
 
 @pytest.mark.gym
