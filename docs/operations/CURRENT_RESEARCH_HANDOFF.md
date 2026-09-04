@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Builder 03A verified every precondition and stopped because the Sol sandbox denies writes under `.git`. Fable then preserved the 20 TQC-v2 WIP paths byte-exact on branch `wip/tqc-v2-attempt-supervisor` (commit `5bdae45`, verified blob-for-blob) and cleaned `main`. The audit and route decisions are committed (`4a0976d`). |
-| bottleneck | The secure data-only actor import has not been implemented. Sol workers cannot change git state, so Fable commits every slice after review. No tracker is admitted; causal reference use is unproved. |
-| next step | Launch builder `TASK-20260904-03A2` (artifact registration, bounded weights-only import, equivalence, payload policy test) as the writer; on its receipt, run the two read-only reviews of its diff and commit. Surveys `04` and `05` are still running. Do not launch any 1M-step attempt. |
+| progress | Builder 03A2 verified the lease, human gate, clean `main`, and the byte-exact 20-path WIP preservation on `wip/tqc-v2-attempt-supervisor` at `5bdae45`. No implementation or payload load occurred. |
+| bottleneck | The mandatory untouched-main full suite failed: `44 failed, 1014 passed, 2 skipped in 108.12s`. The managed builder sandbox denies AF_UNIX/AF_INET socket binds, and frozen runtime checks observed CPU model `arm` instead of `Apple M5 Max`. The packet requires a stop on any pre-change suite failure. |
+| next step | Reproduce `.venv/bin/python -m pytest -q -p no:cacheprovider` on unchanged `main` in the intended host execution context. If it passes, relaunch `TASK-20260904-03A2`; if it still fails, repair the baseline in a separate reviewed slice before relaunch. Do not train or load the external checkpoint. |
 
 - Updated: `2026-09-04T16:58Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
@@ -100,42 +100,20 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 
 ## Working-tree state
 
-- Pre-existing WIP remains byte-exact and untouched: the required `13` modified
-  tracked files and `7` untracked TQC-v2 files are still present.
-- `TASK-20260904-03A` changed-files list before stopping:
-  - `artifacts/bootstrap_tqc_humanoid/wip_preservation_snapshot.json` (ignored):
-    complete 20-path pre-cleanup snapshot, independently revalidated;
-  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`: this blocker handoff only.
-- No staged entry, WIP branch, linked worktree, source cleanup, checkpoint import,
-  derived NPZ, training run, or behavior evaluation was created.
-- Ignored runtime state: packets `01`, `02` (reviews, done), `03`
-  (superseded), `03A` (builder, launching), `04` and `05` (surveys, running)
-  under `.orchestration/task-packets/`; four run directories under
-  `.orchestration/sol-runs/`; and the local artifact copy under
-  `artifacts/external/farama-minari-humanoid-v5-tqc-expert/`.
-- New decision record `docs/decisions/0006_reward_first_parallel_track.md`
-  and an index row in `docs/decisions/README.md`.
-- Focused test receipt: `.venv/bin/python -m pytest tests/experiments -q -x`
-  gave `822 passed, 2 warnings in 154.37s` between `16:05:41Z` and `16:08:16Z`
-  on the current WIP tree. It is one directory, not the full suite, and it is
-  not behavioral evidence. The older `1129 passed` full-suite receipt remains
-  stale.
-- External artifact, verified locally against the Hugging Face API record:
-
-| file | bytes | SHA-256 |
-|---|---:|---|
-| `humanoid-v5-TQC-expert.zip` | `7,377,061` | `c0675e01b4efd26d9c773de3e9b4defb40301b5fbdac9f0f31517156fac59fe3` |
-| `humanoid-v5-TQC-expert/policy.pth` | `3,321,462` | `1e64e56288155087089214548b6a634f332a41955a0d22629efd5ff2240e495c` |
-| `humanoid-v5-TQC-expert/pytorch_variables.pth` | `1,180` | `2dd8b074d717a24a49de94053017c5590e5f78f3793d53287372b95bdbbcd5cc` |
-
-  Source commit `e5a86ffdb70e6f4750f39c0464ac026a8437001a`; SB3 `2.4.1`;
-  PyTorch `2.5.1+cu124`; Gymnasium `1.0.0`; seed `0`; `5` environments;
-  `20,000,000` timesteps; `1,000` deterministic evaluation episodes with
-  `mean_reward 10370.61 +/- 1542.02`; license unspecified; local development
-  use only. Nothing from it has been loaded or executed.
-- The E0 calibration observed `619.662` environment steps/s over `100,000`
-  steps with peak RSS `4,253,122,560` bytes. It is a resource receipt.
-- No real 1M-step attempt has started. ADR 0005 parks that plan.
+- Start state was clean at `main` HEAD
+  `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
+  commit `5bdae45` each list exactly the expected 20 preserved paths.
+- `TASK-20260904-03A2` changed-files list before stopping:
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`: required three-row stop
+    status, receipt, changed-files list, and exact Fable resume action only.
+- Pre-change receipt: `.venv/bin/python -m pytest -q -p no:cacheprovider`
+  produced `44 failed, 1014 passed, 2 skipped in 108.12s`. Representative hard
+  failures were `PermissionError: [Errno 1] Operation not permitted` while
+  binding multiprocessing/UI sockets and `observed preflight cpu_model differs`
+  (`arm` observed; `Apple M5 Max` frozen).
+- No registration files, importer, tests, strict actor NPZ, import receipt,
+  equivalence receipt, checkpoint load, training run, or behavior evaluation
+  were created. The artifact hashes were not rechecked after the suite stop.
 
 ## Current no-go findings
 
@@ -191,10 +169,9 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: relaunch `TASK-20260904-03A` in a builder session with write
-access to `/Users/samueldoane/Documents/ChatGPT/humanoid-harness/.git`; the exact
-next action is to revalidate the live 20 WIP paths against the saved snapshot
-and rerun `git worktree add --detach .orchestration/worktrees/wip-tqc-v2 HEAD`.
+Fable resume: on unchanged `main`, run `.venv/bin/python -m pytest -q -p
+no:cacheprovider` in the intended host execution context with socket binding
+available; relaunch `TASK-20260904-03A2` only after that exact suite passes.
 
 ## Handoff update contract
 
