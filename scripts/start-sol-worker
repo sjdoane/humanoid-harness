@@ -1,0 +1,535 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+script_path="$repo_root/scripts/start-sol-worker"
+runs_root="$repo_root/.orchestration/sol-runs"
+expected_model="gpt-5.6-sol"
+expected_effort="max"
+
+usage() {
+  echo "usage: ./scripts/start-sol-worker launch MODE OWNER ROLE SCOPE PROMPT_FILE [EXPECTED_SHA256 EXPECTED_BYTES]"
+  echo "       ./scripts/start-sol-worker status RUN_DIR"
+  echo "MODE: write | read-only"
+}
+
+require_run_dir() {
+  local candidate
+  candidate="$(cd "$1" 2>/dev/null && pwd)" || {
+    echo "FAIL | run directory does not exist"
+    exit 1
+  }
+  case "$candidate" in
+    "$runs_root"/*) printf '%s\n' "$candidate" ;;
+    *)
+      echo "FAIL | run directory is outside .orchestration/sol-runs"
+      exit 1
+      ;;
+  esac
+}
+
+run_worker() {
+  local raw_run_dir run_dir request_file mode owner role scope sandbox_mode exit_code
+  local thread_id status finished_at result_temp lease_release codex_pid
+  local last_renew_epoch now_epoch lease_lost worker_signal codex_bin
+  local screen_name codex_cli_version expected_prompt_sha256
+  local expected_prompt_bytes observed_prompt_sha256 observed_prompt_bytes
+  local bootstrap_now_epoch termination_started_epoch
+  local termination_escalated
+  raw_run_dir="$1"
+  mode="$2"
+  owner="$3"
+  role="$4"
+  scope="$5"
+  screen_name="$6"
+
+  if ! run_dir="$(require_run_dir "$raw_run_dir")"; then
+    bootstrap_now_epoch="$(date -u +%s)"
+    if [[ "$mode" == "write" ]] && jq -e \
+      --arg owner "$owner" \
+      --arg model "$expected_model" \
+      --arg role "$role" \
+      --arg scope "$scope" \
+      --argjson now_epoch "$bootstrap_now_epoch" '
+        .owner == $owner
+        and .model == $model
+        and .role == $role
+        and .scope == $scope
+        and .expires_at_epoch >= $now_epoch
+      ' "$repo_root/.orchestration/write-lease/lease.json" >/dev/null 2>&1; then
+      "$repo_root/scripts/orchestration-lease" release "$owner" >/dev/null 2>&1 || true
+    fi
+    echo "FAIL | Sol run directory became unavailable before runner startup" >&2
+    exit 1
+  fi
+  request_file="$run_dir/request.json"
+  codex_bin=""
+  codex_cli_version="unknown"
+
+  exec >>"$run_dir/runner.stdout.log" 2>>"$run_dir/runner.stderr.log"
+
+  terminalize_preflight_failure() {
+    local reason="$1"
+    local preflight_lease_release="NOT_REQUIRED"
+    local preflight_now result_failure_temp
+    if [[ "$mode" == "write" ]]; then
+      preflight_now="$(date -u +%s)"
+      if jq -e \
+        --arg owner "$owner" \
+        --arg model "$expected_model" \
+        --arg role "$role" \
+        --arg scope "$scope" \
+        --argjson now_epoch "$preflight_now" '
+          .owner == $owner
+          and .model == $model
+          and .role == $role
+          and .scope == $scope
+          and .expires_at_epoch >= $now_epoch
+        ' "$repo_root/.orchestration/write-lease/lease.json" >/dev/null 2>&1; then
+        if "$repo_root/scripts/orchestration-lease" release "$owner"; then
+          preflight_lease_release="RELEASED"
+        else
+          preflight_lease_release="REVIEW_REQUIRED"
+        fi
+      else
+        preflight_lease_release="REVIEW_REQUIRED"
+      fi
+    fi
+    result_failure_temp="$(mktemp "$run_dir/result.json.XXXXXX")"
+    jq -n \
+      --arg reason "$reason" \
+      --arg lease_release "$preflight_lease_release" \
+      --arg model "$expected_model" \
+      --arg effort "$expected_effort" \
+      --arg screen_name "$screen_name" \
+      --arg codex_cli_version "$codex_cli_version" \
+      --arg role "$role" \
+      --arg scope "$scope" \
+      --arg finished_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+      {
+        schema_version: 1,
+        status: "PREFLIGHT_FAILED",
+        exit_code: 1,
+        reason: $reason,
+        thread_id: null,
+        finished_at_utc: $finished_at_utc,
+        lease_release: $lease_release,
+        requested_model: $model,
+        requested_reasoning_effort: $effort,
+        runner_kind: "screen",
+        screen_name: $screen_name,
+        codex_cli_version: $codex_cli_version,
+        role: $role,
+        scope: $scope
+      }' >"$result_failure_temp"
+    chmod 600 "$result_failure_temp"
+    mv "$result_failure_temp" "$run_dir/result.json"
+    echo "FAIL | $reason"
+    exit 1
+  }
+
+  if [[ ! -f "$request_file" || -L "$request_file" \
+    || ! -f "$run_dir/task-packet.md" || -L "$run_dir/task-packet.md" ]] \
+    || ! jq -e \
+      --arg mode "$mode" \
+      --arg owner "$owner" \
+      --arg role "$role" \
+      --arg scope "$scope" \
+      --arg model "$expected_model" \
+      --arg effort "$expected_effort" \
+      --arg screen_name "$screen_name" '
+        .schema_version == 1
+        and .mode == $mode
+        and .owner == $owner
+        and .role == $role
+        and .scope == $scope
+        and .requested_model == $model
+        and .requested_reasoning_effort == $effort
+        and .runner_kind == "screen"
+        and .screen_name == $screen_name
+        and (.codex_bin | type) == "string"
+        and (.codex_cli_version | type) == "string"
+        and (.prompt_sha256 | type) == "string"
+        and (.prompt_bytes | type) == "number"
+      ' "$request_file" >/dev/null 2>&1; then
+    terminalize_preflight_failure "Sol request receipt is malformed"
+  fi
+  codex_bin="$(jq -r '.codex_bin' "$request_file")"
+  codex_cli_version="$(jq -r '.codex_cli_version' "$request_file")"
+  expected_prompt_sha256="$(jq -r '.prompt_sha256' "$request_file")"
+  expected_prompt_bytes="$(jq -r '.prompt_bytes' "$request_file")"
+  observed_prompt_sha256="$(shasum -a 256 "$run_dir/task-packet.md" | awk '{print $1}')"
+  observed_prompt_bytes="$(wc -c <"$run_dir/task-packet.md" | tr -d '[:space:]')"
+  if [[ "$observed_prompt_sha256" != "$expected_prompt_sha256" \
+    || "$observed_prompt_bytes" != "$expected_prompt_bytes" ]]; then
+    terminalize_preflight_failure "Sol task packet changed after launch"
+  fi
+
+  if [[ ! -x "$codex_bin" ]]; then
+    terminalize_preflight_failure "recorded Codex executable is unavailable"
+  fi
+
+  if [[ "$mode" == "write" ]]; then
+    sandbox_mode="workspace-write"
+    now_epoch="$(date -u +%s)"
+    if ! jq -e \
+      --arg owner "$owner" \
+      --arg model "$expected_model" \
+      --arg role "$role" \
+      --arg scope "$scope" \
+      --argjson now_epoch "$now_epoch" '
+        .owner == $owner
+        and .model == $model
+        and .role == $role
+        and .scope == $scope
+        and .expires_at_epoch >= $now_epoch
+      ' "$repo_root/.orchestration/write-lease/lease.json" >/dev/null 2>&1; then
+      terminalize_preflight_failure "Sol runner does not own a live matching writer lease"
+    fi
+  else
+    sandbox_mode="read-only"
+  fi
+
+  exit_code=0
+  lease_lost=false
+  set +e
+  "$codex_bin" exec \
+    --strict-config \
+    --cd "$repo_root" \
+    --model "$expected_model" \
+    --config "model_reasoning_effort=\"$expected_effort\"" \
+    --disable multi_agent \
+    --sandbox "$sandbox_mode" \
+    --json \
+    --output-last-message "$run_dir/final.txt" \
+    - <"$run_dir/task-packet.md" \
+      >"$run_dir/events.jsonl" \
+      2>"$run_dir/stderr.log" &
+  codex_pid=$!
+  worker_signal=""
+  termination_started_epoch=0
+  termination_escalated=false
+  forward_signal() {
+    worker_signal="$1"
+    if (( termination_started_epoch == 0 )); then
+      termination_started_epoch="$(date -u +%s)"
+    fi
+    kill -"$1" "$codex_pid" 2>/dev/null || true
+  }
+  trap 'forward_signal TERM' TERM
+  trap 'forward_signal INT' INT
+  trap 'forward_signal HUP' HUP
+  last_renew_epoch="$(date -u +%s)"
+  while kill -0 "$codex_pid" 2>/dev/null; do
+    sleep 2
+    now_epoch="$(date -u +%s)"
+    if (( termination_started_epoch > 0 \
+      && now_epoch - termination_started_epoch >= 30 )); then
+      kill -KILL "$codex_pid" 2>/dev/null || true
+      termination_escalated=true
+      continue
+    fi
+    if [[ "$mode" == "write" \
+      && -z "$worker_signal" \
+      && "$lease_lost" == "false" \
+      ]] && kill -0 "$codex_pid" 2>/dev/null; then
+      if (( now_epoch - last_renew_epoch >= 600 )); then
+        if "$repo_root/scripts/orchestration-lease" renew "$owner" \
+          >>"$run_dir/runner.log" 2>&1; then
+          last_renew_epoch="$now_epoch"
+        else
+          lease_lost=true
+          termination_started_epoch="$now_epoch"
+          kill -TERM "$codex_pid" 2>/dev/null || true
+        fi
+      fi
+    fi
+  done
+  wait "$codex_pid"
+  exit_code=$?
+  set -e
+
+  thread_id="$(jq -s -r '
+    [.[] | select(.type == "thread.started") | .thread_id][0] // empty
+  ' "$run_dir/events.jsonl" 2>/dev/null || true)"
+  if [[ -n "$worker_signal" ]]; then
+    status="INTERRUPTED_${worker_signal}"
+  elif $lease_lost; then
+    status="LEASE_LOST"
+  elif [[ $exit_code -eq 0 ]]; then
+    status="SUCCEEDED"
+  else
+    status="FAILED"
+  fi
+  finished_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+  lease_release="NOT_REQUIRED"
+  if [[ "$mode" == "write" ]]; then
+    if "$repo_root/scripts/orchestration-lease" release "$owner" \
+      >>"$run_dir/runner.log" 2>&1; then
+      lease_release="RELEASED"
+    else
+      lease_release="REVIEW_REQUIRED"
+    fi
+  fi
+
+  result_temp="$(mktemp "$run_dir/result.json.XXXXXX")"
+  jq -n \
+    --arg status "$status" \
+    --argjson exit_code "$exit_code" \
+    --arg thread_id "$thread_id" \
+    --arg finished_at_utc "$finished_at" \
+    --arg lease_release "$lease_release" \
+    --argjson termination_escalated "$termination_escalated" \
+    --arg model "$expected_model" \
+    --arg effort "$expected_effort" \
+    --arg screen_name "$screen_name" \
+    --arg codex_cli_version "$codex_cli_version" \
+    --arg role "$role" \
+    --arg scope "$scope" \
+    '{
+      schema_version: 1,
+      status: $status,
+      exit_code: $exit_code,
+      thread_id: (if $thread_id == "" then null else $thread_id end),
+      finished_at_utc: $finished_at_utc,
+      lease_release: $lease_release,
+      termination_escalated: $termination_escalated,
+      requested_model: $model,
+      requested_reasoning_effort: $effort,
+      runner_kind: "screen",
+      screen_name: $screen_name,
+      codex_cli_version: $codex_cli_version,
+      role: $role,
+      scope: $scope
+    }' >"$result_temp"
+  chmod 600 "$result_temp"
+  mv "$result_temp" "$run_dir/result.json"
+  exit "$exit_code"
+}
+
+action="${1:-}"
+if [[ "$action" == "_run" ]]; then
+  if [[ $# -ne 7 ]]; then
+    exit 64
+  fi
+  run_worker "$2" "$3" "$4" "$5" "$6" "$7"
+fi
+
+if [[ "$action" == "status" ]]; then
+  if [[ $# -ne 2 ]]; then
+    usage
+    exit 64
+  fi
+  run_dir="$(require_run_dir "$2")"
+  if [[ -f "$run_dir/result.json" ]]; then
+    jq . "$run_dir/result.json"
+    exit 0
+  fi
+  if [[ ! -f "$run_dir/launch.json" ]]; then
+    echo '{"status":"UNKNOWN","reason":"launch receipt missing"}'
+    exit 1
+  fi
+  screen_name="$(jq -r '.screen_name' "$run_dir/launch.json")"
+  runner_pid="$(jq -r '.runner_pid // empty' "$run_dir/launch.json")"
+  thread_id="$(jq -s -r '
+    [.[] | select(.type == "thread.started") | .thread_id][0] // empty
+  ' "$run_dir/events.jsonl" 2>/dev/null || true)"
+  screen_line="$(screen -ls 2>/dev/null | grep -E "[.]${screen_name}[[:space:]]" | head -n 1 || true)"
+  observed_pid="$(awk '{split($1, parts, "."); print parts[1]}' <<<"$screen_line")"
+  if [[ -n "$screen_line" ]]; then
+    jq -n \
+      --arg screen_name "$screen_name" \
+      --arg runner_pid "${observed_pid:-$runner_pid}" \
+      --arg thread_id "$thread_id" \
+      '{
+        status: "RUNNING",
+        runner_kind: "screen",
+        screen_name: $screen_name,
+        runner_pid: (if $runner_pid == "" then null else ($runner_pid | tonumber) end),
+        thread_id: (if $thread_id == "" then null else $thread_id end)
+      }'
+  else
+    jq -n \
+      --arg screen_name "$screen_name" \
+      --arg runner_pid "$runner_pid" \
+      --arg thread_id "$thread_id" \
+      '{
+        status: "UNKNOWN_REVIEW_REQUIRED",
+        runner_kind: "screen",
+        screen_name: $screen_name,
+        runner_pid: (if $runner_pid == "" then null else ($runner_pid | tonumber) end),
+        thread_id: (if $thread_id == "" then null else $thread_id end),
+        reason: "runner is absent and no terminal receipt exists"
+      }'
+    exit 1
+  fi
+  exit 0
+fi
+
+if [[ "$action" != "launch" || ( $# -ne 6 && $# -ne 8 ) ]]; then
+  usage
+  exit 64
+fi
+
+mode="$2"
+owner="$3"
+role="$4"
+scope="$5"
+prompt_file="$6"
+authorized_prompt_sha256="${7:-}"
+authorized_prompt_bytes="${8:-}"
+
+if [[ "$mode" != "write" && "$mode" != "read-only" ]]; then
+  echo "FAIL | mode must be write or read-only"
+  exit 64
+fi
+if [[ ! "$owner" =~ ^[A-Za-z0-9._-]+$ || ! "$role" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "FAIL | owner and role must use letters, digits, dot, underscore, or hyphen"
+  exit 64
+fi
+if [[ -z "$scope" || "$scope" == *$'\n'* ]]; then
+  echo "FAIL | scope must be one non-empty line"
+  exit 64
+fi
+if [[ ! -f "$prompt_file" || -L "$prompt_file" ]]; then
+  echo "FAIL | prompt file must be a regular non-symlink file"
+  exit 1
+fi
+if [[ $# -eq 8 ]] \
+  && { [[ ! "$authorized_prompt_sha256" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "$authorized_prompt_bytes" =~ ^[0-9]+$ ]]; }; then
+  echo "FAIL | expected prompt identity is malformed"
+  exit 64
+fi
+
+umask 077
+mkdir -p "$repo_root/.orchestration"
+chmod 700 "$repo_root/.orchestration"
+mkdir -p "$runs_root"
+chmod 700 "$runs_root"
+
+run_id="$(date -u '+%Y%m%dT%H%M%SZ')-$(uuidgen | tr '[:upper:]' '[:lower:]')"
+run_dir="$runs_root/$run_id"
+screen_name="hh-sol-$(uuidgen | tr '[:upper:]' '[:lower:]')"
+codex_bin="$(command -v codex 2>/dev/null || true)"
+if [[ -z "$codex_bin" || ! -x "$codex_bin" ]]; then
+  echo "FAIL | Codex CLI is unavailable"
+  exit 1
+fi
+codex_cli_version="$($codex_bin --version 2>/dev/null || true)"
+mkdir "$run_dir"
+chmod 700 "$run_dir"
+install -m 600 "$prompt_file" "$run_dir/task-packet.md"
+prompt_sha256="$(shasum -a 256 "$run_dir/task-packet.md" | awk '{print $1}')"
+prompt_bytes="$(wc -c <"$run_dir/task-packet.md" | tr -d '[:space:]')"
+if [[ -n "$authorized_prompt_sha256" ]] \
+  && { [[ "$prompt_sha256" != "$authorized_prompt_sha256" ]] \
+    || [[ "$prompt_bytes" != "$authorized_prompt_bytes" ]]; }; then
+  echo "FAIL | copied task packet does not match the authorized bytes"
+  echo "RUN_DIR=$run_dir"
+  exit 1
+fi
+
+lease_acquired=false
+runner_started=false
+cleanup_failed_launch() {
+  if $lease_acquired && ! $runner_started; then
+    "$repo_root/scripts/orchestration-lease" release "$owner" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_failed_launch EXIT
+
+if [[ "$mode" == "write" ]]; then
+  "$repo_root/scripts/orchestration-lease" acquire \
+    "$owner" "$expected_model" "$role" "$scope"
+  lease_acquired=true
+fi
+
+request_temp="$(mktemp "$run_dir/request.json.XXXXXX")"
+jq -n \
+  --arg mode "$mode" \
+  --arg owner "$owner" \
+  --arg role "$role" \
+  --arg scope "$scope" \
+  --arg model "$expected_model" \
+  --arg effort "$expected_effort" \
+  --arg screen_name "$screen_name" \
+  --arg codex_bin "$codex_bin" \
+  --arg codex_cli_version "$codex_cli_version" \
+  --arg prompt_sha256 "$prompt_sha256" \
+  --argjson prompt_bytes "$prompt_bytes" \
+  --arg created_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  '{
+    schema_version: 1,
+    mode: $mode,
+    owner: $owner,
+    role: $role,
+    scope: $scope,
+    requested_model: $model,
+    requested_reasoning_effort: $effort,
+    runner_kind: "screen",
+    screen_name: $screen_name,
+    codex_bin: $codex_bin,
+    codex_cli_version: $codex_cli_version,
+    prompt_sha256: $prompt_sha256,
+    prompt_bytes: $prompt_bytes,
+    created_at_utc: $created_at_utc
+  }' >"$request_temp"
+chmod 600 "$request_temp"
+mv "$request_temp" "$run_dir/request.json"
+
+if ! screen -dmS "$screen_name" \
+  /usr/bin/env "PATH=$PATH" /bin/bash "$script_path" _run \
+    "$run_dir" "$mode" "$owner" "$role" "$scope" "$screen_name"; then
+  echo "FAIL | screen rejected the Sol worker"
+  exit 1
+fi
+runner_started=true
+
+runner_pid=""
+screen_line=""
+proof_checks=0
+while (( proof_checks < 50 )); do
+  screen_line="$(screen -ls 2>/dev/null | grep -E "[.]${screen_name}[[:space:]]" | head -n 1 || true)"
+  runner_pid="$(awk '{split($1, parts, "."); print parts[1]}' <<<"$screen_line")"
+  if [[ -n "$runner_pid" || -f "$run_dir/result.json" ]]; then
+    break
+  fi
+  ((proof_checks += 1))
+  sleep 0.1
+done
+
+launch_temp="$(mktemp "$run_dir/launch.json.XXXXXX")"
+jq -n \
+  --arg screen_name "$screen_name" \
+  --arg runner_pid "$runner_pid" \
+  --arg started_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  '{
+    schema_version: 1,
+    runner_kind: "screen",
+    screen_name: $screen_name,
+    runner_pid: (if $runner_pid == "" then null else ($runner_pid | tonumber) end),
+    started_at_utc: $started_at_utc
+  }' >"$launch_temp"
+chmod 600 "$launch_temp"
+mv "$launch_temp" "$run_dir/launch.json"
+
+if [[ -f "$run_dir/result.json" ]]; then
+  terminal_status="$(jq -r '.status // empty' "$run_dir/result.json" 2>/dev/null || true)"
+  if [[ "$terminal_status" != "SUCCEEDED" ]]; then
+    echo "FAIL | Sol runner terminated during launch with status ${terminal_status:-UNKNOWN}"
+    printf 'RUN_DIR=%s\n' "$run_dir"
+    exit 1
+  fi
+elif [[ -z "$runner_pid" ]]; then
+  echo "FAIL | Sol runner has neither live screen proof nor a terminal receipt"
+  printf 'RUN_DIR=%s\n' "$run_dir"
+  exit 1
+fi
+
+printf 'PASS | Sol worker launched\n'
+printf 'RUN_DIR=%s\n' "$run_dir"
+printf 'SCREEN_NAME=%s\n' "$screen_name"
+printf 'RUNNER_PID=%s\n' "${runner_pid:-pending}"
+printf 'STATUS_COMMAND=./scripts/start-sol-worker status %s\n' "$run_dir"

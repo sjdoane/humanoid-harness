@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "takeover_authorized": false,
+  "authorized_by": null,
+  "authorization_source": null,
+  "task_id": null,
+  "expires_at_epoch": null,
+  "owner": null,
+  "role": null,
+  "scope": null,
+  "prompt_path": null,
+  "prompt_sha256": null,
+  "prompt_bytes": null,
+  "requested_model": "gpt-5.6-sol",
+  "requested_reasoning_effort": "max",
+  "launched_run_dir": null,
+  "updated_at_utc": null
+}

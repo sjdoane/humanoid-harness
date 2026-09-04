@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+input="$(cat)"
+tool_name="$(jq -r '.tool_name // empty' <<<"$input")"
+
+if [[ "$tool_name" == "Bash" ]]; then
+  command_text="$(jq -r '.tool_input.command // empty' <<<"$input")"
+  if [[ "$command_text" == *"codex exec"* ]]; then
+    echo "Direct codex exec denied: use ./scripts/start-sol-worker so output and ownership survive the Fable session." >&2
+    exit 2
+  fi
+
+  safe_control=false
+  if [[ "$command_text" != *";"* \
+    && "$command_text" != *"&"* \
+    && "$command_text" != *"|"* \
+    && "$command_text" != *"<"* \
+    && "$command_text" != *">"* \
+    && "$command_text" != *'`'* \
+    && "$command_text" != *'$('* \
+    && "$command_text" != *$'\n'* ]]; then
+    case "$command_text" in
+      "./scripts/orchestration-lease status"|\
+      "./scripts/orchestration-lease acquire "*|\
+      "./scripts/orchestration-lease renew "*|\
+      "./scripts/orchestration-lease release "*|\
+      "./scripts/start-sol-worker launch "*|\
+      "./scripts/start-sol-worker status "*|\
+      "./scripts/orchestration-takeover init"|\
+      "./scripts/orchestration-takeover status"|\
+      "./scripts/orchestration-takeover authorize "*|\
+      "./scripts/orchestration-takeover launch "*|\
+      "./scripts/orchestration-takeover clear"|\
+      "printenv HUMANOID_FABLE_OWNER")
+        safe_control=true
+        ;;
+    esac
+  fi
+  if $safe_control; then
+    exit 0
+  fi
+elif [[ "$tool_name" != "Edit" \
+  && "$tool_name" != "Write" \
+  && "$tool_name" != "NotebookEdit" ]]; then
+  exit 0
+fi
+
+owner="${HUMANOID_FABLE_OWNER:-}"
+lease_file="$repo_root/.orchestration/write-lease/lease.json"
+if [[ -z "$owner" || ! -f "$lease_file" ]]; then
+  echo "Write-capable tool denied: acquire the Fable writer lease first." >&2
+  exit 2
+fi
+
+now_epoch="$(date -u +%s)"
+if ! jq -e \
+  --arg owner "$owner" \
+  --argjson now_epoch "$now_epoch" '
+    .owner == $owner
+    and .model == "claude-fable-5-1"
+    and .role == "strategy"
+    and .expires_at_epoch >= $now_epoch
+  ' "$lease_file" >/dev/null 2>&1; then
+  echo "Write-capable tool denied: the active lease is absent, expired, or owned by another worker." >&2
+  exit 2
+fi

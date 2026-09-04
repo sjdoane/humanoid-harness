@@ -41,6 +41,28 @@ exploration and the reviewed Experiment 002A report. Missing, tampered,
 unlisted, or symlinked artifacts fail closed. Neither view establishes stable
 tracking or oracle quality.
 
+## Research orchestration
+
+The optional orchestration path keeps research strategy with a verified Fable
+5.1 session and delegates bounded implementation and independent reviews to
+GPT-5.6 Sol workers.
+
+```bash
+claude auth login
+./scripts/orchestration-doctor
+./scripts/start-fable-orchestrator
+```
+
+The launcher asks before its single no-tool identity request because
+noninteractive Fable calls can draw usage credits without an in-app consent
+dialog. Do not run the doctor's optional `--live` mode first unless you intend
+to authorize a separate probe.
+
+Read the [current handoff](docs/operations/CURRENT_RESEARCH_HANDOFF.md),
+[orchestration guide](docs/operations/MULTI_AGENT_ORCHESTRATION.md), and
+[strategy ledger](docs/strategy/RESEARCH_STRATEGY.md). This path does not
+authorize the real 1M-step attempt or change the evidence boundary.
+
 ## First development adapter
 
 | Component | Current choice | Role |

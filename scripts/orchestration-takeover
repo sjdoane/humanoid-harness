@@ -1,0 +1,303 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+state_dir="$repo_root/.orchestration"
+state_file="$state_dir/takeover-authorization.json"
+lock_dir="$state_dir/takeover-state.lock"
+expected_model="gpt-5.6-sol"
+expected_effort="max"
+maximum_window_seconds=21600
+
+usage() {
+  echo "usage: ./scripts/orchestration-takeover init"
+  echo "       ./scripts/orchestration-takeover status"
+  echo "       ./scripts/orchestration-takeover authorize AUTHORIZED_BY TASK_ID EXPIRES_EPOCH OWNER ROLE SCOPE PROMPT_FILE AUTHORIZATION_SOURCE"
+  echo "       ./scripts/orchestration-takeover launch TASK_ID"
+  echo "       ./scripts/orchestration-takeover clear"
+}
+
+write_state() {
+  local temp_file
+  temp_file="$(mktemp "$state_dir/takeover-authorization.json.XXXXXX")"
+  cat >"$temp_file"
+  jq -e . "$temp_file" >/dev/null
+  chmod 600 "$temp_file"
+  mv "$temp_file" "$state_file"
+}
+
+write_disabled_state() {
+  jq -n \
+    --arg updated_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+    {
+      schema_version: 1,
+      takeover_authorized: false,
+      authorized_by: null,
+      authorization_source: null,
+      task_id: null,
+      expires_at_epoch: null,
+      owner: null,
+      role: null,
+      scope: null,
+      prompt_path: null,
+      prompt_sha256: null,
+      prompt_bytes: null,
+      requested_model: "gpt-5.6-sol",
+      requested_reasoning_effort: "max",
+      launched_run_dir: null,
+      updated_at_utc: $updated_at_utc
+    }
+  ' | write_state
+}
+
+state_lock_held=false
+release_state_lock() {
+  if $state_lock_held; then
+    rmdir "$lock_dir" 2>/dev/null || true
+    state_lock_held=false
+  fi
+}
+
+acquire_state_lock() {
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    echo "FAIL | another takeover state change is in progress"
+    exit 1
+  fi
+  state_lock_held=true
+  trap release_state_lock EXIT
+}
+
+umask 077
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+
+command="${1:-}"
+case "$command" in
+  init)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    acquire_state_lock
+    if [[ ! -f "$state_file" ]]; then
+      write_disabled_state
+    fi
+    jq . "$state_file"
+    ;;
+  status)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    if [[ ! -f "$state_file" ]]; then
+      acquire_state_lock
+      if [[ ! -f "$state_file" ]]; then
+        write_disabled_state
+      fi
+    fi
+    now_epoch="$(date -u +%s)"
+    packet_matches=false
+    status_prompt_path="$(jq -r '.prompt_path // empty' "$state_file")"
+    if [[ -n "$status_prompt_path" \
+      && -f "$status_prompt_path" \
+      && ! -L "$status_prompt_path" ]]; then
+      status_prompt_sha256="$(shasum -a 256 "$status_prompt_path" | awk '{print $1}')"
+      status_prompt_bytes="$(wc -c <"$status_prompt_path" | tr -d '[:space:]')"
+      if jq -e \
+        --arg sha256 "$status_prompt_sha256" \
+        --argjson bytes "$status_prompt_bytes" '
+          .prompt_sha256 == $sha256 and .prompt_bytes == $bytes
+        ' "$state_file" >/dev/null 2>&1; then
+        packet_matches=true
+      fi
+    fi
+    jq \
+      --argjson now_epoch "$now_epoch" \
+      --argjson packet_matches "$packet_matches" '
+      . + {
+        valid_now: (
+          .takeover_authorized == true
+          and (.expires_at_epoch | type) == "number"
+          and .expires_at_epoch >= $now_epoch
+          and .requested_model == "gpt-5.6-sol"
+          and .requested_reasoning_effort == "max"
+          and (.prompt_sha256 | type) == "string"
+          and (.prompt_bytes | type) == "number"
+          and $packet_matches
+        )
+      }
+    ' "$state_file"
+    ;;
+  authorize)
+    if [[ $# -ne 9 ]]; then
+      usage
+      exit 64
+    fi
+    acquire_state_lock
+    authorized_by="$2"
+    task_id="$3"
+    expires_at_epoch="$4"
+    owner="$5"
+    role="$6"
+    scope="$7"
+    prompt_file="$8"
+    authorization_source="$9"
+    if [[ ! "$authorized_by" =~ ^[A-Za-z0-9._-]+$ \
+      || ! "$task_id" =~ ^[A-Za-z0-9._-]+$ \
+      || ! "$owner" =~ ^[A-Za-z0-9._-]+$ \
+      || ! "$role" =~ ^[A-Za-z0-9._-]+$ \
+      || ! "$authorization_source" =~ ^[A-Za-z0-9._:-]+$ ]]; then
+      echo "FAIL | identity fields must be stable tokens"
+      exit 64
+    fi
+    if [[ ! "$expires_at_epoch" =~ ^[0-9]+$ ]]; then
+      echo "FAIL | expiry must be a Unix epoch"
+      exit 64
+    fi
+    now_epoch="$(date -u +%s)"
+    if (( expires_at_epoch <= now_epoch \
+      || expires_at_epoch > now_epoch + maximum_window_seconds )); then
+      echo "FAIL | authorization must expire within six hours"
+      exit 1
+    fi
+    if [[ -z "$scope" || "$scope" == *$'\n'* ]]; then
+      echo "FAIL | scope must be one non-empty line"
+      exit 64
+    fi
+    if [[ ! -f "$prompt_file" || -L "$prompt_file" ]]; then
+      echo "FAIL | prompt file must be a regular non-symlink file"
+      exit 1
+    fi
+    prompt_path="$(cd "$(dirname "$prompt_file")" && pwd -P)/$(basename "$prompt_file")"
+    case "$prompt_path" in
+      "$repo_root/.orchestration/task-packets/"*) ;;
+      *)
+        echo "FAIL | takeover prompt must be under .orchestration/task-packets"
+        exit 1
+        ;;
+    esac
+    prompt_sha256="$(shasum -a 256 "$prompt_path" | awk '{print $1}')"
+    prompt_bytes="$(wc -c <"$prompt_path" | tr -d '[:space:]')"
+    if [[ -f "$state_file" ]] \
+      && jq -e '.takeover_authorized == true' "$state_file" >/dev/null 2>&1; then
+      echo "FAIL | an authorization already exists; clear it explicitly"
+      exit 1
+    fi
+    jq -n \
+      --arg authorized_by "$authorized_by" \
+      --arg authorization_source "$authorization_source" \
+      --arg task_id "$task_id" \
+      --argjson expires_at_epoch "$expires_at_epoch" \
+      --arg owner "$owner" \
+      --arg role "$role" \
+      --arg scope "$scope" \
+      --arg prompt_path "$prompt_path" \
+      --arg prompt_sha256 "$prompt_sha256" \
+      --argjson prompt_bytes "$prompt_bytes" \
+      --arg updated_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+      {
+        schema_version: 1,
+        takeover_authorized: true,
+        authorized_by: $authorized_by,
+        authorization_source: $authorization_source,
+        task_id: $task_id,
+        expires_at_epoch: $expires_at_epoch,
+        owner: $owner,
+        role: $role,
+        scope: $scope,
+        prompt_path: $prompt_path,
+        prompt_sha256: $prompt_sha256,
+        prompt_bytes: $prompt_bytes,
+        requested_model: "gpt-5.6-sol",
+        requested_reasoning_effort: "max",
+        launched_run_dir: null,
+        updated_at_utc: $updated_at_utc
+      }
+    ' | write_state
+    echo "PASS | takeover authorized for $task_id"
+    ;;
+  launch)
+    if [[ $# -ne 2 || ! "$2" =~ ^[A-Za-z0-9._-]+$ ]]; then
+      usage
+      exit 64
+    fi
+    task_id="$2"
+    acquire_state_lock
+    if [[ ! -f "$state_file" ]]; then
+      echo "FAIL | no takeover authorization exists"
+      exit 1
+    fi
+    now_epoch="$(date -u +%s)"
+    if ! jq -e \
+      --arg task_id "$task_id" \
+      --argjson now_epoch "$now_epoch" '
+        .takeover_authorized == true
+        and .task_id == $task_id
+        and .expires_at_epoch >= $now_epoch
+        and .requested_model == "gpt-5.6-sol"
+        and .requested_reasoning_effort == "max"
+        and (.authorized_by | type) == "string"
+        and (.authorization_source | type) == "string"
+        and (.prompt_path | type) == "string"
+        and (.prompt_sha256 | type) == "string"
+        and (.prompt_bytes | type) == "number"
+      ' "$state_file" >/dev/null; then
+      echo "FAIL | takeover is absent, expired, mismatched, or malformed"
+      exit 1
+    fi
+    owner="$(jq -r '.owner' "$state_file")"
+    role="$(jq -r '.role' "$state_file")"
+    scope="$(jq -r '.scope' "$state_file")"
+    prompt_path="$(jq -r '.prompt_path' "$state_file")"
+    if [[ ! -f "$prompt_path" || -L "$prompt_path" ]]; then
+      echo "FAIL | authorized prompt is unavailable or no longer regular"
+      exit 1
+    fi
+    expected_prompt_sha256="$(jq -r '.prompt_sha256' "$state_file")"
+    expected_prompt_bytes="$(jq -r '.prompt_bytes' "$state_file")"
+    observed_prompt_sha256="$(shasum -a 256 "$prompt_path" | awk '{print $1}')"
+    observed_prompt_bytes="$(wc -c <"$prompt_path" | tr -d '[:space:]')"
+    if [[ "$observed_prompt_sha256" != "$expected_prompt_sha256" \
+      || "$observed_prompt_bytes" != "$expected_prompt_bytes" ]]; then
+      echo "FAIL | authorized task packet bytes changed; authorization was not consumed"
+      exit 1
+    fi
+
+    consumed_temp="$(mktemp "$state_dir/takeover-authorization.json.XXXXXX")"
+    jq --arg consumed_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+      .takeover_authorized = false
+      | .consumed_at_utc = $consumed_at_utc
+    ' "$state_file" >"$consumed_temp"
+    chmod 600 "$consumed_temp"
+    mv "$consumed_temp" "$state_file"
+
+    launch_output="$state_dir/takeover-${task_id}.launch.txt"
+    if "$repo_root/scripts/start-sol-worker" launch \
+      write "$owner" "$role" "$scope" "$prompt_path" \
+      "$expected_prompt_sha256" "$expected_prompt_bytes" | tee "$launch_output"; then
+      run_dir="$(awk -F= '/^RUN_DIR=/{print $2}' "$launch_output")"
+      updated_temp="$(mktemp "$state_dir/takeover-authorization.json.XXXXXX")"
+      jq --arg launched_run_dir "$run_dir" '
+        .launched_run_dir = $launched_run_dir
+      ' "$state_file" >"$updated_temp"
+      chmod 600 "$updated_temp"
+      mv "$updated_temp" "$state_file"
+    else
+      echo "FAIL | authorization was consumed but the worker did not launch"
+      exit 1
+    fi
+    ;;
+  clear)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    acquire_state_lock
+    write_disabled_state
+    echo "PASS | takeover authorization cleared"
+    ;;
+  *)
+    usage
+    exit 64
+    ;;
+esac

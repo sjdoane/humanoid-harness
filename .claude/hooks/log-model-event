@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+state_dir="$repo_root/.orchestration"
+event_log="$state_dir/model-events.jsonl"
+session_state_dir="$state_dir/session-models"
+
+umask 077
+mkdir -p "$state_dir" "$session_state_dir"
+
+input="$(cat)"
+event="$(jq -c '
+  {
+    recorded_at_utc: (now | todateiso8601),
+    hook_event_name,
+    session_id,
+    source: (.source // null),
+    model: (.model // null),
+    from_model: (.from_model // null),
+    to_model: (.to_model // null),
+    requested_model: (.requested_model // null)
+  }
+' <<<"$input")"
+printf '%s\n' "$event" >>"$event_log"
+
+active_model="$(jq -r '.to_model // .model // empty' <<<"$event")"
+event_name="$(jq -r '.hook_event_name' <<<"$event")"
+session_id="$(jq -r '.session_id' <<<"$event")"
+
+if [[ -n "$session_id" && "$session_id" != "null" ]]; then
+  session_key="$(printf '%s' "$session_id" | shasum -a 256 | awk '{print $1}')"
+  state_temp="$(mktemp "$session_state_dir/${session_key}.json.XXXXXX")"
+  jq -n \
+    --arg session_id "$session_id" \
+    --arg active_model "${active_model:-UNKNOWN}" \
+    --arg event_name "$event_name" \
+    --arg recorded_at_utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    '{
+      schema_version: 1,
+      session_id: $session_id,
+      active_model: $active_model,
+      event_name: $event_name,
+      recorded_at_utc: $recorded_at_utc
+    }' >"$state_temp"
+  mv "$state_temp" "$session_state_dir/${session_key}.json"
+fi
+
+if [[ -n "$active_model" ]]; then
+  printf 'MODEL_EVENT | session=%s | event=%s | active_model=%s\n' \
+    "$session_id" "$event_name" "$active_model"
+fi
+
+if [[ -n "$active_model" && "$active_model" != "claude-fable-5-1" ]]; then
+  printf '%s\n' \
+    'ORCHESTRATION_SUSPENDED | This model does not own research strategy. Do not edit; preserve the handoff for Codex/Fable.'
+fi

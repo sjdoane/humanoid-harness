@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+expected_model="claude-fable-5-1"
+repo_root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+input="$(cat)"
+event_name="$(jq -r '.hook_event_name // empty' <<<"$input")"
+
+if [[ "$event_name" == "PreModelSwitch" ]]; then
+  to_model="$(jq -r '.to_model // empty' <<<"$input")"
+  if [[ "$to_model" != "$expected_model" ]]; then
+    echo "Model switch denied: only ${expected_model} owns this project's research strategy." >&2
+    exit 2
+  fi
+  exit 0
+fi
+
+if [[ "$event_name" != "PreToolUse" ]]; then
+  exit 0
+fi
+
+effort_level="$(jq -r '.effort.level // empty' <<<"$input")"
+if [[ "$effort_level" != "max" ]]; then
+  echo "Tool use denied: Fable strategy authority requires active max effort." >&2
+  exit 2
+fi
+
+session_id="$(jq -r '.session_id // empty' <<<"$input")"
+if [[ -z "$session_id" ]]; then
+  echo "Tool use denied: the Claude session ID is missing." >&2
+  exit 2
+fi
+
+session_key="$(printf '%s' "$session_id" | shasum -a 256 | awk '{print $1}')"
+state_file="$repo_root/.orchestration/session-models/${session_key}.json"
+active_model=""
+if [[ -f "$state_file" ]]; then
+  active_model="$(jq -r --arg session_id "$session_id" '
+    if .session_id == $session_id then .active_model // empty else empty end
+  ' "$state_file" 2>/dev/null || true)"
+fi
+
+if [[ "$active_model" != "$expected_model" ]]; then
+  echo "Tool use denied: this session is not recorded as ${expected_model}; hand off to Codex or restart Fable." >&2
+  exit 2
+fi

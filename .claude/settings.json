@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "claude-fable-5-1",
+  "availableModels": [
+    "claude-fable-5-1"
+  ],
+  "switchModelsOnFlag": false,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|fork|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-model-event"
+          }
+        ]
+      }
+    ],
+    "PreModelSwitch": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-fable-authority"
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-model-event"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/enforce-fable-authority"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/require-writer-lease"
+          }
+        ]
+      }
+    ]
+  }
+}

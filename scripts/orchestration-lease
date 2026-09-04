@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+state_dir="$repo_root/.orchestration"
+lease_dir="$state_dir/write-lease"
+lease_file="$lease_dir/lease.json"
+operation_lock="$state_dir/write-lease-operation.lock"
+ttl_seconds=2700
+
+usage() {
+  echo "usage: ./scripts/orchestration-lease acquire OWNER MODEL ROLE SCOPE"
+  echo "       ./scripts/orchestration-lease renew OWNER"
+  echo "       ./scripts/orchestration-lease status"
+  echo "       ./scripts/orchestration-lease release OWNER"
+}
+
+now_epoch() {
+  date -u +%s
+}
+
+operation_lock_held=false
+release_operation_lock() {
+  if $operation_lock_held; then
+    rmdir "$operation_lock" 2>/dev/null || true
+    operation_lock_held=false
+  fi
+}
+
+acquire_operation_lock() {
+  mkdir -p "$state_dir"
+  if ! mkdir "$operation_lock" 2>/dev/null; then
+    echo "FAIL | another write-lease state change is in progress"
+    exit 1
+  fi
+  operation_lock_held=true
+  trap release_operation_lock EXIT
+}
+
+write_lease() {
+  local owner="$1"
+  local model="$2"
+  local role="$3"
+  local scope="$4"
+  local acquired_at="$5"
+  local renewed_at="$6"
+  local expires_at="$7"
+  local temp_file
+
+  temp_file="$(mktemp "$lease_dir/lease.json.XXXXXX")"
+  jq -n \
+    --arg owner "$owner" \
+    --arg model "$model" \
+    --arg role "$role" \
+    --arg scope "$scope" \
+    --argjson acquired_at_epoch "$acquired_at" \
+    --argjson renewed_at_epoch "$renewed_at" \
+    --argjson expires_at_epoch "$expires_at" \
+    '{
+      schema_version: 1,
+      owner: $owner,
+      model: $model,
+      role: $role,
+      scope: $scope,
+      acquired_at_epoch: $acquired_at_epoch,
+      renewed_at_epoch: $renewed_at_epoch,
+      expires_at_epoch: $expires_at_epoch
+    }' >"$temp_file"
+  chmod 600 "$temp_file"
+  mv "$temp_file" "$lease_file"
+}
+
+print_status_unlocked() {
+  if [[ ! -f "$lease_file" ]]; then
+    echo '{"active":false,"status":"UNCLAIMED"}'
+    return 0
+  fi
+  local observed_now
+  observed_now="$(now_epoch)"
+  jq --argjson now_epoch "$observed_now" '
+    . + {
+      active: (.expires_at_epoch >= $now_epoch),
+      status: (
+        if .expires_at_epoch >= $now_epoch
+        then "CLAIMED"
+        else "EXPIRED_REVIEW_REQUIRED"
+        end
+      )
+    }
+  ' "$lease_file"
+}
+
+command="${1:-}"
+case "$command" in
+  acquire)
+    if [[ $# -ne 5 ]]; then
+      usage
+      exit 64
+    fi
+    umask 077
+    acquire_operation_lock
+    if ! mkdir "$lease_dir" 2>/dev/null; then
+      echo "FAIL | write lease already exists"
+      print_status_unlocked || true
+      exit 1
+    fi
+    now="$(now_epoch)"
+    write_lease "$2" "$3" "$4" "$5" "$now" "$now" "$((now + ttl_seconds))"
+    echo "PASS | write lease acquired by $2"
+    ;;
+  renew)
+    if [[ $# -ne 2 ]]; then
+      usage
+      exit 64
+    fi
+    acquire_operation_lock
+    if [[ ! -f "$lease_file" ]]; then
+      echo "FAIL | no write lease exists"
+      exit 1
+    fi
+    now="$(now_epoch)"
+    if ! jq -e \
+      --arg owner "$2" \
+      --argjson now_epoch "$now" '
+        .schema_version == 1
+        and .owner == $owner
+        and (.model | type) == "string"
+        and (.role | type) == "string"
+        and (.scope | type) == "string"
+        and (.acquired_at_epoch | type) == "number"
+        and (.expires_at_epoch | type) == "number"
+        and .expires_at_epoch >= $now_epoch
+      ' "$lease_file" >/dev/null 2>&1; then
+      echo "FAIL | lease is expired, malformed, or owned by another worker"
+      print_status_unlocked || true
+      exit 1
+    fi
+    observed_owner="$2"
+    write_lease \
+      "$observed_owner" \
+      "$(jq -r '.model' "$lease_file")" \
+      "$(jq -r '.role' "$lease_file")" \
+      "$(jq -r '.scope' "$lease_file")" \
+      "$(jq -r '.acquired_at_epoch' "$lease_file")" \
+      "$now" \
+      "$((now + ttl_seconds))"
+    echo "PASS | write lease renewed by $2"
+    ;;
+  status)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 64
+    fi
+    if [[ -d "$operation_lock" ]]; then
+      echo '{"active":null,"status":"MUTATION_IN_PROGRESS_REVIEW_REQUIRED"}'
+      exit 1
+    fi
+    print_status_unlocked
+    ;;
+  release)
+    if [[ $# -ne 2 ]]; then
+      usage
+      exit 64
+    fi
+    acquire_operation_lock
+    if [[ ! -f "$lease_file" ]]; then
+      echo "FAIL | no write lease exists"
+      exit 1
+    fi
+    observed_owner="$(jq -r '.owner' "$lease_file")"
+    if [[ "$observed_owner" != "$2" ]]; then
+      echo "FAIL | lease belongs to $observed_owner"
+      exit 1
+    fi
+    unlink "$lease_file"
+    rmdir "$lease_dir"
+    echo "PASS | write lease released by $2"
+    ;;
+  *)
+    usage
+    exit 64
+    ;;
+esac

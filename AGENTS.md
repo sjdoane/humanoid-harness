@@ -14,6 +14,11 @@
 - Start research updates with exactly three rows: **progress**, **bottleneck**,
   and **next step**.
 - The current authority is [`docs/PROJECT_CHARTER.md`](docs/PROJECT_CHARTER.md).
+- A live session verified as `claude-fable-5-1` at `max` effort owns
+  `docs/strategy/`. It may challenge, replace, or reorder strategy and create or
+  supersede decision records when the Lokesh goal ledger and evidence support
+  the change. It may not silently change a goal, historical result, frozen
+  scientific gate, or authorization boundary.
 
 ## Frozen scientific boundary
 

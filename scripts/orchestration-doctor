@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+set -u
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+expected_fable="claude-fable-5-1"
+expected_sol="gpt-5.6-sol"
+run_live_probe=false
+failed=0
+
+if [[ "${1:-}" == "--live" ]]; then
+  run_live_probe=true
+elif [[ $# -gt 0 ]]; then
+  echo "usage: ./scripts/orchestration-doctor [--live]"
+  exit 64
+fi
+
+pass() {
+  printf 'PASS | %s\n' "$1"
+}
+
+fail() {
+  printf 'FAIL | %s\n' "$1"
+  failed=1
+}
+
+notice() {
+  printf 'NOTICE | %s\n' "$1"
+}
+
+claude_bin="$(command -v claude 2>/dev/null || true)"
+if [[ -n "$claude_bin" ]]; then
+  claude_version="$($claude_bin --version 2>/dev/null || true)"
+  if [[ "$claude_version" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    patch="${BASH_REMATCH[3]}"
+  else
+    major=0
+    minor=0
+    patch=0
+  fi
+  if (( major > 2 \
+    || (major == 2 && minor > 1) \
+    || (major == 2 && minor == 1 && patch >= 255) )); then
+    pass "Claude Code ${claude_version} supports Fable 5.1"
+  else
+    fail "Claude Code 2.1.255+ is required; observed ${claude_version:-unknown}"
+  fi
+else
+  fail "Claude Code is not installed or is not on PATH"
+fi
+
+if [[ -n "$claude_bin" ]]; then
+  claude_auth="$($claude_bin auth status --json 2>/dev/null || true)"
+  if jq -e '.loggedIn == true' >/dev/null 2>&1 <<<"$claude_auth"; then
+    pass "Claude Code is authenticated"
+  else
+    fail "Claude Code login is required: claude auth login"
+  fi
+fi
+
+if command -v codex >/dev/null 2>&1; then
+  pass "Codex CLI $(codex --version 2>/dev/null || true) is installed"
+else
+  fail "Codex CLI is not installed or is not on PATH"
+fi
+
+if command -v screen >/dev/null 2>&1; then
+  pass "GNU screen is available for workers detached from the Fable session"
+else
+  fail "GNU screen is required for durable Sol workers"
+fi
+
+if codex login status 2>&1 | rg -q 'Logged in using ChatGPT'; then
+  pass "Codex uses the saved ChatGPT login"
+else
+  fail "Codex ChatGPT login is unavailable: codex login"
+fi
+
+codex_catalog="$(codex debug models 2>/dev/null || true)"
+if jq -e --arg model "$expected_sol" '
+  any(
+    .models[]?;
+    .slug == $model
+    and any(.supported_reasoning_levels[]?; .effort == "max")
+  )
+' >/dev/null 2>&1 <<<"$codex_catalog"; then
+  pass "Codex advertises ${expected_sol} at max reasoning"
+else
+  fail "Codex does not advertise ${expected_sol} at max reasoning"
+fi
+
+plugin_json="$(claude plugin list --json 2>/dev/null || true)"
+if jq -e '
+  any(.[]?; .id == "codex@openai-codex" and .enabled == true)
+' >/dev/null 2>&1 <<<"$plugin_json"; then
+  pass "Optional official OpenAI Codex plugin is installed and enabled"
+else
+  notice "Optional Codex plugin is unavailable; the strict direct CLI path remains enabled"
+fi
+
+if jq -e --arg model "$expected_fable" '
+  .model == $model
+  and .availableModels == [$model]
+  and .switchModelsOnFlag == false
+' "$repo_root/.claude/settings.json" >/dev/null 2>&1; then
+  pass "Project selects Fable 5.1 and disables automatic safeguard fallback"
+else
+  fail "Project Claude model policy differs from the reviewed policy"
+fi
+
+if rg -q '^model = "gpt-5\.6-sol"$' "$repo_root/.codex/config.toml" \
+  && rg -q '^model_reasoning_effort = "max"$' "$repo_root/.codex/config.toml" \
+  && rg -q '^multi_agent = false$' "$repo_root/.codex/config.toml"; then
+  pass "Project requests Sol workers at max reasoning without nested delegation"
+else
+  fail "Project Codex model policy differs from the reviewed policy"
+fi
+
+if [[ -x "$repo_root/.claude/hooks/log-model-event" ]] \
+  && [[ -x "$repo_root/.claude/hooks/enforce-fable-authority" ]] \
+  && [[ -x "$repo_root/.claude/hooks/require-writer-lease" ]] \
+  && [[ -x "$repo_root/scripts/orchestration-lease" ]] \
+  && [[ -x "$repo_root/scripts/orchestration-takeover" ]] \
+  && [[ -x "$repo_root/scripts/start-sol-worker" ]] \
+  && jq -e '
+    (.hooks.SessionStart | length) > 0
+    and (.hooks.PreModelSwitch | length) > 0
+    and (.hooks.PostModelSwitch | length) > 0
+    and (.hooks.PreToolUse | length) > 1
+  ' "$repo_root/.claude/settings.json" >/dev/null 2>&1; then
+  pass "Model guard, writer gate, Sol launcher, and takeover control are installed"
+else
+  fail "An orchestration guard, launcher, or takeover control is missing"
+fi
+
+takeover_state="$("$repo_root/scripts/orchestration-takeover" status 2>/dev/null || true)"
+if jq -e '
+  .schema_version == 1
+  and (.takeover_authorized | type) == "boolean"
+  and .requested_model == "gpt-5.6-sol"
+  and .requested_reasoning_effort == "max"
+' >/dev/null 2>&1 <<<"$takeover_state"; then
+  pass "Takeover state is explicit and defaults fail closed"
+else
+  fail "Takeover authorization state is missing or malformed"
+fi
+
+if $run_live_probe && [[ $failed -eq 0 ]]; then
+  echo "NOTICE | A headless Fable probe can use Anthropic usage credits without an in-app consent dialog."
+  if [[ "${HUMANOID_ALLOW_FABLE_LIVE_PROBE:-}" != "yes" ]]; then
+    if [[ -t 0 ]]; then
+      read -r -p "Type RUN to authorize one no-tool identity request: " probe_consent
+      if [[ "$probe_consent" != "RUN" ]]; then
+        fail "Live probe was not authorized; use an interactive Fable session and verify /status"
+      fi
+    else
+      fail "Set HUMANOID_ALLOW_FABLE_LIVE_PROBE=yes only after authorizing possible usage credits"
+    fi
+  fi
+fi
+
+if $run_live_probe && [[ $failed -eq 0 ]]; then
+  probe_log="$(mktemp -t humanoid-fable-probe.XXXXXX)"
+  cleanup_probe() {
+    if [[ -e "$probe_log" ]]; then
+      unlink "$probe_log"
+    fi
+  }
+  trap cleanup_probe EXIT
+
+  if "$claude_bin" \
+    --print \
+    --model "$expected_fable" \
+    --effort max \
+    --settings "$repo_root/.claude/settings.json" \
+    --tools "" \
+    --permission-prompts none \
+    --output-format stream-json \
+    --verbose \
+    'Return exactly FABLE_IDENTITY_OK.' >"$probe_log"; then
+    if jq -s -e --arg want "$expected_fable" '
+      ([.[] |
+        select(.type == "system" and .subtype == "init") |
+        .model] == [$want])
+      and
+      (([.[] |
+          select(.type == "assistant" and .parent_tool_use_id == null) |
+          .message.model]) as $root_models
+        | ($root_models | length) > 0
+        and all($root_models[]; . == $want))
+      and
+      (([.[] |
+          select(.type == "result") |
+          ((.modelUsage // {}) | keys[]?)]) as $used_models
+        | ($used_models | length) > 0
+        and all($used_models[]; . == $want))
+    ' "$probe_log" >/dev/null; then
+      pass "Live Claude response reports ${expected_fable}"
+    else
+      fail "Live Claude response used or reported a different root model"
+    fi
+  else
+    fail "Live Fable identity probe was refused or failed"
+  fi
+fi
+
+if [[ $failed -ne 0 ]]; then
+  exit 1
+fi
+
+pass "Orchestration preflight is ready"

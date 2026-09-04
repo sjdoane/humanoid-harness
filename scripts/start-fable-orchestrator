@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$repo_root"
+
+"$repo_root/scripts/orchestration-doctor" --live
+
+fable_owner="fable-$(uuidgen | tr '[:upper:]' '[:lower:]')"
+export HUMANOID_FABLE_OWNER="$fable_owner"
+
+exec claude \
+  --model claude-fable-5-1 \
+  --effort max \
+  --settings "$repo_root/.claude/settings.json" \
+  --permission-mode auto \
+  --name humanoid-fable-orchestrator \
+  "Your writer-lease owner is ${fable_owner}. Read docs/operations/FABLE_ORCHESTRATOR_MASTER_PROMPT.md in full and begin its startup protocol."

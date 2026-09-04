@@ -41,3 +41,7 @@ secrets*.json
 # Private context must never be committed.
 private/
 docs/meetings/private/
+CLAUDE.local.md
+
+# Local orchestration runtime state. Durable decisions live in docs/operations/.
+.orchestration/
