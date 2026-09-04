@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | B0FIX made the reward sandbox limits honest on macOS (limits after exec, categorical receipts, OS canaries skip in the Codex sandbox with the exact reason). Fable's host bisection then found the two remaining launch defects: the runner resolves the venv symlink to the base interpreter (no venv under `-I`), and the v1 profile lacks path-metadata reads and a data read of `/`. The robustness review of `1d6b461` returned `ACCEPT-WITH-REPAIRS` (`8` P1, `1` P2), folded into `03A2FIX`. |
-| bottleneck | B0 stays uncommitted until `B0FIX2` lands and the host canaries pass; the import slice's ten repairs wait for the writer. No tracker is admitted; causal reference use is unproved. |
-| next step | Run `B0FIX2` as the writer, verify the `20` canaries on the host, commit B0 as `Slice B0`, launch its two reviews read-only, then run `03A2FIX`, `03A3`, and `03B`. Do not launch any 1M-step attempt. |
+| progress | B0FIX2 landed the unresolved venv launch, Seatbelt profile v2, interpreter identity binding, and categorical exit diagnostics; the host now shows the worker starting. Fable's host diagnosis found the last gap: Python cannot list `src` under the profile, so the package resolves as a namespace shell from site-packages; three directory-listing grants fix it. |
+| bottleneck | Nested Seatbelt remains unavailable inside Codex, so 14 OS canaries are explicitly unverified here; profile v2 still needs Fable's host rerun. No tracker is admitted, and causal reference use remains unproved. |
+| next step | Run `B0FIX3` (three directory grants, profile v3) as the writer, verify the `20` canaries on the host, commit B0 as `Slice B0`, launch its two reviews read-only, and run `03A2FIX` in parallel. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T21:08Z`
+- Updated: `2026-09-04T21:42Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -33,6 +33,7 @@
 | `sol-builder-20260904-b0` (write) | builder | `TASK-20260904-B0` | `.orchestration/sol-runs/20260904T181636Z-8fcc968b-0d9a-4901-ba7f-3a389fc522af` | `SUCCEEDED`; slice uncommitted pending B0FIX; thread `01a06da3-08f9-7a92-b01e-eb2bacdb3502` | `76786` |
 | `sol-builder-20260904-b0fix` (write) | builder | `TASK-20260904-B0FIX` | `.orchestration/sol-runs/20260904T202141Z-260b15ed-0b8b-47df-a17b-800bc2267504` | `SUCCEEDED`; thread `01a06e15-8f53-7452-ad7a-00a9d3688a14` | `46776` |
 | `sol-review-adv-20260904-08` | robustness reviewer of `1d6b461` | `TASK-REVIEW-ROBUSTNESS-GENERIC` | `.orchestration/sol-runs/20260904T202141Z-fe0d2655-8bd5-4363-8445-abf0e2d51bda` | `SUCCEEDED`; `ACCEPT-WITH-REPAIRS`; thread `01a06e15-8faa-7453-8319-d724dc56ff5f` | `46844` |
+| `sol-builder-20260904-b0fix2` (write) | builder | `TASK-20260904-B0FIX2` | `.orchestration/sol-runs/20260904T210814Z-f73f6df5-757f-4fab-b3aa-17f8c660935b` | `SUCCEEDED`; thread `01a06e40-2e02-7540-843e-b7b908f1ae37` | `60764` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -166,6 +167,36 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
     passed, 9 skipped`, with the exact 44 IDs in
     `artifacts/family_b_target_speed_v1/sandbox_baseline_failures.txt`; Ruff
     lint and format checks pass.
+- `TASK-20260904-B0FIX2` repair changed-files subset and receipts:
+  - `src/oracle_composition/rewards/sandbox.py`.
+  - `src/oracle_composition/rewards/_sandbox_worker.py`.
+  - `tests/rewards/test_sandbox.py`.
+  - `experiments/family_b_target_speed_v1/PROTOCOL.md`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_sandbox_canaries.json`:
+    canonical SHA-256
+    `22aa4e86fcafc52067bee2c8b34ec539b4f2ea2ba768807c12e8fb59b936bac6`;
+    file SHA-256
+    `e9349a74bdc933bef9a48f00fca3ad44dff342693246f943f7597e11a740fff6`;
+    profile SHA-256
+    `7dcef9b4e429752695700817d0748560f6832e2d8b6b1f6f4ec253f2a423a816`.
+  - Interpreter launch path `.venv/bin/python` and resolved uv binary each
+    hash to
+    `7710b0490e6af648676d7ad163fa1d54bffb75d8505162609a1c3c9b76e1929d`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`
+    was refreshed only for source identity: canonical SHA-256
+    `0ef5ce4bc3205c0b4d6abf84f60d9e0ab6028d265a28cca8f8c17cdb6a283063`;
+    file SHA-256
+    `164bdddf57a0f33e43cb57a391223190ef70a42b09c8f0312f008838bedc9d78`.
+  - `experiments/family_b_target_speed_v1/receipts/host_sandbox_canaries.json`
+    is unchanged historical profile-v1 evidence: canonical SHA-256
+    `94b576cf6372902612e7cf68c2f9e5fbaf26bec707d5ebd52dc92aa79a68c786`;
+    file SHA-256
+    `a17291848ed15f210294f65849588456aa565bccde7715c39d5d160b0b9aeb4d`.
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
+  - Verification: sandbox tests `22 passed, 7 skipped` with exact reason
+    `sandbox-exec: sandbox_apply: Operation not permitted`; full suite `44
+    failed, 1143 passed, 9 skipped`, with the exact saved 44-test baseline;
+    Ruff lint and format checks pass. No training or behavioral evaluation ran.
 - Local ignored artifacts created by the slice:
   - `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: SHA-256
     `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`,
@@ -352,3 +383,15 @@ startup under the v1 profile, fixed only by `(allow file-read-metadata)` plus
 over every other top-level area left the worker running. Packet
 `TASK-20260904-B0FIX2` carries both repairs. The reward-track worker's exit
 code `64` was observed on the host and must be documented by the builder.
+
+## B0 host diagnosis, second round `2026-09-04T21:42Z`
+
+Under profile v2 with the venv interpreter, the worker starts and reports
+`ModuleNotFoundError: No module named 'oracle_composition.rewards'`. Inside the
+sandbox `oracle_composition` resolves as a namespace package from
+`.venv/lib/python3.13/site-packages/oracle_composition/` (the force-included
+`_runtime/uv.lock` resource) because listing `src` is a data read the profile
+does not grant. Three literal directory grants (`src`,
+`src/oracle_composition`, `src/oracle_composition/rewards`) let the regular
+package win; the worker then runs to its documented exit paths. Packet
+`TASK-20260904-B0FIX3` applies them as profile v3.
