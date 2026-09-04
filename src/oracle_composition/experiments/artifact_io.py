@@ -5,12 +5,14 @@ from __future__ import annotations
 import ctypes
 import errno
 import hashlib
+import io
 import json
 import os
 import secrets
 import stat
 import sys
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +24,215 @@ class PublishedArtifact:
     path: Path
     sha256: str
     byte_count: int
+
+
+class _BoundedSequentialRawWriter(io.RawIOBase):
+    """Write-only descriptor adapter with an exact byte ceiling and rolling digest."""
+
+    def __init__(self, descriptor: int, *, max_bytes: int) -> None:
+        super().__init__()
+        self._descriptor = descriptor
+        self._max_bytes = max_bytes
+        self._byte_count = 0
+        self._digest = hashlib.sha256()
+
+    @property
+    def byte_count(self) -> int:
+        return self._byte_count
+
+    @property
+    def sha256(self) -> str:
+        return self._digest.hexdigest()
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return False
+
+    def fileno(self) -> int:
+        self._checkClosed()
+        return self._descriptor
+
+    def write(self, value: bytes | bytearray | memoryview) -> int:
+        self._checkClosed()
+        view = memoryview(value).cast("B")
+        if self._byte_count + len(view) > self._max_bytes:
+            raise ExperimentContractError("streaming artifact exceeds its byte limit")
+        written = 0
+        while written < len(view):
+            count = os.write(self._descriptor, view[written:])
+            if count <= 0:
+                raise ExperimentContractError("streaming artifact write made no progress")
+            self._digest.update(view[written : written + count])
+            self._byte_count += count
+            written += count
+        return written
+
+    def flush(self) -> None:
+        if not self.closed:
+            os.fsync(self._descriptor)
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        try:
+            super().close()
+        finally:
+            os.close(self._descriptor)
+
+
+@dataclass(slots=True)
+class ReservedStreamingArtifact:
+    """One bounded sequential stream retained on failure and published once."""
+
+    path: Path
+    partial_path: Path
+    _parent_descriptor: int
+    _artifact_descriptor: int
+    _artifact_state: os.stat_result
+    _raw_writer: _BoundedSequentialRawWriter
+    writer: io.BufferedWriter
+    _max_bytes: int
+    _closed: bool = False
+
+    def finalize(self) -> PublishedArtifact:
+        """Seal, independently rehash, and atomically publish the stream."""
+
+        if self._closed:
+            raise ExperimentContractError("streaming artifact reservation is already closed")
+        renamed = False
+        expected_size = 0
+        expected_sha256 = ""
+        try:
+            self.writer.flush()
+            self.writer.close()
+            expected_size = self._raw_writer.byte_count
+            expected_sha256 = self._raw_writer.sha256
+            if expected_size <= 0:
+                raise ExperimentContractError("streaming artifact must be nonempty")
+            if expected_size > self._max_bytes:
+                raise ExperimentContractError("streaming artifact exceeds its byte limit")
+            descriptor_state = os.fstat(self._artifact_descriptor)
+            visible_partial = os.stat(
+                self.partial_path.name,
+                dir_fd=self._parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(descriptor_state.st_mode)
+                or not _same_file(self._artifact_state, descriptor_state)
+                or not _same_file(self._artifact_state, visible_partial)
+                or descriptor_state.st_nlink != 1
+                or visible_partial.st_nlink != 1
+                or stat.S_IMODE(descriptor_state.st_mode) != 0o600
+                or descriptor_state.st_size != expected_size
+            ):
+                raise ExperimentContractError("streaming artifact changed before publication")
+            if (
+                _descriptor_sha256(
+                    self._artifact_descriptor,
+                    expected_size=expected_size,
+                )
+                != expected_sha256
+            ):
+                raise ExperimentContractError(
+                    "streaming artifact digest changed before publication"
+                )
+            verification_parent = _open_parent_directory(
+                self.path.parent,
+                create_missing=False,
+            )
+            try:
+                if not _same_file(
+                    os.fstat(self._parent_descriptor),
+                    os.fstat(verification_parent),
+                ):
+                    raise ExperimentContractError(
+                        "artifact output ancestors changed before publication"
+                    )
+            finally:
+                os.close(verification_parent)
+            try:
+                _rename_without_overwrite(
+                    self._parent_descriptor,
+                    self.partial_path.name,
+                    self.path.name,
+                )
+            except FileExistsError as exc:
+                raise ExperimentContractError(
+                    f"refusing to overwrite existing file: {self.path}"
+                ) from exc
+            renamed = True
+            os.fsync(self._parent_descriptor)
+            final_state = os.stat(
+                self.path.name,
+                dir_fd=self._parent_descriptor,
+                follow_symlinks=False,
+            )
+            descriptor_state = os.fstat(self._artifact_descriptor)
+            if (
+                not _same_file(self._artifact_state, final_state)
+                or not _same_file(self._artifact_state, descriptor_state)
+                or descriptor_state.st_nlink != 1
+                or stat.S_IMODE(descriptor_state.st_mode) != 0o600
+                or descriptor_state.st_size != expected_size
+                or _descriptor_sha256(
+                    self._artifact_descriptor,
+                    expected_size=expected_size,
+                )
+                != expected_sha256
+            ):
+                raise ExperimentContractError("streaming artifact changed during publication")
+            verification_parent = _open_parent_directory(
+                self.path.parent,
+                create_missing=False,
+            )
+            try:
+                if not _same_file(
+                    os.fstat(self._parent_descriptor),
+                    os.fstat(verification_parent),
+                ):
+                    raise ExperimentContractError(
+                        "artifact output ancestors changed during publication"
+                    )
+                visible_final = os.stat(
+                    self.path.name,
+                    dir_fd=verification_parent,
+                    follow_symlinks=False,
+                )
+                if not _same_file(self._artifact_state, visible_final):
+                    raise ExperimentContractError(
+                        "streaming artifact is not visible at the requested path"
+                    )
+            finally:
+                os.close(verification_parent)
+            return PublishedArtifact(
+                path=self.path,
+                sha256=expected_sha256,
+                byte_count=expected_size,
+            )
+        except OSError as exc:
+            retained = self.path if renamed else self.partial_path
+            raise ExperimentContractError(
+                f"cannot publish streaming artifact; retained at {retained}: {exc}"
+            ) from exc
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        """Close descriptors without deleting an incomplete artifact."""
+
+        if self._closed:
+            return
+        with suppress(Exception):
+            self.writer.close()
+        os.close(self._artifact_descriptor)
+        os.close(self._parent_descriptor)
+        self._closed = True
 
 
 @dataclass(slots=True)
@@ -473,6 +684,254 @@ def reserve_json_artifact(path: Path, provisional_value: object) -> ReservedJson
             os.close(parent_descriptor)
 
 
+def reserve_streaming_artifact(
+    path: Path,
+    *,
+    max_bytes: int,
+    buffer_size: int = 1024 * 1024,
+) -> ReservedStreamingArtifact:
+    """Reserve one hidden partial for bounded sequential publication."""
+
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
+        raise ExperimentContractError("streaming artifact max_bytes must be a positive integer")
+    if isinstance(buffer_size, bool) or not isinstance(buffer_size, int) or buffer_size <= 0:
+        raise ExperimentContractError("streaming artifact buffer_size must be a positive integer")
+    requested = Path(path)
+    if requested.name in {"", ".", ".."} or "\0" in requested.name:
+        raise ExperimentContractError("streaming artifact must have one filename")
+    absolute = Path(os.path.abspath(requested))
+    parent_descriptor = _open_parent_directory(absolute.parent)
+    try:
+        os.stat(absolute.name, dir_fd=parent_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        os.close(parent_descriptor)
+        raise ExperimentContractError(f"cannot inspect artifact path {absolute}: {exc}") from exc
+    else:
+        os.close(parent_descriptor)
+        raise ExperimentContractError(f"refusing to overwrite existing file: {absolute}")
+
+    artifact_descriptor: int | None = None
+    stream_descriptor: int | None = None
+    created: os.stat_result | None = None
+    partial_name: str | None = None
+    raw_writer: _BoundedSequentialRawWriter | None = None
+    writer: io.BufferedWriter | None = None
+    reserved = False
+    flags = os.O_RDWR | os.O_CREAT | os.O_EXCL
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        for _attempt in range(100):
+            partial_name = f".{absolute.name}.{secrets.token_hex(16)}.partial"
+            try:
+                artifact_descriptor = os.open(
+                    partial_name,
+                    flags,
+                    0o600,
+                    dir_fd=parent_descriptor,
+                )
+            except FileExistsError:
+                continue
+            break
+        if artifact_descriptor is None or partial_name is None:
+            raise ExperimentContractError("cannot allocate a unique streaming partial")
+        created = os.fstat(artifact_descriptor)
+        if not stat.S_ISREG(created.st_mode):
+            raise ExperimentContractError("streaming artifact is not a regular file")
+        os.fchmod(artifact_descriptor, 0o600)
+        visible = os.stat(partial_name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if (
+            not _same_file(created, visible)
+            or visible.st_nlink != 1
+            or visible.st_size != 0
+            or stat.S_IMODE(visible.st_mode) != 0o600
+        ):
+            raise ExperimentContractError("streaming artifact changed during reservation")
+        stream_descriptor = os.dup(artifact_descriptor)
+        raw_writer = _BoundedSequentialRawWriter(
+            stream_descriptor,
+            max_bytes=max_bytes,
+        )
+        stream_descriptor = None
+        writer = io.BufferedWriter(raw_writer, buffer_size=buffer_size)
+        os.fsync(parent_descriptor)
+        reservation = ReservedStreamingArtifact(
+            path=absolute,
+            partial_path=absolute.parent / partial_name,
+            _parent_descriptor=parent_descriptor,
+            _artifact_descriptor=artifact_descriptor,
+            _artifact_state=created,
+            _raw_writer=raw_writer,
+            writer=writer,
+            _max_bytes=max_bytes,
+        )
+        reserved = True
+        return reservation
+    except OSError as exc:
+        raise ExperimentContractError(
+            f"cannot reserve streaming artifact {absolute}: {exc}"
+        ) from exc
+    finally:
+        if not reserved:
+            if writer is not None:
+                with suppress(Exception):
+                    writer.close()
+            elif raw_writer is not None:
+                with suppress(Exception):
+                    raw_writer.close()
+            elif stream_descriptor is not None:
+                os.close(stream_descriptor)
+            if created is not None and partial_name is not None:
+                try:
+                    visible = os.stat(
+                        partial_name,
+                        dir_fd=parent_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if _same_file(created, visible):
+                        os.unlink(partial_name, dir_fd=parent_descriptor)
+                except OSError:
+                    pass
+            if artifact_descriptor is not None:
+                os.close(artifact_descriptor)
+            os.close(parent_descriptor)
+
+
+@contextmanager
+def verified_artifact_reader(
+    path: Path,
+    *,
+    expected_sha256: str,
+    expected_size: int,
+    max_bytes: int,
+    required_mode: int = 0o600,
+    buffer_size: int = 1024 * 1024,
+) -> Iterator[io.BufferedReader]:
+    """Yield a descriptor-bound reader and verify identity before and after use."""
+
+    if (
+        len(expected_sha256) != 64
+        or expected_sha256.lower() != expected_sha256
+        or any(character not in "0123456789abcdef" for character in expected_sha256)
+    ):
+        raise ExperimentContractError("expected artifact SHA-256 is invalid")
+    for label, value in {
+        "expected_size": expected_size,
+        "max_bytes": max_bytes,
+        "buffer_size": buffer_size,
+    }.items():
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ExperimentContractError(f"{label} must be a positive integer")
+    if expected_size > max_bytes:
+        raise ExperimentContractError("expected artifact size exceeds its byte limit")
+    if (
+        isinstance(required_mode, bool)
+        or not isinstance(required_mode, int)
+        or required_mode < 0
+        or required_mode > 0o777
+    ):
+        raise ExperimentContractError("required_mode must be a permission mode")
+    requested = Path(path)
+    if requested.name in {"", ".", ".."} or "\0" in requested.name:
+        raise ExperimentContractError("verified artifact must have one filename")
+    absolute = Path(os.path.abspath(requested))
+    parent_descriptor = _open_parent_directory(absolute.parent, create_missing=False)
+    verification_descriptor: int | None = None
+    reader_descriptor: int | None = None
+    reader: io.BufferedReader | None = None
+    try:
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        verification_descriptor = os.open(
+            absolute.name,
+            flags,
+            dir_fd=parent_descriptor,
+        )
+        reader_descriptor = os.open(
+            absolute.name,
+            flags,
+            dir_fd=parent_descriptor,
+        )
+        descriptor_state = os.fstat(verification_descriptor)
+        reader_state = os.fstat(reader_descriptor)
+        visible_state = os.stat(
+            absolute.name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(descriptor_state.st_mode)
+            or not _same_file(descriptor_state, reader_state)
+            or not _same_file(descriptor_state, visible_state)
+            or descriptor_state.st_nlink != 1
+            or stat.S_IMODE(descriptor_state.st_mode) != required_mode
+            or descriptor_state.st_size != expected_size
+        ):
+            raise ExperimentContractError("verified artifact metadata differs")
+        if (
+            _descriptor_sha256(
+                verification_descriptor,
+                expected_size=expected_size,
+            )
+            != expected_sha256
+        ):
+            raise ExperimentContractError("verified artifact SHA-256 differs")
+        raw_reader = io.FileIO(reader_descriptor, mode="rb", closefd=True)
+        reader_descriptor = None
+        reader = io.BufferedReader(raw_reader, buffer_size=buffer_size)
+        try:
+            yield reader
+        finally:
+            reader.close()
+            reader = None
+            descriptor_state_after = os.fstat(verification_descriptor)
+            visible_state_after = os.stat(
+                absolute.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not _same_file(descriptor_state, descriptor_state_after)
+                or not _same_file(descriptor_state, visible_state_after)
+                or descriptor_state_after.st_nlink != 1
+                or descriptor_state_after.st_size != expected_size
+                or stat.S_IMODE(descriptor_state_after.st_mode) != required_mode
+                or _descriptor_sha256(
+                    verification_descriptor,
+                    expected_size=expected_size,
+                )
+                != expected_sha256
+            ):
+                raise ExperimentContractError("verified artifact changed while in use")
+            verification_parent = _open_parent_directory(
+                absolute.parent,
+                create_missing=False,
+            )
+            try:
+                if not _same_file(
+                    os.fstat(parent_descriptor),
+                    os.fstat(verification_parent),
+                ):
+                    raise ExperimentContractError(
+                        "verified artifact ancestors changed while in use"
+                    )
+            finally:
+                os.close(verification_parent)
+    except OSError as exc:
+        raise ExperimentContractError(f"cannot read verified artifact {absolute}: {exc}") from exc
+    finally:
+        if reader is not None:
+            reader.close()
+        if reader_descriptor is not None:
+            os.close(reader_descriptor)
+        if verification_descriptor is not None:
+            os.close(verification_descriptor)
+        os.close(parent_descriptor)
+
+
 def publish_bytes_without_overwrite(path: Path, encoded: bytes) -> PublishedArtifact:
     """Publish complete bytes atomically; retain, but never endorse, failed attempts."""
 
@@ -610,8 +1069,11 @@ def publish_json_without_overwrite(path: Path, value: object) -> PublishedArtifa
 __all__ = [
     "PublishedArtifact",
     "ReservedJsonArtifact",
+    "ReservedStreamingArtifact",
     "finite_pretty_json",
     "publish_bytes_without_overwrite",
     "publish_json_without_overwrite",
     "reserve_json_artifact",
+    "reserve_streaming_artifact",
+    "verified_artifact_reader",
 ]
