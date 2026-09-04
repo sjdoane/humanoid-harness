@@ -1,0 +1,1 @@
+{"authorizes_training":false,"behavioral_evidence":false,"check_id":"tqc_dev_1m_v2_focused_contract_tests/v1","command":".venv/bin/pytest -q tests/experiments/test_tqc_development_contract_v2.py","covers_later_implementation":false,"observed_failed":0,"observed_passed":55,"result":"PASS","schema_version":1,"scope":"frozen_v2_contract_slice_only"}
