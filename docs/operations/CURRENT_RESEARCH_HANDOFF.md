@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | Builder B0 delivered the reward contract, exact stock parity, static validator, pipe-based sandbox worker, scale calibration, protected target-speed evaluator, and protocol files (`87` focused tests). Scientific review of the import commit `1d6b461` returned `ACCEPT-WITH-REPAIRS` (three P1); its adversarial review was cut off by the Codex cyber-safety filter after one probe. |
-| bottleneck | On the host, `setrlimit(RLIMIT_AS, 1 GiB)` raises on macOS, so all `14` OS Seatbelt canaries fail in the worker's pre-exec and seven sandbox tests fail outside the Codex sandbox (`1179 passed` otherwise); B0 stays uncommitted until repair B0FIX lands. The import slice needs repair 03A2FIX. No tracker is admitted; causal reference use is unproved. |
-| next step | Run builder `B0FIX` as the writer and the reusable robustness review on `1d6b461` read-only. Then commit B0, review it, run `03A2FIX`, then `03A3` and `03B`. Do not launch any 1M-step attempt. |
+| progress | B0FIX made the reward sandbox limits honest on macOS (limits after exec, categorical receipts, OS canaries skip in the Codex sandbox with the exact reason). Fable's host bisection then found the two remaining launch defects: the runner resolves the venv symlink to the base interpreter (no venv under `-I`), and the v1 profile lacks path-metadata reads and a data read of `/`. The robustness review of `1d6b461` returned `ACCEPT-WITH-REPAIRS` (`8` P1, `1` P2), folded into `03A2FIX`. |
+| bottleneck | B0 stays uncommitted until `B0FIX2` lands and the host canaries pass; the import slice's ten repairs wait for the writer. No tracker is admitted; causal reference use is unproved. |
+| next step | Run `B0FIX2` as the writer, verify the `20` canaries on the host, commit B0 as `Slice B0`, launch its two reviews read-only, then run `03A2FIX`, `03A3`, and `03B`. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T20:21Z`
+- Updated: `2026-09-04T21:08Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -31,6 +31,8 @@
 | `sol-review-sci-20260904-06` | scientific reviewer of `1d6b461` | `TASK-20260904-06` | `.orchestration/sol-runs/20260904T181613Z-721ea785-8dc3-4d8f-9eb6-84b4672d1fb3` | `hh-sol-869272fb-cc6c-480d-9b0a-0b3eece424a9` | `74477` |
 | `sol-review-adv-20260904-07` | adversarial reviewer of `1d6b461` | `TASK-20260904-07` | `.orchestration/sol-runs/20260904T181614Z-5bb41e36-fc24-49b0-8fb3-a73409210b5a` | `hh-sol-d7eb4fef-93a3-49a5-9161-140a7d1672a7` | `74544` |
 | `sol-builder-20260904-b0` (write) | builder | `TASK-20260904-B0` | `.orchestration/sol-runs/20260904T181636Z-8fcc968b-0d9a-4901-ba7f-3a389fc522af` | `SUCCEEDED`; slice uncommitted pending B0FIX; thread `01a06da3-08f9-7a92-b01e-eb2bacdb3502` | `76786` |
+| `sol-builder-20260904-b0fix` (write) | builder | `TASK-20260904-B0FIX` | `.orchestration/sol-runs/20260904T202141Z-260b15ed-0b8b-47df-a17b-800bc2267504` | `SUCCEEDED`; thread `01a06e15-8f53-7452-ad7a-00a9d3688a14` | `46776` |
+| `sol-review-adv-20260904-08` | robustness reviewer of `1d6b461` | `TASK-REVIEW-ROBUSTNESS-GENERIC` | `.orchestration/sol-runs/20260904T202141Z-fe0d2655-8bd5-4363-8445-abf0e2d51bda` | `SUCCEEDED`; `ACCEPT-WITH-REPAIRS`; thread `01a06e15-8faa-7453-8319-d724dc56ff5f` | `46844` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -139,6 +141,31 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
   - `tests/experiments/test_reward_target_speed_manifest.py`.
   - `artifacts/family_b_target_speed_v1/sandbox_baseline_failures.txt` (ignored
     in-sandbox baseline receipt).
+- `TASK-20260904-B0FIX` repair changed-files subset and receipts:
+  - `src/oracle_composition/rewards/sandbox.py`.
+  - `src/oracle_composition/rewards/_sandbox_worker.py`.
+  - `tests/rewards/test_sandbox.py`.
+  - `experiments/family_b_target_speed_v1/PROTOCOL.md`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_sandbox_canaries.json`:
+    canonical SHA-256
+    `b0cbe91ac54199906c4e68a785bb8af03cc0d9c904997a1a16845fdfa8eccacc`;
+    file SHA-256
+    `eb340a34e22e150506251e7d6322229b30d84f06cdf355dbd97ad92fa348d891`.
+  - `experiments/family_b_target_speed_v1/receipts/host_sandbox_canaries.json`
+    (unchanged historical diagnostic): canonical SHA-256
+    `62c2529fd0430b0d9bd9fe7c0920015535961aa9771874aa65f0cecfad161190`;
+    file SHA-256
+    `1f29d913baabc1bcab49c1ed27417477c8950db3e8dba5a6bda77a962e9ad05d`.
+  - `experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`:
+    canonical SHA-256
+    `0f14245b8c63168e9f7d3d760a15bc2d21846abeeb2858c9e3bcaeaa9effab7c`;
+    file SHA-256
+    `8f216c6584610ef127909daba4309d38c6a53223114f0398d37fdf29c7203d0a`.
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
+  - Verification: `87 passed, 7 skipped` focused; full suite `44 failed, 1140
+    passed, 9 skipped`, with the exact 44 IDs in
+    `artifacts/family_b_target_speed_v1/sandbox_baseline_failures.txt`; Ruff
+    lint and format checks pass.
 - Local ignored artifacts created by the slice:
   - `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: SHA-256
     `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`,
@@ -312,3 +339,16 @@ behavioral ran.
 - Scientific review `06` (thread `01a06da2-b496-7cb2-b89a-c87725723b53`): `ACCEPT-WITH-REPAIRS`, `0` P0, `3` P1 (`SCI-03A2-01` nominal payload fingerprint; `-02` sorted safe-globals comparison; `-03` vacuous negatives). Repair packet `TASK-20260904-03A2FIX` also carries the storage-interval overlap check found by the adversarial probe.
 - Adversarial review `07` (thread `01a06da2-b54c-70a1-8ffb-c2a2f033d1e6`): `turn.failed`, flagged by the Codex cyber-safety filter after constructing one overlap probe. Future adversarial packets are phrased as defensive robustness reviews without payload construction (`TASK-REVIEW-ROBUSTNESS-GENERIC`), driven by `.orchestration/review-target-adv.txt`. A matching `TASK-REVIEW-SCI-GENERIC` reads `.orchestration/review-target-sci.txt`.
 - B0 host checks: Seatbelt bootstrap passes on the host; `RLIMIT_AS 1 GiB` raises `ValueError` on macOS; `14` OS canaries fail in pre-exec, `6` protocol canaries pass; host receipt `experiments/family_b_target_speed_v1/receipts/host_sandbox_canaries.json` (canonical SHA-256 `62c2529fd0430b0d9bd9fe7c0920015535961aa9771874aa65f0cecfad161190`); outside-sandbox suite `7 failed, 1179 passed`, all seven in `tests/rewards/test_sandbox.py`; ruff clean. Repair packet `TASK-20260904-B0FIX`.
+
+## B0 host diagnosis `2026-09-04T21:08Z`
+
+After B0FIX, the host run of the OS canaries still failed with
+`worker pipe closed before a complete response`. Direct execution of one
+canary showed (1) `ModuleNotFoundError: oracle_composition` under a permissive
+profile because the runner resolves the venv symlink to the base uv
+interpreter, which has no venv context under `-I`; and (2) `SIGABRT` at
+startup under the v1 profile, fixed only by `(allow file-read-metadata)` plus
+`(allow file-read-data (literal "/"))` with data reads under `/Users`. Leave-one-out
+over every other top-level area left the worker running. Packet
+`TASK-20260904-B0FIX2` carries both repairs. The reward-track worker's exit
+code `64` was observed on the host and must be documented by the builder.
