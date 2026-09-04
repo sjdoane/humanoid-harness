@@ -2,17 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | Both design surveys delivered (`04` reward track, `05` tracker track) and are adopted in ADR 0006 and ADR 0005. The clean `main` baseline suite passed outside the sandbox: `1060 passed` in `122 s` at `48955df`. Packets 03A3, 03B, B0, and the 03A2 reviews `06`/`07` are written. Sibling artifacts (`medium`, `simple`) are being fetched and hash-verified. |
-| bottleneck | The Codex sandbox denies socket binds and reports the CPU as `arm`, so 44 host-fingerprint and socket tests fail inside it; Fable now supplies the true baseline suite receipt and builders compare against their own in-sandbox baseline. No tracker is admitted; causal reference use is unproved. |
-| next step | Commit docs, release the lease, relaunch `TASK-20260904-03A2` (third launch, sandbox-aware). On its receipt launch reviews `06` and `07`, commit, then run B0 while 03A3 and 03B follow the oracle-track order. Do not launch any 1M-step attempt. |
+| progress | Builder 03A2 (launch 3) wrote the importer, isolated worker, payload policy, registration, and external equivalence modules (`2,274` lines, uncommitted, no tests yet) and stopped when the worker refused the pinned bytes. Fable's bounded diagnostic found the cause: Torch `2.14` pre-registers `75` safe globals, and the worker required an empty list. Sibling artifacts are verified against their LFS digests. |
+| bottleneck | The slice is unfinished: no NPZ, import receipt, equivalence receipt, policy test, or negative tests exist yet. No tracker is admitted; causal reference use is unproved. |
+| next step | Launch continuation builder `TASK-20260904-03A2R` on the partial working tree with the corrected safe-globals invariant. On its receipt: reviews `06` and `07`, then commit. Do not launch any 1M-step attempt. |
 
-- Updated: `2026-09-04T17:13Z`
+- Updated: `2026-09-04T17:45Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
 - Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
 - Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: none at this update; `sol-builder-20260904-03a2` launches next
+- Active write worker: none at this update; `sol-builder-20260904-03a2r` launches next on the uncommitted partial slice
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
 
@@ -26,6 +26,7 @@
 | `sol-builder-20260904-03a` (write) | builder | `TASK-20260904-03A` | `.orchestration/sol-runs/20260904T164729Z-273705b5-fd1b-49d6-9495-98e63f907b01` | stopped at the `.git` boundary; superseded | `50887` |
 | `sol-builder-20260904-03a2` (write, launch 1) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T165851Z-cde09967-82e9-425c-9b16-91292ac226f5` | stopped: two-dot diff precondition | `58734` |
 | `sol-builder-20260904-03a2` (write, launch 2) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T170134Z-f48b6fc2-905b-4323-87f3-8b88246888c4` | stopped: in-sandbox suite failures | `59876` |
+| `sol-builder-20260904-03a2` (write, launch 3) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T171428Z-2d37493e-5ef0-455c-8c58-5f9878a2074b` | partial slice in the working tree; stopped at `process safe globals refused` | `62996` |
 | `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
 
 Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
@@ -106,17 +107,37 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 - Start state was clean at `main` HEAD
   `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
   commit `5bdae45` each list exactly the expected 20 preserved paths.
-- `TASK-20260904-03A2` changed-files list before stopping:
-  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`: required three-row stop
-    status, receipt, changed-files list, and exact Fable resume action only.
+- `TASK-20260904-03A2` launch-3 changed-files list before stopping:
+  - `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures.txt` (ignored):
+    sorted 44-node-id sandbox baseline; SHA-256
+    `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345`.
+  - `src/oracle_composition/experiments/tqc_actor_equivalence_v2.py`.
+  - `src/oracle_composition/experiments/tqc_actor_equivalence_primitives.py`.
+  - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
+  - `src/oracle_composition/sources/_external_sb3_actor_worker.py`.
+  - `src/oracle_composition/sources/external_sb3_actor.py`.
+  - `src/oracle_composition/sources/external_payload_policy.py`.
+  - `src/oracle_composition/sources/farama_tqc_registration.py`.
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
 - Pre-change receipt: `.venv/bin/python -m pytest -q -p no:cacheprovider`
-  produced `44 failed, 1014 passed, 2 skipped in 108.12s`. Representative hard
+  produced `44 failed, 1014 passed, 2 skipped in 108.27s`. Representative hard
   failures were `PermissionError: [Errno 1] Operation not permitted` while
   binding multiprocessing/UI sockets and `observed preflight cpu_model differs`
   (`arm` observed; `Apple M5 Max` frozen).
-- No registration files, importer, tests, strict actor NPZ, import receipt,
-  equivalence receipt, checkpoint load, training run, or behavior evaluation
-  were created. The artifact hashes were not rechecked after the suite stop.
+- Focused receipt after extracting the pure equivalence primitives:
+  `.venv/bin/python -m pytest -q -p no:cacheprovider
+  tests/experiments/test_tqc_actor_equivalence_v2.py` produced `20 passed, 1
+  skipped in 2.60s` (MPS unavailable).
+- Import pipeline receipt before refusal: the pinned policy and metadata
+  SHA-256/byte checks passed; Torch-ZIP preflight returned `36` members and
+  `3,315,078` uncompressed bytes; metadata returned the exact allowlist and
+  `11` serialized-field paths. The worker then returned a categorical refusal.
+- Lint is not a completion receipt: `uv run ruff check` could not use the
+  sandbox-denied user cache and an isolated cache attempted forbidden network
+  resolution. `.venv/bin/ruff check` found import ordering, which was patched,
+  but was not rerun after the mandatory stop fired.
+- No strict actor NPZ, import receipt, equivalence receipt, registration files,
+  tests, training run, or behavior evaluation were created.
 
 ## Current no-go findings
 
@@ -172,9 +193,10 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: on unchanged `main`, run `.venv/bin/python -m pytest -q -p
-no:cacheprovider` in the intended host execution context with socket binding
-available; relaunch `TASK-20260904-03A2` only after that exact suite passes.
+Fable resume: inspect the launch-3 partial 03A2 diff, then authorize one bounded
+categorical diagnostic that identifies which post-load worker invariant refused
+the already hash-verified `policy.pth`; do not relax an invariant, load through
+another API, launch 03B, or run training.
 
 ## Handoff update contract
 
@@ -219,3 +241,15 @@ run `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce
 delivered the same-runtime reference, Tier-D, E3, residual-PPO E4, and E5
 designs. ADR 0005 records the chain. Packets `03A3` and `03B` implement the
 first two slices; packets for E4 and E5 follow their reviews.
+
+## Builder 03A2 diagnostic `2026-09-04T17:45Z`
+
+Fable ran the worker's stages in a separate process on the pinned expert
+`policy.pth`: resource limits applied (macOS reports no finite `RLIMIT_AS`),
+then category `process safe globals refused`. A fresh interpreter on Torch
+`2.14.0` reports `75` pre-registered safe globals (builtin exception classes,
+`traceback.FrameSummary`, Torch internals). The corrected invariant is
+"no additions during the load and no entry outside `builtins`, `traceback`,
+`collections`, or `torch`", recorded by count and SHA-256 in the receipt.
+Packet `TASK-20260904-03A2R` carries the fix and the remaining steps. The seven
+uncommitted code files from launch 3 stay in the working tree for it.
