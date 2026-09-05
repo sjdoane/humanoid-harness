@@ -4,7 +4,7 @@
 |---|---|
 | progress | The harness loop now runs end to end on stock `Humanoid-v5` as a CLI: task T1 (speed profile), a frozen three-gait library, cycle 0 with four predeclared arms, a prompt-only LLM-designed cycle-1 oracle, and canonical cycle reports (`50fd60c`, `2fb31dc`, cycle 1 pending commit). |
 | bottleneck | Every switching design fell in `20/20` episodes, each time `22`-`57` steps after the expert-to-medium switch at running speed; the library's controllers cannot hand over to each other, so controller switching cannot compose behaviors. Composition needs a tracker that learns transitions from a composed reference, which is the collaborator's frame and the next block to build. |
-| next step | One steered cycle 2 to confirm the infeasibility finding; the fine-tuning runtime (warm start at the expert, full authority, oracle program plus reward specification in, policy plus cycle report out) as the next builder packet from the running design survey; Astra's data-only reward family plugs into it. |
+| next step | Phase B: build the fine-tuning runtime as two implementation-only slices (`FT1` contracts, exact full-authority E1 warm start, switch-only phase transfer, composed-window runtime, tracking-only reward; `FT2` training worker, supervision, persistence, report v2, CLI `train`), then a disposable 20-minute smoke under a mailbox reservation; the five-seed cohort needs Samuel's authorization. |
 
 ## Fable's authority
 
@@ -286,6 +286,22 @@ composed reference and learns the transition (fine-tuning runtime), and the
 harness's job includes detecting infeasibility and reporting it to the human
 with options rather than iterating blindly.
 
+## Phase B design decisions (2026-09-05T19:32Z)
+
+From the fine-tuning runtime survey (`sol-survey-20260905-ft`, clean `89688ba`).
+Frozen by strategy authority; the builder packets bind them.
+
+| item | decision |
+|---|---|
+| Policy | Full-authority actor warm-started bitwise from the expert: input `float32[708] = state[348] || reference[8,45]`; the reference columns of the first affine layer start at positive zero; second layer, mean head, and state-dependent log-std head copied bitwise; log-std clamped to `[-20, 2]`; fresh value network `708-256-256-1`; no residual, blend, or expert bypass; exact strict-runtime action mapping (a generic rescale wrapper differs on `58%` of random controls by up to `6e-8` and is not E1-safe). |
+| E1 receipt | Four synthetic states plus `64` SHA-ranked real `(block, boundary)` fixtures; bitwise equality of copied parameters, mean, log-std, deterministic and seeded stochastic actions, reload, and export; PPO likelihood recomputation within `1e-5`; the listed negative tests. |
+| Reference composition | The oracle program (same guard grammar, schema `humanoid_reference_composition_oracle/v1`) selects the active behavior; on a behavior change the target phase is the nearest-state boundary `j* <= t` by lexicographic (max normalized error, sum of squares, index); holds advance one boundary per step; no continuous rematching; no wrap; terminal hold only at the reference end. Static check over the nine admitted training blocks: nearest-phase transfer halves the same-index splice error (expert to medium `1.26`-`2.57` versus `1.51`-`5.24`). |
+| Reward | Training reward is `r_track + r_task`; the baseline is `tracking_only/v1` with `r_task = +0.0`; the stock reward is descriptive telemetry only (this supersedes the earlier "cycle 0 = stock reward" sentence). Reward specifications enter through a fail-closed registry keyed by schema, formula, parser, bounds, and compositor hashes; `CandidateTaskInputsV2` exposes only the trusted COM forward velocity and the constant target `3.0 m/s`; Astra's V1 draft is not integrable and must be handed over as a reviewed V2. |
+| Training design | Inherited PPO recipe and budget (`1,048,576` transitions per seed, seeds `121001`-`121401`, final checkpoint only); training blocks are the nine admitted v2 blocks; two composition-stream and two rehearsal-stream environments at `50/50`; first eight rollouts train only the reference columns and the value network, then the full actor; PPO losses only; no gait ID or imitation loss. |
+| Utility gate | Evaluation blocks `120101`-`120120` with failures in the denominator; three hold cells and one fixed round-trip cell (`20` episodes each); safety plus six whole-episode RMSE scales plus `E <= 1` for eight boundaries within `64` steps after each switch; cell pass `>= 16/20`; family `>= 4/5` of five checkpoints; the step-0 E1 actor reported beside every checkpoint. Bounded utility only. |
+| Labels | `interface_check` for no-learning checks and the disposable smoke; `exploratory_fine_tuning_cycle` for trained cycles; claim ceiling: exploratory reference-conditioned fine-tuning utility only, no causal reference use, oracle or reward improvement, generalization, naturalness, or competence claim. |
+| Compute and gates | Disposable smoke seed `121901`, `196,608` transitions, expected `3 min`, hard `20 min`, mailbox acceptance required; one five-seed arm about `106 min` (hard `120`), which needs a mailbox reservation and Samuel's explicit authorization; a matched two-arm reward comparison about `186 min` as two sequential reservations. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -361,6 +377,7 @@ goal ID.
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Preregister E3 block admission, the E4 fifteen-cell gait-transition screen and its pass rule, E5's admitted-block rule, and the tracker labels, before any run v2 result is read. | SCI-03 of the `41b2597` scientific review; design survey `sol-survey-20260905-b` | packet B binds the admission map of the run it uses; E4 and E5 receipts cite this row | recorded 2026-09-05T07:20Z |
 | 2026-09-05 | `LG-01`, `LG-02`, `LG-05`, `LG-13`, `LG-15`, `LG-16` | Alignment pivot: run the composition loop now with controller switching; retire the residual tracker family; make the local policy-training block a fine-tuning runtime warm-started from the expert; move E5 and hardening off the critical path; every cycle is a CLI command with a JSON report. | Samuel's alignment request; transcript re-read; authority-gap analysis (`0/56,000` steps within `0.08`); failed screen `19/20` | cycle-0 and cycle-1 reports exist and a human can steer cycle 2 from text | recorded 2026-09-05T17:50Z; ADR 0008 |
 | 2026-09-05 | `LG-02`, `LG-05`, `LG-06`, `LG-16` | Record cycles 0 and 1 of the composition loop; conclude that controller switching cannot compose this library; make the fine-tuning runtime the next block and one steered cycle 2 the confirmation. | cycle reports `report_0`, `report_1`; designer runs `e003d1`, `e003d2` | cycle 2 confirms or refutes the infeasibility; the fine-tuning runtime smoke keeps identity at step 0 and trains | recorded 2026-09-05T18:51Z |
+| 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Freeze the phase B fine-tuning runtime design (full-authority E1 warm start, nearest-state phase transfer, tracking-only baseline reward, utility gate) and split implementation into `FT1` and `FT2`; training beyond the 20-minute smoke needs Samuel's authorization. | survey `sol-survey-20260905-ft`; phase A closure `74d7aa5` | FT1 passes the E1 receipt and phase-transfer tests; FT2 trains a fake runtime end to end; the smoke keeps identity at step 0 | recorded 2026-09-05T19:32Z |
 
 ## Known strategy inconsistencies
 

@@ -6,6 +6,8 @@
 | bottleneck | No switching design survived a running-speed handover: `60/60` episodes across `playback`, `handwritten`, and cycle 1 fell. Cycle 2 avoided the handover by holding `expert`, exactly matched `single_fast`, and did not execute the slow third. |
 | next step | Fable reviews and commits E003C2. Phase B keeps task T1 and uses a tracker-following fine-tuning runtime warm-started at the expert, so composed-reference transitions are learned instead of executed by controller switches. |
 
+Fable launch note (2026-09-05T19:32Z): builder `sol-builder-20260905-ft1` (packet `TASK-20260905-FT1`) starts from the clean main head after the strategy commit; read-only reviews `sol-review-sci-20260905-e003` and `sol-review-adv-20260905-e003` are running on the phase A commits. Fable resume: read the FT1 final, run the outside-sandbox suite, commit slice and integration separately, fold the two reviews, then packet `FT2` (training worker, supervision, persistence, report v2, CLI train); the disposable smoke needs a mailbox reservation; the five-seed cohort needs Samuel's authorization.
+
 Fable integration note (2026-09-05T19:11Z): Slice E003C2 committed as `74d7aa5`; Experiment
 003 phase A is closed (60/60 switching episodes fell across three designs; the
 steered cycle-2 designer concluded infeasibility and named the missing
