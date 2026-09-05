@@ -2,11 +2,11 @@
 
 | status | current truth |
 |---|---|
-| progress | B0 is host-verified: under Seatbelt profile v3 all `20` canaries pass (memory containment by timeout kill) and the sandbox tests pass on the host (`33 passed`). Samuel authorized two concurrent orchestrators; Fable accepted Astra's lane proposal (ADR 0007): Fable keeps the oracle lane and promotion of `main`; Astra owns the reward lane after an explicit B0 handoff. |
-| bottleneck | B0's commit waits on the outside-sandbox full suite; its two reviews and the handoff message follow. The importer slice's ten repairs wait for the writer. No tracker is admitted; causal reference use is unproved. |
-| next step | Commit `Slice B0`, launch its scientific and robustness reviews read-only, run `03A2FIX` as the writer, then send the B0 `handoff` message with commit, paths, receipts, and transfer. Poll the mailbox at each checkpoint and about every 30 minutes. Do not launch any 1M-step attempt. |
+| progress | Fable's host record for B0 (commit `89d4c34`) reports `20/20` profile-v3 canaries and `33` sandbox tests passed; this is software-boundary evidence only. Both B0 reviews returned `ACCEPT-WITH-REPAIRS` (no P0; `6` and `10` P1). B0 is handed to Astra with those findings. The importer repair `03A2FIX` implemented all ten findings (`173` focused tests) and stopped only on the reward runtime receipt's whole-tree fingerprint. |
+| bottleneck | The reward runtime receipt binds the entire package source tree, so any commit invalidates it until regenerated. No candidate execution or training may build on B0 until its P1 findings are repaired in Astra's lane. No tracker is admitted; causal reference use is unproved. |
+| next step | Regenerate the reward runtime receipt once, run the full suite outside the sandbox, commit the importer repair as `Slice 03A2FIX`, launch its two reviews, then run `03A3` as the writer. Frame Experiment 003 as a three-gait composition task before E4. Poll the mailbox at each checkpoint. |
 
-- Updated: `2026-09-04T22:15Z`
+- Updated: `2026-09-05T01:03Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
@@ -116,6 +116,48 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 - Start state was clean at `main` HEAD
   `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
   commit `5bdae45` each list exactly the expected 20 preserved paths.
+- `TASK-20260904-03A2FIX` changed-files list and receipts:
+  - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
+  - `src/oracle_composition/sources/_external_sb3_actor_worker.py`.
+  - `src/oracle_composition/sources/external_payload_policy.py`.
+  - `src/oracle_composition/sources/external_sb3_actor.py`.
+  - `src/oracle_composition/sources/farama_tqc_registration.py`.
+  - `tests/policy/test_no_external_payload_in_index.py`.
+  - `tests/sources/test_external_sb3_actor.py`.
+  - `tests/sources/test_farama_tqc_registration.py`.
+  - `experiments/bootstrap_tqc_humanoid/PUBLIC_EXPERT_IMPORT.md`.
+  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
+  - Regenerated ignored import receipt
+    `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: schema
+    v2, SHA-256
+    `c2379a21079c40928548b593cb86a8fd8eea468787cf31c28481792d3121e80b`,
+    12,465 bytes.
+  - Regenerated ignored equivalence receipt
+    `artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_v1.json`:
+    schema v2, SHA-256
+    `0d5ec467051e2eebc16a0a186afbe85cc1364afbeab8fcbefa41f088cb656f31`,
+    2,687 bytes.
+  - Unchanged registration receipt
+    `research/source_controllers/farama_minari_humanoid_v5_tqc_expert/RECEIPT.json`:
+    SHA-256
+    `5ba0845e8b0cd9b6f39c956ddc46d0f46e8e08690d8bdf832941a1f914a8e0cf`,
+    9,395 bytes.
+  - Unchanged actor NPZ
+    `artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz`:
+    SHA-256
+    `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b`,
+    618,674 bytes; unchanged actor-state fingerprint
+    `3fd39cc715a10126fd92b20f6ce213c380eb4d5df843a42315aac50cf116748a`.
+  - Reused sandbox baseline receipt
+    `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures.txt`: SHA-256
+    `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345`.
+  - Verification: focused source/policy/equivalence tests `173
+    passed, 1 skipped`; the skip is `MPS is unavailable`. Full suite `45
+    failed, 1197 passed, 11 skipped`: all 44 saved sandbox failures plus only
+    `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`.
+    The mismatch is confined to `source_tree_sha256`; the forbidden reward
+    receipt was not changed. Ruff lint passed and all 212 Python files are
+    formatted. No training or behavior evaluation ran.
 - `TASK-20260904-B0` tracked or trackable changed-files list:
   - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
   - `experiments/family_b_target_speed_v1/PROTOCOL.md`.
@@ -360,11 +402,11 @@ Additional constraint:
 8. Update this file at least every 30 minutes during active work and at every
    control transfer.
 
-Fable resume: rerun the 20 B0 Seatbelt canaries outside the builder sandbox
-against profile v3 and require every verdict to pass, with
-`memory_abuse=timeout_kill`; then review the scope-only diff and three B0
-receipts and commit. Do not run training or credit fixed-control parity as
-behavior.
+Fable resume: review the 03A2FIX scope-only diff and both regenerated schema-v2
+receipts; refresh and review the B0 runtime receipt under reward-slice authority
+because its repository-wide source-tree hash changed; rerun the full suite and
+commit only when the non-baseline failure is gone. Do not run training or
+credit import equivalence as behavior.
 
 ## Handoff update contract
 
@@ -492,7 +534,40 @@ turn start, before dispatch or integration, after each worker, and about every
 30 minutes. B0 ownership transfers only by a `handoff` message after its two
 reviews. Heavy jobs over ten minutes need a mailbox proposal and a peer reply.
 
-Host verification of B0 under profile v3: `20/20` canaries passed,
-`memory_abuse` mechanism `timeout_kill`; host receipt canonical SHA-256
-`5465426251311c147843488f8b92eb7b0fca0428fee4091267f41dde53adfdd9`; sandbox
-tests `33 passed`.
+Current B0 host record (supersedes every earlier canary statement in this
+file): profile v3, `20/20` canaries passed, `memory_abuse` mechanism
+`timeout_kill`, host receipt canonical SHA-256
+`5465426251311c147843488f8b92eb7b0fca0428fee4091267f41dde53adfdd9`, sandbox
+tests `33 passed`, full suite `1200 passed`. Software-boundary evidence only:
+B0 ran no training, learned-policy rollout, protected endpoint measurement,
+or humanoid behavioral evaluation. Earlier sections describing `14 failed`,
+`18/20`, or receipt `097006bf…` are superseded history.
+
+## B0 reviews and handoff `2026-09-05T01:03Z`
+
+Scientific review `09` (run `20260904T221620Z-cd03d6f4-3479-4c26-9410-ecd4c2d57dcd`) and robustness review `10`
+(run `20260904T221621Z-d07a5b95-5955-462f-834e-61f108bda886`) of `89d4c34`: both `ACCEPT-WITH-REPAIRS`, no P0,
+`6` and `10` P1. Shared findings: candidate code executes in the parent during
+validation and calibration; admission and result lineage unbound; canary
+ledger contradiction (the protocol still cites the pre-repair `18/20` receipt);
+canaries that count any exception as containment. Scope note: the B0 commit
+also carried ADR 0007 and the decisions index; recorded as an explicit
+exception. A `handoff` message to Astra transferred the reward paths with all
+findings and the condition that nothing executes or trains on B0 until the P1
+repairs land and are re-reviewed. Fable remains promotion owner for `main`.
+
+Importer repair `03A2FIX` (run `20260904T221621Z-0d2563da-2794-4f84-a220-bb7fd4525ab5`, thread
+`01a06e7e-89f4-7fd2-b4cd-e9f93bde1e8d`): all ten findings implemented,
+`173 passed, 1 skipped` focused; import receipt schema v2
+`c2379a21079c40928548b593cb86a8fd8eea468787cf31c28481792d3121e80b`,
+equivalence receipt v2 `0d5ec467051e2eebc16a0a186afbe85cc1364afbeab8fcbefa41f088cb656f31`;
+NPZ and actor fingerprint unchanged. One full-suite failure outside the
+baseline: the reward runtime receipt's whole-tree `source_tree_sha256`
+(recorded `e39d0b08…`, current `7496476d…`), regenerated by Fable once and
+recorded as a reward-lane P1.
+
+Samuel's alignment question (via Astra, `20260904T221845…`) answered with an
+independent interpretation of reference composition; recorded in the strategy
+as the frame for Experiment 003: a three-gait composition task with
+state-triggered transitions and recovery, LLM-designed oracle program,
+feedback-driven revision, elapsed-time and hand-written baselines.

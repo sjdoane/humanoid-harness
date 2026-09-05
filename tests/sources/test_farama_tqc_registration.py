@@ -84,3 +84,33 @@ def test_registration_rejects_digest_or_presence_drift(mutation: str) -> None:
 
     with pytest.raises(ExperimentContractError, match="registration receipt differs"):
         validate_registration_receipt(receipt)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "replacement"),
+    [
+        ("schema_version", True),
+        ("remote_size", 1_566.0),
+        ("metric_episodes", 1_000.0),
+        ("metric_verified", 0),
+        ("rights_string", 7),
+    ],
+)
+def test_registration_rejects_type_confusable_json(
+    mutation: str,
+    replacement: object,
+) -> None:
+    receipt = copy.deepcopy(expected_registration_receipt())
+    if mutation == "schema_version":
+        receipt["schema_version"] = replacement
+    elif mutation == "remote_size":
+        receipt["remote_inventory"][0]["size"] = replacement
+    elif mutation == "metric_episodes":
+        receipt["source"]["model_card_metric"]["episodes"] = replacement
+    elif mutation == "metric_verified":
+        receipt["source"]["model_card_metric"]["verified"] = replacement
+    else:
+        receipt["rights"]["permitted_project_use"] = replacement
+
+    with pytest.raises(ExperimentContractError, match="registration receipt differs"):
+        validate_registration_receipt(receipt)

@@ -9,10 +9,13 @@ import json
 import math
 import os
 import re
+import selectors
+import signal
 import stat
-import struct
 import subprocess
 import sys
+import tempfile
+import time
 import tomllib
 from collections.abc import Mapping
 from dataclasses import InitVar, dataclass, field
@@ -40,18 +43,36 @@ from ._external_sb3_actor_worker import (
     ACTOR_STATE_SCHEMA,
     ADDRESS_SPACE_LIMIT_BYTES,
     CPU_TIME_LIMIT_SECONDS,
+    EXPECTED_TORCH_DISTRIBUTION,
+    EXPECTED_TORCH_RUNTIME_VERSION,
+    FRAME_LENGTHS,
+    MAX_FRAME_BYTES,
+    MAX_HEADER_BYTES,
+    OUTCOME_CRASH_OR_SIGNAL,
+    OUTCOME_MALFORMED_FRAME,
+    OUTCOME_SUCCESS,
+    OUTCOME_TIMEOUT,
     POLICY_STATE_SCHEMA,
+    PROTOCOL_VERSION,
     RESPONSE_MAGIC,
+    WORKER_OUTCOMES,
+    WORKER_SOURCE_LOGICAL_PATH,
 )
 from .farama_tqc_registration import (
     FARAMA_SCRIPT_COMMIT,
+    HF_API_BYTE_COUNT,
+    HF_API_SHA256,
     REGISTRATION_ID,
+    REGISTRATION_RECEIPT_BYTE_COUNT,
+    REGISTRATION_RECEIPT_LOGICAL_PATH,
+    REGISTRATION_RECEIPT_SHA256,
     SOURCE_COMMIT,
     SOURCE_REPOSITORY,
+    load_registration_receipt,
 )
 
 AUTHORITY = "external_pretrained_artifact"
-IMPORT_ID = "farama_minari_humanoid_v5_tqc_external_actor_import/v1"
+IMPORT_ID = "farama_minari_humanoid_v5_tqc_external_actor_import/v2"
 POLICY_SCHEMA_ID = "sb3_2.4.1_tqc_policy_state_dict_348_17/v1"
 POLICY_SHA256 = "1e64e56288155087089214548b6a634f332a41955a0d22629efd5ff2240e495c"
 POLICY_BYTE_COUNT = 3_321_462
@@ -67,8 +88,11 @@ MAX_METADATA_DEPTH = 16
 MAX_METADATA_NODES = 4_096
 MAX_METADATA_STRING_LENGTH = 32 * 1024
 MAX_LOCK_BYTES = 4 * 1024 * 1024
-MAX_WORKER_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_WORKER_RESPONSE_BYTES = MAX_FRAME_BYTES
+MAX_WORKER_STDERR_BYTES = 16 * 1024
+MAX_SOURCE_CODE_BYTES = 1024 * 1024
 WORKER_TIMEOUT_SECONDS = 45
+IMPORTER_SOURCE_LOGICAL_PATH = "src/oracle_composition/sources/external_sb3_actor.py"
 
 SOURCE_VERSIONS = {
     "stable_baselines3": "2.4.1",
@@ -147,6 +171,39 @@ _NESTED_ARCHIVE_PREFIXES = (
 )
 
 
+class ExternalActorWorkerError(ExperimentContractError):
+    """Categorical refusal from the bounded external-actor worker boundary."""
+
+    def __init__(self, outcome: str, detail: str) -> None:
+        if type(outcome) is not str or outcome not in WORKER_OUTCOMES or outcome == OUTCOME_SUCCESS:
+            outcome = OUTCOME_MALFORMED_FRAME
+            detail = "invalid worker outcome"
+        self.outcome = outcome
+        super().__init__(f"external actor worker {outcome}: {detail}")
+
+
+def _exact_json_match(value: object, expected: object) -> bool:
+    try:
+        return _exact_json_match_inner(value, expected)
+    except (RecursionError, TypeError, ValueError):
+        return False
+
+
+def _exact_json_match_inner(value: object, expected: object) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        if set(value) != set(expected):
+            return False
+        return all(_exact_json_match_inner(value[key], expected[key]) for key in expected)
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _exact_json_match_inner(observed, wanted)
+            for observed, wanted in zip(value, expected, strict=True)
+        )
+    return value == expected
+
+
 def _canonical_json(value: object) -> bytes:
     try:
         return json.dumps(
@@ -168,6 +225,25 @@ def _canonical_sha256(value: object, *, field_name: str) -> str:
         or any(character not in "0123456789abcdef" for character in value)
     ):
         raise ExperimentContractError(f"{field_name} must be a lowercase SHA-256")
+    return value
+
+
+def _validate_source_identity(
+    value: object,
+    *,
+    logical_path: str,
+    field_name: str,
+) -> dict[str, object]:
+    if (
+        type(value) is not dict
+        or set(value) != {"logical_path", "sha256", "byte_count"}
+        or type(value.get("logical_path")) is not str
+        or value["logical_path"] != logical_path
+        or type(value.get("byte_count")) is not int
+        or not 0 < value["byte_count"] <= MAX_SOURCE_CODE_BYTES
+    ):
+        raise ExperimentContractError(f"{field_name} source identity differs")
+    _canonical_sha256(value.get("sha256"), field_name=f"{field_name} source SHA-256")
     return value
 
 
@@ -230,6 +306,19 @@ def _read_regular_file_once(
         if not hmac.compare_digest(observed, expected_sha256):
             raise ExperimentContractError(f"{label} SHA-256 does not match")
     return payload
+
+
+def _source_file_identity(path: Path, *, logical_path: str, label: str) -> dict[str, object]:
+    payload = _read_regular_file_once(
+        Path(path),
+        maximum_bytes=MAX_SOURCE_CODE_BYTES,
+        label=label,
+    )
+    return {
+        "logical_path": logical_path,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "byte_count": len(payload),
+    }
 
 
 def read_pinned_policy_bytes(path: Path) -> bytes:
@@ -472,34 +561,107 @@ def _read_local_versions(lock_path: Path) -> tuple[dict[str, str], str, int]:
     return versions, hashlib.sha256(payload).hexdigest(), len(payload)
 
 
-def _parse_worker_response(payload: bytes) -> tuple[dict[str, np.ndarray], dict[str, object]]:
-    if (
-        type(payload) is not bytes
-        or not payload.startswith(RESPONSE_MAGIC)
-        or len(payload) > MAX_WORKER_RESPONSE_BYTES
+def _malformed_worker_frame(detail: str) -> ExternalActorWorkerError:
+    return ExternalActorWorkerError(OUTCOME_MALFORMED_FRAME, detail)
+
+
+def _validate_worker_resource_limits(value: object) -> dict[str, object]:
+    if type(value) is not dict or set(value) != {"cpu", "address_space"}:
+        raise _malformed_worker_frame("resource-limit frame differs")
+    cpu = value["cpu"]
+    address_space = value["address_space"]
+    if not _exact_json_match(
+        cpu,
+        {
+            "resource": "RLIMIT_CPU",
+            "soft_seconds": CPU_TIME_LIMIT_SECONDS,
+            "hard_seconds": CPU_TIME_LIMIT_SECONDS,
+        },
     ):
-        raise ExperimentContractError("external actor worker response is invalid")
-    length_offset = len(RESPONSE_MAGIC)
-    if len(payload) < length_offset + 8:
-        raise ExperimentContractError("external actor worker response is truncated")
-    header_length = struct.unpack(">Q", payload[length_offset : length_offset + 8])[0]
-    header_start = length_offset + 8
+        raise _malformed_worker_frame("CPU resource-limit frame differs")
+    if (
+        type(address_space) is not dict
+        or set(address_space)
+        != {
+            "resource",
+            "requested_bytes",
+            "finite_enforced",
+            "observed_soft",
+            "observed_hard",
+            "darwin_finite_limit_unavailable",
+        }
+        or type(address_space.get("resource")) is not str
+        or address_space["resource"] != "RLIMIT_AS"
+        or type(address_space.get("requested_bytes")) is not int
+        or address_space["requested_bytes"] != ADDRESS_SPACE_LIMIT_BYTES
+        or type(address_space.get("finite_enforced")) is not bool
+        or type(address_space.get("observed_soft")) is not int
+        or type(address_space.get("observed_hard")) is not int
+        or type(address_space.get("darwin_finite_limit_unavailable")) is not bool
+    ):
+        raise _malformed_worker_frame("address-space resource-limit frame differs")
+    return value
+
+
+def _parse_worker_response(payload: bytes) -> tuple[dict[str, np.ndarray], dict[str, object]]:
+    prefix_bytes = len(RESPONSE_MAGIC) + FRAME_LENGTHS.size
+    if type(payload) is not bytes or len(payload) > MAX_WORKER_RESPONSE_BYTES:
+        raise _malformed_worker_frame("response size is invalid")
+    if len(payload) < prefix_bytes or not payload.startswith(RESPONSE_MAGIC):
+        raise _malformed_worker_frame("response prefix is truncated or invalid")
+    try:
+        header_length, raw_length = FRAME_LENGTHS.unpack(
+            payload[len(RESPONSE_MAGIC) : prefix_bytes]
+        )
+    except (TypeError, ValueError) as exc:
+        raise _malformed_worker_frame("response lengths are invalid") from exc
+    header_start = prefix_bytes
     header_end = header_start + header_length
-    if header_length <= 0 or header_end > len(payload):
-        raise ExperimentContractError("external actor worker header length is invalid")
+    frame_end = header_end + raw_length
+    if (
+        not 0 < header_length <= MAX_HEADER_BYTES
+        or raw_length > MAX_WORKER_RESPONSE_BYTES
+        or frame_end != len(payload)
+    ):
+        raise _malformed_worker_frame("response lengths differ")
     try:
         header = json.loads(
             payload[header_start:header_end].decode("ascii", errors="strict"),
             object_pairs_hook=_reject_duplicate_key,
             parse_constant=_reject_json_constant,
         )
-    except ExperimentContractError:
-        raise
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ExperimentContractError("external actor worker header is invalid") from exc
+    except (
+        ExperimentContractError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+    ) as exc:
+        raise _malformed_worker_frame("response header is invalid JSON") from exc
+    if (
+        type(header) is not dict
+        or type(header.get("protocol_version")) is not int
+        or header["protocol_version"] != PROTOCOL_VERSION
+        or type(header.get("outcome")) is not str
+        or header["outcome"] not in WORKER_OUTCOMES
+    ):
+        raise _malformed_worker_frame("response outcome contract differs")
+    outcome = header["outcome"]
+    if outcome != OUTCOME_SUCCESS:
+        if (
+            set(header) != {"protocol_version", "outcome", "detail"}
+            or type(header.get("detail")) is not str
+            or not header["detail"]
+            or len(header["detail"]) > 160
+            or raw_length != 0
+        ):
+            raise _malformed_worker_frame("error frame contract differs")
+        raise ExternalActorWorkerError(outcome, header["detail"])
+
     expected_header_fields = {
         "protocol_version",
-        "torch_version",
+        "outcome",
+        "runtime_identity",
+        "worker_source_identity",
         "torch_load",
         "resource_limits",
         "actor_payload_byte_count",
@@ -509,19 +671,34 @@ def _parse_worker_response(payload: bytes) -> tuple[dict[str, np.ndarray], dict[
     expected_inventory = [
         {"name": name, "shape": list(shape)} for name, shape in POLICY_STATE_SCHEMA
     ]
+    allowed_mappings = (
+        {"raw_type": "collections.OrderedDict", "validated_result_type": "dict"},
+        {"raw_type": "dict", "validated_result_type": "dict"},
+    )
     if (
-        type(header) is not dict
-        or set(header) != expected_header_fields
-        or header["protocol_version"] != 1
+        set(header) != expected_header_fields
+        or type(header.get("actor_payload_byte_count")) is not int
         or header["actor_payload_byte_count"] != _ACTOR_PAYLOAD_BYTE_COUNT
-        or header["policy_key_inventory"] != expected_inventory
-        or header["mapping"]
-        not in (
-            {"raw_type": "collections.OrderedDict", "validated_result_type": "dict"},
-            {"raw_type": "dict", "validated_result_type": "dict"},
+        or not _exact_json_match(header.get("policy_key_inventory"), expected_inventory)
+        or not any(_exact_json_match(header.get("mapping"), item) for item in allowed_mappings)
+        or not _exact_json_match(
+            header.get("runtime_identity"),
+            {
+                "runtime_version": EXPECTED_TORCH_RUNTIME_VERSION,
+                "distribution": dict(EXPECTED_TORCH_DISTRIBUTION),
+            },
         )
     ):
-        raise ExperimentContractError("external actor worker contract differs")
+        raise _malformed_worker_frame("success frame contract differs")
+    try:
+        _validate_source_identity(
+            header.get("worker_source_identity"),
+            logical_path=WORKER_SOURCE_LOGICAL_PATH,
+            field_name="worker",
+        )
+    except ExperimentContractError as exc:
+        raise _malformed_worker_frame("worker source identity differs") from exc
+    _validate_worker_resource_limits(header.get("resource_limits"))
     torch_load = header["torch_load"]
     if (
         type(torch_load) is not dict
@@ -534,23 +711,31 @@ def _parse_worker_response(payload: bytes) -> tuple[dict[str, np.ndarray], dict[
             "safe_globals_count",
             "safe_globals_sha256",
             "safe_globals_module_allowlist_passed",
+            "ordered_names_unchanged",
         }
+        or type(torch_load.get("call_count")) is not int
         or torch_load["call_count"] != 1
+        or type(torch_load.get("input")) is not str
         or torch_load["input"] != "held_bytes_io.BytesIO"
+        or type(torch_load.get("map_location")) is not str
         or torch_load["map_location"] != "cpu"
-        or torch_load["weights_only"] is not True
-        or type(torch_load["safe_globals_count"]) is not int
+        or torch_load.get("weights_only") is not True
+        or type(torch_load.get("safe_globals_count")) is not int
         or not 0 <= torch_load["safe_globals_count"] <= 1_024
-        or torch_load["safe_globals_module_allowlist_passed"] is not True
+        or torch_load.get("safe_globals_module_allowlist_passed") is not True
+        or torch_load.get("ordered_names_unchanged") is not True
     ):
-        raise ExperimentContractError("external actor worker contract differs")
-    _canonical_sha256(
-        torch_load["safe_globals_sha256"],
-        field_name="worker safe-globals SHA-256",
-    )
-    raw = payload[header_end:]
-    if len(raw) != _ACTOR_PAYLOAD_BYTE_COUNT:
-        raise ExperimentContractError("external actor worker payload length differs")
+        raise _malformed_worker_frame("loader frame contract differs")
+    try:
+        _canonical_sha256(
+            torch_load.get("safe_globals_sha256"),
+            field_name="worker safe-globals SHA-256",
+        )
+    except ExperimentContractError as exc:
+        raise _malformed_worker_frame("safe-globals hash differs") from exc
+    raw = payload[header_end:frame_end]
+    if raw_length != _ACTOR_PAYLOAD_BYTE_COUNT:
+        raise _malformed_worker_frame("actor payload length differs")
     arrays: dict[str, np.ndarray] = {}
     offset = 0
     for source_name, shape in ACTOR_STATE_SCHEMA:
@@ -565,11 +750,143 @@ def _parse_worker_response(payload: bytes) -> tuple[dict[str, np.ndarray], dict[
             "format_version": np.asarray([1], dtype="<i8"),
         }
     )
-    return validate_actor_arrays(arrays), header
+    try:
+        validated = validate_actor_arrays(arrays)
+    except ExperimentContractError as exc:
+        raise _malformed_worker_frame("actor payload values differ") from exc
+    return validated, header
+
+
+def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    finally:
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=2)
+
+
+def _read_bounded_worker_output(
+    process: subprocess.Popen[bytes],
+    *,
+    timeout_seconds: float,
+) -> tuple[bytes, bytes, int]:
+    if process.stdout is None or process.stderr is None:
+        _terminate_process_group(process)
+        raise ExternalActorWorkerError(OUTCOME_CRASH_OR_SIGNAL, "worker pipes unavailable")
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ, ("stdout", MAX_WORKER_RESPONSE_BYTES))
+    selector.register(process.stderr, selectors.EVENT_READ, ("stderr", MAX_WORKER_STDERR_BYTES))
+    buffers = {"stdout": bytearray(), "stderr": bytearray()}
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _terminate_process_group(process)
+                raise ExternalActorWorkerError(OUTCOME_TIMEOUT, "worker deadline exceeded")
+            events = selector.select(min(remaining, 0.25))
+            if not events and process.poll() is not None:
+                events = [(key, selectors.EVENT_READ) for key in selector.get_map().values()]
+            for key, _mask in events:
+                name, limit = key.data
+                try:
+                    chunk = os.read(key.fileobj.fileno(), 64 * 1024)
+                except OSError as exc:
+                    _terminate_process_group(process)
+                    raise ExternalActorWorkerError(
+                        OUTCOME_CRASH_OR_SIGNAL,
+                        "worker pipe read failed",
+                    ) from exc
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                buffers[name].extend(chunk)
+                if len(buffers[name]) > limit:
+                    _terminate_process_group(process)
+                    raise _malformed_worker_frame(f"{name} exceeded its capture bound")
+        returncode = process.wait(timeout=max(0.0, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired as exc:
+        _terminate_process_group(process)
+        raise ExternalActorWorkerError(OUTCOME_TIMEOUT, "worker deadline exceeded") from exc
+    finally:
+        selector.close()
+        process.stdout.close()
+        process.stderr.close()
+    return bytes(buffers["stdout"]), bytes(buffers["stderr"]), returncode
+
+
+def _run_worker_process(
+    command: tuple[str, ...],
+    *,
+    held_bytes: bytes,
+    environment: Mapping[str, str],
+    timeout_seconds: float,
+) -> tuple[dict[str, np.ndarray], dict[str, object]]:
+    if (
+        type(command) is not tuple
+        or not command
+        or any(type(part) is not str or not part for part in command)
+        or type(held_bytes) is not bytes
+        or not 0 < len(held_bytes) <= MAX_POLICY_BYTES
+        or type(timeout_seconds) not in {int, float}
+        or not 0 < timeout_seconds <= WORKER_TIMEOUT_SECONDS
+    ):
+        raise ExperimentContractError("external actor worker launch contract is invalid")
+    with tempfile.TemporaryFile() as input_stream:
+        input_stream.write(held_bytes)
+        input_stream.seek(0)
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=input_stream,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                close_fds=True,
+                start_new_session=True,
+                env=dict(environment),
+            )
+        except OSError as exc:
+            raise ExternalActorWorkerError(
+                OUTCOME_CRASH_OR_SIGNAL,
+                "worker launch failed",
+            ) from exc
+        stdout, stderr, returncode = _read_bounded_worker_output(
+            process,
+            timeout_seconds=float(timeout_seconds),
+        )
+    if returncode < 0:
+        raise ExternalActorWorkerError(
+            OUTCOME_CRASH_OR_SIGNAL,
+            f"worker terminated by signal {-returncode}",
+        )
+    if stderr:
+        raise _malformed_worker_frame("worker wrote to stderr")
+    if not stdout and returncode != 0:
+        raise ExternalActorWorkerError(
+            OUTCOME_CRASH_OR_SIGNAL,
+            f"worker exited with status {returncode}",
+        )
+    arrays, header = _parse_worker_response(stdout)
+    if returncode != 0:
+        raise ExternalActorWorkerError(
+            OUTCOME_CRASH_OR_SIGNAL,
+            f"worker emitted success then exited with status {returncode}",
+        )
+    return arrays, header
 
 
 def _run_loader_subprocess(held_bytes: bytes) -> tuple[dict[str, np.ndarray], dict[str, object]]:
-    worker = Path(__file__).with_name("_external_sb3_actor_worker.py").resolve(strict=True)
+    worker_path = Path(__file__).with_name("_external_sb3_actor_worker.py").resolve(strict=True)
+    expected_source = _source_file_identity(
+        worker_path,
+        logical_path=WORKER_SOURCE_LOGICAL_PATH,
+        label="external actor worker source",
+    )
     environment = {
         "LANG": "C",
         "LC_ALL": "C",
@@ -577,22 +894,15 @@ def _run_loader_subprocess(held_bytes: bytes) -> tuple[dict[str, np.ndarray], di
         "MKL_NUM_THREADS": "1",
         "VECLIB_MAXIMUM_THREADS": "1",
     }
-    try:
-        completed = subprocess.run(
-            [sys.executable, "-I", os.fspath(worker)],
-            input=held_bytes,
-            capture_output=True,
-            check=False,
-            close_fds=True,
-            start_new_session=True,
-            timeout=WORKER_TIMEOUT_SECONDS,
-            env=environment,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ExperimentContractError("external actor loader subprocess did not complete") from exc
-    if completed.returncode != 0 or completed.stderr:
-        raise ExperimentContractError("external actor loader subprocess refused the checkpoint")
-    return _parse_worker_response(completed.stdout)
+    arrays, header = _run_worker_process(
+        (sys.executable, "-I", os.fspath(worker_path)),
+        held_bytes=held_bytes,
+        environment=environment,
+        timeout_seconds=WORKER_TIMEOUT_SECONDS,
+    )
+    if not _exact_json_match(header["worker_source_identity"], expected_source):
+        raise ExternalActorWorkerError(OUTCOME_MALFORMED_FRAME, "worker source identity differs")
+    return arrays, header
 
 
 def _inventory_without_values(header: Mapping[str, object]) -> dict[str, object]:
@@ -603,7 +913,9 @@ def _inventory_without_values(header: Mapping[str, object]) -> dict[str, object]
     critics = [dict(item) for item in inventory if not str(item["name"]).startswith("actor.")]
     return {
         "schema_id": POLICY_SCHEMA_ID,
-        "tensor_contract": "plain_cpu_float32_contiguous_offset0_exact_storage_finite_no_alias",
+        "tensor_contract": (
+            "plain_cpu_float32_contiguous_offset0_exact_storage_finite_no_storage_overlap"
+        ),
         "key_count": len(inventory),
         "key_inventory": [dict(item) for item in inventory],
         "actor_key_count": len(actor),
@@ -619,6 +931,7 @@ def _inventory_without_values(header: Mapping[str, object]) -> dict[str, object]
 
 def _build_import_receipt(
     *,
+    registration: Mapping[str, object],
     metadata: Mapping[str, object],
     member_inventory: list[dict[str, object]],
     worker_header: Mapping[str, object],
@@ -628,14 +941,26 @@ def _build_import_receipt(
     actor_artifact_label: str,
     loaded_actor: LoadedTQCActor,
 ) -> dict[str, object]:
+    importer_source_identity = _source_file_identity(
+        Path(__file__).resolve(strict=True),
+        logical_path=IMPORTER_SOURCE_LOGICAL_PATH,
+        label="external actor importer source",
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "import_id": IMPORT_ID,
         "authority": AUTHORITY,
         "evidence_class": "external_base_import",
         "evidence_level": "interface_check",
         "source": {
             "registration_id": REGISTRATION_ID,
+            "registration_receipt": {
+                "logical_path": REGISTRATION_RECEIPT_LOGICAL_PATH,
+                "sha256": REGISTRATION_RECEIPT_SHA256,
+                "byte_count": REGISTRATION_RECEIPT_BYTE_COUNT,
+                "captured_api": dict(registration["captured_api"]),
+                "rights": dict(registration["rights"]),
+            },
             "repository": SOURCE_REPOSITORY,
             "repository_commit": SOURCE_COMMIT,
             "farama_script_commit": FARAMA_SCRIPT_COMMIT,
@@ -653,7 +978,11 @@ def _build_import_receipt(
             "uv_lock_sha256": lock_sha256,
             "uv_lock_byte_count": lock_byte_count,
             "packages": dict(local_versions),
-            "worker_torch_runtime": worker_header["torch_version"],
+            "worker_torch_runtime": worker_header["runtime_identity"],
+        },
+        "implementation": {
+            "importer_source": importer_source_identity,
+            "worker_source": worker_header["worker_source_identity"],
         },
         "source_metadata": {
             **dict(metadata),
@@ -743,6 +1072,7 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
         "source",
         "source_versions",
         "local_versions",
+        "implementation",
         "source_metadata",
         "abi",
         "environment_termination",
@@ -756,17 +1086,41 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
     if type(value) is not dict or set(value) != required:
         raise ExperimentContractError("external actor import receipt fields differ")
     if (
-        value["schema_version"] != 1
+        type(value["schema_version"]) is not int
+        or value["schema_version"] != 2
+        or type(value["import_id"]) is not str
         or value["import_id"] != IMPORT_ID
+        or type(value["authority"]) is not str
         or value["authority"] != AUTHORITY
+        or type(value["evidence_class"]) is not str
         or value["evidence_class"] != "external_base_import"
+        or type(value["evidence_level"]) is not str
         or value["evidence_level"] != "interface_check"
-        or value["source_versions"] != SOURCE_VERSIONS
+        or not _exact_json_match(value["source_versions"], SOURCE_VERSIONS)
     ):
         raise ExperimentContractError("external actor import identity differs")
     source = value["source"]
     expected_source = {
         "registration_id": REGISTRATION_ID,
+        "registration_receipt": {
+            "logical_path": REGISTRATION_RECEIPT_LOGICAL_PATH,
+            "sha256": REGISTRATION_RECEIPT_SHA256,
+            "byte_count": REGISTRATION_RECEIPT_BYTE_COUNT,
+            "captured_api": {
+                "path": (
+                    "artifacts/external/farama-minari-humanoid-v5-tqc-expert/hf_api_model_info.json"
+                ),
+                "sha256": HF_API_SHA256,
+                "byte_count": HF_API_BYTE_COUNT,
+            },
+            "rights": {
+                "hugging_face_license": "unspecified",
+                "permitted_project_use": "local development only",
+                "technical_import_approval": "Samuel approved 2026-09-04",
+                "technical_approval_is_redistribution_grant": False,
+                "payload_bytes_enter_git": False,
+            },
+        },
         "repository": SOURCE_REPOSITORY,
         "repository_commit": SOURCE_COMMIT,
         "farama_script_commit": FARAMA_SCRIPT_COMMIT,
@@ -778,7 +1132,7 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "opened_by_importer": False,
         },
     }
-    if source != expected_source:
+    if not _exact_json_match(source, expected_source):
         raise ExperimentContractError("external actor source binding differs")
     local_versions = value["local_versions"]
     if (
@@ -792,55 +1146,96 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "worker_torch_runtime",
         }
         or local_versions["source"] != "uv.lock"
-        or local_versions["packages"] != EXPECTED_LOCAL_VERSIONS
-        or local_versions["worker_torch_runtime"] != EXPECTED_LOCAL_VERSIONS["torch"]
+        or type(local_versions["source"]) is not str
+        or not _exact_json_match(local_versions["packages"], EXPECTED_LOCAL_VERSIONS)
+        or not _exact_json_match(
+            local_versions["worker_torch_runtime"],
+            {
+                "runtime_version": EXPECTED_LOCAL_VERSIONS["torch"],
+                "distribution": {
+                    "name": "torch",
+                    "version": EXPECTED_LOCAL_VERSIONS["torch"],
+                },
+            },
+        )
         or type(local_versions["uv_lock_byte_count"]) is not int
         or local_versions["uv_lock_byte_count"] <= 0
     ):
         raise ExperimentContractError("external actor local versions differ")
     _canonical_sha256(local_versions["uv_lock_sha256"], field_name="uv.lock SHA-256")
-    metadata = value["source_metadata"]
-    expected_metadata_fields = {
-        "scalars",
-        "serialized_field_paths",
-        "serialized_field_count",
-        "timestep_counters_reconciled",
-        "timestep_counter_note",
-        "config_json",
-    }
-    if (
-        type(metadata) is not dict
-        or set(metadata) != expected_metadata_fields
-        or metadata["scalars"] != EXPECTED_METADATA
-        or metadata["serialized_field_paths"] != list(EXPECTED_SERIALIZED_PATHS)
-        or metadata["serialized_field_count"] != len(EXPECTED_SERIALIZED_PATHS)
-        or metadata["timestep_counters_reconciled"] is not False
-        or "19965000" not in metadata["timestep_counter_note"]
-        or "20000000" not in metadata["timestep_counter_note"]
-        or metadata["config_json"] != "ignored and never opened by the importer"
+    implementation = value["implementation"]
+    if type(implementation) is not dict or set(implementation) != {
+        "importer_source",
+        "worker_source",
+    }:
+        raise ExperimentContractError("external actor implementation identity differs")
+    expected_importer_source = _source_file_identity(
+        Path(__file__).resolve(strict=True),
+        logical_path=IMPORTER_SOURCE_LOGICAL_PATH,
+        label="external actor importer source",
+    )
+    expected_worker_source = _source_file_identity(
+        Path(__file__).with_name("_external_sb3_actor_worker.py").resolve(strict=True),
+        logical_path=WORKER_SOURCE_LOGICAL_PATH,
+        label="external actor worker source",
+    )
+    for field_name, logical_path in (
+        ("importer_source", IMPORTER_SOURCE_LOGICAL_PATH),
+        ("worker_source", WORKER_SOURCE_LOGICAL_PATH),
     ):
+        _validate_source_identity(
+            implementation[field_name],
+            logical_path=logical_path,
+            field_name=field_name,
+        )
+    if not _exact_json_match(implementation["importer_source"], expected_importer_source) or not (
+        _exact_json_match(implementation["worker_source"], expected_worker_source)
+    ):
+        raise ExperimentContractError("external actor implementation source differs")
+    metadata = value["source_metadata"]
+    expected_metadata = {
+        "scalars": EXPECTED_METADATA,
+        "serialized_field_paths": list(EXPECTED_SERIALIZED_PATHS),
+        "serialized_field_count": len(EXPECTED_SERIALIZED_PATHS),
+        "timestep_counters_reconciled": False,
+        "timestep_counter_note": (
+            "num_timesteps 19965000 and _total_timesteps 20000000 are retained "
+            "without reconciliation"
+        ),
+        "config_json": "ignored and never opened by the importer",
+    }
+    if not _exact_json_match(metadata, expected_metadata):
         raise ExperimentContractError("external actor source metadata differs")
     abi = value["abi"]
-    if abi != {
-        "observation_width": OBSERVATION_WIDTH,
-        "action_width": ACTION_WIDTH,
-        "action_low": [-0.4] * ACTION_WIDTH,
-        "action_high": [0.4] * ACTION_WIDTH,
-    }:
+    if not _exact_json_match(
+        abi,
+        {
+            "observation_width": OBSERVATION_WIDTH,
+            "action_width": ACTION_WIDTH,
+            "action_low": [-0.4] * ACTION_WIDTH,
+            "action_high": [0.4] * ACTION_WIDTH,
+        },
+    ):
         raise ExperimentContractError("external actor ABI differs")
-    if value["environment_termination"] != {
-        "source_training_terminate_when_unhealthy": True,
-        "source_training_basis": "Farama default Humanoid-v5",
-        "project_execution_terminate_when_unhealthy": False,
-        "same_mdp_claimed": False,
-    }:
+    if not _exact_json_match(
+        value["environment_termination"],
+        {
+            "source_training_terminate_when_unhealthy": True,
+            "source_training_basis": "Farama default Humanoid-v5",
+            "project_execution_terminate_when_unhealthy": False,
+            "same_mdp_claimed": False,
+        },
+    ):
         raise ExperimentContractError("external actor termination provenance differs")
-    if value["model_card"] != {
-        "description": "SB3 TQC, `20 x 10^6` steps, runs without falling",
-        "metric": "mean_reward 10370.61 +/- 1542.02",
-        "deterministic_episode_count": 1_000,
-        "verified": False,
-    }:
+    if not _exact_json_match(
+        value["model_card"],
+        {
+            "description": "SB3 TQC, `20 x 10^6` steps, runs without falling",
+            "metric": "mean_reward 10370.61 +/- 1542.02",
+            "deterministic_episode_count": 1_000,
+            "verified": False,
+        },
+    ):
         raise ExperimentContractError("external actor model-card status differs")
     preflight = value["torch_zip_preflight"]
     if (
@@ -854,10 +1249,13 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "member_inventory",
             "passed",
         }
+        or type(preflight["entry_limit"]) is not int
         or preflight["entry_limit"] != MAX_TORCH_ZIP_ENTRIES
+        or type(preflight["uncompressed_byte_limit"]) is not int
         or preflight["uncompressed_byte_limit"] != MAX_TORCH_ZIP_UNCOMPRESSED_BYTES
         or preflight["passed"] is not True
         or type(preflight["member_inventory"]) is not list
+        or type(preflight["member_count"]) is not int
         or preflight["member_count"] != len(preflight["member_inventory"])
         or preflight["member_count"] <= 0
         or preflight["member_count"] > MAX_TORCH_ZIP_ENTRIES
@@ -891,6 +1289,7 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
         "map_location": "cpu",
         "weights_only": True,
         "safe_globals_module_allowlist_passed": True,
+        "ordered_names_unchanged": True,
     }
     if (
         type(deserialization) is not dict
@@ -904,13 +1303,18 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "alternative_loader_fallback",
             "policy_state",
         }
-        or any(deserialization.get(key) != expected for key, expected in expected_loader.items())
+        or not _exact_json_match(
+            {key: deserialization.get(key) for key in expected_loader},
+            expected_loader,
+        )
         or deserialization.get("fresh_spawned_subprocess") is not True
         or deserialization.get("alternative_loader_fallback") is not False
-        or deserialization.get("mapping")
-        not in (
-            {"raw_type": "collections.OrderedDict", "validated_result_type": "dict"},
-            {"raw_type": "dict", "validated_result_type": "dict"},
+        or not any(
+            _exact_json_match(deserialization.get("mapping"), allowed)
+            for allowed in (
+                {"raw_type": "collections.OrderedDict", "validated_result_type": "dict"},
+                {"raw_type": "dict", "validated_result_type": "dict"},
+            )
         )
     ):
         raise ExperimentContractError("external actor deserialization contract differs")
@@ -927,32 +1331,36 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
     expected_inventory = [
         {"name": name, "shape": list(shape)} for name, shape in POLICY_STATE_SCHEMA
     ]
-    if (
-        type(policy_state) is not dict
-        or set(policy_state)
-        != {
-            "schema_id",
-            "tensor_contract",
-            "key_count",
-            "key_inventory",
-            "actor_key_count",
-            "actor_key_inventory",
-            "transient_critic_key_count",
-            "transient_critic_key_inventory",
-            "transient_critic_handling",
-        }
-        or policy_state.get("schema_id") != POLICY_SCHEMA_ID
-        or policy_state.get("tensor_contract")
-        != "plain_cpu_float32_contiguous_offset0_exact_storage_finite_no_alias"
-        or policy_state.get("key_count") != len(POLICY_STATE_SCHEMA)
-        or policy_state.get("key_inventory") != expected_inventory
-        or policy_state.get("actor_key_count") != len(ACTOR_STATE_SCHEMA)
-        or policy_state.get("actor_key_inventory") != expected_inventory[:8]
-        or policy_state.get("transient_critic_key_count")
-        != len(POLICY_STATE_SCHEMA) - len(ACTOR_STATE_SCHEMA)
-        or policy_state.get("transient_critic_key_inventory") != expected_inventory[8:]
-        or "values discarded" not in policy_state.get("transient_critic_handling", "")
-    ):
+    expected_policy_state = {
+        "schema_id",
+        "tensor_contract",
+        "key_count",
+        "key_inventory",
+        "actor_key_count",
+        "actor_key_inventory",
+        "transient_critic_key_count",
+        "transient_critic_key_inventory",
+        "transient_critic_handling",
+    }
+    if type(policy_state) is not dict or set(policy_state) != expected_policy_state:
+        raise ExperimentContractError("external actor policy key schema differs")
+    expected_policy_state_value = {
+        "schema_id": POLICY_SCHEMA_ID,
+        "tensor_contract": (
+            "plain_cpu_float32_contiguous_offset0_exact_storage_finite_no_storage_overlap"
+        ),
+        "key_count": len(POLICY_STATE_SCHEMA),
+        "key_inventory": expected_inventory,
+        "actor_key_count": len(ACTOR_STATE_SCHEMA),
+        "actor_key_inventory": expected_inventory[:8],
+        "transient_critic_key_count": len(POLICY_STATE_SCHEMA) - len(ACTOR_STATE_SCHEMA),
+        "transient_critic_key_inventory": expected_inventory[8:],
+        "transient_critic_handling": (
+            "deserialized transiently because policy.pth is one mapping; names and shapes "
+            "recorded; values discarded without retention, export, or hashing"
+        ),
+    }
+    if not _exact_json_match(policy_state, expected_policy_state_value):
         raise ExperimentContractError("external actor policy key schema differs")
     isolation = value["isolation"]
     if (
@@ -964,8 +1372,10 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "network_os_enforced",
             "network_note",
         }
+        or type(isolation.get("worker_timeout_seconds")) is not int
         or isolation.get("worker_timeout_seconds") != WORKER_TIMEOUT_SECONDS
         or isolation.get("network_os_enforced") is not False
+        or type(isolation.get("network_note")) is not str
         or "not OS-enforced" not in isolation.get("network_note", "")
         or type(isolation.get("resource_limits")) is not dict
     ):
@@ -974,10 +1384,14 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
     if (
         set(limits) != {"cpu", "address_space"}
         or type(limits.get("cpu")) is not dict
-        or set(limits["cpu"]) != {"resource", "soft_seconds", "hard_seconds"}
-        or limits["cpu"].get("resource") != "RLIMIT_CPU"
-        or limits["cpu"].get("soft_seconds") != CPU_TIME_LIMIT_SECONDS
-        or limits["cpu"].get("hard_seconds") != CPU_TIME_LIMIT_SECONDS
+        or not _exact_json_match(
+            limits["cpu"],
+            {
+                "resource": "RLIMIT_CPU",
+                "soft_seconds": CPU_TIME_LIMIT_SECONDS,
+                "hard_seconds": CPU_TIME_LIMIT_SECONDS,
+            },
+        )
         or type(limits.get("address_space")) is not dict
         or set(limits["address_space"])
         != {
@@ -988,7 +1402,9 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
             "observed_hard",
             "darwin_finite_limit_unavailable",
         }
+        or type(limits["address_space"].get("resource")) is not str
         or limits["address_space"].get("resource") != "RLIMIT_AS"
+        or type(limits["address_space"].get("requested_bytes")) is not int
         or limits["address_space"].get("requested_bytes") != ADDRESS_SPACE_LIMIT_BYTES
         or type(limits["address_space"].get("finite_enforced")) is not bool
         or type(limits["address_space"].get("observed_soft")) is not int
@@ -1020,15 +1436,20 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
         raise ExperimentContractError("external strict actor record differs")
     for field_name in ("sha256", "actor_state_sha256", "schema_sha256"):
         _canonical_sha256(strict_actor[field_name], field_name=f"strict actor {field_name}")
-    if value["claim"] != {
-        "establishes": "integrity-verified external actor bytes and strict actor NPZ identity",
-        "does_not_establish": [
-            "E1",
-            "tracker admission",
-            "reference use",
-            "Humanoid behavior",
-        ],
-    }:
+    if not _exact_json_match(
+        value["claim"],
+        {
+            "establishes": (
+                "integrity-verified external actor bytes and strict actor NPZ identity"
+            ),
+            "does_not_establish": [
+                "E1",
+                "tracker admission",
+                "reference use",
+                "Humanoid behavior",
+            ],
+        },
+    ):
         raise ExperimentContractError("external actor claim ceiling differs")
     return value
 
@@ -1061,7 +1482,7 @@ class ExternalPretrainedActorAuthority:
             )
         except ExperimentContractError:
             raise
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
             raise ExperimentContractError("sealed external import receipt is invalid") from exc
         return validate_external_actor_import_receipt(value)
 
@@ -1100,6 +1521,7 @@ def revalidate_external_pretrained_actor_authority(
 
 def import_external_sb3_actor(
     *,
+    registration_receipt_path: Path,
     policy_path: Path,
     metadata_path: Path,
     dependency_lock_path: Path,
@@ -1111,17 +1533,25 @@ def import_external_sb3_actor(
 
     if type(actor_artifact_label) is not str or not actor_artifact_label:
         raise ExperimentContractError("external actor artifact label is invalid")
+    registration = load_registration_receipt(Path(registration_receipt_path))
     held_policy = read_pinned_policy_bytes(Path(policy_path))
     member_inventory = preflight_torch_zip(held_policy)
     metadata = read_pinned_metadata(Path(metadata_path))
     local_versions, lock_sha256, lock_byte_count = _read_local_versions(Path(dependency_lock_path))
     source_arrays, worker_header = _run_loader_subprocess(held_policy)
-    if worker_header["torch_version"] != local_versions["torch"]:
+    if not _exact_json_match(
+        worker_header["runtime_identity"],
+        {
+            "runtime_version": local_versions["torch"],
+            "distribution": {"name": "torch", "version": local_versions["torch"]},
+        },
+    ):
         raise ExperimentContractError("loader Torch runtime differs from uv.lock")
     actor_output = Path(actor_output_path)
     actor_sha256 = write_actor_npz_exclusive(actor_output, source_arrays)
     loaded_actor = load_actor_npz(actor_output, expected_sha256=actor_sha256)
     receipt = _build_import_receipt(
+        registration=registration,
         metadata=metadata,
         member_inventory=member_inventory,
         worker_header=worker_header,
@@ -1160,6 +1590,7 @@ __all__ = [
     "POLICY_BYTE_COUNT",
     "POLICY_SHA256",
     "POLICY_STATE_SCHEMA",
+    "ExternalActorWorkerError",
     "ExternalPretrainedActorAuthority",
     "import_external_sb3_actor",
     "parse_sb3_metadata_bytes",

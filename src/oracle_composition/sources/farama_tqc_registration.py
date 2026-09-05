@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,11 @@ SOURCE_COMMIT = "e5a86ffdb70e6f4750f39c0464ac026a8437001a"
 FARAMA_SCRIPT_COMMIT = "e74f9d0524c6df014c5a9985d0804001b9ce40dc"
 HF_API_SHA256 = "69ccb043f76918fd601c71420ec6511a301193dd768aab5847a4beba3ec652f6"
 HF_API_BYTE_COUNT = 3_670
+REGISTRATION_RECEIPT_SHA256 = "5ba0845e8b0cd9b6f39c956ddc46d0f46e8e08690d8bdf832941a1f914a8e0cf"
+REGISTRATION_RECEIPT_BYTE_COUNT = 9_395
+REGISTRATION_RECEIPT_LOGICAL_PATH = (
+    "research/source_controllers/farama_minari_humanoid_v5_tqc_expert/RECEIPT.json"
+)
 MAX_REGISTRATION_BYTES = 64 * 1024
 
 REMOTE_SIBLINGS = (
@@ -240,11 +246,33 @@ def _reject_duplicate_key(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _exact_json_match(value: object, expected: object) -> bool:
+    try:
+        return _exact_json_match_inner(value, expected)
+    except (RecursionError, TypeError, ValueError):
+        return False
+
+
+def _exact_json_match_inner(value: object, expected: object) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        if set(value) != set(expected):
+            return False
+        return all(_exact_json_match_inner(value[key], expected[key]) for key in expected)
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _exact_json_match_inner(observed, wanted)
+            for observed, wanted in zip(value, expected, strict=True)
+        )
+    return value == expected
+
+
 def validate_registration_receipt(value: object) -> dict[str, object]:
     """Reject any label, sibling, local-presence, or rights drift."""
 
     expected = expected_registration_receipt()
-    if type(value) is not dict or value != expected:
+    if not _exact_json_match(value, expected):
         raise ExperimentContractError("Farama TQC registration receipt differs")
     return expected
 
@@ -258,6 +286,11 @@ def load_registration_receipt(path: Path) -> dict[str, object]:
         raise ExperimentContractError("cannot read Farama TQC registration receipt") from exc
     if not 0 < len(payload) <= MAX_REGISTRATION_BYTES:
         raise ExperimentContractError("Farama TQC registration receipt size is invalid")
+    if (
+        len(payload) != REGISTRATION_RECEIPT_BYTE_COUNT
+        or hashlib.sha256(payload).hexdigest() != REGISTRATION_RECEIPT_SHA256
+    ):
+        raise ExperimentContractError("Farama TQC registration receipt bytes differ")
     try:
         value = json.loads(
             payload.decode("utf-8", errors="strict"),
@@ -268,7 +301,7 @@ def load_registration_receipt(path: Path) -> dict[str, object]:
         )
     except ExperimentContractError:
         raise
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise ExperimentContractError("Farama TQC registration receipt is invalid JSON") from exc
     return validate_registration_receipt(value)
 
@@ -279,6 +312,9 @@ __all__ = [
     "HF_API_SHA256",
     "LOCAL_FILES",
     "REGISTRATION_ID",
+    "REGISTRATION_RECEIPT_BYTE_COUNT",
+    "REGISTRATION_RECEIPT_LOGICAL_PATH",
+    "REGISTRATION_RECEIPT_SHA256",
     "REMOTE_SIBLINGS",
     "SOURCE_COMMIT",
     "SOURCE_REPOSITORY",

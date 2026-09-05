@@ -157,6 +157,23 @@ Fable to run Sol workers directly, delegate token-heavy work, and stop asking
 about routine decisions. Hard gates in the charter still require his
 authorization.
 
+## Experiment 003 frame: composition first (2026-09-05)
+
+Samuel's concern, relayed through Astra after the September 3 running video:
+the oracle plan must test what the collaborator means by reference
+composition, not single-clip timing. The independent transcript reading
+(anchors `19721` stitch behaviors, `25699` state machine or composition,
+`26473` walking-then-running abstraction, `29277` a new composition each
+iteration) supports this frame:
+
+| item | decision |
+|---|---|
+| What composition is | Given a supplied behavior library, the oracle decides at each step which behavior segment is active, its phase, when and how to transition, and how to recover and rejoin, so that tracking becomes task-optimal; references are selected and stitched, never generated or improved. |
+| Current plan's role | Import, corpus, Tier-D, E3, E4, and E5 are the stand-in adapter's tracker prerequisites, not a composition experiment. Single-clip retiming and the four-panel video are tracker diagnostics at most. |
+| Experiment 003 | A three-behavior locomotion composition on stock `Humanoid-v5` using the public expert, medium, and simple gaits as the library: hold one gait, switch on a state condition, return, and rejoin after an injected push. The LLM designs the oracle program (segment use, guards, dwell, phase transfer, recovery) from the task text and the library manifest; the protected evaluator reports transition success, phase error, resynchronization latency, falls, and task progress; the feedback loop revises guards, dwell, and phase transfer after observed failures; baselines are elapsed-time playback and a hand-written state machine. Reward stays frozen. |
+| Consequence for E4 | The tracker screen must include gait-transition episodes, not only single-gait ones, because the composition task requires following all three gaits and their transitions. |
+| Open questions for Samuel or Lokesh | Selection-only versus blended references; online oracle execution inside the training framework; joint versus alternating revision of oracle and reward; which task-state signals the lab MDP exposes; acceptability of the three public gaits as the first benchmark. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -225,6 +242,7 @@ goal ID.
 | 2026-09-04 | `LG-01`, `LG-04`, `LG-10`, `LG-11`, `LG-13`, `LG-14` | Park the TQC-v2 attempt supervisor; adopt the public expert base controller with a data-only import and a receipted local fallback (ADR 0005). | Anchors `LKS-A10`-`LKS-A12`; Hugging Face artifact record; E0 receipt; commit timeline; eight open P1 findings | Sol scientific and adversarial reviews; then contender construction, E1, and the 20-reset development screen on the imported actor | recorded; scientific and adversarial reviews both `GO-WITH-FIXES` (no P0; `4` and `9` P1) folded 2026-09-04; builder split into slices 03A and 03B; gate Q1 approved 2026-09-04 |
 | 2026-09-04 | `LG-11`, `LG-15` | Record the reward-first loop as the rival route; not adopted. | Anchor `LKS-A13`; charter Family B | Samuel's ordering answer (Q2) | approved 2026-09-04; see ADR 0006 |
 | 2026-09-04 | none | Renumber the duplicate ADR `0002` bootstrap record to ADR 0004; add the decisions index. | `docs/decisions/` listing | unique index | done |
+| 2026-09-05 | `LG-02`, `LG-06`, `LG-07`, `LG-11` | Frame Experiment 003 as a three-gait composition task with state-triggered transitions and recovery; treat the tracker chain as prerequisite only; require gait-transition episodes in E4. | Samuel's alignment question via Astra; independent transcript reading | LLM-designed oracle versus elapsed-time and hand-written baselines under a frozen reward | recorded; five open questions for Samuel or Lokesh |
 | 2026-09-04 | `LG-03`, `LG-06`, `LG-11`, `LG-15` | Open the reward-first parallel track on stock `Humanoid-v5` (ADR 0006). | Samuel's answer `reward-first-track: approved`; anchor `LKS-A13`; charter Family B | Sol design survey, then a matched `r_0` baseline and one exploratory candidate cycle | design v1 adopted 2026-09-04 from the Sol survey; B0 queued |
 | 2026-09-04 | `LG-03` | Cycle 1 keeps the stock reward as `r_0` and records that its headroom is trivial; a frozen manual target-aware baseline arm is required from cycle 2 for an informative comparison. | Sol survey sections 3 and 5; Fable synthesis | Cycle-2 protocol adds the manual arm | recorded |
 
