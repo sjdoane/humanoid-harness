@@ -41,10 +41,10 @@ POLICY_PATH = EXTERNAL_ROOT / "humanoid-v5-TQC-expert/policy.pth"
 METADATA_PATH = EXTERNAL_ROOT / "humanoid-v5-TQC-expert/data"
 LOCK_PATH = REPOSITORY / "uv.lock"
 RECORDED_IMPORT_RECEIPT = (
-    REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json"
+    REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_import_expert_03a3_v1.json"
 )
 RECORDED_EQUIVALENCE_RECEIPT = (
-    REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_v1.json"
+    REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_expert_03a3_v1.json"
 )
 REGISTRATION_RECEIPT = (
     REPOSITORY / "research/source_controllers/farama_minari_humanoid_v5_tqc_expert/RECEIPT.json"

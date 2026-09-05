@@ -33,22 +33,54 @@ MAX_GIT_WARNING_LINE_BYTES = 2 * 1024
 SOURCE_CONTROLLER_PREFIX = PurePosixPath("research/source_controllers")
 DERIVED_ACTOR_NPZ_SHA256 = "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
 DERIVED_ACTOR_STATE_SHA256 = "3fd39cc715a10126fd92b20f6ce213c380eb4d5df843a42315aac50cf116748a"
+DERIVED_SIBLING_ACTOR_IDENTITIES = {
+    "medium": {
+        "npz_sha256": "2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04",
+        "state_sha256": "cffb5679e3ef10cc99980819013941cb55cdc9f2198ba4a91a306dfc5f73e00c",
+    },
+    "simple": {
+        "npz_sha256": "b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917",
+        "state_sha256": "3068049a0d18b7924d117a96aafee7127e411a70eba344ff985d31e97da3312b",
+    },
+}
+SIBLING_SOURCE_PAYLOAD_SHA256 = frozenset(
+    {
+        "f47ae84f39c61416ddff1ce0a68dba446ea703a354469480515abd8570fa2779",
+        "d54c93dd82d97cd931caf85fcba5b4722b9c86075e9c679576b6ba45b7823c66",
+        "d00cd2dfdc0bc65964a9e4a47a7fef250d8ae3a006e01fe50345842dd945d41e",
+        "63194995ab0605aacd68c6f160619c3cc5717233cee1a5e6ff8038a92fa644ad",
+        "21d57bf16324533f6ed2275827a7f3b9e13b991a29927c3b131b2c9c98297ac7",
+        "4814a61d04158a9535cec8d8173d4e2cb4f7be2e070b257b9d27215539d65735",
+        "ca9aff0dc359d6011ddde33f196fc8b612781cba80247fb8a9889eb1df74e58e",
+        "16f7205a840137b520ff4c800236c4e440d3168e362d68055dac78565ccd476c",
+        "a689c4486127c8828a48ebc420493b36176b41f858cbffdc26517b052cfcbaea",
+        "7b76d3edaee03ca9a9a24916013c3291cd4d053c3781bf285e5542f964894451",
+    }
+)
 
-KNOWN_EXTERNAL_PAYLOAD_SHA256 = frozenset(
-    digest
-    for name in (
-        "humanoid-v5-TQC-expert.zip",
-        "humanoid-v5-TQC-expert/policy.pth",
-        "humanoid-v5-TQC-expert/pytorch_variables.pth",
-        "humanoid-v5-TQC-expert/data",
-        "config.json",
+KNOWN_EXTERNAL_PAYLOAD_SHA256 = (
+    frozenset(
+        digest
+        for name in (
+            "humanoid-v5-TQC-expert.zip",
+            "humanoid-v5-TQC-expert/policy.pth",
+            "humanoid-v5-TQC-expert/pytorch_variables.pth",
+            "humanoid-v5-TQC-expert/data",
+            "config.json",
+        )
+        if (entry := LOCAL_FILES[name]) is not None
+        for digest in (entry[1],)
     )
-    if (entry := LOCAL_FILES[name]) is not None
-    for digest in (entry[1],)
+    | SIBLING_SOURCE_PAYLOAD_SHA256
 )
 FORBIDDEN_EXTERNAL_PAYLOAD_SHA256 = KNOWN_EXTERNAL_PAYLOAD_SHA256 | {
     DERIVED_ACTOR_NPZ_SHA256,
     DERIVED_ACTOR_STATE_SHA256,
+    *(
+        digest
+        for identity in DERIVED_SIBLING_ACTOR_IDENTITIES.values()
+        for digest in identity.values()
+    ),
 }
 
 
@@ -403,9 +435,11 @@ def enforce_external_payload_index_policy(
 __all__ = [
     "DERIVED_ACTOR_NPZ_SHA256",
     "DERIVED_ACTOR_STATE_SHA256",
+    "DERIVED_SIBLING_ACTOR_IDENTITIES",
     "FORBIDDEN_EXTERNAL_PAYLOAD_SHA256",
     "KNOWN_EXTERNAL_PAYLOAD_SHA256",
     "MAX_SOURCE_CONTROLLER_BLOB_BYTES",
+    "SIBLING_SOURCE_PAYLOAD_SHA256",
     "TrackedBlob",
     "enforce_external_payload_index_policy",
     "forbidden_hashes_from_receipt",

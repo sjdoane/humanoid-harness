@@ -23,7 +23,9 @@ from oracle_composition.sources.external_payload_policy import (
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-IMPORT_RECEIPT = REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json"
+IMPORT_RECEIPT = (
+    REPOSITORY / "artifacts/bootstrap_tqc_humanoid/external_actor_import_expert_03a3_v1.json"
+)
 DERIVED_ACTOR = (
     REPOSITORY / "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz"
 )

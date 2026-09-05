@@ -20,6 +20,9 @@ from oracle_composition.sources.external_sb3_actor import (
     ExternalPretrainedActorAuthority,
     revalidate_external_pretrained_actor_authority,
 )
+from oracle_composition.sources.farama_tqc_sibling_registrations import (
+    SIBLING_REGISTRATION_SPECS,
+)
 
 from .artifact_io import publish_bytes_without_overwrite
 from .fixed_reference import ExperimentContractError
@@ -42,6 +45,10 @@ VERIFIER_SOURCE_LOGICAL_PATH = (
 MAX_VERIFIER_SOURCE_BYTES = 1024 * 1024
 _OUTPUT_NAMES = ("mean", "log_std", "deterministic_action", "seeded_sample")
 _RECEIPT_ISSUER = object()
+SOURCE_POLICY_SHA256_BY_VARIANT = {
+    "expert": POLICY_SHA256,
+    **{variant: spec.policy_sha256 for variant, spec in SIBLING_REGISTRATION_SPECS.items()},
+}
 
 
 def _exact_json_match(value: object, expected: object) -> bool:
@@ -237,8 +244,9 @@ def _receipt_payload(
         "authority": AUTHORITY,
         "evidence_class": "external_base_import",
         "evidence_level": "interface_check",
+        "source_variant": authority.source_variant,
         "import_receipt_sha256": authority.receipt_sha256,
-        "source_policy_sha256": POLICY_SHA256,
+        "source_policy_sha256": SOURCE_POLICY_SHA256_BY_VARIANT[authority.source_variant],
         "strict_actor_npz": {
             "sha256": authority.loaded_actor.content_sha256,
             "byte_count": authority.loaded_actor.byte_count,
@@ -294,6 +302,7 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
         "authority",
         "evidence_class",
         "evidence_level",
+        "source_variant",
         "import_receipt_sha256",
         "source_policy_sha256",
         "strict_actor_npz",
@@ -320,8 +329,10 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
         or value["evidence_class"] != "external_base_import"
         or type(value["evidence_level"]) is not str
         or value["evidence_level"] != "interface_check"
+        or type(value["source_variant"]) is not str
+        or value["source_variant"] not in SOURCE_POLICY_SHA256_BY_VARIANT
         or type(value["source_policy_sha256"]) is not str
-        or value["source_policy_sha256"] != POLICY_SHA256
+        or value["source_policy_sha256"] != SOURCE_POLICY_SHA256_BY_VARIANT[value["source_variant"]]
         or type(value["sampling_seed"]) is not int
         or value["sampling_seed"] != EQUIVALENCE_SAMPLING_SEED
         or value["passed"] is not True
@@ -464,7 +475,10 @@ class ExternalActorEquivalenceReceipt:
             raise ExperimentContractError("external actor equivalence receipt seal differs")
         value = self.to_dict()
         if (
-            value["import_receipt_sha256"] != authority.receipt_sha256
+            value["source_variant"] != authority.source_variant
+            or value["source_policy_sha256"]
+            != authority.to_receipt_dict()["source"]["policy_pth"]["sha256"]
+            or value["import_receipt_sha256"] != authority.receipt_sha256
             or value["strict_actor_npz"]["sha256"] != authority.loaded_actor.content_sha256
             or value["actor_state"]["source_sha256"] != actor_state_sha256(authority.source_arrays)
         ):

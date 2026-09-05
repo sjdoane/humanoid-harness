@@ -70,6 +70,11 @@ from .farama_tqc_registration import (
     SOURCE_REPOSITORY,
     load_registration_receipt,
 )
+from .farama_tqc_sibling_registrations import (
+    SiblingRegistrationSpec,
+    load_sibling_registration_receipt,
+    sibling_registration_spec,
+)
 
 AUTHORITY = "external_pretrained_artifact"
 IMPORT_ID = "farama_minari_humanoid_v5_tqc_external_actor_import/v2"
@@ -142,6 +147,7 @@ EXPECTED_METADATA: dict[str, object] = {
     "ent_coef": "auto",
     "policy_kwargs": {"use_sde": False},
 }
+SOURCE_VARIANTS = ("expert", "medium", "simple")
 EXPECTED_SERIALIZED_PATHS = (
     "/policy_class/:serialized:",
     "/_last_obs/:serialized:",
@@ -155,6 +161,104 @@ EXPECTED_SERIALIZED_PATHS = (
     "/action_space/:serialized:",
     "/lr_schedule/:serialized:",
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _ExternalActorSourceContract:
+    variant: str
+    registration_id: str
+    registration_receipt_logical_path: str
+    registration_receipt_sha256: str
+    registration_receipt_byte_count: int
+    captured_api_path: str
+    captured_api_sha256: str
+    captured_api_byte_count: int
+    repository: str
+    repository_commit: str
+    farama_script_commit: str
+    policy_sha256: str
+    policy_byte_count: int
+    metadata_sha256: str
+    metadata_byte_count: int
+    source_zip_sha256: str
+    source_zip_byte_count: int
+    expected_metadata: Mapping[str, object]
+    model_description: str
+    model_metric: str
+
+
+def _sibling_source_contract(spec: SiblingRegistrationSpec) -> _ExternalActorSourceContract:
+    metadata = dict(EXPECTED_METADATA)
+    metadata.update(
+        {
+            "_total_timesteps": spec.total_timesteps,
+            "num_timesteps": spec.num_timesteps,
+            "_n_updates": spec.n_updates,
+        }
+    )
+    return _ExternalActorSourceContract(
+        variant=spec.variant,
+        registration_id=spec.registration_id,
+        registration_receipt_logical_path=spec.registration_receipt_logical_path,
+        registration_receipt_sha256=spec.registration_receipt_sha256,
+        registration_receipt_byte_count=spec.registration_receipt_byte_count,
+        captured_api_path=spec.captured_api_path,
+        captured_api_sha256=spec.captured_api_sha256,
+        captured_api_byte_count=spec.captured_api_byte_count,
+        repository=spec.repository,
+        repository_commit=spec.repository_commit,
+        farama_script_commit=FARAMA_SCRIPT_COMMIT,
+        policy_sha256=spec.policy_sha256,
+        policy_byte_count=spec.policy_byte_count,
+        metadata_sha256=spec.metadata_sha256,
+        metadata_byte_count=spec.metadata_byte_count,
+        source_zip_sha256=spec.source_zip_sha256,
+        source_zip_byte_count=spec.source_zip_byte_count,
+        expected_metadata=MappingProxyType(metadata),
+        model_description=spec.description,
+        model_metric=spec.mean_reward,
+    )
+
+
+def _source_contract(source_variant: str) -> _ExternalActorSourceContract:
+    if type(source_variant) is not str or source_variant not in SOURCE_VARIANTS:
+        raise ExperimentContractError("external actor source variant is not allowlisted")
+    if source_variant != "expert":
+        return _sibling_source_contract(sibling_registration_spec(source_variant))
+    return _ExternalActorSourceContract(
+        variant="expert",
+        registration_id=REGISTRATION_ID,
+        registration_receipt_logical_path=REGISTRATION_RECEIPT_LOGICAL_PATH,
+        registration_receipt_sha256=REGISTRATION_RECEIPT_SHA256,
+        registration_receipt_byte_count=REGISTRATION_RECEIPT_BYTE_COUNT,
+        captured_api_path=(
+            "artifacts/external/farama-minari-humanoid-v5-tqc-expert/hf_api_model_info.json"
+        ),
+        captured_api_sha256=HF_API_SHA256,
+        captured_api_byte_count=HF_API_BYTE_COUNT,
+        repository=SOURCE_REPOSITORY,
+        repository_commit=SOURCE_COMMIT,
+        farama_script_commit=FARAMA_SCRIPT_COMMIT,
+        policy_sha256=POLICY_SHA256,
+        policy_byte_count=POLICY_BYTE_COUNT,
+        metadata_sha256=METADATA_SHA256,
+        metadata_byte_count=METADATA_BYTE_COUNT,
+        source_zip_sha256=SOURCE_ZIP_SHA256,
+        source_zip_byte_count=SOURCE_ZIP_BYTE_COUNT,
+        expected_metadata=MappingProxyType(dict(EXPECTED_METADATA)),
+        model_description="SB3 TQC, `20 x 10^6` steps, runs without falling",
+        model_metric="10370.61 +/- 1542.02",
+    )
+
+
+def _source_variant_from_receipt(value: Mapping[str, object]) -> str:
+    source = value.get("source")
+    repository = source.get("repository") if type(source) is dict else None
+    for variant in SOURCE_VARIANTS:
+        if repository == _source_contract(variant).repository:
+            return variant
+    raise ExperimentContractError("external actor source repository is not allowlisted")
+
 
 _ACTOR_PAYLOAD_BYTE_COUNT = sum(math.prod(shape) * 4 for _, shape in ACTOR_STATE_SCHEMA)
 _AUTHORITY_ISSUER = object()
@@ -321,15 +425,16 @@ def _source_file_identity(path: Path, *, logical_path: str, label: str) -> dict[
     }
 
 
-def read_pinned_policy_bytes(path: Path) -> bytes:
+def read_pinned_policy_bytes(path: Path, *, source_variant: str = "expert") -> bytes:
     """Open the exact policy path once and retain only its verified bytes."""
 
+    contract = _source_contract(source_variant)
     return _read_regular_file_once(
         Path(path),
         maximum_bytes=MAX_POLICY_BYTES,
         label="external policy.pth",
-        expected_sha256=POLICY_SHA256,
-        expected_byte_count=POLICY_BYTE_COUNT,
+        expected_sha256=contract.policy_sha256,
+        expected_byte_count=contract.policy_byte_count,
     )
 
 
@@ -484,9 +589,14 @@ def _validate_json_tree(
     raise ExperimentContractError("SB3 metadata contains an unsupported JSON value")
 
 
-def parse_sb3_metadata_bytes(payload: bytes) -> dict[str, object]:
+def parse_sb3_metadata_bytes(
+    payload: bytes,
+    *,
+    source_variant: str = "expert",
+) -> dict[str, object]:
     """Return only pinned scalar fields and serialized-field locations."""
 
+    contract = _source_contract(source_variant)
     if type(payload) is not bytes or not 0 < len(payload) <= MAX_METADATA_BYTES:
         raise ExperimentContractError("SB3 metadata byte count is invalid")
     try:
@@ -507,7 +617,7 @@ def parse_sb3_metadata_bytes(payload: bytes) -> dict[str, object]:
     if any(field not in value for field in METADATA_FIELDS):
         raise ExperimentContractError("SB3 metadata is missing an allowlisted scalar")
     scalars = {field: value[field] for field in METADATA_FIELDS}
-    if scalars != EXPECTED_METADATA:
+    if not _exact_json_match(scalars, dict(contract.expected_metadata)):
         raise ExperimentContractError("SB3 metadata scalar values differ from the pinned source")
     serialized_paths = tuple(state["serialized_paths"])
     if serialized_paths != EXPECTED_SERIALIZED_PATHS:
@@ -519,17 +629,18 @@ def parse_sb3_metadata_bytes(payload: bytes) -> dict[str, object]:
     }
 
 
-def read_pinned_metadata(path: Path) -> dict[str, object]:
+def read_pinned_metadata(path: Path, *, source_variant: str = "expert") -> dict[str, object]:
     """Read the source ``data`` member once and expose no serialized values."""
 
+    contract = _source_contract(source_variant)
     payload = _read_regular_file_once(
         Path(path),
         maximum_bytes=MAX_METADATA_BYTES,
         label="external SB3 data metadata",
-        expected_sha256=METADATA_SHA256,
-        expected_byte_count=METADATA_BYTE_COUNT,
+        expected_sha256=contract.metadata_sha256,
+        expected_byte_count=contract.metadata_byte_count,
     )
-    return parse_sb3_metadata_bytes(payload)
+    return parse_sb3_metadata_bytes(payload, source_variant=source_variant)
 
 
 def _read_local_versions(lock_path: Path) -> tuple[dict[str, str], str, int]:
@@ -931,6 +1042,7 @@ def _inventory_without_values(header: Mapping[str, object]) -> dict[str, object]
 
 def _build_import_receipt(
     *,
+    source_contract: _ExternalActorSourceContract,
     registration: Mapping[str, object],
     metadata: Mapping[str, object],
     member_inventory: list[dict[str, object]],
@@ -953,22 +1065,28 @@ def _build_import_receipt(
         "evidence_class": "external_base_import",
         "evidence_level": "interface_check",
         "source": {
-            "registration_id": REGISTRATION_ID,
+            "registration_id": source_contract.registration_id,
             "registration_receipt": {
-                "logical_path": REGISTRATION_RECEIPT_LOGICAL_PATH,
-                "sha256": REGISTRATION_RECEIPT_SHA256,
-                "byte_count": REGISTRATION_RECEIPT_BYTE_COUNT,
+                "logical_path": source_contract.registration_receipt_logical_path,
+                "sha256": source_contract.registration_receipt_sha256,
+                "byte_count": source_contract.registration_receipt_byte_count,
                 "captured_api": dict(registration["captured_api"]),
                 "rights": dict(registration["rights"]),
             },
-            "repository": SOURCE_REPOSITORY,
-            "repository_commit": SOURCE_COMMIT,
-            "farama_script_commit": FARAMA_SCRIPT_COMMIT,
-            "policy_pth": {"sha256": POLICY_SHA256, "byte_count": POLICY_BYTE_COUNT},
-            "data": {"sha256": METADATA_SHA256, "byte_count": METADATA_BYTE_COUNT},
+            "repository": source_contract.repository,
+            "repository_commit": source_contract.repository_commit,
+            "farama_script_commit": source_contract.farama_script_commit,
+            "policy_pth": {
+                "sha256": source_contract.policy_sha256,
+                "byte_count": source_contract.policy_byte_count,
+            },
+            "data": {
+                "sha256": source_contract.metadata_sha256,
+                "byte_count": source_contract.metadata_byte_count,
+            },
             "source_zip": {
-                "sha256": SOURCE_ZIP_SHA256,
-                "byte_count": SOURCE_ZIP_BYTE_COUNT,
+                "sha256": source_contract.source_zip_sha256,
+                "byte_count": source_contract.source_zip_byte_count,
                 "opened_by_importer": False,
             },
         },
@@ -988,8 +1106,9 @@ def _build_import_receipt(
             **dict(metadata),
             "timestep_counters_reconciled": False,
             "timestep_counter_note": (
-                "num_timesteps 19965000 and _total_timesteps 20000000 are retained "
-                "without reconciliation"
+                f"num_timesteps {source_contract.expected_metadata['num_timesteps']} and "
+                f"_total_timesteps {source_contract.expected_metadata['_total_timesteps']} "
+                "are retained without reconciliation"
             ),
             "config_json": "ignored and never opened by the importer",
         },
@@ -1006,8 +1125,8 @@ def _build_import_receipt(
             "same_mdp_claimed": False,
         },
         "model_card": {
-            "description": "SB3 TQC, `20 x 10^6` steps, runs without falling",
-            "metric": "mean_reward 10370.61 +/- 1542.02",
+            "description": source_contract.model_description,
+            "metric": f"mean_reward {source_contract.model_metric}",
             "deterministic_episode_count": 1_000,
             "verified": False,
         },
@@ -1085,6 +1204,8 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
     }
     if type(value) is not dict or set(value) != required:
         raise ExperimentContractError("external actor import receipt fields differ")
+    source_variant = _source_variant_from_receipt(value)
+    source_contract = _source_contract(source_variant)
     if (
         type(value["schema_version"]) is not int
         or value["schema_version"] != 2
@@ -1101,17 +1222,15 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
         raise ExperimentContractError("external actor import identity differs")
     source = value["source"]
     expected_source = {
-        "registration_id": REGISTRATION_ID,
+        "registration_id": source_contract.registration_id,
         "registration_receipt": {
-            "logical_path": REGISTRATION_RECEIPT_LOGICAL_PATH,
-            "sha256": REGISTRATION_RECEIPT_SHA256,
-            "byte_count": REGISTRATION_RECEIPT_BYTE_COUNT,
+            "logical_path": source_contract.registration_receipt_logical_path,
+            "sha256": source_contract.registration_receipt_sha256,
+            "byte_count": source_contract.registration_receipt_byte_count,
             "captured_api": {
-                "path": (
-                    "artifacts/external/farama-minari-humanoid-v5-tqc-expert/hf_api_model_info.json"
-                ),
-                "sha256": HF_API_SHA256,
-                "byte_count": HF_API_BYTE_COUNT,
+                "path": source_contract.captured_api_path,
+                "sha256": source_contract.captured_api_sha256,
+                "byte_count": source_contract.captured_api_byte_count,
             },
             "rights": {
                 "hugging_face_license": "unspecified",
@@ -1121,14 +1240,20 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
                 "payload_bytes_enter_git": False,
             },
         },
-        "repository": SOURCE_REPOSITORY,
-        "repository_commit": SOURCE_COMMIT,
-        "farama_script_commit": FARAMA_SCRIPT_COMMIT,
-        "policy_pth": {"sha256": POLICY_SHA256, "byte_count": POLICY_BYTE_COUNT},
-        "data": {"sha256": METADATA_SHA256, "byte_count": METADATA_BYTE_COUNT},
+        "repository": source_contract.repository,
+        "repository_commit": source_contract.repository_commit,
+        "farama_script_commit": source_contract.farama_script_commit,
+        "policy_pth": {
+            "sha256": source_contract.policy_sha256,
+            "byte_count": source_contract.policy_byte_count,
+        },
+        "data": {
+            "sha256": source_contract.metadata_sha256,
+            "byte_count": source_contract.metadata_byte_count,
+        },
         "source_zip": {
-            "sha256": SOURCE_ZIP_SHA256,
-            "byte_count": SOURCE_ZIP_BYTE_COUNT,
+            "sha256": source_contract.source_zip_sha256,
+            "byte_count": source_contract.source_zip_byte_count,
             "opened_by_importer": False,
         },
     }
@@ -1194,13 +1319,14 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
         raise ExperimentContractError("external actor implementation source differs")
     metadata = value["source_metadata"]
     expected_metadata = {
-        "scalars": EXPECTED_METADATA,
+        "scalars": dict(source_contract.expected_metadata),
         "serialized_field_paths": list(EXPECTED_SERIALIZED_PATHS),
         "serialized_field_count": len(EXPECTED_SERIALIZED_PATHS),
         "timestep_counters_reconciled": False,
         "timestep_counter_note": (
-            "num_timesteps 19965000 and _total_timesteps 20000000 are retained "
-            "without reconciliation"
+            f"num_timesteps {source_contract.expected_metadata['num_timesteps']} and "
+            f"_total_timesteps {source_contract.expected_metadata['_total_timesteps']} "
+            "are retained without reconciliation"
         ),
         "config_json": "ignored and never opened by the importer",
     }
@@ -1230,8 +1356,8 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
     if not _exact_json_match(
         value["model_card"],
         {
-            "description": "SB3 TQC, `20 x 10^6` steps, runs without falling",
-            "metric": "mean_reward 10370.61 +/- 1542.02",
+            "description": source_contract.model_description,
+            "metric": f"mean_reward {source_contract.model_metric}",
             "deterministic_episode_count": 1_000,
             "verified": False,
         },
@@ -1458,6 +1584,7 @@ def validate_external_actor_import_receipt(value: object) -> dict[str, object]:
 class ExternalPretrainedActorAuthority:
     """Process-local authority for exact external source and strict NPZ bytes."""
 
+    source_variant: str
     receipt_sha256: str
     receipt_byte_count: int
     receipt_bytes: bytes = field(repr=False, compare=False)
@@ -1487,6 +1614,7 @@ class ExternalPretrainedActorAuthority:
         return validate_external_actor_import_receipt(value)
 
     def _validate_sealed(self) -> None:
+        source_contract = _source_contract(self.source_variant)
         _canonical_sha256(self.receipt_sha256, field_name="external import receipt SHA-256")
         if (
             self._creator_pid != os.getpid()
@@ -1499,7 +1627,8 @@ class ExternalPretrainedActorAuthority:
         receipt = self.to_receipt_dict()
         strict_actor = receipt["strict_actor_npz"]
         if (
-            actor_state_sha256(self.source_arrays) != self.loaded_actor.state_sha256
+            receipt["source"]["repository"] != source_contract.repository
+            or actor_state_sha256(self.source_arrays) != self.loaded_actor.state_sha256
             or self.loaded_actor.content_sha256 != strict_actor["sha256"]
             or self.loaded_actor.byte_count != strict_actor["byte_count"]
             or self.loaded_actor.state_sha256 != strict_actor["actor_state_sha256"]
@@ -1528,15 +1657,23 @@ def import_external_sb3_actor(
     actor_output_path: Path,
     receipt_output_path: Path,
     actor_artifact_label: str,
+    source_variant: str = "expert",
 ) -> ExternalPretrainedActorAuthority:
     """Import the pinned actor once; never open the source archive or retry loading."""
 
     if type(actor_artifact_label) is not str or not actor_artifact_label:
         raise ExperimentContractError("external actor artifact label is invalid")
-    registration = load_registration_receipt(Path(registration_receipt_path))
-    held_policy = read_pinned_policy_bytes(Path(policy_path))
+    source_contract = _source_contract(source_variant)
+    if source_variant == "expert":
+        registration = load_registration_receipt(Path(registration_receipt_path))
+    else:
+        registration = load_sibling_registration_receipt(
+            Path(registration_receipt_path),
+            variant=source_variant,
+        )
+    held_policy = read_pinned_policy_bytes(Path(policy_path), source_variant=source_variant)
     member_inventory = preflight_torch_zip(held_policy)
-    metadata = read_pinned_metadata(Path(metadata_path))
+    metadata = read_pinned_metadata(Path(metadata_path), source_variant=source_variant)
     local_versions, lock_sha256, lock_byte_count = _read_local_versions(Path(dependency_lock_path))
     source_arrays, worker_header = _run_loader_subprocess(held_policy)
     if not _exact_json_match(
@@ -1551,6 +1688,7 @@ def import_external_sb3_actor(
     actor_sha256 = write_actor_npz_exclusive(actor_output, source_arrays)
     loaded_actor = load_actor_npz(actor_output, expected_sha256=actor_sha256)
     receipt = _build_import_receipt(
+        source_contract=source_contract,
         registration=registration,
         metadata=metadata,
         member_inventory=member_inventory,
@@ -1569,6 +1707,7 @@ def import_external_sb3_actor(
         immutable = np.frombuffer(value.tobytes(order="C"), dtype=value.dtype).reshape(value.shape)
         immutable_source[name] = immutable
     return ExternalPretrainedActorAuthority(
+        source_variant=source_variant,
         receipt_sha256=published.sha256,
         receipt_byte_count=published.byte_count,
         receipt_bytes=receipt_bytes,
