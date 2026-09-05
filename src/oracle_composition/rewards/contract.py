@@ -256,6 +256,39 @@ def _exact_f64_array(value: object, *, shape: tuple[int, ...], field: str) -> np
     return result
 
 
+def _wire_f64_array(value: object, *, shape: tuple[int, ...], field: str) -> np.ndarray:
+    if isinstance(value, np.ndarray):
+        if value.shape != shape:
+            raise RewardContractError(f"{field} must have shape {shape}")
+        if value.dtype != np.dtype(np.float64):
+            raise RewardContractError(f"{field} direct array must have dtype float64")
+        return value
+
+    def validate_json_array(node: object, remaining_shape: tuple[int, ...]) -> None:
+        if not remaining_shape:
+            if type(node) not in (int, float):
+                raise RewardContractError(
+                    f"{field} JSON array elements must be numbers, not booleans or strings"
+                )
+            try:
+                finite = math.isfinite(float(node))
+            except (OverflowError, ValueError) as exc:
+                raise RewardContractError(f"{field} JSON array element is not finite") from exc
+            if not finite:
+                raise RewardContractError(f"{field} JSON array element is not finite")
+            return
+        if type(node) is not list or len(node) != remaining_shape[0]:
+            raise RewardContractError(f"{field} JSON array must have shape {shape}")
+        for child in node:
+            validate_json_array(child, remaining_shape[1:])
+
+    validate_json_array(value, shape)
+    try:
+        return np.asarray(value, dtype=np.float64)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise RewardContractError(f"{field} JSON array cannot be represented as float64") from exc
+
+
 def _target_speed(value: object) -> float:
     result = _finite_float(value, field="target_speed_m_s")
     if result not in TARGET_SPEEDS_M_S:
@@ -404,25 +437,28 @@ class TrustedRewardStepV1:
         }
         if type(value) is not dict or set(value) != expected:
             raise RewardContractError("trusted reward step keys differ")
-        try:
-            return cls(
-                qpos_after_f64=np.asarray(value["qpos_after_f64"], dtype=np.float64),
-                qvel_after_f64=np.asarray(value["qvel_after_f64"], dtype=np.float64),
-                com_x_velocity_m_s=value["com_x_velocity_m_s"],  # type: ignore[arg-type]
-                ctrl_f64=np.asarray(value["ctrl_f64"], dtype=np.float64),
-                generalized_actuator_torque_n_m_f64=np.asarray(
-                    value["generalized_actuator_torque_n_m_f64"], dtype=np.float64
-                ),
-                external_contact_wrench_f64=np.asarray(
-                    value["external_contact_wrench_f64"], dtype=np.float64
-                ),
-                target_speed_m_s=value["target_speed_m_s"],  # type: ignore[arg-type]
-                control_period_s=value["control_period_s"],  # type: ignore[arg-type]
-            )
-        except (TypeError, ValueError, OverflowError) as exc:
-            if isinstance(exc, RewardContractError):
-                raise
-            raise RewardContractError("trusted reward step arrays are not numeric") from exc
+        return cls(
+            qpos_after_f64=_wire_f64_array(
+                value["qpos_after_f64"], shape=(24,), field="qpos_after_f64"
+            ),
+            qvel_after_f64=_wire_f64_array(
+                value["qvel_after_f64"], shape=(23,), field="qvel_after_f64"
+            ),
+            com_x_velocity_m_s=value["com_x_velocity_m_s"],  # type: ignore[arg-type]
+            ctrl_f64=_wire_f64_array(value["ctrl_f64"], shape=(17,), field="ctrl_f64"),
+            generalized_actuator_torque_n_m_f64=_wire_f64_array(
+                value["generalized_actuator_torque_n_m_f64"],
+                shape=(17,),
+                field="generalized_actuator_torque_n_m_f64",
+            ),
+            external_contact_wrench_f64=_wire_f64_array(
+                value["external_contact_wrench_f64"],
+                shape=(14, 6),
+                field="external_contact_wrench_f64",
+            ),
+            target_speed_m_s=value["target_speed_m_s"],  # type: ignore[arg-type]
+            control_period_s=value["control_period_s"],  # type: ignore[arg-type]
+        )
 
     @property
     def canonical_bytes(self) -> bytes:

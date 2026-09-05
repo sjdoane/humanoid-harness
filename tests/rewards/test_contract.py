@@ -83,6 +83,35 @@ def test_contract_copies_and_freezes_trusted_arrays() -> None:
         step.qpos_after_f64[2] = 1.5
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("qpos_after_f64", [False] * 24, "numbers, not booleans or strings"),
+        ("qvel_after_f64", ["0.0"] * 23, "numbers, not booleans or strings"),
+        ("external_contact_wrench_f64", [[0.0] * 6] * 13, "shape"),
+        ("ctrl_f64", np.zeros(17, dtype=np.float32), "direct array.*float64"),
+        ("qvel_after_f64", np.zeros(23, dtype=np.int64), "direct array.*float64"),
+    ],
+)
+def test_wire_arrays_reject_type_structure_and_direct_dtype_repair(
+    field: str,
+    value: object,
+    match: str,
+) -> None:
+    payload = _step().to_dict()
+    payload[field] = value
+    with pytest.raises(RewardContractError, match=match):
+        TrustedRewardStepV1.from_dict(payload)
+
+
+def test_wire_numeric_json_arrays_convert_only_after_exact_structure_check() -> None:
+    payload = _step().to_dict()
+    payload["qvel_after_f64"] = [0] * 23
+    restored = TrustedRewardStepV1.from_dict(payload)
+    assert restored.qvel_after_f64.dtype == np.dtype(np.float64)
+    assert restored.qvel_after_f64.shape == (23,)
+
+
 def test_reward_identity_hashes_every_declared_dependency_and_readmits() -> None:
     digest = "a" * 64
     source = b"def task_term(x):\n    return x.com_x_velocity_m_s\n"

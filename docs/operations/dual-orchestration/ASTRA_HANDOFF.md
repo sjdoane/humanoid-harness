@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | A2R proposal/revision remains accepted at the software boundary. Parent adopted 25 exact transferred B0 files after checking dependencies; no existing source was overwritten. |
-| bottleneck | B0 is retained for repair only. Parent candidate execution and other P1s block validation/training; the A3 leaf stopped on an ambiguous handoff path. |
-| next step | Collect or dispatch the single `TASK-R1-parent-execution-boundary.md` builder named in the active-run pointer. R1 is data/static-only; do not run the donor's dynamic tests. |
+| progress | Independent verdict ACCEPTed static-only R1; parent completed the copy-API documentation/test follow-up and reproduced 144 passed/16 deferred. |
+| bottleneck | R2 containment/admission and R3 provenance still block generated reward execution and training; no behavioral result exists. |
+| next step | Prepare and independently review the smallest R2 runtime/host-fixture protocol before any execution. The exact accepted R1 commit is recorded in the active-run pointer. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, continuation of the 03:00 UTC heartbeat.
+- Last checkpoint: 2026-09-05, continuation of the 07:58 UTC heartbeat after long host/tool gaps; see exact run times in R1_ACCEPTANCE.md.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -34,7 +34,38 @@
 | Independent goal interpretation | Fable | substantive reply received and acknowledged | `FABLE_GOAL_ALIGNMENT.md`; composition plan reframed, not demonstrated |
 | B0 transfer | Fable → Astra | ownership transferred with P1 repair gates | Exact `89d4c34d1b04eb9efca2b75d1ffc828a13de55d7`; not execution-approved |
 | A3 B0 adoption audit | read-only Sol/max, then parent | leaf stopped on ambiguous path; parent completed dependency check | `A3_RESULT.md`; exact 25-file donor snapshot, no execution approval |
-| R1 parent-execution boundary | Sol/max builder | next bounded packet; see active-run pointer | Parse-only parent, no callable calibration fallback, depth/type negatives; no dynamic proof claim |
+| R1 parent-execution boundary | Sol/max builder | terminal succeeded; source uncommitted, not accepted | `R1_RESULT.md`; 49 passed/36 skipped and 59 A1 tests reported, known stale consumer |
+| R1 first independent review | read-only Sol/max | timed out 04:43:51Z; no verdict | Exact run retained; no escalation; historical source snapshot verified before parent edits |
+| R1 parent completion | Astra | 139 passed/16 deferred; not accepted | `R1_COMPLETION_CHECKPOINT.md`; restored safe coverage and repaired strict metadata/version/API tests |
+| R1 completion review | read-only Sol/max | REJECT at 06:18:34Z; terminal receipt retained | `R1_REVIEW_FINDINGS.md`; three constructor/ingress defects; 37 no-temp tests reproduced |
+| R1 ingress repair | Sol/max builder | finished 06:49:16Z, lease released; parent 143 passed/16 deferred | `R1_INGRESS_REPAIR_RESULT.md`; three findings repaired, not independently closed |
+| R1 targeted final review | read-only Sol/max | timed out 07:35:25Z; partial closure, no verdict | `R1_FINAL_REVIEW_PARTIAL.md`; three findings reported closed, copy limitation open |
+| R1 acceptance decision | read-only Sol/max | ACCEPT at 14:58:59Z | `R1_ACCEPTANCE.md`; three findings closed, copy-API limitation non-blocking and documented/tested |
+
+- R1 history: `R1_PARENT_CHECKPOINT.md` and `R1_COMPLETION_CHECKPOINT.md`.
+  Current repair checkpoint: `R1_REVIEW_FINDINGS.md` and
+  `R1_INGRESS_REPAIR_RESULT.md`. No source/test edits during final review;
+  both previous review snapshots are historical.
+
+- Final review: `.orchestration/sol-runs/20260905T071423Z-bc589f15-291b-4341-94aa-730484edcd39`.
+  Fresh 15-file snapshot: `.orchestration/b0-repair/r1final/review-snapshot.json`.
+  Read-only Sol/max requested; deadline TERM, no escalation or final verdict.
+  Independent partial findings and final hash gate are retained separately.
+
+- Accepted decision: `.orchestration/sol-runs/20260905T135846Z-4adbb20a-a0ee-468a-a4ef-3dd4a807c825`.
+  `R1_ACCEPTANCE.md` records scope, follow-up checks, and the late-watchdog
+  caveat. Future launches and watcher attachment must occur in the same tool
+  call. Local watchers now use the immutable launch time for their deadline.
+
+- Completion review: `.orchestration/sol-runs/20260905T060349Z-d2435712-4e9a-4af1-a94b-fd183f40c96e`.
+  Read-only `gpt-5.6-sol/max` requested; no nested agents; verdict REJECT.
+  Snapshot and one-shot deadline watcher: `.orchestration/b0-repair/r1review/`.
+  The expired parent lease was reviewed after both previous workers had
+  terminal receipts; only that same parent's lease was released/reacquired.
+
+- Fable's production collector cache-refresh finding was acknowledged and
+  checked against adopted B0 source: `REWARD_CAPTURE_PATH_CHECK.md`. No matching
+  mutation found in that narrow source scope; no runtime equivalence claim.
 
 - Accepted A1 commit: `76a0fe6e86f5c4e5b52231d3b69df3d0c9b317d2` (not pushed or integrated into main).
 - Final acceptance reproduction: `59 passed in 2.35s`, Ruff/format/diff checks pass.

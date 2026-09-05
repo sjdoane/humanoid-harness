@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ import pytest
 
 from oracle_composition.rewards.scale_calibration import (
     CALIBRATION_GRID_M_S,
+    DYNAMIC_ADMISSION_REFUSAL,
     STOCK_GRID_MEAN,
     STOCK_GRID_POPULATION_SD,
     ScaleCalibrationError,
@@ -15,84 +17,82 @@ from oracle_composition.rewards.scale_calibration import (
     frozen_stock_grid_statistics,
     validate_target_speed_axioms,
 )
-from oracle_composition.rewards.static_validation import validate_task_term_source
+from oracle_composition.rewards.static_validation import (
+    StaticAcceptanceReceiptV1,
+    StaticValidationError,
+    statically_validate_task_term_source,
+)
 
 ROOT = Path(__file__).parents[2]
+SOURCE = b"def task_term(x):\n    return -abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n"
 
 
-def _program(expression: str):
-    source = f"def task_term(x):\n    return {expression}\n".encode()
-    return source, validate_task_term_source(source)
+class SentinelCallable:
+    def __init__(self) -> None:
+        self.touched = False
+
+    def __call__(self, *_args: object, **_kwargs: object) -> float:
+        self.touched = True
+        return 0.0
+
+    def task_term(self, *_args: object, **_kwargs: object) -> float:
+        self.touched = True
+        return 0.0
 
 
-def test_scale_calibration_reproduces_frozen_grid_mean_sd_and_hashes_inputs() -> None:
-    source, program = _program("-abs(x.com_x_velocity_m_s - x.target_speed_m_s)")
-    receipt = calibrate_task_term_scale(
-        program,
-        candidate_source_sha256=hashlib.sha256(source).hexdigest(),
-    )
+def test_frozen_stock_grid_statistics_remain_data_only() -> None:
     assert frozen_stock_grid_statistics() == (STOCK_GRID_MEAN, STOCK_GRID_POPULATION_SD)
-    assert receipt.stock_mean == receipt.scaled_mean == 1.25
-    assert receipt.stock_population_sd == STOCK_GRID_POPULATION_SD
-    assert receipt.scaled_population_sd == pytest.approx(STOCK_GRID_POPULATION_SD, abs=1e-12)
-    assert 0.25 <= receipt.affine_alpha <= 4.0
-    assert abs(receipt.affine_beta) <= 10.0
-    assert receipt.grid_sha256
-    assert receipt.raw_values_sha256 != receipt.scaled_values_sha256
     assert len(CALIBRATION_GRID_M_S) == 33
     assert CALIBRATION_GRID_M_S[0] == -3.0
     assert CALIBRATION_GRID_M_S[-1] == 5.0
 
 
-def test_axioms_require_unique_target_maximum_monotonicity_and_determinism() -> None:
-    _source, program = _program("-abs(x.com_x_velocity_m_s - x.target_speed_m_s)")
-    receipt = validate_target_speed_axioms(program)
-    assert receipt.passed is True
-    assert receipt.raw_values_sha256 == receipt.repeated_values_sha256
-
-    _source, wrong_direction = _program("abs(x.com_x_velocity_m_s - x.target_speed_m_s)")
-    with pytest.raises(ScaleCalibrationError, match="unique grid maximum"):
-        validate_target_speed_axioms(wrong_direction)
-
-
-def test_degenerate_or_out_of_range_affine_parameters_refuse() -> None:
-    source, constant = _program("0.0")
-    with pytest.raises(ScaleCalibrationError):
-        calibrate_task_term_scale(
-            constant,
-            candidate_source_sha256=hashlib.sha256(source).hexdigest(),
+def test_arbitrary_callable_is_refused_without_invocation() -> None:
+    sentinel = SentinelCallable()
+    with pytest.raises(ScaleCalibrationError, match="arbitrary callables"):
+        validate_target_speed_axioms(sentinel)  # type: ignore[arg-type]
+    with pytest.raises(ScaleCalibrationError, match="arbitrary callables"):
+        calibrate_task_term_scale(  # type: ignore[arg-type]
+            sentinel,
+            candidate_source_sha256=hashlib.sha256(SOURCE).hexdigest(),
         )
+    assert sentinel.touched is False
 
-    narrow_source = b"def task_term(x):\n    return 1.25 * (1.0 - min(1.0, abs(x.com_x_velocity_m_s - x.target_speed_m_s) / x.target_speed_m_s))\n"
-    narrow = validate_task_term_source(narrow_source)
-    with pytest.raises(ScaleCalibrationError, match="alpha"):
+
+def test_fake_worker_callable_is_refused_without_invocation() -> None:
+    accepted = statically_validate_task_term_source(SOURCE)
+    sentinel = SentinelCallable()
+    with pytest.raises(ScaleCalibrationError, match="exact source-bound"):
+        validate_target_speed_axioms(accepted, worker=sentinel)  # type: ignore[arg-type]
+    assert sentinel.touched is False
+
+
+def test_static_source_cannot_manufacture_dynamic_acceptance_receipts() -> None:
+    accepted = statically_validate_task_term_source(SOURCE)
+    with pytest.raises(ScaleCalibrationError, match="dynamic task-term evaluation") as axiom:
+        validate_target_speed_axioms(accepted)
+    with pytest.raises(ScaleCalibrationError, match="dynamic task-term evaluation") as scale:
         calibrate_task_term_scale(
-            narrow,
-            candidate_source_sha256=hashlib.sha256(narrow_source).hexdigest(),
+            accepted,
+            candidate_source_sha256=accepted.receipt.source_sha256,
         )
-
-    shifted_source, shifted = _program("100.0 - abs(x.com_x_velocity_m_s - x.target_speed_m_s)")
-    with pytest.raises(ScaleCalibrationError, match="beta"):
-        calibrate_task_term_scale(
-            shifted,
-            candidate_source_sha256=hashlib.sha256(shifted_source).hexdigest(),
-        )
+    assert str(axiom.value) == DYNAMIC_ADMISSION_REFUSAL
+    assert str(scale.value) == DYNAMIC_ADMISSION_REFUSAL
 
 
-def test_scale_receipt_refuses_a_mismatched_candidate_source_hash() -> None:
-    _source, program = _program("-abs(x.com_x_velocity_m_s - x.target_speed_m_s)")
-    with pytest.raises(ScaleCalibrationError, match="static-validation receipt"):
-        calibrate_task_term_scale(program, candidate_source_sha256="0" * 64)
+def test_candidate_hash_and_static_receipt_drift_are_rejected_before_runtime() -> None:
+    accepted = statically_validate_task_term_source(SOURCE)
+    with pytest.raises(ScaleCalibrationError, match="static-acceptance receipt"):
+        calibrate_task_term_scale(accepted, candidate_source_sha256="0" * 64)
+
+    stale_payload = accepted.receipt.to_dict()
+    stale_payload["source_sha256"] = "0" * 64
+    stale_receipt = StaticAcceptanceReceiptV1.from_dict(stale_payload)
+    with pytest.raises(StaticValidationError, match="stale"):
+        dataclasses.replace(accepted, receipt=stale_receipt)
 
 
-def test_non_monotonic_far_error_refuses() -> None:
-    source = b"""def task_term(x):\n    error = abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n    if error > 2.0:\n        return 0.0\n    else:\n        return -error\n"""
-    program = validate_task_term_source(source)
-    with pytest.raises(ScaleCalibrationError, match="non-increasing"):
-        validate_target_speed_axioms(program)
-
-
-def test_recorded_behavior_free_scale_receipt_replays_exactly() -> None:
+def test_historical_dynamic_receipt_is_not_readmitted_as_static_acceptance() -> None:
     recorded = json.loads(
         (
             ROOT
@@ -102,18 +102,29 @@ def test_recorded_behavior_free_scale_receipt_replays_exactly() -> None:
             / "builder_synthetic_scale.json"
         ).read_text(encoding="utf-8")
     )
-    assert recorded["training_run"] is False
-    assert recorded["behavioral_evaluation"] is False
-    source = recorded["source_utf8"].encode("utf-8")
-    program = validate_task_term_source(source)
-    axiom = validate_target_speed_axioms(program)
-    scale = calibrate_task_term_scale(
-        program,
-        candidate_source_sha256=program.receipt.source_sha256,
-    )
-    assert recorded["static_validation"] == program.receipt.to_dict()
-    assert recorded["static_validation_sha256"] == program.receipt.sha256
-    assert recorded["target_speed_axioms"] == axiom.to_dict()
-    assert recorded["target_speed_axioms_sha256"] == axiom.sha256
-    assert recorded["scale_calibration"] == scale.to_dict()
-    assert recorded["scale_calibration_sha256"] == scale.sha256
+    with pytest.raises(StaticValidationError, match="keys or version"):
+        StaticAcceptanceReceiptV1.from_dict(recorded["static_validation"])
+
+
+@pytest.mark.skip(reason="R2 host fixture required: dynamic axiom/scale outcomes remain unreviewed")
+@pytest.mark.parametrize(
+    ("source", "expected_failure"),
+    [
+        (b"def task_term(x):\n    return 0.0\n", "zero population SD"),
+        (
+            b"def task_term(x):\n    return abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n",
+            "unique target maximum",
+        ),
+        (
+            b"def task_term(x):\n    return 100.0 - abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n",
+            "affine beta bound",
+        ),
+    ],
+)
+def test_deferred_dynamic_negative_cases_require_admitted_worker(
+    source: bytes,
+    expected_failure: str,
+) -> None:
+    """Retain inherited negative cases without executing candidate source in R1."""
+
+    pytest.fail(f"R2 must implement the worker-backed {expected_failure} assertion for {source!r}")

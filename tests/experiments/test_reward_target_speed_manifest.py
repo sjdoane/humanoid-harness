@@ -24,10 +24,9 @@ from oracle_composition.experiments.reward_target_speed_manifest import (
 )
 from oracle_composition.rewards.contract import (
     ACTUATOR_QVEL_INDICES_BY_ACTION_V1,
-    CandidateTaskInputsV1,
     RewardArtifactIdentityV1,
 )
-from oracle_composition.rewards.static_validation import validate_task_term_source
+from oracle_composition.rewards.static_validation import statically_validate_task_term_source
 
 ROOT = Path(__file__).parents[2]
 FAMILY = ROOT / "experiments" / "family_b_target_speed_v1"
@@ -69,15 +68,18 @@ def test_proposed_config_is_exact_immutable_and_candidate_fixtures_validate() ->
     with pytest.raises(TypeError):
         design.payload["design_status"] = "locked"  # type: ignore[index]
 
-    stock = validate_task_term_source((FAMILY / "candidates" / "stock_r0.py").read_bytes())
-    manual = validate_task_term_source(
+    stock = statically_validate_task_term_source(
+        (FAMILY / "candidates" / "stock_r0.py").read_bytes()
+    )
+    manual = statically_validate_task_term_source(
         (FAMILY / "candidates" / "manual_target_speed_v1.py").read_bytes()
     )
     assert stock.receipt.metadata["CANDIDATE_ID"] == "stock_r0"
     assert manual.receipt.metadata["CANDIDATE_ID"] == "manual_target_speed_v1"
-    assert stock.task_term(CandidateTaskInputsV1(2.0, 1.0)) == 2.5
-    assert manual.task_term(CandidateTaskInputsV1(1.0, 1.0)) == 1.25
-    assert manual.task_term(CandidateTaskInputsV1(0.0, 1.0)) == 0.0
+    for candidate in (stock, manual):
+        assert candidate.receipt.static_accepted is True
+        assert candidate.receipt.dynamic_validation_status == "not_performed"
+        assert not hasattr(candidate, "task_term")
 
 
 @pytest.mark.gym

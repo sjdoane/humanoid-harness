@@ -23,7 +23,7 @@ from types import MappingProxyType
 
 from . import _sandbox_worker
 from .contract import CandidateTaskInputsV1, RewardContractError, canonical_json_bytes
-from .static_validation import MAX_SOURCE_BYTES, validate_task_term_source
+from .static_validation import MAX_SOURCE_BYTES, statically_validate_task_term_source
 
 SEATBELT_EXECUTABLE = Path("/usr/bin/sandbox-exec")
 SEATBELT_PROFILE_ID = "reward-worker-seatbelt/v3"
@@ -40,6 +40,9 @@ OPEN_FILE_LIMIT = _sandbox_worker.OPEN_FILE_LIMIT
 FILE_SIZE_LIMIT_BYTES = _sandbox_worker.FILE_SIZE_LIMIT_BYTES
 CORE_SIZE_LIMIT_BYTES = _sandbox_worker.CORE_SIZE_LIMIT_BYTES
 DARWIN_ADDRESS_SPACE_LIMIT_REASON = "darwin_refuses_finite_rlimit_as"
+RUNTIME_ADMISSION_REFUSAL = (
+    "candidate runtime admission is unreviewed; R1 permits static source capture only"
+)
 ENVIRONMENT_ALLOWLIST = ("PYTHONDONTWRITEBYTECODE", "PYTHONHASHSEED", "PYTHONNOUSERSITE")
 WORKER_ENVIRONMENT = MappingProxyType(
     {
@@ -246,7 +249,7 @@ def capture_candidate_source(path: Path) -> CandidateSourceSnapshotV1:
     finally:
         if descriptor is not None:
             os.close(descriptor)
-    validated = validate_task_term_source(source)
+    validated = statically_validate_task_term_source(source)
     return CandidateSourceSnapshotV1(
         path=target,
         source_bytes=source,
@@ -1269,6 +1272,11 @@ class RewardSandboxWorkerV1:
         self._exit_status: int | None = None
 
     def start(self) -> None:
+        raise RewardSandboxError(RUNTIME_ADMISSION_REFUSAL)
+
+    def _start_after_runtime_admission(self) -> None:
+        """R2 may call this only after adding a reviewed admission gate."""
+
         if self._started or self._closed or self._invalid:
             raise RewardSandboxError("worker instances are fresh and may be started only once")
         if capture_python_interpreter_identity(self.python_executable) != self.interpreter:
@@ -1481,7 +1489,7 @@ class RewardSandboxWorkerV1:
             self._closed = True
             self._cleanup()
             validator_hash = hashlib.sha256(
-                Path(validate_task_term_source.__code__.co_filename).read_bytes()
+                Path(statically_validate_task_term_source.__code__.co_filename).read_bytes()
             ).hexdigest()
             if self._address_space_limit != self.canary_receipt.address_space_limit:
                 raise RewardSandboxError(
@@ -1544,6 +1552,7 @@ __all__ = [
     "OS_CANARY_NAMES",
     "REQUEST_MAX_BYTES",
     "RESPONSE_MAX_BYTES",
+    "RUNTIME_ADMISSION_REFUSAL",
     "SEATBELT_EXECUTABLE",
     "SEATBELT_PROFILE_ID",
     "SELF_CANARY_NAMES",
