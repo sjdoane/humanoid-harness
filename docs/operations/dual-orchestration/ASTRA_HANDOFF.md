@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Independent review accepted T2 inputs; M1 is handed over. F1 numerical core passed review, with three lineage repairs identified. |
-| bottleneck | REJECT_F1: raw response retention, responder-visible request identity and full schema revalidation. No formula/runtime connection exists. |
-| next step | Collect the exact bounded F1 repair worker, reproduce focused tests and independently close its three findings. |
+| progress | F1 repair finished; parent reproduced 232 passed/16 deferred after a replay FIFO fix. Fable explicitly accepted T2 inputs. |
+| bottleneck | F1 independent closure remains; no T2 formula/compositor or real-model/training connection exists. |
+| next step | Collect exact F1 closure review, verify its snapshot and close or repair the remaining findings. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 20:10 UTC heartbeat; review collected and snapshot reverified.
+- Last checkpoint: 2026-09-05, 20:45 UTC heartbeat; repair collected, tests reproduced, T2 peer acceptance acknowledged.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -47,7 +47,12 @@
 | Pinned-main integration | Astra + Sol reviewer | ACCEPT_INTEGRATION at 19:06:56Z; handed to Fable | `8a48f32`; excludes later uncommitted F1 files |
 | F1 formula core | Sol builder + reviewer | REJECT_F1 at 19:48:21Z; three lineage defects | `F1_REVIEW_FINDINGS.md`; numerical core/input gates accepted within static scope |
 | T2 input module | Astra + reviewer | ACCEPT_T2_INPUT_ONLY at 19:48:21Z; 17 tests pass | `T2_INPUT_ACCEPTANCE.md`; not wired into formula or simulator |
-| F1 lineage repair | Sol writer | next bounded packet/active pointer | `TASK-F1-lineage-repair.md`; three source/test paths plus result only |
+| F1 lineage repair | Sol writer + Astra | finished 20:34:23Z; parent 232 passed/16 deferred | `F1_REPAIR_PARENT_CHECKPOINT.md`; includes one FIFO-open regression fix |
+| F1 closure review | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F1-closure-review.md`; static/synthetic-only verdict |
+
+- T2 exact interface accepted by Fable in
+  `20260905T202243.309823Z-181767ca33654e69aad5743d92537aeb`.
+  No duplicate phase-B input source was adopted; Fable owns removing its copy.
 
 - Current checkpoint and exact receipts: `F1_PARENT_CHECKPOINT.md`.
 - Fable selected new T2 COM speed target 3.0, not phase-A root speed; the old
