@@ -4,7 +4,7 @@
 |---|---|
 | progress | The harness loop now runs end to end on stock `Humanoid-v5` as a CLI: task T1 (speed profile), a frozen three-gait library, cycle 0 with four predeclared arms, a prompt-only LLM-designed cycle-1 oracle, and canonical cycle reports (`50fd60c`, `2fb31dc`, cycle 1 pending commit). |
 | bottleneck | None of the three tested step-300 running-speed handovers survived (`60/60` switching episodes fell: playback switched expert to simple and fell `20`-`25` steps later; handwritten and the cycle-1 candidate switched expert to medium and fell `23`-`60` and `22`-`57` steps later). Alternative phases, timings, and state-conditioned handovers remain untested, so this is not evidence of general handover infeasibility. Composition still needs a tracker that learns transitions from a composed reference, which is the block under construction. |
-| next step | Phase B: build the fine-tuning runtime as two implementation-only slices (`FT1` contracts, exact full-authority E1 warm start, switch-only phase transfer, composed-window runtime, tracking-only reward; `FT2` training worker, supervision, persistence, report v2, CLI `train`), then a disposable 20-minute smoke under a mailbox reservation; the five-seed cohort needs Samuel's authorization. |
+| next step | Commit FT2 (training worker, supervision, persistence, report v2, CLI `train` with a non-promotable smoke mode; no training ran); run repair slice `FT2R1` for the FT1 and E003R1 review findings (E1 admission binding, phase B execution seal, V2 velocity admission certificate, bounded actor reload, trace-grounded metrics, portable provenance, endpoint calibration plan); then the disposable 20-minute smoke under a mailbox reservation; the five-seed cohort needs Samuel's authorization. |
 
 ## Fable's authority
 
@@ -303,10 +303,10 @@ Phase B task-success endpoint, frozen before any phase B evaluation (SCI-003):
 |---|---|
 | Safety gate | `0/20` falls, no forbidden contact, all `1,000` steps completed; an unsafe arm never outranks a safe arm |
 | Episode success | fast, slow, and return-fast segment tolerances and both transition-latency bounds met; tolerances calibrated on a separate calibration-only split and frozen before candidate evaluation |
-| Primary endpoint | task-success proportion over the fixed evaluation seeds with an exact binomial interval |
+| Primary endpoint | per checkpoint: task-success proportion over the `20` fixed evaluation seeds with an exact binomial interval; arm-level inference uses the matched PPO seeds (five final checkpoints) as the independent units, paired across arms; episodes are never pooled as `n = 100` |
 | Secondary endpoints | equal-weight mean of the three segment errors, transition-window error, settle latency, time to first failure |
 | Ordering | safety gate, then task-success proportion, then segment-balanced error, then transition latency; no post-hoc weighted aggregate |
-| Controls | fixed training and evaluation seeds, budget, final-checkpoint rule, tracker, reward and reference manifests, evaluator digest |
+| Controls | fixed training and evaluation seeds, budget, final-checkpoint rule, tracker, reward and reference manifests, evaluator digest; tolerances (segment speed-error bands, transition-latency caps, settled-state band, censoring rule) calibrated on a disjoint calibration split of blocks and seeds with the complete procedure frozen before candidate evaluation |
 
 ## Phase B design decisions (2026-09-05T19:32Z)
 
@@ -401,6 +401,7 @@ goal ID.
 | 2026-09-05 | `LG-02`, `LG-05`, `LG-06`, `LG-16` | Record cycles 0 and 1 of the composition loop; conclude that controller switching cannot compose this library; make the fine-tuning runtime the next block and one steered cycle 2 the confirmation. | cycle reports `report_0`, `report_1`; designer runs `e003d1`, `e003d2` | cycle 2 confirms or refutes the infeasibility; the fine-tuning runtime smoke keeps identity at step 0 and trains | recorded 2026-09-05T18:51Z |
 | 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Freeze the phase B fine-tuning runtime design (full-authority E1 warm start, nearest-state phase transfer, tracking-only baseline reward, utility gate) and split implementation into `FT1` and `FT2`; training beyond the 20-minute smoke needs Samuel's authorization. | survey `sol-survey-20260905-ft`; phase A closure `74d7aa5` | FT1 passes the E1 receipt and phase-transfer tests; FT2 trains a fake runtime end to end; the smoke keeps identity at step 0 | recorded 2026-09-05T19:32Z |
 | 2026-09-05 | `LG-02`, `LG-05`, `LG-16` | Fold the Experiment 003 reviews: correct the steering and infeasibility record, freeze the phase B task-success endpoint, and run repair slice `E003R1` (evaluator and schema identities, deterministic scientific receipts, prior-report chain validation, sealed execution manifest, designer provenance receipts, recovery semantics, non-vacuous negatives) before the training-worker slice. | reviews `sol-review-sci-20260905-e003` (ACCEPT-WITH-REPAIRS, 6 P1) and `sol-review-adv-20260905-e003` (ACCEPT-WITH-REPAIRS, 9 P1, 1 P2) | repair slice passes its negatives; identical reruns give identical scientific receipts | recorded 2026-09-05T20:23Z |
+| 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT1 scientific review (ACCEPT-WITH-REPAIRS, 4 P1, 1 P2) and the E003R1 robustness review (ACCEPT-WITH-REPAIRS, 4 P1, 3 P2) into repair slice `FT2R1` before any training smoke; clarify the phase B endpoint's independent unit and calibration split; accept Astra's F2 formula interface with an adapter-owned velocity admission certificate. | reviews `sol-review-sci-20260905-ft1`, `sol-review-adv-20260905-e003r1`; Astra proposal `20260905T220539` | FT2R1 negatives pass; no smoke before the reservation | recorded 2026-09-05T23:08Z |
 
 ## Known strategy inconsistencies
 
