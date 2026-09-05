@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | A human-confirmed Fable session audited the ledger, added four goal rows, resolved the duplicate ADR index, replaced the local TQC bootstrap with a hash-pinned public expert base controller (ADR 0005), and opened the approved reward-first parallel track (ADR 0006). |
-| bottleneck | ADR 0005 awaits its Sol review receipts; the reward track has no executable reward contract, sandbox, or predeclared task metric yet. |
-| next step | Launch builder `TASK-20260904-03` when the reviews return, and the read-only reward-track design survey `TASK-20260904-04` when a slot frees. |
+| progress | The public expert base controller is imported and integrity-verified (ADR 0005; three actors); the reward sandbox B0 is host-verified and handed to Astra's lane (ADR 0006, ADR 0007); Slice 03B produced the first research-grade corpus result: `108/108` same-runtime clips replay-certified and an E3 fork corpus with `27/36` qualifying blocks (commit `41b2597`). |
+| bottleneck | The expert development screen has no result: the plain-versus-instrumented equivalence gate fired at its first reset, so the substep-contact instrumentation perturbs the observable MDP over a long rollout. Until that is diagnosed and fixed, no screen, tracker, or E4 work can start, and the reward lane's protected evaluator shares the same instrumentation. |
+| next step | Diagnose the divergence (read-only worker running), fix it under a versioned slice with a 1,000-step expert-actor equivalence canary, rerun the screen as a versioned v2 run, then the importer closure `03A2FIX2`, then packet B (residual PPO tracker plus E4 with gait-transition episodes) on the `9/14/4` role split below. |
 
 ## Fable's authority
 
@@ -174,6 +174,37 @@ iteration) supports this frame:
 | Consequence for E4 | The tracker screen must include gait-transition episodes, not only single-gait ones, because the composition task requires following all three gaits and their transitions. |
 | Open questions for Samuel or Lokesh | Selection-only versus blended references; online oracle execution inside the training framework; joint versus alternating revision of oracle and reward; which task-state signals the lab MDP exposes; acceptability of the three public gaits as the first benchmark. |
 
+## Corpus result and the instrumentation divergence (2026-09-05)
+
+Slice 03B (`41b2597`) is the first result on the tracker chain that rests on
+measured behavior rather than on artifact integrity.
+
+| item | result | consequence |
+|---|---|---|
+| Tier-D replay (E2 for the corpus) | `108/108` clips, `108,000/108,000` transitions exact in a separate process | the three actors are deterministic same-runtime references; the certificate binds clip bytes, runtime, and certifier source |
+| E3 fork corpus | `27/36` blocks qualified; pairs expert–medium `32/36`, expert–simple `29/36`; every pair failure came from a branch that fell, left the upright band, or touched the floor with a non-foot body, never from the first-action or future-variation thresholds | forks from a shared state are identifiable by actor; the surviving blocks are biased toward states from which all three actors stay upright for 1,000 steps |
+| Role split after failures | training blocks `9/12` (`120002`, `120008`, `120009` failed); E4 screen blocks `14/20` (`120102`, `120103`, `120105`, `120111`, `120118`, `120119` failed); sealed E5 blocks `4/4` | packet B must be designed on `9/14/4` with no seed replacement; if the training role needs more blocks, that is a new predeclared draw, not a refill |
+| Actor stability over 1,000 steps | expert fell in `2/36` blocks (healthy boundaries `171` and `629`); medium fell in `1/36` and left the upright band in `1/36`; simple fell in `2/36` and left the upright band in `3/36` | the screen's healthy and upright gates on `20` resets will sit near their thresholds for the expert; a `20/20` expectation is not supported by this evidence |
+| Expert development screen | no result: seed `96001` stopped on the plain-versus-instrumented reward canary before any gate was computed | the substep-contact instrumentation changes the observable MDP at some step; every path that uses it (corpus collector, screen, reward-lane protected evaluator) inherits the question of which environment is the frozen one |
+
+Decisions:
+
+1. The v1 run stays as recorded; it is not retried or relabeled. The fix ships
+   as its own slice with a regression canary that runs the expert actor for
+   `1,000` steps in both environments and compares state, observation, reward,
+   and termination at every step.
+2. If the diagnostic shows an instrumentation-only extra operation, the plain
+   environment remains the frozen MDP (ADR 0004 boundary unchanged) and the
+   instrumentation must become observation-preserving. If the plain path is
+   the one out of order, or the two cannot be reconciled without changing
+   contact readback semantics, the frozen runtime is redeclared in a decision
+   record before any rerun, and the corpus certificates are reinterpreted under
+   that declaration; they remain valid same-runtime certificates either way.
+3. Both lanes share the instrumentation. Astra's protected evaluator must not
+   accept a candidate-reward result until the equivalence question is closed,
+   because the eight-step smoke in the reward lane cannot detect a divergence
+   that appears after hundreds of steps.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -224,7 +255,7 @@ flowchart LR
 | gate | factor allowed to change | evidence required | current state |
 |---|---|---|---|
 | S0: interface | none | deterministic artifact, trace, metric, and evaluator contracts | implemented; regression evidence only |
-| S1: tracker admission | tracker family during development only | stable behavior plus exact immutable lineage | route recorded in ADR 0005; base controller import pending review and gate |
+| S1: tracker admission | tracker family during development only | stable behavior plus exact immutable lineage | ADR 0005 chain: import and E1 (expanded half) done; corpus certified and E3 qualifying corpus done 2026-09-05; expert development screen blocked by the instrumentation divergence; residual PPO tracker (E4) and E5 not started |
 | S2: causal use | reference-window intervention only | matched-state expected-direction effects | blocked by S1 |
 | S3: oracle comparison | oracle only | protected matched-budget comparison | not authorized |
 | S4: reward comparison | task reward only | frozen oracle (none on the stock MDP) and protected comparison | design v1 recorded in ADR 0006; builder slice B0 (no training) queued |
@@ -245,13 +276,13 @@ goal ID.
 | 2026-09-05 | `LG-02`, `LG-06`, `LG-07`, `LG-11` | Frame Experiment 003 as a three-gait composition task with state-triggered transitions and recovery; treat the tracker chain as prerequisite only; require gait-transition episodes in E4. | Samuel's alignment question via Astra; independent transcript reading | LLM-designed oracle versus elapsed-time and hand-written baselines under a frozen reward | recorded; five open questions for Samuel or Lokesh |
 | 2026-09-04 | `LG-03`, `LG-06`, `LG-11`, `LG-15` | Open the reward-first parallel track on stock `Humanoid-v5` (ADR 0006). | Samuel's answer `reward-first-track: approved`; anchor `LKS-A13`; charter Family B | Sol design survey, then a matched `r_0` baseline and one exploratory candidate cycle | design v1 adopted 2026-09-04 from the Sol survey; B0 queued |
 | 2026-09-04 | `LG-03` | Cycle 1 keeps the stock reward as `r_0` and records that its headroom is trivial; a frozen manual target-aware baseline arm is required from cycle 2 for an informative comparison. | Sol survey sections 3 and 5; Fable synthesis | Cycle-2 protocol adds the manual arm | recorded |
+| 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Record the corpus result (`108/108` certified, E3 `27/36`, role split `9/14/4`), preserve the stopped screen run, and require an instrumentation fix with a 1,000-step equivalence canary before any screen, tracker, or candidate-reward result. | Slice 03B receipts (`41b2597`); E3 certificate `c977f506…`; runner stop at seed `96001` | diagnostic worker report; fixed slice passes the canary; versioned screen v2 | recorded; diagnostic and two reviews running |
 
 ## Known strategy inconsistencies
 
-- `README.md`, `experiments/README.md`, and
+- `README.md` and `experiments/README.md` were updated by Slice 03B; check
   `experiments/bootstrap_tqc_humanoid/E1_INITIALIZATION_IDENTITY.md` still
-  describe the local TQC development screen and a ban on loading uploaded
-  checkpoints. They change only after Samuel answers Q1 and the builder slice
-  lands.
+  describes the local TQC development screen and the old ban on loading
+  uploaded checkpoints; it changes with the importer closure slice.
 - Speaker attribution in the transcript remains inferential. No decision in
   this audit depends on disputed wording.
