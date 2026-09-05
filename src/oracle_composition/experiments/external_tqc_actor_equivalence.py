@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata as importlib_metadata
 import json
 import os
 from collections.abc import Mapping
@@ -14,9 +15,13 @@ import numpy as np
 
 from oracle_composition.sources.external_sb3_actor import (
     AUTHORITY,
+    EXPECTED_LOCAL_VERSIONS,
     POLICY_SHA256,
     ExternalPretrainedActorAuthority,
     revalidate_external_pretrained_actor_authority,
+)
+from oracle_composition.sources.farama_tqc_sibling_registrations import (
+    SIBLING_REGISTRATION_SPECS,
 )
 
 from .artifact_io import publish_bytes_without_overwrite
@@ -32,10 +37,40 @@ from .tqc_actor_equivalence_primitives import (
 )
 from .tqc_actor_npz import ACTION_WIDTH, actor_state_sha256, validate_actor_arrays
 
-EXTERNAL_EQUIVALENCE_ID = "external_tqc_actor_strict_npz_equivalence/v1"
+EXTERNAL_EQUIVALENCE_ID = "external_tqc_actor_strict_npz_equivalence/v2"
 PURE_ACTOR_ARCHITECTURE_ID = "pure_torch_tqc_actor_348_256_256_17_relu_state_dependent_std/v1"
+VERIFIER_SOURCE_LOGICAL_PATH = (
+    "src/oracle_composition/experiments/external_tqc_actor_equivalence.py"
+)
+MAX_VERIFIER_SOURCE_BYTES = 1024 * 1024
 _OUTPUT_NAMES = ("mean", "log_std", "deterministic_action", "seeded_sample")
 _RECEIPT_ISSUER = object()
+SOURCE_POLICY_SHA256_BY_VARIANT = {
+    "expert": POLICY_SHA256,
+    **{variant: spec.policy_sha256 for variant, spec in SIBLING_REGISTRATION_SPECS.items()},
+}
+
+
+def _exact_json_match(value: object, expected: object) -> bool:
+    try:
+        return _exact_json_match_inner(value, expected)
+    except (RecursionError, TypeError, ValueError):
+        return False
+
+
+def _exact_json_match_inner(value: object, expected: object) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        if set(value) != set(expected):
+            return False
+        return all(_exact_json_match_inner(value[key], expected[key]) for key in expected)
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _exact_json_match_inner(observed, wanted)
+            for observed, wanted in zip(value, expected, strict=True)
+        )
+    return value == expected
 
 
 def _canonical_json(value: object) -> bytes:
@@ -60,6 +95,68 @@ def _canonical_sha256(value: object, *, field_name: str) -> str:
     ):
         raise ExperimentContractError(f"{field_name} must be a lowercase SHA-256")
     return value
+
+
+def _verifier_source_identity() -> dict[str, object]:
+    try:
+        payload = Path(__file__).resolve(strict=True).read_bytes()
+    except OSError as exc:
+        raise ExperimentContractError(
+            "external equivalence verifier source is unavailable"
+        ) from exc
+    if not 0 < len(payload) <= MAX_VERIFIER_SOURCE_BYTES:
+        raise ExperimentContractError("external equivalence verifier source size differs")
+    return {
+        "logical_path": VERIFIER_SOURCE_LOGICAL_PATH,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "byte_count": len(payload),
+    }
+
+
+def _distribution_identity(name: str) -> dict[str, str]:
+    try:
+        distribution = importlib_metadata.distribution(name)
+        observed_name = distribution.metadata["Name"]
+        version = distribution.version
+    except (KeyError, OSError, ValueError, importlib_metadata.PackageNotFoundError) as exc:
+        raise ExperimentContractError(f"{name} distribution identity is unavailable") from exc
+    if type(observed_name) is not str or type(version) is not str:
+        raise ExperimentContractError(f"{name} distribution identity is invalid")
+    return {"name": observed_name, "version": version}
+
+
+def _verifier_runtime_identity() -> dict[str, object]:
+    import torch
+
+    identity = {
+        "torch": {
+            "runtime_version": str(torch.__version__),
+            "distribution": _distribution_identity("torch"),
+        },
+        "numpy": {
+            "runtime_version": np.__version__,
+            "distribution": _distribution_identity("numpy"),
+        },
+    }
+    expected = {
+        "torch": {
+            "runtime_version": EXPECTED_LOCAL_VERSIONS["torch"],
+            "distribution": {
+                "name": "torch",
+                "version": EXPECTED_LOCAL_VERSIONS["torch"],
+            },
+        },
+        "numpy": {
+            "runtime_version": EXPECTED_LOCAL_VERSIONS["numpy"],
+            "distribution": {
+                "name": "numpy",
+                "version": EXPECTED_LOCAL_VERSIONS["numpy"],
+            },
+        },
+    }
+    if not _exact_json_match(identity, expected):
+        raise ExperimentContractError("external equivalence verifier runtime differs")
+    return identity
 
 
 def _actor_outputs(
@@ -140,17 +237,16 @@ def _receipt_payload(
     authority: ExternalPretrainedActorAuthority,
     *,
     hashes: Mapping[str, Mapping[str, str]],
-    rng_before_sha256: str,
-    rng_after_sha256: str,
 ) -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "equivalence_id": EXTERNAL_EQUIVALENCE_ID,
         "authority": AUTHORITY,
         "evidence_class": "external_base_import",
         "evidence_level": "interface_check",
+        "source_variant": authority.source_variant,
         "import_receipt_sha256": authority.receipt_sha256,
-        "source_policy_sha256": POLICY_SHA256,
+        "source_policy_sha256": SOURCE_POLICY_SHA256_BY_VARIANT[authority.source_variant],
         "strict_actor_npz": {
             "sha256": authority.loaded_actor.content_sha256,
             "byte_count": authority.loaded_actor.byte_count,
@@ -176,10 +272,13 @@ def _receipt_payload(
         },
         "sampling_seed": EQUIVALENCE_SAMPLING_SEED,
         "paired_output_sha256": {name: dict(hashes[name]) for name in _OUTPUT_NAMES},
+        "verifier": {
+            "source": _verifier_source_identity(),
+            "runtime": _verifier_runtime_identity(),
+        },
         "cpu_rng_state": {
-            "before_sha256": rng_before_sha256,
-            "after_sha256": rng_after_sha256,
             "preserved": True,
+            "ambient_values_recorded": False,
         },
         "passed": True,
         "claim": {
@@ -203,6 +302,7 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
         "authority",
         "evidence_class",
         "evidence_level",
+        "source_variant",
         "import_receipt_sha256",
         "source_policy_sha256",
         "strict_actor_npz",
@@ -211,6 +311,7 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
         "fixed_batch",
         "sampling_seed",
         "paired_output_sha256",
+        "verifier",
         "cpu_rng_state",
         "passed",
         "claim",
@@ -218,29 +319,44 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
     if type(value) is not dict or set(value) != required:
         raise ExperimentContractError("external actor equivalence receipt fields differ")
     if (
-        value["schema_version"] != 1
+        type(value["schema_version"]) is not int
+        or value["schema_version"] != 2
+        or type(value["equivalence_id"]) is not str
         or value["equivalence_id"] != EXTERNAL_EQUIVALENCE_ID
+        or type(value["authority"]) is not str
         or value["authority"] != AUTHORITY
+        or type(value["evidence_class"]) is not str
         or value["evidence_class"] != "external_base_import"
+        or type(value["evidence_level"]) is not str
         or value["evidence_level"] != "interface_check"
-        or value["source_policy_sha256"] != POLICY_SHA256
+        or type(value["source_variant"]) is not str
+        or value["source_variant"] not in SOURCE_POLICY_SHA256_BY_VARIANT
+        or type(value["source_policy_sha256"]) is not str
+        or value["source_policy_sha256"] != SOURCE_POLICY_SHA256_BY_VARIANT[value["source_variant"]]
+        or type(value["sampling_seed"]) is not int
         or value["sampling_seed"] != EQUIVALENCE_SAMPLING_SEED
         or value["passed"] is not True
     ):
         raise ExperimentContractError("external actor equivalence identity differs")
     _canonical_sha256(value["import_receipt_sha256"], field_name="import receipt SHA-256")
     fixed_batch = value["fixed_batch"]
-    if fixed_batch != {"shape": [4, 348], "sha256": EQUIVALENCE_OBSERVATION_SHA256}:
+    if not _exact_json_match(
+        fixed_batch,
+        {"shape": [4, 348], "sha256": EQUIVALENCE_OBSERVATION_SHA256},
+    ):
         raise ExperimentContractError("external actor equivalence batch differs")
-    if value["architecture"] != {
-        "id": PURE_ACTOR_ARCHITECTURE_ID,
-        "implementation": "pure torch functional linear-ReLU-linear-ReLU heads",
-        "policy_kwargs": {"use_sde": False},
-        "layers": [348, 256, 256, 17],
-        "log_std_clamp": [LOG_STD_MIN, LOG_STD_MAX],
-        "deterministic_action": "tanh(mean)",
-        "seeded_sample": "tanh(Normal(mean, exp(clamped_log_std)).rsample())",
-    }:
+    if not _exact_json_match(
+        value["architecture"],
+        {
+            "id": PURE_ACTOR_ARCHITECTURE_ID,
+            "implementation": "pure torch functional linear-ReLU-linear-ReLU heads",
+            "policy_kwargs": {"use_sde": False},
+            "layers": [348, 256, 256, 17],
+            "log_std_clamp": [LOG_STD_MIN, LOG_STD_MAX],
+            "deterministic_action": "tanh(mean)",
+            "seeded_sample": "tanh(Normal(mean, exp(clamped_log_std)).rsample())",
+        },
+    ):
         raise ExperimentContractError("external actor equivalence architecture differs")
     strict_actor = value["strict_actor_npz"]
     if type(strict_actor) is not dict or set(strict_actor) != {
@@ -276,24 +392,31 @@ def validate_external_actor_equivalence_receipt(value: object) -> dict[str, obje
         ):
             raise ExperimentContractError(f"external actor {name} hashes differ")
         _canonical_sha256(pair["source"], field_name=f"external actor {name} SHA-256")
+    verifier = value["verifier"]
+    expected_verifier = {
+        "source": _verifier_source_identity(),
+        "runtime": _verifier_runtime_identity(),
+    }
+    if not _exact_json_match(verifier, expected_verifier):
+        raise ExperimentContractError("external actor equivalence verifier identity differs")
     rng = value["cpu_rng_state"]
-    if (
-        type(rng) is not dict
-        or set(rng) != {"before_sha256", "after_sha256", "preserved"}
-        or rng["before_sha256"] != rng["after_sha256"]
-        or rng["preserved"] is not True
+    if not _exact_json_match(
+        rng,
+        {"preserved": True, "ambient_values_recorded": False},
     ):
         raise ExperimentContractError("external actor CPU RNG preservation differs")
-    _canonical_sha256(rng["before_sha256"], field_name="CPU RNG state SHA-256")
-    if value["claim"] != {
-        "establishes": "exact output equivalence on one fixed 4 x 348 batch",
-        "does_not_establish": [
-            "E1",
-            "tracker admission",
-            "reference use",
-            "Humanoid behavior",
-        ],
-    }:
+    if not _exact_json_match(
+        value["claim"],
+        {
+            "establishes": "exact output equivalence on one fixed 4 x 348 batch",
+            "does_not_establish": [
+                "E1",
+                "tracker admission",
+                "reference use",
+                "Humanoid behavior",
+            ],
+        },
+    ):
         raise ExperimentContractError("external actor equivalence claim ceiling differs")
     return value
 
@@ -336,7 +459,7 @@ class ExternalActorEquivalenceReceipt:
             )
         except ExperimentContractError:
             raise
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
             raise ExperimentContractError("sealed equivalence receipt is invalid") from exc
         return validate_external_actor_equivalence_receipt(value)
 
@@ -345,13 +468,17 @@ class ExternalActorEquivalenceReceipt:
         _canonical_sha256(self.receipt_sha256, field_name="equivalence receipt SHA-256")
         if (
             self._creator_pid != os.getpid()
+            or type(self.receipt_byte_count) is not int
             or self.receipt_byte_count != len(self.receipt_bytes)
             or hashlib.sha256(self.receipt_bytes).hexdigest() != self.receipt_sha256
         ):
             raise ExperimentContractError("external actor equivalence receipt seal differs")
         value = self.to_dict()
         if (
-            value["import_receipt_sha256"] != authority.receipt_sha256
+            value["source_variant"] != authority.source_variant
+            or value["source_policy_sha256"]
+            != authority.to_receipt_dict()["source"]["policy_pth"]["sha256"]
+            or value["import_receipt_sha256"] != authority.receipt_sha256
             or value["strict_actor_npz"]["sha256"] != authority.loaded_actor.content_sha256
             or value["actor_state"]["source_sha256"] != actor_state_sha256(authority.source_arrays)
         ):
@@ -394,15 +521,11 @@ def verify_external_actor_equivalence(
             "source": canonical_array_sha256(source),
             "strict_npz": canonical_array_sha256(strict),
         }
-    before_sha256 = hashlib.sha256(rng_before.numpy().tobytes(order="C")).hexdigest()
-    after_sha256 = hashlib.sha256(rng_after.numpy().tobytes(order="C")).hexdigest()
-    if before_sha256 != after_sha256 or not torch.equal(rng_before, rng_after):
+    if not torch.equal(rng_before, rng_after):
         raise ExperimentContractError("CPU RNG state changed during external equivalence")
     payload = _receipt_payload(
         authority,
         hashes=hashes,
-        rng_before_sha256=before_sha256,
-        rng_after_sha256=after_sha256,
     )
     validate_external_actor_equivalence_receipt(payload)
     receipt_bytes = _canonical_json(payload) + b"\n"

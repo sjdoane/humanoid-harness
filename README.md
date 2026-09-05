@@ -19,8 +19,9 @@ task + references + r0
 | Evidence class | Current state |
 |---|---|
 | **research target** | Autonomous, steerable iteration over reference oracle `O_k` and task reward `r_k` |
-| **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, strict data-only source projection, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
-| **measured evidence** | Interface/regression checks, one non-admitted falling tracker exploration, and one reviewed offline numeric-reference sensitivity probe; no stable-tracking, formal causal-use, oracle-improvement, reward-improvement, or cross-MDP result |
+| **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, observation-preserving corpus capture with per-step plain-runtime receipts, full-integration replay bundles with predecessor-transition cache reconstruction, E3 fork checks, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
+| **measured evidence** | Run v2: `108/108` named three-actor corpus clips and `20/20` expert screen clips passed separate-process full-clip replay and per-step plain-runtime comparison. The corpus qualified `28/36` E3 blocks; the expert failed the predeclared screen because only `19/20` resets stayed healthy and upright, although velocity and displacement gates passed. No stable-tracking, formal causal-use, E4, E5, oracle-improvement, reward-improvement, naturalness, robustness, or cross-MDP result |
+| **Experiment 003** | Composition cycle 0 ran four frozen controller-switching arms over seeds `97001`-`97020`; all 20 deterministic replay hashes matched. Median speed MAE / falls: `single_fast 2.0742 m/s / 0`, `single_slow 3.3071 / 0`, `playback 3.1803 / 20`, `handwritten 3.2062 / 20`. The [cycle-0 report](experiments/003_composition_speed_profile/cycles/cycle_0/report_0.md) and [cycle-1 designer prompt](experiments/003_composition_speed_profile/cycles/cycle_1/designer_prompt.md) exist. This is `exploratory_oracle_cycle`; controller switching stands in for tracker following and supports no oracle-quality claim. |
 
 ## Quick start
 
@@ -80,6 +81,7 @@ interface check. It is not a trained-policy or oracle demonstration.
 
 | Source | Local use | Current ceiling |
 |---|---|---|
+| Farama `Humanoid-v5` TQC expert, medium, and simple actors | Hash-pinned source bytes projected to strict NPZ; `108` corpus and `20` expert screen trajectories retained locally with per-step plain-runtime receipts | Qualifying E3 fork corpus (`28/36` blocks) only; exact expert failed the predeclared screen (`19/20` healthy and upright), so no tracker or broader behavior claim |
 | Minari `mujoco/humanoid/expert-v0` | Exact commit, file sizes, and SHA-256 values are registered; episode 0 projects data-only into the 45D reference ABI | Tier K only; root x/y is absent and dataset redistribution rights are unresolved |
 | DeepMimic `humanoid3d` motions | Exact MIT-licensed source files are audited in the research tree | Format/source evidence only; retargeting and Tier-D certification remain undone |
 

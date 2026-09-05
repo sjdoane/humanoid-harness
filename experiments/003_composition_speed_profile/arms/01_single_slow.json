@@ -1,0 +1,16 @@
+{
+  "behaviors": [
+    "simple"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "slow",
+  "oracle_id": "single_slow",
+  "schema_version": 1,
+  "states": {
+    "slow": {
+      "behavior": "simple",
+      "min_dwell": 0
+    }
+  },
+  "transitions": []
+}

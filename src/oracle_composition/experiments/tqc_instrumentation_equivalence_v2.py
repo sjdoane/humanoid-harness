@@ -1,8 +1,9 @@
 """Exact preflight dynamics-equivalence canary for TQC v2 evaluation.
 
 The receipt proves only that the contact-instrumented evaluation environment
-matched the plain training environment on one frozen action trace. It is not
-controller or locomotion evidence.
+matched the plain training environment on one frozen action trace. It does not
+exercise the reference-corpus collector or its boundary-capture helper. It is
+not controller or locomotion evidence.
 """
 
 from __future__ import annotations

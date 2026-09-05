@@ -1,0 +1,957 @@
+{
+  "claim_ceiling": "retained_108_clip_full_replay_and_e3_fork_identifiability_only_no_screen_tracker_e4_e5_oracle_naturalness_or_robustness_claim",
+  "commands": [
+    {
+      "command": ".venv/bin/pytest -q tests/experiments/test_reference_corpus_v1.py::test_runner_receipt_loader_requires_exactly_one_terminating_lf",
+      "result": "1 passed in 0.39s"
+    },
+    {
+      "command": ".venv/bin/python reset-free ACTOR_REGISTRY _actor_identity preflight",
+      "result": "six canonical-JSON-plus-one-LF receipts and three strict NPZ hashes matched; reset_count=0"
+    },
+    {
+      "command": ".venv/bin/python -m oracle_composition.experiments.reference_corpus_runner",
+      "result": "exit 1 after collecting 108 corpus clips; stopped at first screen canary"
+    },
+    {
+      "command": ".venv/bin/python -m oracle_composition.experiments.reference_corpus_certifier --request artifacts/reference_corpus_v1/tier_d_certifier_request_corpus_only_diagnostic_v1.json",
+      "result": "exit 0; 108 of 108 clips passed all 1000 transitions"
+    },
+    {
+      "command": ".venv/bin/python pure E3 certification over retained bundles",
+      "result": "27 of 36 blocks and 61 of 72 pairs passed"
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/experiments/test_reference_corpus_v1.py",
+      "result": "29 passed in 1.06s"
+    },
+    {
+      "command": ".venv/bin/pytest -q -rf --deselect tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly",
+      "result": "1250 passed, 44 failed, 11 skipped, 1 deselected in 114.24s; failure IDs exactly equal saved sandbox baseline"
+    },
+    {
+      "command": ".venv/bin/ruff check .",
+      "result": "pass"
+    },
+    {
+      "command": ".venv/bin/ruff format --check .",
+      "result": "231 files already formatted"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "counts": {
+    "corpus": {
+      "attempted_clips": 108,
+      "collected_clips": 108,
+      "per_actor": {
+        "expert": {
+          "failed_tier_d": 0,
+          "passed_tier_d": 36
+        },
+        "medium": {
+          "failed_tier_d": 0,
+          "passed_tier_d": 36
+        },
+        "simple": {
+          "failed_tier_d": 0,
+          "passed_tier_d": 36
+        }
+      },
+      "tier_d_failed_clips": 0,
+      "tier_d_passed_clips": 108,
+      "transitions_verified": 108000
+    },
+    "e3": {
+      "blocks_failed": 9,
+      "blocks_passed": 27,
+      "expert_vs_medium_failed": 4,
+      "expert_vs_medium_passed": 32,
+      "expert_vs_simple_failed": 7,
+      "expert_vs_simple_passed": 29,
+      "qualifying_corpus": true
+    },
+    "screen": {
+      "attempted_seeds": [
+        96001
+      ],
+      "completed_clips": 0,
+      "gates_computed": false,
+      "required_clips": 20,
+      "result": null
+    },
+    "tests": {
+      "focused_passed": 29,
+      "full_deselected": 1,
+      "full_failed_sandbox_baseline": 44,
+      "full_passed": 1250,
+      "full_skipped": 11
+    }
+  },
+  "generated_utc": "2026-09-05T05:56:24Z",
+  "receipt_sha256": {
+    "actor_preconditions": {
+      "expert": {
+        "equivalence": "65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e",
+        "import": "b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7",
+        "npz": "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
+      },
+      "medium": {
+        "equivalence": "ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487",
+        "import": "b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172",
+        "npz": "2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04"
+      },
+      "simple": {
+        "equivalence": "604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268",
+        "import": "bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7",
+        "npz": "b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917"
+      }
+    },
+    "attempt_ledger": "29c03cbbd89cbe3045021e54bd2edb6e0a47f8624d152aefa22f01377e24c5e6",
+    "corpus_manifest": "87c25d9b380605556a62681e44879943275a358b7136b322e0b103f2b8dff9f5",
+    "e3_fork_certificate": "c977f5068e7c71bcd75a91da3ccf5fc5825e63f3cad4d1608f4106ba64be50fa",
+    "e3_manifest": "003b5b045ca9f8af2b0af3f559af206e1000835deea98ff98bd45a79fa5b9504",
+    "e1_initialization_identity": "28725ecfba2ca89f4b4608e5e8d5b5024cfe2ed8df71383bc03a248891edf266",
+    "full_suite_log": "6787a1c8f50cf1ef7f5100a2e8082faadff4e25a24312f0fe206e75aca777fa8",
+    "per_clip_tier_d_certificates": [
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120001-expert",
+        "seed": 120001,
+        "sha256": "f01ea7c2e307c7828678e6b692b21355ad4d9077433947967b5315dadd706376"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120001-medium",
+        "seed": 120001,
+        "sha256": "82c890a4a66518a67a4cd18caf2d75342b909a7caa976e0a7d6b982f5ce9032b"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120001-simple",
+        "seed": 120001,
+        "sha256": "817a244776b9fd06677bb7d8f3bd884afc30f0f2260a9ce42f32b312f74ab9ac"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120002-expert",
+        "seed": 120002,
+        "sha256": "92bcc41be77e89e46d28fe6a400e6e74b6151dc0def597aef2b9315ac5d985db"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120002-medium",
+        "seed": 120002,
+        "sha256": "393a2604c170e7c9de977c08b9e4993d592beb7aed95d1456a8fb83f26ee5bfd"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120002-simple",
+        "seed": 120002,
+        "sha256": "366f3a0e52435ad7b8de7c1837de24d640d1e74d85d2d55231dd7bfcce887b20"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120003-expert",
+        "seed": 120003,
+        "sha256": "406629626caced16f04d84a4ff88bad395f22a9a33927c28d82b199f8059be00"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120003-medium",
+        "seed": 120003,
+        "sha256": "d6514fa0fa49770434d8d36134772abbb75438f2ad09f3b128e9140ff73f8a9e"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120003-simple",
+        "seed": 120003,
+        "sha256": "cc5bc2a16b652c273ebb535abebbccb7f809405d623eb19680db267f06c8b1ef"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120004-expert",
+        "seed": 120004,
+        "sha256": "c0c4055582dac30bfb30671eed6182d269501514366b166e14ecfe4aac78a3cf"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120004-medium",
+        "seed": 120004,
+        "sha256": "e85d91e342ce52130e8d5f778e4958dcb52ace757dde51105bc749598571cda1"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120004-simple",
+        "seed": 120004,
+        "sha256": "1907479d605b7fdeaf3c3b22d5601f0dedc4ccd03bf1f8ccdc6f54f92a927645"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120005-expert",
+        "seed": 120005,
+        "sha256": "6fba9a2407fa342621cd0fe49f591f23a356da5be802e2c530fcb0d7a6d0c2b3"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120005-medium",
+        "seed": 120005,
+        "sha256": "afb7dd9605444ac32f39014df3ec2771da89f0f31cff303311ad584683a3770d"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120005-simple",
+        "seed": 120005,
+        "sha256": "fa5c881075dbe755cd3f8ab0b621427f473475609e72519ee5ccb4e955303524"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120006-expert",
+        "seed": 120006,
+        "sha256": "19a66a27cb1a00262dda6aa5febcc042593948a36a4f748c28dd07e88dcc4792"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120006-medium",
+        "seed": 120006,
+        "sha256": "491c5727ae78854eb534ffb4f5cfcf4cff17b904eb6fb3820df98f19b0237443"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120006-simple",
+        "seed": 120006,
+        "sha256": "074022ca6ff060fcf03bdc7ec8f9329fbc0be88cd34232e1f34c9023f38fa374"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120007-expert",
+        "seed": 120007,
+        "sha256": "5704dc3a673075425e481b96a8725348c391b067c360606ad5d6523b01f912ba"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120007-medium",
+        "seed": 120007,
+        "sha256": "534ccd93f443411bb4d644e4b4061002458276543edaa89e33a2e6c6602c0c7c"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120007-simple",
+        "seed": 120007,
+        "sha256": "572c35625d8abe85576cba1fe2d9b206545cd221c0139474256d4a7a446d3f7b"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120008-expert",
+        "seed": 120008,
+        "sha256": "fc78bce1e838c8ca18d85bedb6820b6b983fbd8ccefe9d1eb179aa62a9b11af3"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120008-medium",
+        "seed": 120008,
+        "sha256": "37d728119ad7c463aaec6b9a701223613e18a4ee4dfed64831ea6fd84948d577"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120008-simple",
+        "seed": 120008,
+        "sha256": "fbd55fbbdf123ec53a1505d604eb875bb633d67b7063db3f0ec1bca25d557eca"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120009-expert",
+        "seed": 120009,
+        "sha256": "8cee95aed7d8e7c5ea702596643d3fcf507b0499af1717214cd0c9ef7075c5bd"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120009-medium",
+        "seed": 120009,
+        "sha256": "1b970add84410e1c6a6b8874a2d2eafaaa7d6acddc92416724d2801ecca43879"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120009-simple",
+        "seed": 120009,
+        "sha256": "9abee1b41ce4a79597352b9671cf61369f4042699ac8e58339c78b215e74b370"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120010-expert",
+        "seed": 120010,
+        "sha256": "0d937b5c42e842c70560a411f57f72d242de23172461ad18b01903503f92613e"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120010-medium",
+        "seed": 120010,
+        "sha256": "804c3c24fec193961485d656c3d10053134e1781ea289b541fafb05ee9d9e6e5"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120010-simple",
+        "seed": 120010,
+        "sha256": "fdb74b370c216a79d346c3090afdf5b83a1c1170e41b0c62c5e0266c18d2024a"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120011-expert",
+        "seed": 120011,
+        "sha256": "b92f90f6fe1b0a97be8206c350930398da6d2063b22f3227cfd1ee166f7da0d2"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120011-medium",
+        "seed": 120011,
+        "sha256": "2ba0327bc69239fe9cf9c6940c6a36c1de93e5f25160cb2c7e0b71ec721bed50"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120011-simple",
+        "seed": 120011,
+        "sha256": "350ae326654fe88358857dda91417e0826707276c07c370492fed834e83b710b"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120012-expert",
+        "seed": 120012,
+        "sha256": "3098057639ffe22818fecccf36d6c8576e9d9a02843f079d5aa7a6f202e41bbd"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120012-medium",
+        "seed": 120012,
+        "sha256": "34af61f9cf2d73ff7dd98fdfbb75caae1409cc0ccd7591a764111afde0281b45"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120012-simple",
+        "seed": 120012,
+        "sha256": "d64e4b1e6ce0e9ddf5dd177e50a4f1c070f8280f6b53ecc633ba7d2e80620ee8"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120101-expert",
+        "seed": 120101,
+        "sha256": "84ef7015e2a1da59ba0dd9cc61f78bcbfd348b7cea9c7c00d2c3ecad18628ca5"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120101-medium",
+        "seed": 120101,
+        "sha256": "b094f0d916fdb4079fb768864312c3bf0f8ac55a144050ab24e35e46023548ea"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120101-simple",
+        "seed": 120101,
+        "sha256": "006a1a15e2fc13bd27e018904f334a8d40fe55d94751bac285dff2d40f00bc6c"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120102-expert",
+        "seed": 120102,
+        "sha256": "8f6aa0a34299345616d768d74658bc760e7756fb18b8822194fa64e0a74fb7c6"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120102-medium",
+        "seed": 120102,
+        "sha256": "93aae0cca6977abd1d44171040640e7adadc5ac24bb97f2e2554d21c99994729"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120102-simple",
+        "seed": 120102,
+        "sha256": "97eb3a2b89f8aeeb63bd16117861242c287e2af6c1b2d7372f9c4f98ba2da0b0"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120103-expert",
+        "seed": 120103,
+        "sha256": "2486f0759c80df745820ba9a4079bb38c09b654a8c8d09404c12d9858217a0fc"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120103-medium",
+        "seed": 120103,
+        "sha256": "e29b31aeba19135d610e0646cbfaa1ce4b7c20c4116b8188414b3243d1b07da1"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120103-simple",
+        "seed": 120103,
+        "sha256": "12ae218b6e19820566eaf600f1d90a216f8250f4cb4ed4e46a658978f0d6d8b7"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120104-expert",
+        "seed": 120104,
+        "sha256": "ecfdaacaf2520216341ad3ecc66efcead8389c3d582cef86c624714cde6fce09"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120104-medium",
+        "seed": 120104,
+        "sha256": "83596eef1e0054de20883c556d8173eaac7eeaa1166e26ee122c0d54002abfa6"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120104-simple",
+        "seed": 120104,
+        "sha256": "c565425c37133d6f65d232734853291080ada5741ad9f9050b07fab0d72e9b82"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120105-expert",
+        "seed": 120105,
+        "sha256": "a5a9991c85a9a07a395ff05eb4bb79d967f18389bcf184bfaa7a36326a739f96"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120105-medium",
+        "seed": 120105,
+        "sha256": "1688174b0622a89ed4db57acc2c308ba066963574af821754f265fd59fb18c5d"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120105-simple",
+        "seed": 120105,
+        "sha256": "00fb743755998569fc860896688ebe100384f4fb5259b58d493ece0b25e0515f"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120106-expert",
+        "seed": 120106,
+        "sha256": "e8de02bab2abb588e495cbab575dfa9f7874a7ebe1419a241a399141709caf28"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120106-medium",
+        "seed": 120106,
+        "sha256": "3212f35d77490079e20e4cb1681048733f4ca1ddd9ac1998134a1d08002753d7"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120106-simple",
+        "seed": 120106,
+        "sha256": "d01a1f4db20dff9fd66a35d24a6bad5a0cb5ce76546c57976b6516dd6398777d"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120107-expert",
+        "seed": 120107,
+        "sha256": "8fe4dc43c63670247f5949cb616771532a268d4881818ce3a56239f43cd1f51d"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120107-medium",
+        "seed": 120107,
+        "sha256": "93a167873d0b27207b3b3f3458c69f427169b7472882efbb550b493fd32677a9"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120107-simple",
+        "seed": 120107,
+        "sha256": "a6a96e2dc4520a0846d367532c7c1b5b44878c3a11fd983d82066d4157969966"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120108-expert",
+        "seed": 120108,
+        "sha256": "42553cf7fd5d6ae24f3ff75eb2f302cff91fe849b8b0c8de62fc86929f512035"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120108-medium",
+        "seed": 120108,
+        "sha256": "1e20d1508e7a32426acd11d67710afed4b6dd05535841bffa4157cee2c49d0aa"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120108-simple",
+        "seed": 120108,
+        "sha256": "07b405bb06bd5286c64c927acad1f17e43ac44ef06aed6126854df5a7a48d4a1"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120109-expert",
+        "seed": 120109,
+        "sha256": "d032734f6473566972fe874a0191962163ab8c08a34f3363e8946a8f00dc251a"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120109-medium",
+        "seed": 120109,
+        "sha256": "3b6d122d72603e88b245b40cb21f8a6f6a152fabb8f1dae3eb7b1fc57b5a3d20"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120109-simple",
+        "seed": 120109,
+        "sha256": "a4c69d3b5d6d43c140c8ff68e2a37b826ca7da8e1da74a09cd7d17f9b294947f"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120110-expert",
+        "seed": 120110,
+        "sha256": "e3b89c3cbb7fab2ba7e268444f090eaf291795e2ef2195c2d713b0851116ec52"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120110-medium",
+        "seed": 120110,
+        "sha256": "4cdcb0ef89a1404a0e3fb98b6a891ef92790865180070afbfcbd01f20ede0a41"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120110-simple",
+        "seed": 120110,
+        "sha256": "5e9b4a67a058ce1e25ee9be163b376cca0ae058ffc0f5ade0ca7ff3eb0c1a56a"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120111-expert",
+        "seed": 120111,
+        "sha256": "f75afd387a0e4df7562ab55a4b9366b539ceda625f77a1f242527de9ae6ee974"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120111-medium",
+        "seed": 120111,
+        "sha256": "cfab35da31ce5d0872af2fd297b880761fb5c84f0202b839b5c29077f10fcbaa"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120111-simple",
+        "seed": 120111,
+        "sha256": "797d921b0f9a7c83f3f1269c3d0e86111cbe9651701f1f7f1cab1a14a05d16ca"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120112-expert",
+        "seed": 120112,
+        "sha256": "929a8be00d404d1052af927eb55085e4d2ce57651803f7f7880275ff25b38b44"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120112-medium",
+        "seed": 120112,
+        "sha256": "fcd53e9b8d551bbb4b4b7a86db8f6b6bc8ca9ed8088ba77bf3422725c1298a7f"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120112-simple",
+        "seed": 120112,
+        "sha256": "892f06230f2854fc521b86f80d3f583944fc31ddf8915a78b1e1fce3290dce0f"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120113-expert",
+        "seed": 120113,
+        "sha256": "285e46fd787a426a7eb533527d82578461c68205ffccd02b536146c0baf2c755"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120113-medium",
+        "seed": 120113,
+        "sha256": "14cc00baeffb2ba64e12750f2cf6c104f61ac95c3f1db8508570a3d4fee6a7d3"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120113-simple",
+        "seed": 120113,
+        "sha256": "1b99c6fe1c9052067390604b98b3081f0b5a971ddf4a438743803cdccbacf1bf"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120114-expert",
+        "seed": 120114,
+        "sha256": "269fdf68ee95b79067502b326ccd753969e647b8a1e0370459531a485134325b"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120114-medium",
+        "seed": 120114,
+        "sha256": "914ea7f92360fae5535d814e76b168e4b9da31a9126034bff905a64882c0c37c"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120114-simple",
+        "seed": 120114,
+        "sha256": "69876fe0abfc79ae8d0adeca52196fd911abff1790f50abe941aae9574f63bda"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120115-expert",
+        "seed": 120115,
+        "sha256": "e03729b3e5e922b8aae07b12fedd8bc3a147b069488475561b74737bb2db0f05"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120115-medium",
+        "seed": 120115,
+        "sha256": "48bd8880ec1d63edbbc844d5dd45e6d7e952d96567f91590152a8311caa0bb54"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120115-simple",
+        "seed": 120115,
+        "sha256": "686cb7326c80467409bea4b95443cab297041a082ec182f8ef707799531f420b"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120116-expert",
+        "seed": 120116,
+        "sha256": "d6895f75a1b07114bd187407a93ead6b8dfe1ed37d65fbf89a414cdc858b7905"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120116-medium",
+        "seed": 120116,
+        "sha256": "a77019c2538b786be8379aaa219a7d7a776c87a84ca68169f13b212a0a1195a3"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120116-simple",
+        "seed": 120116,
+        "sha256": "87924ab051830deaaf70fdaa26fa67417af0edc53eb6ea07b12a97a08d524b9b"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120117-expert",
+        "seed": 120117,
+        "sha256": "be4d4e8b205765fb7580027d17b212aca1e312fd1df776e35f877088e11c3042"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120117-medium",
+        "seed": 120117,
+        "sha256": "dd100f3b04368af441ee246ccfc1c5e9d56710c04c28bc07fd75d69709079cf6"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120117-simple",
+        "seed": 120117,
+        "sha256": "559b7042282b5fd2820a59db183c12893454326c9d4d41f8f8032d0d3f71856d"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120118-expert",
+        "seed": 120118,
+        "sha256": "1a630b5f0e17fb54fd131f7df2cc978e664dbbffd398b05a9e9a55d9b9fb4cc7"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120118-medium",
+        "seed": 120118,
+        "sha256": "7db18e5b51736bc876edea937530d1319f1973a95292587ec608653e404d2740"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120118-simple",
+        "seed": 120118,
+        "sha256": "a334aeb4629efdda9890d8182fe33da67d3e26fc2e8223610e6e9ec30b1ad278"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120119-expert",
+        "seed": 120119,
+        "sha256": "c4bf5e07718b5fe1eecd7bb4e565b51d737bff41dd421b3e87aeeb4ddd571712"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120119-medium",
+        "seed": 120119,
+        "sha256": "3d53233228a2938e107673d88fd1dc402bfb05414b8baba18b096ee3f8bec285"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120119-simple",
+        "seed": 120119,
+        "sha256": "daf34ee1322d941761f31bd9d08b0cd3a17563af8a61797fa1829d20c08ac25b"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120120-expert",
+        "seed": 120120,
+        "sha256": "728a2618dd75a85c65df52b9aaebc191009135a44f8363b594cf88df5f709f4e"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120120-medium",
+        "seed": 120120,
+        "sha256": "3fe0711b8c0c0ecaca127105805d2d8b5c356cd4187e526e267e3ec44c004241"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120120-simple",
+        "seed": 120120,
+        "sha256": "ca6d3c2334a03a13800f85035017a7b87b491be2ff39fa88afe37aa1919563ba"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120201-expert",
+        "seed": 120201,
+        "sha256": "ed8324da9985ee499b9aec295790c1636479dbb05487d7877f6dda0b9a60a05f"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120201-medium",
+        "seed": 120201,
+        "sha256": "abb60a86bf68eea517861ab77067d40316526406be72a46423753bceb7eb6665"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120201-simple",
+        "seed": 120201,
+        "sha256": "c6034926426b5c291246cacaf9358169c7a3f3a5f8ffb45523df9d5edc24f59a"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120202-expert",
+        "seed": 120202,
+        "sha256": "18ad867835bd916783664f0efeb222dc713e8357cc35e8e65e8b456fd91706b0"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120202-medium",
+        "seed": 120202,
+        "sha256": "3fe4f23237e774840e78496aa19ab5ce2be2266f48c36276fad911badf1334de"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120202-simple",
+        "seed": 120202,
+        "sha256": "df1fff9d23c73c0f9f281334b0792fe77174eac53b37162ad8ea4d113a45e100"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120203-expert",
+        "seed": 120203,
+        "sha256": "b22cabc12bbecb3c43d6626813d1e9cf5d674ed6af5605dd6747b36acf2f7263"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120203-medium",
+        "seed": 120203,
+        "sha256": "3b79ebfe0f06b6d1a000de196a80f5295f00db582353beb04c8dfefa8694c999"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120203-simple",
+        "seed": 120203,
+        "sha256": "6eb2baeadcc53f210d7d25d3dfc14486ab745255a5d92100a18f266c8867e348"
+      },
+      {
+        "actor_variant": "expert",
+        "clip_id": "corpus-120204-expert",
+        "seed": 120204,
+        "sha256": "bf9204e2a836429d0bde5058fbb4ebd43d22519ab1b25387661f0dd16002246e"
+      },
+      {
+        "actor_variant": "medium",
+        "clip_id": "corpus-120204-medium",
+        "seed": 120204,
+        "sha256": "f87f5269083ba7a58604308706205c1a3a9d4a7c78e4ebaac5ae4bf3795c17fe"
+      },
+      {
+        "actor_variant": "simple",
+        "clip_id": "corpus-120204-simple",
+        "seed": 120204,
+        "sha256": "a9cf7ac6f29e1e0d7c49d803eab101f99098fa25b93958547d17d5c127925822"
+      }
+    ],
+    "runner_log": "03d85f84bb6ebb06c6fe15ec4aa4fb9262895d3525158f482bb45844a680f6f2",
+    "sandbox_baseline_failures": "c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345",
+    "screen_receipt": null,
+    "stopped_run_content_index": "7d9bc501f77466f7dc77151812c8024e6050e6ceda985a9e286a49628387acbb",
+    "tier_d_certifier_log": "30c87b8977a0cc0aca1a8c6cf3ed2d0544491fd92befe9c0f2d7ac9d3248b4c9",
+    "tier_d_certifier_request": "05b22aadc791b873d7e3d8aa17558b154d200603d13e5341a2174b9a67f0af51",
+    "tier_d_stopped_run_aggregate": "3b80d2b3afa5a3206004acd5cc3507cfc4483e3feac6254545ce8a395fc4d616"
+  },
+  "runtime": {
+    "action_space_sha256": "5a2389149db1f0253571a4f07f4f83285844f18c529355502101d5b50030cfb3",
+    "contact_capture_id": "all_five_substeps_geom_names_contact_frame_force6/v1",
+    "control_period_seconds": 0.015,
+    "cpu_only": true,
+    "deterministic_actor_mean": true,
+    "environment_id": "Humanoid-v5",
+    "environment_kwargs": {
+      "exclude_current_positions_from_observation": true,
+      "frame_skip": 5,
+      "render_mode": null,
+      "reset_noise_scale": 0.01,
+      "terminate_when_unhealthy": false
+    },
+    "environment_semantics": {
+      "action": "physical_17d_float32_in_closed_minus_0.4_to_0.4",
+      "healthy_z_range_open_m": [
+        1.0,
+        2.0
+      ],
+      "observation": "raw_Humanoid-v5_348d_excluding_root_xy",
+      "termination": "TimeLimit_only_at_1000"
+    },
+    "frame_skip": 5,
+    "gymnasium_version": "1.3.0",
+    "integration_state_components": [
+      [
+        "time",
+        1
+      ],
+      [
+        "qpos",
+        24
+      ],
+      [
+        "qvel",
+        23
+      ],
+      [
+        "act",
+        0
+      ],
+      [
+        "warmstart",
+        23
+      ],
+      [
+        "ctrl",
+        17
+      ],
+      [
+        "qfrc_applied",
+        23
+      ],
+      [
+        "xfrc_applied",
+        84
+      ],
+      [
+        "eq_active",
+        0
+      ],
+      [
+        "mocap_pos",
+        0
+      ],
+      [
+        "mocap_quat",
+        0
+      ],
+      [
+        "userdata",
+        0
+      ],
+      [
+        "plugin",
+        0
+      ]
+    ],
+    "integration_state_flag": 16383,
+    "integration_state_size": 195,
+    "integration_state_spec": "mjtState.mjSTATE_INTEGRATION",
+    "integrator": "mjINT_RK4",
+    "model_byte_count": 8745,
+    "model_sha256": "85816f372c826d2094b4a598918233bd9c5843b2439119eece2733bdc2e0d073",
+    "mujoco_version": "3.12.0",
+    "numpy_version": "2.5.2",
+    "observation_space_sha256": "07953989de29452db64aa5188067084bf881761072f9d9b1b9e45b442d38506c",
+    "platform_machine": "arm64",
+    "platform_release": "25.6.0",
+    "platform_system": "Darwin",
+    "python_version": "3.13.15",
+    "runtime_id": "humanoid_reference_corpus_runtime/v1",
+    "same_host_determinism_scope": "same_host_same_process_settings_bitwise/v1",
+    "solver": "mjSOL_PGS",
+    "solver_iterations": 50,
+    "source_hashes": {
+      "gymnasium": "98f7ecc957123d8194869b6543a567758019a6b686a2630a37ad468bd5fda651",
+      "gymnasium_humanoid_v5": "079e98c842d76ff53a28ac5e35f8a12d1aa2d916ca0adb1cb36abdb0d38a13cf",
+      "gymnasium_mujoco_env": "665f3d68d86e8212361f67eb4d36bde247b2411c8f9dff34bfadeba9d923ce82",
+      "gymnasium_passive_checker": "13457c9b3fdbde8b875dedabdf96e4e3935bde507fa2ac52ec447f77542b5288",
+      "gymnasium_wrapper_common": "2a2cd78973296d5871af0ae1334f4c567cacef380bc69b4a759fcc29cbcff51a",
+      "mujoco": "131342cd035fa2022b8ea46e1380aaa80641ee1d983d65c427a694517c3c6790",
+      "mujoco_enums": "f250660683d40d97b2efaccf1f4e2c5a5d843fe5bd18b61f9b364f97af1a726d",
+      "mujoco_functions": "270d8e6b3d8ccd767d15e85c8a2d78408de17a2b948abf5abb3103f59895e743",
+      "mujoco_structs": "391e97e847c8f7cd59c1d529a52d9c63cf2de55f094380370cfb9dfeaa12afb3",
+      "reference_corpus_collector": "522b60fc1eac76560b3d874514a396f28b74848d7bedcfd89986bfe9337d479e",
+      "reference_corpus_contract": "7d89d0fde93f83818f141dd767256cc690273d080e163c00943fa6ccfc2f5888",
+      "reference_corpus_environment": "53bcaa16fb8ea1b51b38a20556562f28b47a540aad42fa481a5040c96a9b5274",
+      "strict_tqc_actor_runtime": "40e199b899cd723f656813649dc03970a53da26634399f08e4e44603b07677aa"
+    },
+    "thread_settings": {
+      "MKL_NUM_THREADS": null,
+      "NUMEXPR_NUM_THREADS": null,
+      "OMP_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null,
+      "VECLIB_MAXIMUM_THREADS": null,
+      "torch_num_interop_threads": 18,
+      "torch_num_threads": 6
+    },
+    "time_limit_steps": 1000,
+    "timestep_seconds": 0.003,
+    "torch_version": "2.14.0",
+    "uv_lock_sha256": "81b92d15dd2da62f27cd770322db78008d5387b530dc71e053f0d56b327f0b40",
+    "wrapper_types": [
+      "gymnasium.wrappers.common.TimeLimit",
+      "gymnasium.wrappers.common.OrderEnforcing",
+      "gymnasium.wrappers.common.PassiveEnvChecker",
+      "oracle_composition.envs.reference_corpus.FullContactHumanoidEnv"
+    ]
+  },
+  "schema_version": 1,
+  "skips": {
+    "pytest_skipped": 11,
+    "reward_lane_receipt_touched_by_builder": false,
+    "reward_lane_test_deselected": "tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly"
+  },
+  "status": "STOPPED",
+  "stop": {
+    "error": "plain/instrumented reward canary differs",
+    "error_type": "ReferenceCorpusContractError",
+    "failed_attempt_retained": true,
+    "reset_order": 108,
+    "retry_permitted": false,
+    "screen_result": null,
+    "seed": 96001,
+    "stage": "development_screen_collection"
+  },
+  "target_tree": {
+    "base_commit": "89b625462897285596749f41b7728ef99036dc6a",
+    "documentation_files_not_source_bound": [
+      "experiments/reference_corpus_v1/PROTOCOL.md",
+      "README.md",
+      "experiments/README.md",
+      "docs/operations/CURRENT_RESEARCH_HANDOFF.md"
+    ],
+    "files_sha256": {
+      "experiments/reference_corpus_v1/e3_manifest_v1.json": "003b5b045ca9f8af2b0af3f559af206e1000835deea98ff98bd45a79fa5b9504",
+      "src/oracle_composition/contracts/reference_identity_v2.py": "ced513972cf43068d85dce94cf587cca7ea0be7752df2d67d2cdaa180c27ae9e",
+      "src/oracle_composition/envs/reference_corpus.py": "53bcaa16fb8ea1b51b38a20556562f28b47a540aad42fa481a5040c96a9b5274",
+      "src/oracle_composition/experiments/e3_fork_certifier.py": "12fbbf889a82360cb6f84dbf94d41d6e39e87438a5745b3b30660276a0f14c58",
+      "src/oracle_composition/experiments/expert_development_screen.py": "29cdbdd324e97f39200005732e3407f5324a3998ecca8cf083db21ea179c74d6",
+      "src/oracle_composition/experiments/reference_corpus_bundle.py": "f57d8f64be7876bb1d1000bab159d635afa93b1e4f5c96429b2b3d60ba1a372e",
+      "src/oracle_composition/experiments/reference_corpus_certifier.py": "f5a9fd7b597c1b0a6c4e32ebef4d21fa79930daeaba5eaa881b775829484b3d2",
+      "src/oracle_composition/experiments/reference_corpus_collector.py": "522b60fc1eac76560b3d874514a396f28b74848d7bedcfd89986bfe9337d479e",
+      "src/oracle_composition/experiments/reference_corpus_contract.py": "7d89d0fde93f83818f141dd767256cc690273d080e163c00943fa6ccfc2f5888",
+      "src/oracle_composition/experiments/reference_corpus_runner.py": "519019ca11f54c634b1de5680b36b8871015b301304fd0f5bb160d888aa102e1",
+      "src/oracle_composition/sources/strict_tqc_actor_runtime.py": "40e199b899cd723f656813649dc03970a53da26634399f08e4e44603b07677aa",
+      "tests/experiments/test_reference_corpus_v1.py": "1a4cd66efe2411687913507230757ee7a045610c553e4b76b9809c662bfa2e97"
+    },
+    "project_python_source_tree_sha256": "05220058b6514bad475fefc9632988bb6fe3316433284ba72f18d1bc748d3869",
+    "validation_manifest_self_excluded": true
+  },
+  "validation_id": "reference_corpus_v1_stopped_run_validation/v1",
+  "wall_time_seconds": {
+    "corpus_only_certifier": 64.26,
+    "e3": null,
+    "e3_note": "completed as a pure artifact evaluation; independent wall timer was not retained",
+    "full_suite_process": 114.63,
+    "runner": 61.57
+  }
+}

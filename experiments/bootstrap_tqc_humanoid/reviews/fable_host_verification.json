@@ -1,0 +1,74 @@
+{
+  "claim_ceiling": "software behavior only; no training or behavioral evaluation",
+  "command": ".venv/bin/python -m pytest -q -p no:cacheprovider; .venv/bin/python -m ruff check .; .venv/bin/python -m ruff format --check .",
+  "host": "Apple M5 Max macOS, outside the Codex sandbox",
+  "note": "Inside the Codex workspace-write sandbox the same trees show 44 environment-only failures (denied socket binds, CPU fingerprint 'arm'); builders diff against their saved baseline instead.",
+  "recorder": "fable-395e7d0f-be34-489e-944e-bbfa673a1eea (Claude Fable 5.1 session 807bcdb2-462c-4ea8-803a-1e4b41259e12)",
+  "runs": [
+    {
+      "commit": "48955df",
+      "finished_utc": "2026-09-04T17:10:16Z",
+      "result": "1060 passed",
+      "ruff": "clean",
+      "started_utc": "2026-09-04T17:08:13Z",
+      "tree": "clean main after WIP removal"
+    },
+    {
+      "commit": "1d6b461",
+      "finished_utc": "2026-09-04T18:15:41Z",
+      "result": "1099 passed",
+      "ruff": "clean",
+      "started_utc": "2026-09-04T18:13:33Z",
+      "tree": "import slice"
+    },
+    {
+      "commit": "89d4c34",
+      "finished_utc": "2026-09-04T22:15:54Z",
+      "result": "1200 passed",
+      "ruff": "clean, 212 files formatted",
+      "started_utc": "2026-09-04T22:13:46Z",
+      "tree": "Slice B0 with B0FIX to B0FIX4 and host canary receipt"
+    },
+    {
+      "commit": "425d3bc",
+      "finished_utc": "2026-09-05T01:06:58Z",
+      "result": "1253 passed",
+      "ruff": "clean, 212 files formatted",
+      "started_utc": "2026-09-05T01:04:18Z",
+      "tree": "Slice 03A2FIX with regenerated reward runtime receipt"
+    },
+    {
+      "commit": "83375d1",
+      "finished_utc": "2026-09-05T03:16:46Z",
+      "result": "1277 passed",
+      "ruff": "clean, 219 files formatted",
+      "started_utc": "2026-09-05T03:13:26Z",
+      "tree": "Slice 03A3 with regenerated reward runtime receipt"
+    },
+    {
+      "commit": "41b2597",
+      "finished_utc": "2026-09-05T06:11:01Z",
+      "result": "1305 passed, 1 failed: only the reward-lane receipt binding test (whole-tree source hash) failed on the pre-regeneration receipt; after Fable regenerated the receipt the reward manifest file passed 8/8 (integration commit)",
+      "ruff": "clean, 231 files formatted",
+      "started_utc": "2026-09-05T06:08:51Z",
+      "tree": "Slice 03B (implementation, runner fixes, and the v1 corpus run results) before the reward receipt regeneration"
+    },
+    {
+      "commit": "a09c804",
+      "finished_utc": "2026-09-05T07:26:36Z",
+      "result": "1309 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after Fable regenerated the receipt (integration commit)",
+      "ruff": "clean, 231 files formatted",
+      "started_utc": "2026-09-05T07:21:48Z",
+      "tree": "Slice 03BFIX (collector fix, cache-rebuild replay, corpus run v2, failed expert screen) before the reward receipt regeneration"
+    },
+    {
+      "commit": "50fd60c",
+      "finished_utc": "2026-09-05T18:32:47Z",
+      "result": "1322 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after Fable regenerated the receipt (integration commit)",
+      "ruff": "clean, 247 files formatted",
+      "started_utc": "2026-09-05T18:30:37Z",
+      "tree": "Slice E003C0 (composition-loop cycle CLI and cycle 0) before the reward receipt regeneration"
+    }
+  ],
+  "schema_version": 1
+}

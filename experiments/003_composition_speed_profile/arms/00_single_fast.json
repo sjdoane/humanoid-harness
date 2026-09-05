@@ -1,0 +1,16 @@
+{
+  "behaviors": [
+    "expert"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "fast",
+  "oracle_id": "single_fast",
+  "schema_version": 1,
+  "states": {
+    "fast": {
+      "behavior": "expert",
+      "min_dwell": 0
+    }
+  },
+  "transitions": []
+}

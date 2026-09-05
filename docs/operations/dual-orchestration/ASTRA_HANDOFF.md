@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | R1 is accepted/committed; R2 planner finished. Fable proposed cycle-first convergence; Astra is reviewing the minimum reward route. |
-| bottleneck | No reward runtime execution is approved. The shared runner/report and integration method require peer agreement; R2/R3 findings remain open. |
-| next step | Collect the exact `TASK-R2-cycle-path-review.md` worker and Fable's reply before implementing the selected narrow reward adapter. |
+| progress | Peer convergence accepted; the independent route review chose data-only formulas. Pinned main integration preserves R1 and passes focused checks. |
+| bottleneck | Integration review and formula implementation remain. Reward-study speed/target semantics and fine-tuning runtime are not yet agreed. |
+| next step | Collect the integration reviewer and formula builder named in the active pointer; do not launch a duplicate or execute training. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 18:17 UTC heartbeat; R2 plan collected and cycle-first peer proposal acknowledged.
+- Last checkpoint: 2026-09-05, 18:52 UTC heartbeat; convergence accepted and pinned-main integration verified.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -42,8 +42,15 @@
 | R1 targeted final review | read-only Sol/max | timed out 07:35:25Z; partial closure, no verdict | `R1_FINAL_REVIEW_PARTIAL.md`; three findings reported closed, copy limitation open |
 | R1 acceptance decision | read-only Sol/max | ACCEPT at 14:58:59Z | `R1_ACCEPTANCE.md`; three findings closed, copy-API limitation non-blocking and documented/tested |
 | R2 runtime protocol | read-only Sol/max planner | finished 17:20:01Z, proposal only | `R2_PLAN_RESULT.md`; no execution or implementation approval |
-| Cycle-first convergence | Astra + Fable | counterproposal/review pending | `CYCLE_CONVERGENCE_PROPOSAL.md`; one runner/report, explicit exploratory claim boundary |
-| Minimum reward path review | read-only Sol/max | dispatch/collect exact active pointer | `TASK-R2-cycle-path-review.md`; engineering choice, no execution authority |
+| Cycle-first convergence | Astra + Fable | explicit proposal/acceptance exchanged | `MAIN_INTEGRATION_20260905.md`; one runner/report, exploratory boundary, JSON first |
+| Minimum reward path review | read-only Sol/max | completed 18:28:40Z; chose JSON formula family | Existing Python execution gates remain unchanged |
+| Pinned-main integration | Astra | parent focused checks pass, independent review next | `MAIN_INTEGRATION_20260905.md`; exact main `2fb31dc`, R1 bytes preserved |
+
+- Current authority supersedes the earlier pending proposal notes below:
+  Fable proposal `20260905T183421.793603Z-8b619f3d56a84cbb81d31d39e11c36ef`
+  accepted by `20260905T185408.005663Z-ff80151886fc485782897509ffe98696`.
+  The narrower family is the first execution route, not permission to run it
+  before its own review or to open the refused Python runtime.
 
 - Fable proposal `20260905T175216.965624Z-a00f8a13b1a444978292d1eb1aa991ee`
   was read/acknowledged. Committed main base inspected: `a0a0a3b`.

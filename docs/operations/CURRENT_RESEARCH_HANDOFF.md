@@ -2,295 +2,89 @@
 
 | status | current truth |
 |---|---|
-| progress | The external actor import slice is committed on `main` as `1d6b461` (outside-sandbox suite `1099 passed`, lint clean): the expert actor now exists as integrity-verified bytes in a strict NPZ with exact fixed-batch equivalence, honest provenance, and a payload policy test. Reviews `06` and `07` are examining that commit. |
-| bottleneck | The slice is `external_base_import` only: no E1 contenders, no development screen, no behavior. The reward track has no contract or sandbox yet. No tracker is admitted; causal reference use is unproved. |
-| next step | Builder B0 (reward contract, stock parity, sandbox, protected endpoint; no training) runs as the writer while reviews `06`/`07` finish. Review repairs become a follow-up slice; then `03A3` and `03B` in oracle-track order. Do not launch any 1M-step attempt. |
+| progress | `TASK-20260905-E003C0` completed its one-shot cycle-0 evaluation: four predeclared controller-switching arms ran on seeds `97001`-`97020` for `1,000` steps, all `20/20` deterministic replay hashes matched, `report_0` exists, and the cycle-1 designer prompt is prepared. |
+| bottleneck | Both switching arms fell in `20/20` episodes. The handwritten arm spent a median `28` steps in `medium`, then entered recovery and spent `0` steps in `simple`; no tuning or rerun followed. Controller switching remains only a stand-in for frozen-tracker reference following. |
+| next step | Fable reviews and commits this builder slice; after that, a separate read-only designer may receive only `cycles/cycle_1/designer_prompt.md` and produce one cycle-1 oracle. Do not infer oracle quality or change the frozen task from cycle-0 results. |
 
-- Updated: `2026-09-04T18:16Z`
+Fable integration note (2026-09-05T18:33Z): Slice E003C0 committed as `50fd60c`; the
+read-only designer `sol-designer-20260905-e003d1` is producing the cycle-1
+oracle from `cycles/cycle_1/designer_prompt.md` alone; packet `E003C1` then
+evaluates it. Astra's counterproposal (cycle-first convergence, data-only
+reward family first, merge main into Astra then merge back) is accepted in the
+mailbox. Fable resume: read the designer final, write
+`.orchestration/oracles/cycle_1_candidate.json`, launch `E003C1`, then record
+cycle 1 in the strategy; next packet after that is the fine-tuning runtime.
+
+Fable resume: verify the hashes, report, ignored trace index, exact-baseline test receipt, and claim ceiling below; then commit the reviewable E003C0 slice without rewriting the frozen task or oracle arms.
+
+- Updated: `2026-09-05T18:25:44Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Branch: `main`
-- Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
-- Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
-- Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: `sol-builder-20260904-03a2r`, completed slice ready for Fable review and control transfer
-- Takeover authorization: disabled; the heartbeat may only report
-- Human gates: all three startup gates answered; see "Questions for Samuel" below
+- Precondition HEAD: `a0a0a3bc3560dccf95519654d72fefbbb706ecda` (clean before this slice; at required `a0a0a3b`)
+- Git writes: none; Fable owns review and commit
+- Write lease: `CLAIMED` by `sol-builder-20260905-e003c0`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
+- Evidence class: `exploratory_oracle_cycle`
 
-## Active read-only Sol workers
+## Frozen inputs
 
-| owner | role | packet | run directory | screen | runner PID |
-|---|---|---|---|---|---|
-| `sol-review-sci-20260904-01` | scientific reviewer | `.orchestration/task-packets/TASK-20260904-01-strategy-scientific-review.md` | `.orchestration/sol-runs/20260904T162138Z-91fdd351-b579-46f8-b317-402f78bd2907` | `hh-sol-5538c277-e542-4505-8c92-787b4798b0d8` | `33469` |
-| `sol-review-adv-20260904-02` | adversarial reviewer | `.orchestration/task-packets/TASK-20260904-02-strategy-adversarial-review.md` | `.orchestration/sol-runs/20260904T162140Z-53837dc0-a9f8-4bf5-97f7-ae7e593a60b4` | `hh-sol-f4c09dad-bbe5-40f5-8587-99155b3b88d9` | `33916` |
-| `sol-design-reward-20260904-04` | research designer | `.orchestration/task-packets/TASK-20260904-04-reward-track-design-survey.md` | `.orchestration/sol-runs/20260904T163715Z-ddddde81-0085-49fd-8714-0d512c9d39a0` | `hh-sol-342b73b1-463f-4fd0-9f2d-618598681f8f` | `37865` |
-| `sol-builder-20260904-03a` (write) | builder | `TASK-20260904-03A` | `.orchestration/sol-runs/20260904T164729Z-273705b5-fd1b-49d6-9495-98e63f907b01` | stopped at the `.git` boundary; superseded | `50887` |
-| `sol-builder-20260904-03a2` (write, launch 1) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T165851Z-cde09967-82e9-425c-9b16-91292ac226f5` | stopped: two-dot diff precondition | `58734` |
-| `sol-builder-20260904-03a2` (write, launch 2) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T170134Z-f48b6fc2-905b-4323-87f3-8b88246888c4` | stopped: in-sandbox suite failures | `59876` |
-| `sol-builder-20260904-03a2` (write, launch 3) | builder | `TASK-20260904-03A2` | `.orchestration/sol-runs/20260904T171428Z-2d37493e-5ef0-455c-8c58-5f9878a2074b` | partial slice in the working tree; stopped at `process safe globals refused` | `62996` |
-| `sol-builder-20260904-03a2r` (write) | builder | `TASK-20260904-03A2R` | `.orchestration/sol-runs/20260904T174545Z-7b364f7f-b3bf-426d-8023-17389e1f0c12` | `SUCCEEDED`: slice complete, thread `01a06d86-cd17-7ee2-b6de-c7d3d07576f9` | `67383` |
-| `sol-review-sci-20260904-06` | scientific reviewer of `1d6b461` | `TASK-20260904-06` | `.orchestration/sol-runs/20260904T181613Z-721ea785-8dc3-4d8f-9eb6-84b4672d1fb3` | `hh-sol-869272fb-cc6c-480d-9b0a-0b3eece424a9` | `74477` |
-| `sol-review-adv-20260904-07` | adversarial reviewer of `1d6b461` | `TASK-20260904-07` | `.orchestration/sol-runs/20260904T181614Z-5bb41e36-fc24-49b0-8fb3-a73409210b5a` | `hh-sol-d7eb4fef-93a3-49a5-9161-140a7d1672a7` | `74544` |
-| `sol-design-tracker-20260904-05` | research designer | `.orchestration/task-packets/TASK-20260904-05-tracker-track-design-survey.md` | `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80` | `hh-sol-25fc9414-83ae-42f7-929f-a3f3c2e5d37d` | `47373` |
-
-Launched `2026-09-04 16:21Z`. Poll with `./scripts/start-sol-worker status RUN_DIR`;
-read only `final.txt` and `result.json`, never stream `events.jsonl`. Codex
-thread IDs observed at `16:25Z`: scientific `01a06d39-cb22-7af2-a89f-88c80845f1d3`,
-adversarial `01a06d39-d229-7b12-81ec-cad50a5a3a90`.
-
-State at `2026-09-04T16:46Z`: reviews `01` and `02` are terminal `SUCCEEDED`, both
-`GO-WITH-FIXES` with no P0 (scientific `4` P1, adversarial `9` P1 and `1` P2);
-all P1 fixes are folded into ADR 0005, the strategy, and the split builder
-packets. Survey `04` running since `16:37Z`; survey `05` running since
-`16:42Z`. The original packet `TASK-20260904-03` is superseded by `03A` (this
-launch) and a later `03B` (external evaluator adapter, 20-reset screen, replay
-bundle).
-
-## Questions for Samuel
-
-| id | question | answer line to add here |
+| artifact | SHA-256 | frozen fact |
 |---|---|---|
-| Q1 | May the builder import the public Farama `Humanoid-v5` TQC expert through the data-only path in ADR 0005 (pinned SHA-256 bytes, `torch.load(weights_only=True)` tensors only, JSON-only metadata, no `TQC.load`)? The E1 note currently forbids loading uploaded SB3 or Torch objects. If no: authorize up to `3` receipted local TQC attempts of at most `3 h` CPU each. | `external-checkpoint-import: approved YYYY-MM-DD` or `external-checkpoint-import: denied; local-attempt-budget: N` |
-| Q2 | May a reward-only harness loop on stock `Humanoid-v5` (route D in the strategy) run as a parallel second track while the tracker is admitted? It reorders `LG-11`. | `reward-first-track: approved` or `denied` |
-| veto | The builder will move the uncommitted TQC-v2 files byte-exact to branch `wip/tqc-v2-attempt-supervisor` and remove them from the `main` working tree. | `wip-branch-move: vetoed` stops it |
+| v2 corpus manifest | `a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090` | admitted source corpus |
+| v2 E3 certificate | `5a91a265e057e6f8c6497d50a4a20ac3baab40b67c101115bc96b6f4b7555b74` | branch fall counts source |
+| v2 validation manifest | `5eeedc84d13bf83fde534423fb5eb898160f543ef7dcdf325a7e136adbcfc434` | receipt-chain source |
+| Experiment 003 library manifest | `ad57578dc2ed4fe3707da74a4f86620e758b1aa30064016785d187a5e86d3207` | raw file bytes |
+| Experiment 003 task spec | `edb2cffde9f2eb087667d182f3da199ef6956aeadc6d45e9e218649d6fa9cbd7` | raw file bytes; frozen before evaluation |
 
-Answers recorded `2026-09-04T16:31Z` from Samuel's message in the Fable session:
+Library speed statistics use pooled per-step root-`x` sidecar differences divided by the `0.015 s` control period across the `28` v2 clips whose E3 blocks passed.
 
-- `external-checkpoint-import: approved 2026-09-04`
-- `reward-first-track: approved`
-- `wip-branch-move: approved`
-- Samuel ran `/status` and confirmed `claude-fable-5-1`; the identity gate is
-  human-confirmed for this session.
-- Standing instruction: do not ask about routine route decisions or worker
-  launches; run Sol workers directly, delegate token-heavy work to them, and
-  keep running autonomously. The contract's hard gates (real 1M-step attempt,
-  PRAXIST campaign, formal confirmatory study, paid API usage, push or
-  publication) still need explicit authorization.
+| behavior | import receipt SHA-256 | strict NPZ SHA-256 | equivalence receipt SHA-256 | median speed (m/s) | IQR (m/s) | E3 falls / 1,000 steps |
+|---|---|---|---|---:|---:|---:|
+| expert | `b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7` | `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b` | `65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e` | `5.5207686161` | `0.7193024104` | `0.0555555556` |
+| medium | `b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172` | `2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04` | `ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487` | `3.0740198759` | `0.4913530375` | `0` |
+| simple | `bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7` | `b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917` | `604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268` | `0.8853599909` | `0.2107452405` | `0.1944444444` |
 
-## Claim boundary
+`simple` is the frozen slow actor because its median is `4.6354086253 m/s` below the expert, versus `2.4467487402 m/s` for `medium`. The target is expert speed on steps `[0,300)`, simple speed on `[300,600)`, and expert speed on `[600,1000)`.
 
-| layer | current statement |
-|---|---|
-| research target | An LLM-guided harness revises a reference-composition oracle `O_k` and task reward `r_k`, using protected rollout evidence and optional human steering. |
-| implemented capability | Typed oracle artifacts; a validated linear phase-window automaton; Gymnasium adapter; deterministic trace/metric contracts; CLI; read-only evidence UI; research-source ledger. Uncommitted TQC-v2 WIP is present, passes its focused tests, and is parked by ADR 0005. |
-| measured evidence | Interface and regression checks; one non-admitted falling tracker exploration; one reviewed offline numeric-reference sensitivity probe; one 100k resource calibration; `tests/experiments` `822 passed` on the WIP tree; hash-verified local copy of a public expert artifact (an artifact record, not behavior). |
-| not demonstrated | Stable Humanoid tracking; causal policy use of reference windows; better transitions; recovery; oracle improvement; reward improvement; cross-MDP generalization; an autonomous closed research loop. |
+## Cycle-0 result
 
-## Scientific dependency chain
+| arm | median mean absolute speed error (m/s) | falls / 20 | median switches | median behavior time (steps) | median descriptive task return |
+|---|---:|---:|---:|---|---:|
+| `single_fast` | `2.0741721755` | `0` | `0` | expert `1,000` | `10,648.5529837515` |
+| `single_slow` | `3.3071158305` | `0` | `0` | simple `1,000` | `5,772.1091802316` |
+| `playback` | `3.1803425853` | `20` | `2` | expert `700`; simple `300` | `2,836.4346835564` |
+| `handwritten` | `3.2062160613` | `20` | `2` | expert `972`; medium `28`; simple `0` | `2,954.1679253263` |
 
-```text
-Experiment 001             Experiment 002                 Experiment 003+
-admit stable tracker  -->  prove causal reference use --> compare oracle arms
-   ROUTE: ADR 0005              BLOCKED                   NOT AUTHORIZED
-```
+- `playback` switched exactly at boundaries `300` and `600` in every episode.
+- The primary run produced `80` traces; replaying `single_fast` on all `20` seeds produced identical trace hashes.
+- Evaluation wall time: `21.3701 s` recorded inside the report; `21.86 s` process wall including startup and writes. Determinism replay consumed `3.2953 s` of the recorded total.
+- Runtime fingerprint SHA-256: `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; it records plain `Humanoid-v5`, `terminate_when_unhealthy=false`, `TimeLimit=1000`, `0.015 s` control period, wrapper stack, model hash, dependency versions, and source hashes.
+- Canonical report JSON SHA-256: `3d32ddcc3869f9a05df9beb1bc1f7816996bf3bda166eb4ca26f3ec9556aa623`.
+- One-table report Markdown SHA-256: `cdbe252277b62749e09e029033077795e235c5cac208ce76f983ae23a98c68a0`.
+- Ignored trace index: `artifacts/experiments_003/cycle_0/content_index.json`, `80` entries, SHA-256 `041a81cac8d77d717aacb31e6e633fcae2a47e09457fc92eade79dc103e7f983`; the ignored cycle directory is `54M`.
 
-- A time-indexed reward is not proof that actor and critic consumed the
-  immutable reference clock and window.
-- Oracle quality cannot be inferred from the current falling video.
-- Reference generation and reference composition are separate problems. This
-  project currently owns composition.
-- Task-reward generation is the approved parallel Family-B track (ADR 0006).
-  It stays fixed inside every oracle-only comparison.
-- The public expert generated the registered Minari expert clips. A tracker
-  built on it can follow its own rollout while ignoring the reference; gate E3
-  and non-self reference gaits are mandatory.
+## Cycle-1 handoff
 
-## Route decision
+| artifact | SHA-256 | binding |
+|---|---|---|
+| `cycles/cycle_1/designer_prompt.md` | `53b319c5975fcd0cc5a54a2de3358cefe8a02e345982c2d89d6a5ac2ffde3010` | task, library, allowed schema/signals, rules, and cycle-0 report table |
+| `cycles/cycle_1/expected_inputs.json` | `dc76c192e07bdd735df72f0263975e69ee378c8f6a95acd060d00383eb4d0351` | binds task, library, prompt, and prior report hash |
 
-Recorded in `docs/strategy/RESEARCH_STRATEGY.md`, section "2026-09-04 startup
-audit", and `docs/decisions/0005_public_expert_base_controller.md`.
+No steering text was supplied. The next designer is not this builder and sees only the prompt.
 
-| route | verdict |
-|---|---|
-| Finish the TQC-v2 one-attempt supervisor | parked: `8` open P1 lifecycle findings and `4,499` uncommitted lines guarding a `27`-minute job |
-| Public expert import, data-only, receipted local fallback | recommended; scientific review `GO-WITH-FIXES` folded; adversarial review pending |
-| Reward-first loop on stock `Humanoid-v5` | approved parallel track (ADR 0006); design survey running |
+## Validation
 
-## Working-tree state
+| check | result | wall time |
+|---|---|---:|
+| focused harness tests | `13 passed` | `0.62 s` process wall |
+| full suite with the forbidden reward-lane test deselected by exact node ID | `1,267 passed, 44 failed, 11 skipped, 1 deselected`; failed node-ID set exactly equals all `44` entries in `sandbox_baseline_failures.txt`, with no duplicate, missing, or unexpected ID | `113.65 s` process wall on the final instrumented run |
+| Ruff lint | pass | `0.04 s` |
+| Ruff format check | `247 files already formatted` | `0.03 s` |
+| fake-runtime CLI smoke | `2` episodes × `50` steps; pass | included in focused tests |
+| playback transition regression | switches exactly at `300` and `600`; pass | included in focused tests |
+| metric independence regression | corrupting a written trace does not alter the in-memory recomputed metric; pass | included in focused tests |
+| final `git diff --check` | pass | `<0.01 s` |
 
-- Start state was clean at `main` HEAD
-  `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
-  commit `5bdae45` each list exactly the expected 20 preserved paths.
-- `TASK-20260904-03A2R` tracked or trackable changed-files list:
-  - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
-  - `experiments/README.md`.
-  - `experiments/bootstrap_tqc_humanoid/E1_INITIALIZATION_IDENTITY.md`.
-  - `experiments/bootstrap_tqc_humanoid/PUBLIC_EXPERT_IMPORT.md`.
-  - `research/source_controllers/farama_minari_humanoid_v5_tqc_expert/README.md`.
-  - `research/source_controllers/farama_minari_humanoid_v5_tqc_expert/RECEIPT.json`.
-  - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
-  - `src/oracle_composition/experiments/tqc_actor_equivalence_primitives.py`.
-  - `src/oracle_composition/experiments/tqc_actor_equivalence_v2.py`.
-  - `src/oracle_composition/sources/_external_sb3_actor_worker.py`.
-  - `src/oracle_composition/sources/external_payload_policy.py`.
-  - `src/oracle_composition/sources/external_sb3_actor.py`.
-  - `src/oracle_composition/sources/farama_tqc_registration.py`.
-  - `tests/policy/test_no_external_payload_in_index.py`.
-  - `tests/sources/test_external_sb3_actor.py`.
-  - `tests/sources/test_farama_tqc_registration.py`.
-- Local ignored artifacts created by the slice:
-  - `artifacts/bootstrap_tqc_humanoid/external_actor_import_v1.json`: SHA-256
-    `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`,
-    11,308 bytes.
-  - `artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz`:
-    SHA-256
-    `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b`,
-    618,674 bytes; actor-state fingerprint
-    `3fd39cc715a10126fd92b20f6ce213c380eb4d5df843a42315aac50cf116748a`.
-  - `artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_v1.json`:
-    SHA-256
-    `d57eedf35ded4dc5e1f9e6f1cb04c9a67f5db1b491d1825ae6a2196099fc6d32`,
-    2,429 bytes.
-- Metadata registration receipt: SHA-256
-  `5ba0845e8b0cd9b6f39c956ddc46d0f46e8e08690d8bdf832941a1f914a8e0cf`,
-  9,395 bytes. LFS siblings are labeled `lfs.sha256`; small files are labeled
-  `git-blob-sha1` from `blobId`; each LFS API record retains its `lfs` sub-object.
-- Safe-globals receipt: 75 sorted qualified names, SHA-256
-  `7b70391289d8e8d285612f5ee4db68739af844eae8d945964d1174c83ce7d4b9`;
-  only `builtins`, `traceback`, `collections`, `torch`, and `torch.*` modules;
-  unchanged before/after the one weights-only load.
-- Test receipts:
-  - new focused files: `39 passed in 2.37s`;
-  - extended focused set including committed NPZ/equivalence regressions: `81
-    passed, 1 skipped in 4.73s`;
-  - full suite: `44 failed, 1053 passed, 2 skipped in 112.82s`; its sorted
-    failing-node set equals the 44-node baseline at
-    `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures.txt` (SHA-256
-    `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345`),
-    with no new failures;
-  - receipt/NPZ/index revalidation: registration valid, import receipt valid,
-    strict NPZ valid, equivalence receipt valid, Git-index policy passed;
-  - `.venv/bin/python -m ruff check .`: all checks passed;
-    `.venv/bin/python -m ruff format --check .`: 191 files already formatted.
-- No training, environment rollout, 20-reset screen, or behavior evaluation ran.
+The final full-suite rerun wrote only `/private/tmp/e003c0-full-suite.xml` for mechanical comparison; it is not a repository artifact. An earlier pre-gate collection collision caused by a duplicate test-module basename was corrected within this slice before the final focused and full gates.
 
-## Current no-go findings
+## Claim ceiling
 
-These findings were observed against the uncommitted TQC-v2 working tree. They
-remain open on the parked code and no longer sit on the route, but must be
-retested if that code ever returns.
-
-| id | blocker |
-|---|---|
-| TQC-P1-01 | The one-attempt rule is directory-local and can be bypassed with another fresh directory. |
-| TQC-P1-02 | A failure after process start can escape complete cleanup and can misreport whether a worker started. |
-| TQC-P1-03 | Process-group signal authority can be inferred from the OS before worker self-report is authenticated. |
-| TQC-P1-04 | Authenticated worker failures before manifest acknowledgement can be downgraded to generic integrity failures. |
-| TQC-P1-05 | Signal and terminal-receipt ownership is not safe across every public launch path. |
-| TQC-P1-06 | A transient macOS `EPERM` group probe can false-reject cleanup instead of remaining indeterminate within the deadline. |
-| TQC-P1-07 | The training-to-persistence semantic bridge for policy, entropy, and optimizer state is unresolved. |
-| TQC-P1-08 | Success does not yet revalidate every retained preflight, manifest, reservation, and worker receipt. |
-
-Additional constraint:
-
-- A production-ID canary would consume the sole attempt. Any canary must use a
-  separate, explicitly non-authorizing identity. This constraint lapses with
-  the one-attempt rule if ADR 0005 survives review.
-
-## Orchestration state
-
-| component | observed state |
-|---|---|
-| Claude Code | `2.1.260`; session `807bcdb2…` recorded `claude-fable-5-1` at startup; hooks accepted every tool call |
-| Fable policy | Exact model requested at launch; `switchModelsOnFlag=false`; Samuel's `/status` pending |
-| session guard | Project hooks deny requested non-Fable switches and all Claude tool use when the recorded model is not Fable or active effort is not `max` |
-| Codex | Official standalone CLI at `~/.local/bin/codex`; `.codex/config.toml` requests `gpt-5.6-sol` at `max` with `multi_agent=false` |
-| worker path | `scripts/start-sol-worker` made its first two real launches at `16:21Z`, both read-only, both in detached screen sessions with compact status |
-| write control | Fable held the strategy lease for the audit and released it at the end of the startup turn; the recorded scope is an audit boundary |
-| continuity | The 30-minute heartbeat is coordination-only; no takeover record exists |
-
-## Resume order
-
-1. Run `./scripts/orchestration-doctor` for the no-usage local checks.
-2. Run `./scripts/start-fable-orchestrator`; authorize its one live identity
-   probe when prompted.
-3. Fable reads `CLAUDE.md`, the master prompt, this handoff, the strategy
-   audit section, and ADR 0005. The raw private sources need re-reading only if
-   a decision depends on disputed wording.
-4. Samuel runs `/status`; Fable checks the latest session-start model event.
-5. Fable runs `./scripts/start-sol-worker status RUN_DIR` for both review runs
-   and reads each `final.txt`.
-6. Under a fresh Fable lease, Fable records accepted findings in the strategy,
-   ADR 0005, and this file, then releases the lease.
-7. If Samuel's Q1 answer line is present and the reviews say `GO` or
-   `GO-WITH-FIXES` with fixes folded into the packet, launch:
-   `./scripts/start-sol-worker launch write sol-builder-20260904-03 builder src/oracle_composition,tests,experiments/bootstrap_tqc_humanoid,research/source_controllers,docs/experiments,README.md,experiments/README.md,pyproject.toml,artifacts/bootstrap_tqc_humanoid .orchestration/task-packets/TASK-20260904-03-import-public-expert-base-controller.md`
-8. Update this file at least every 30 minutes during active work and at every
-   control transfer.
-
-Fable resume: inspect the complete 03A2R diff and the four recorded artifact
-identities, launch read-only reviews `TASK-20260904-06` and
-`TASK-20260904-07`, then fold accepted fixes and commit; do not run training or
-credit this interface check as E1 or behavior.
-
-## Handoff update contract
-
-- Keep the three-row table first.
-- Replace, do not append to, its current statements.
-- Separate requests, implementation, and measurements.
-- Name changed files, test receipts, remaining blockers, active worker/thread
-  IDs, and the next bounded action.
-- Never convert a green test, UI launch, or zero-action smoke test into a
-  behavioral claim.
-
-## Git-state rule observed 2026-09-04
-
-The Codex `workspace-write` sandbox denies writes under `.git`. Sol workers
-cannot branch, stage, commit, stash, or create worktrees. Fable performs every
-git state change under its own lease after review. Builder 03A stopped at that
-boundary at `16:52Z` with all preconditions verified; Fable completed the WIP
-preservation at `2026-09-04T16:58Z` with `artifacts/bootstrap_tqc_humanoid/wip_preservation_fable_verification.txt`
-as the byte-level receipt.
-
-## Reward-track design adopted `2026-09-04T17:10Z`
-
-Survey `TASK-20260904-04` (thread `01a06d48-1482-73f2-800a-a3bb69d9de5e`,
-run `.orchestration/sol-runs/20260904T163715Z-ddddde81-0085-49fd-8714-0d512c9d39a0`)
-delivered the `family-b-target-speed-v1` design. ADR 0006 records it. Builder
-packet `TASK-20260904-B0` implements the no-training first slice. Review
-packets `06` and `07` are written for the 03A2 diff.
-
-## Baseline suite receipt `2026-09-04T17:13Z`
-
-`.venv/bin/python -m pytest -q -p no:cacheprovider` on clean `main` at
-`48955df`, outside the Sol sandbox: `1060 passed, 2 warnings in 122.17s`
-(`17:08:13Z` to `17:10:16Z`). Software behavior only. Inside the Sol sandbox
-the same tree shows `44 failed` for environment reasons (denied socket binds,
-CPU fingerprint `arm`); builders record their own in-sandbox baseline and must
-not add failures.
-
-## Tracker-track design adopted `2026-09-04T17:13Z`
-
-Survey `TASK-20260904-05` (thread `01a06d4c-b071-7493-863b-fbcdaafa6c5d`,
-run `.orchestration/sol-runs/20260904T164217Z-62e441c4-8938-4986-b267-cb0f8d21ce80`)
-delivered the same-runtime reference, Tier-D, E3, residual-PPO E4, and E5
-designs. ADR 0005 records the chain. Packets `03A3` and `03B` implement the
-first two slices; packets for E4 and E5 follow their reviews.
-
-## Builder 03A2 diagnostic `2026-09-04T17:45Z`
-
-Fable ran the worker's stages in a separate process on the pinned expert
-`policy.pth`: resource limits applied (macOS reports no finite `RLIMIT_AS`),
-then category `process safe globals refused`. A fresh interpreter on Torch
-`2.14.0` reports `75` pre-registered safe globals (builtin exception classes,
-`traceback.FrameSummary`, Torch internals). The corrected invariant is
-"no additions during the load and no entry outside `builtins`, `traceback`,
-`collections`, or `torch`", recorded by count and SHA-256 in the receipt.
-Packet `TASK-20260904-03A2R` carries the fix and the remaining steps. The seven
-uncommitted code files from launch 3 stay in the working tree for it.
-
-## External actor import receipts `2026-09-04T18:13Z`
-
-Builder `03A2R` completed the slice. Local ignored artifacts under
-`artifacts/bootstrap_tqc_humanoid/`: registration receipt SHA-256
-`5ba0845e8b0cd9b6f39c956ddc46d0f46e8e08690d8bdf832941a1f914a8e0cf`; import
-receipt `ce90c312f7c222847a936edd2d964d386bab01d1acb0fd924de3a8db951430cb`;
-strict actor NPZ `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b`
-(`618,674` bytes); equivalence receipt
-`d57eedf35ded4dc5e1f9e6f1cb04c9a67f5db1b491d1825ae6a2196099fc6d32`;
-actor-state fingerprint
-`3fd39cc715a10126fd92b20f6ce213c380eb4d5df843a42315aac50cf116748a`; safe
-globals `75` entries, hash `7b70391289d8e8d285612f5ee4db68739af844eae8d945964d1174c83ce7d4b9`.
-In-sandbox suite: `44 failed, 1053 passed, 2 skipped`, failures identical to
-the frozen baseline; new focused tests `39 passed`; ruff lint and format
-passed. Evidence class `external_base_import`, an `interface_check`. Nothing
-behavioral ran.
+Passing supports only that cycle 0 ran on the frozen runtime with four predeclared oracle programs, its canonical report exists, deterministic replay matched for the checked arm and seeds, and the cycle-1 designer prompt exists. `task_return` is descriptive stock reward. Controller switching stands in for tracker following. These results support no oracle-quality, generalization, frozen-tracker, reference-following, task-reward, naturalness, robustness, or humanoid-competence claim.
