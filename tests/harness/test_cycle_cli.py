@@ -6,10 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.harness import evaluator
 from oracle_composition.harness.cycle_cli import main
-from oracle_composition.harness.evaluator import EvaluationDependencies
+from oracle_composition.harness.evaluator import CycleEvaluationError, EvaluationDependencies
+from oracle_composition.harness.inputs import load_frozen_inputs
 
 
 class _Actor:
@@ -204,7 +207,7 @@ def _fingerprint(_environment: object, _task: object) -> tuple[dict[str, object]
     return value, hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
-def test_cli_smoke_two_episodes_by_fifty_steps_and_prepares_cycle_one(tmp_path: Path) -> None:
+def test_cli_smoke_two_episodes_by_fifty_steps_runs_three_cycles(tmp_path: Path) -> None:
     experiment = _experiment(tmp_path)
     dependencies = EvaluationDependencies(
         environment_factory=_Environment,
@@ -357,3 +360,68 @@ def test_cli_smoke_two_episodes_by_fifty_steps_and_prepares_cycle_one(tmp_path: 
     cycle_two_prompt = (experiment / "cycles/cycle_2/designer_prompt.md").read_text()
     assert "cycle_1_candidate" in cycle_two_prompt
     assert "No additional steering text was supplied." in cycle_two_prompt
+
+    cycle_two_candidate_path = experiment / "cycles/cycle_2/oracle_2.json"
+    cycle_two_candidate_path.write_bytes(
+        canonical_json_bytes(_oracle("cycle_2_candidate", "expert"))
+    )
+    assert (
+        main(
+            [
+                "evaluate",
+                "--experiment",
+                str(experiment),
+                "--cycle",
+                "2",
+                "--oracle",
+                str(cycle_two_candidate_path),
+            ],
+            repository_root=tmp_path,
+            dependencies=dependencies,
+        )
+        == 0
+    )
+    cycle_two = json.loads((experiment / "cycles/cycle_2/report_2.json").read_bytes())
+    assert [arm["oracle_id"] for arm in cycle_two["summary"]["arms"]] == [
+        "single_fast",
+        "single_slow",
+        "playback",
+        "handwritten",
+        "cycle_1_candidate",
+        "cycle_2_candidate",
+    ]
+    assert cycle_two["prior_cycle_comparison"]["cycle"] == 1
+    assert cycle_two["prior_cycle_comparison"]["arm_count"] == 5
+    assert len(cycle_two["comparison_to_prior_arms"]["comparisons"]) == 5
+    cycle_two_markdown = (experiment / "cycles/cycle_2/report_2.md").read_text()
+    assert "The 5 rows from the cycle-1 report are carried forward unchanged" in cycle_two_markdown
+    assert "| cycle 1 candidate | cycle_1_candidate |" in cycle_two_markdown
+    assert "| cycle 2 candidate | cycle_2_candidate |" in cycle_two_markdown
+
+
+def test_cycle_two_rejects_incomplete_prior_arm_history(tmp_path: Path) -> None:
+    experiment = _experiment(tmp_path)
+    library, task = load_frozen_inputs(experiment)
+    report_path = experiment / "cycles/cycle_1/report_1.json"
+    report_path.parent.mkdir(parents=True)
+    report_path.write_bytes(
+        canonical_json_bytes(
+            {
+                "cycle": 1,
+                "evidence_class": "exploratory_oracle_cycle",
+                "library_manifest_sha256": library.raw_sha256,
+                "summary": {
+                    "arms": [{"oracle_id": oracle_id} for oracle_id in task.cycle_zero_oracle_ids]
+                },
+                "task_spec_sha256": task.raw_sha256,
+            }
+        )
+    )
+
+    with pytest.raises(CycleEvaluationError, match="prior report differs"):
+        evaluator._prior_cycle_comparison(
+            experiment=experiment,
+            cycle=2,
+            library=library,
+            task=task,
+        )

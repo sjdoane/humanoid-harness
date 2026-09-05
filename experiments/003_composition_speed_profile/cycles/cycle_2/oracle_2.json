@@ -1,0 +1,18 @@
+{
+  "behaviors": [
+    "expert",
+    "medium",
+    "simple"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "expert_hold",
+  "oracle_id": "cycle_2_candidate",
+  "schema_version": 1,
+  "states": {
+    "expert_hold": {
+      "behavior": "expert",
+      "min_dwell": 0
+    }
+  },
+  "transitions": []
+}

@@ -224,37 +224,40 @@ def _summary_for_oracle(
     }
 
 
-def _cycle_zero_comparison(
+def _prior_cycle_comparison(
     *, experiment: Path, cycle: int, library: LibraryManifest, task: TaskSpec
 ) -> tuple[list[dict[str, object]], dict[str, object] | None]:
     if cycle == 0:
         return [], None
-    report_path = experiment / "cycles/cycle_0/report_0.json"
+    prior_cycle = cycle - 1
+    report_path = experiment / "cycles" / f"cycle_{prior_cycle}" / f"report_{prior_cycle}.json"
     report, encoded = read_json_object(report_path)
     if (
-        report.get("cycle") != 0
+        report.get("cycle") != prior_cycle
         or report.get("evidence_class") != EVIDENCE_CLASS
         or report.get("task_spec_sha256") != task.raw_sha256
         or report.get("library_manifest_sha256") != library.raw_sha256
     ):
-        raise CycleEvaluationError("cycle-0 report does not bind the frozen task and library")
+        raise CycleEvaluationError("prior report does not bind the frozen task and library")
     summary = report.get("summary")
     if type(summary) is not dict or type(summary.get("arms")) is not list:
-        raise CycleEvaluationError("cycle-0 report summary is malformed")
-    by_id: dict[str, dict[str, object]] = {}
+        raise CycleEvaluationError("prior report summary is malformed")
+    arms: list[dict[str, object]] = []
     for raw_arm in summary["arms"]:
         if type(raw_arm) is not dict or type(raw_arm.get("oracle_id")) is not str:
-            raise CycleEvaluationError("cycle-0 report arm is malformed")
-        oracle_id = raw_arm["oracle_id"]
-        if oracle_id in by_id:
-            raise CycleEvaluationError("cycle-0 report oracle ids are not unique")
-        by_id[oracle_id] = dict(raw_arm)
-    if set(by_id) != set(task.cycle_zero_oracle_ids):
-        raise CycleEvaluationError("cycle-0 report differs from the frozen baseline arms")
-    arms = [by_id[oracle_id] for oracle_id in task.cycle_zero_oracle_ids]
+            raise CycleEvaluationError("prior report arm is malformed")
+        arms.append(dict(raw_arm))
+    oracle_ids = [str(arm["oracle_id"]) for arm in arms]
+    expected_arm_count = len(task.cycle_zero_oracle_ids) + prior_cycle
+    if (
+        len(oracle_ids) != expected_arm_count
+        or len(set(oracle_ids)) != len(oracle_ids)
+        or oracle_ids[: len(task.cycle_zero_oracle_ids)] != list(task.cycle_zero_oracle_ids)
+    ):
+        raise CycleEvaluationError("prior report differs from the frozen arm history")
     binding = {
         "arm_count": len(arms),
-        "cycle": 0,
+        "cycle": prior_cycle,
         "path": report_path.relative_to(experiment).as_posix(),
         "sha256": _sha256_bytes(encoded),
     }
@@ -321,9 +324,9 @@ def _metric_outcome(delta: float) -> str:
 
 
 def _comparison_outcomes(
-    *, baseline_arms: Sequence[Mapping[str, object]], current_arms: Sequence[Mapping[str, object]]
+    *, prior_arms: Sequence[Mapping[str, object]], current_arms: Sequence[Mapping[str, object]]
 ) -> dict[str, object] | None:
-    if not baseline_arms:
+    if not prior_arms:
         return None
     if len(current_arms) != 1:
         raise CycleEvaluationError("designer cycles require one current arm for comparison")
@@ -331,7 +334,7 @@ def _comparison_outcomes(
     candidate_falls = int(candidate["fall_count"])
     candidate_mae = float(candidate["median_mean_absolute_speed_error_m_s"])
     comparisons: list[dict[str, object]] = []
-    for baseline in baseline_arms:
+    for baseline in prior_arms:
         fall_delta = candidate_falls - int(baseline["fall_count"])
         mae_delta = candidate_mae - float(baseline["median_mean_absolute_speed_error_m_s"])
         comparisons.append(
@@ -355,7 +358,8 @@ def _report_markdown(
     *,
     cycle: int,
     arms: Sequence[Mapping[str, object]],
-    baseline_arm_count: int,
+    prior_arm_count: int,
+    cycle_zero_arm_count: int,
     episode_rows: Sequence[Mapping[str, object]],
     behavior_names: Sequence[str],
     slow_third: ScheduleSegment,
@@ -367,11 +371,20 @@ def _report_markdown(
         f"Evidence class: `{EVIDENCE_CLASS}`. Controller switching stands in for tracker following.",
         "",
     ]
-    if baseline_arm_count:
+    if prior_arm_count:
+        if cycle == 1:
+            carry_forward = (
+                "The four cycle-0 rows are carried forward unchanged; only the cycle-1 candidate "
+                "was evaluated in cycle 1."
+            )
+        else:
+            carry_forward = (
+                f"The {prior_arm_count} rows from the cycle-{cycle - 1} report are carried forward "
+                f"unchanged; only the cycle-{cycle} candidate was evaluated in cycle {cycle}."
+            )
         lines.extend(
             [
-                "The four cycle-0 rows are carried forward unchanged; only the cycle-1 candidate "
-                f"was evaluated in cycle {cycle}.",
+                carry_forward,
                 "",
                 "| source | arm | episodes | median MAE (m/s) | falls | median switches | median task return |",
                 "|---|---|---:|---:|---:|---:|---:|",
@@ -386,10 +399,13 @@ def _report_markdown(
         )
     for index, arm in enumerate(arms):
         source = ""
-        if baseline_arm_count:
-            source = (
-                "cycle 0 baseline" if index < baseline_arm_count else f"cycle {cycle} candidate"
-            )
+        if prior_arm_count:
+            if index < cycle_zero_arm_count:
+                source = "cycle 0 baseline"
+            elif index < prior_arm_count:
+                source = f"cycle {index - cycle_zero_arm_count + 1} candidate"
+            else:
+                source = f"cycle {cycle} candidate"
         lines.append(
             "| {source}{oracle_id} | {episode_count} | {mae:.6f} | {fall_count} | "
             "{switches:.1f} | {task_return:.6f} |".format(
@@ -422,7 +438,9 @@ def _report_markdown(
                 "Metric outcomes are reported separately because no combined ranking was "
                 "predeclared. Negative deltas favor the candidate.",
                 "",
-                "| cycle-0 baseline | fall-count delta | fall outcome | median-MAE delta (m/s) | MAE outcome |",
+                "| "
+                + ("cycle-0 baseline" if cycle == 1 else "prior arm")
+                + " | fall-count delta | fall outcome | median-MAE delta (m/s) | MAE outcome |",
                 "|---|---:|---|---:|---|",
             ]
         )
@@ -635,7 +653,7 @@ def evaluate_cycle(
     index_path = artifact_root / f"cycle_{cycle}" / "content_index.json"
     _atomic_write(index_path, index_bytes)
     index_relative = index_path.relative_to(root).as_posix()
-    baseline_arms, baseline_binding = _cycle_zero_comparison(
+    prior_arms, prior_binding = _prior_cycle_comparison(
         experiment=experiment_path,
         cycle=cycle,
         library=library,
@@ -645,9 +663,9 @@ def evaluate_cycle(
     for oracle in loaded_oracles:
         rows = [row for row in episode_rows if row["oracle_id"] == oracle.program.oracle_id]
         current_arms.append(_summary_for_oracle(oracle, rows, library.behavior_names))
-    arms = [*baseline_arms, *current_arms]
+    arms = [*prior_arms, *current_arms]
     comparison_outcomes = _comparison_outcomes(
-        baseline_arms=baseline_arms,
+        prior_arms=prior_arms,
         current_arms=current_arms,
     )
     report = {
@@ -694,17 +712,20 @@ def evaluate_cycle(
         },
         "wall_time_seconds": time.perf_counter() - start,
     }
-    if baseline_binding is not None:
-        report["cycle_zero_comparison"] = baseline_binding
+    if prior_binding is not None:
+        report["cycle_zero_comparison" if cycle == 1 else "prior_cycle_comparison"] = prior_binding
     if comparison_outcomes is not None:
-        report["comparison_to_cycle_zero"] = comparison_outcomes
+        report["comparison_to_cycle_zero" if cycle == 1 else "comparison_to_prior_arms"] = (
+            comparison_outcomes
+        )
     _atomic_write(report_path, canonical_json_bytes(report))
     _atomic_write(
         markdown_path,
         _report_markdown(
             cycle=cycle,
             arms=arms,
-            baseline_arm_count=len(baseline_arms),
+            prior_arm_count=len(prior_arms),
+            cycle_zero_arm_count=len(task.cycle_zero_oracle_ids),
             episode_rows=episode_rows,
             behavior_names=library.behavior_names,
             slow_third=_slow_third(task),
