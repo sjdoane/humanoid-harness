@@ -2,11 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260905-E003C2` evaluated the byte-exact cycle-2 candidate on all `20` frozen seeds; its `20/20` replay hashes matched, phase A is closed, and the full six-arm record exists. |
-| bottleneck | No switching design survived a running-speed handover: `60/60` episodes across `playback`, `handwritten`, and cycle 1 fell. Cycle 2 avoided the handover by holding `expert`, exactly matched `single_fast`, and did not execute the slow third. |
-| next step | Fable reviews and commits E003C2. Phase B keeps task T1 and uses a tracker-following fine-tuning runtime warm-started at the expert, so composed-reference transitions are learned instead of executed by controller switches. |
+| progress | `TASK-20260905-FT1` is implementation-complete: no-learning Phase B contracts, exact full-authority 708-D warm start/export/reload, switch-only phase transfer, immutable composed windows, and hash-bound tracking-only reward streams. E1 passes on `4 + 64` fixtures, both static transfer ranges reproduce exactly, and `56` focused/adjacent tests include a passing 200-step real Humanoid-v5 smoke with bitwise expert actions. |
+| bottleneck | FT2 is not implemented and no training ran. Evidence remains `interface_check` only. The sandbox full suite has the same `44` known failures as its saved baseline; an unrestricted host run is still required to turn those environment-bound checks green. |
+| next step | Fable reviews and commits FT1, then packets FT2 for the worker, supervision/RSI, persistence, report writer, and CLI. Do not run the disposable smoke or cohort without their separate reservation or authorization. |
 
 Fable launch note (2026-09-05T19:32Z): builder `sol-builder-20260905-ft1` (packet `TASK-20260905-FT1`) starts from the clean main head after the strategy commit; read-only reviews `sol-review-sci-20260905-e003` and `sol-review-adv-20260905-e003` are running on the phase A commits. Fable resume: read the FT1 final, run the outside-sandbox suite, commit slice and integration separately, fold the two reviews, then packet `FT2` (training worker, supervision, persistence, report v2, CLI train); the disposable smoke needs a mailbox reservation; the five-seed cohort needs Samuel's authorization.
+
+FT1 completion (2026-09-05T20:20:41Z): source-bound E1 receipt `c602e14a…f3788`, static phase-transfer receipt `eee389c5…b7953`, and run manifest `28d800f0…f9e0e` validate. Focused/adjacent tests are `56 passed`; the full suite is `1296 passed, 11 skipped, 1 deselected, 44 failed`, with all `44` failure node IDs exactly matching `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. The sole deselection was the forbidden reward-lane receipt test `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`. Ruff lint, the `266`-file format check, and `git diff --check` pass. Fable resume: review the FT1 code and receipts, run the suite outside the builder sandbox if desired, commit the implementation slice, and launch FT2 without training until its reservation boundary is satisfied.
+
+FT1 30-minute checkpoint (2026-09-05T20:02:41Z): lease and expert hash remained valid; `53` focused/adjacent tests, lint, and the 200-step real no-learning smoke passed. Full-suite validation was in progress. The exact forbidden reward-lane test is `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`; its receipt was not regenerated.
 
 Fable integration note (2026-09-05T19:11Z): Slice E003C2 committed as `74d7aa5`; Experiment
 003 phase A is closed (60/60 switching episodes fell across three designs; the
@@ -23,13 +27,13 @@ reservation and Samuel's authorization.
 
 Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
 
-- Updated: `2026-09-05T19:06:34Z`
+- Updated: `2026-09-05T20:20:41Z` (FT1 final handoff)
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `19e73d9636aaac5be231fa32d5b7e9747d0021ff` (clean before this slice; exact launch-note commit)
+- Precondition HEAD: `f57acc3fb82e4e60ba13b0b45929319482e1a7c6` (clean before FT1; no Git writes)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260905-e003c2`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
-- Evidence class: `exploratory_oracle_cycle`
-- Builder wall time: `13m` from launcher acquisition through final validation and handoff
+- Write lease: `CLAIMED` by `sol-builder-20260905-ft1`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
+- Evidence class: `interface_check`
+- Builder wall time: `48m` from launcher acquisition through final validation and handoff
 
 ## Frozen inputs
 
