@@ -3,17 +3,17 @@
 | status | current truth |
 |---|---|
 | progress | Slice 03B is committed as `41b2597` (implementation, runner fixes, v1 run results): `108/108` clips replay-certified (`108,000/108,000` transitions), E3 `27/36` blocks and `61/72` pairs qualified; outside-sandbox suite `1305 passed`, lint clean. Two read-only reviews of the commit and one read-only divergence diagnostic are running. |
-| bottleneck | The expert development screen has no result: at seed `96001` the plain-versus-instrumented equivalence gate fired, so the substep-contact instrumentation perturbs the observable MDP somewhere in a 1,000-step rollout. Leading unconfirmed diagnosis: a second `mj_forward` in `_capture_boundary` applied only to the instrumented environment. The diagnostic `sol-diag-20260905-01` must report before any fix packet or new versioned run. |
-| next step | Collect `sol-diag-20260905-01` and the two 03B reviews; write the fix packet (matched operation ordering, a 1,000-step expert-actor equivalence canary, decision on plain versus instrumented as the frozen runtime), commit the fix, then a new versioned screen run; then the importer closure `03A2FIX2`. Do not retry or relabel the v1 attempt. |
+| bottleneck | Diagnosed: the corpus collector's post-step `mj_forward` (`reference_corpus_collector.py:292`) refreshes cached derived quantities, so the actor consumed synthesized observations and the stock reward's center-of-mass term shifted; the v1 clips are feasible under plain dynamics but are not plain closed-loop trajectories. Fable chose option (a): plain `Humanoid-v5` stays the frozen MDP; the collector becomes observation-preserving; the corpus and screen rerun as v2. |
+| next step | Builder `sol-builder-20260905-03bfix` repairs the collector and certifier replay, adds the production-path 1,000-step equivalence test, and executes run v2 (108 clips with plain-comparison receipts, certificates, E3, the 20-reset screen). Then fold the two 03B review results, then the importer closure `03A2FIX2`, then packet B from the design survey. |
 
-- Updated: `2026-09-05T06:14Z`
+- Updated: `2026-09-05T06:32Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
 - Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
 - Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: none. Read-only workers: `sol-diag-20260905-01` (divergence diagnostic), scientific and robustness reviews of `41b2597`
-- Fable resume: read `.orchestration/sol-runs/20260905T060923Z-*/final.txt` (diagnostic) and the two review finals; if the diagnostic confirms an instrumentation-only operation, issue `TASK-20260905-03BFIX` with the matched-ordering fix and the 1,000-step canary test, commit it as a slice, then authorize a versioned screen run v2 (new seeds are not needed; the v1 ledger stays). If the diagnostic instead shows the plain environment is the one out of order, the decision moves to ADR 0004's frozen boundary and needs a decision record before any rerun.
+- Active write worker: `sol-builder-20260905-03bfix` (packet `TASK-20260905-03BFIX`). Read-only: scientific and robustness reviews of `41b2597`, packet B design survey `sol-survey-20260905-b`.
+- Fable resume: read the 03BFIX final; commit the slice (builder paths) and integration separately; fold the 03B reviews' findings into a follow-up slice if any are P1; if the screen passed, record the development-screen result in the strategy and ADR 0005; then launch `03A2FIX2`. The v1 run under `artifacts/reference_corpus_v1/` stays preserved and superseded.
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
 
