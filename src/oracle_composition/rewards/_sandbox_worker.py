@@ -12,8 +12,8 @@ import resource
 import struct
 import sys
 
-from .contract import CandidateTaskInputsV1
-from .static_validation import validate_task_term_source
+from .contract import TASK_TERM_ABS_MAX, CandidateTaskInputsV1
+from .static_validation import parse_and_validate_task_term_source
 
 SOURCE_FRAME_MAX_BYTES = 16 * 1024 + 36
 REQUEST_FRAME_MAX_BYTES = 1024
@@ -64,7 +64,7 @@ WORKER_EXIT_CODE_MEANINGS = {
     EXIT_ENVIRONMENT_INVALID: "environment_sanitization_failed",
     EXIT_LIMIT_APPLICATION_FAILED: "declared_resource_limit_application_failed",
     EXIT_LIMIT_STATUS_INTERNAL: "unexpected_internal_resource_limit_setup_failure",
-    EXIT_SOURCE_BOOTSTRAP_FAILED: "source_bootstrap_or_static_validation_failed",
+    EXIT_SOURCE_BOOTSTRAP_FAILED: "source_bootstrap_static_validation_or_installation_failed",
     EXIT_REQUEST_OR_EVALUATION_FAILED: "request_frame_or_task_evaluation_failed",
     EXIT_INTENTIONAL_CRASH_CANARY: "intentional_worker_crash_canary",
 }
@@ -196,6 +196,44 @@ def _write_limit_status(
     )
 
 
+def _clip(value: float, lower: float, upper: float) -> float:
+    if lower > upper:
+        raise ValueError("clip lower bound exceeds upper bound")
+    return min(max(value, lower), upper)
+
+
+def _install_task_term(source: bytes) -> object:
+    """Compile candidate bytes only inside the already-limited worker."""
+
+    _encoded, module, _metadata = parse_and_validate_task_term_source(source)
+    namespace: dict[str, object] = {
+        "__builtins__": {},
+        "abs": abs,
+        "min": min,
+        "max": max,
+        "exp": math.exp,
+        "sqrt": math.sqrt,
+        "clip": _clip,
+    }
+    code = compile(module, "<candidate-task-term>", "exec", dont_inherit=True, optimize=2)
+    exec(code, namespace, namespace)
+    function = namespace.get("task_term")
+    if not callable(function):
+        raise TypeError("candidate did not install task_term")
+    return function
+
+
+def _evaluate_task_term(function: object, inputs: CandidateTaskInputsV1) -> float:
+    value = function(inputs)  # type: ignore[operator]
+    if type(value) is not float:
+        raise TypeError("task_term must return one Python float")
+    if not math.isfinite(value):
+        raise ValueError("task_term returned NaN or infinity")
+    if abs(value) > TASK_TERM_ABS_MAX:
+        raise ValueError("task_term breached the output envelope")
+    return value
+
+
 def _run_worker(source_descriptor: int, request_descriptor: int, response_descriptor: int) -> int:
     try:
         source_frame = _read_frame(source_descriptor, maximum_bytes=SOURCE_FRAME_MAX_BYTES)
@@ -205,9 +243,7 @@ def _run_worker(source_descriptor: int, request_descriptor: int, response_descri
         source = source_frame[36:]
         if hashlib.sha256(source).digest() != expected_digest:
             raise ValueError("source bootstrap digest differs")
-        program = validate_task_term_source(source)
-        if bytes.fromhex(program.receipt.source_sha256) != expected_digest:
-            raise ValueError("validated source digest differs")
+        function = _install_task_term(source)
         _write_frame(response_descriptor, bytes((READY_OPCODE,)) + expected_digest)
     except BaseException:
         _error(response_descriptor, 1)
@@ -230,7 +266,7 @@ def _run_worker(source_descriptor: int, request_descriptor: int, response_descri
             outputs: list[float] = []
             for index in range(0, 8, 2):
                 inputs = CandidateTaskInputsV1(values[index], values[index + 1])
-                outputs.append(program.task_term(inputs))
+                outputs.append(_evaluate_task_term(function, inputs))
             response = bytes((VALUES_OPCODE,)) + struct.pack(">4d", *outputs)
             _write_frame(response_descriptor, response)
         except BaseException:

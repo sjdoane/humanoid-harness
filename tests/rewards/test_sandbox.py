@@ -51,6 +51,9 @@ from oracle_composition.rewards.sandbox import (
 ROOT = Path(__file__).parents[2]
 SOURCE = b"def task_term(x):\n    return 1.0 - abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n"
 BUILDER_SANDBOX_REASON = "sandbox-exec: sandbox_apply: Operation not permitted"
+requires_r2_host = pytest.mark.skip(
+    reason="R2 host fixture required; R1 forbids subprocess reward workers and OS canaries"
+)
 
 
 @pytest.fixture(scope="module")
@@ -81,6 +84,7 @@ def _read_limit_status_payload(descriptor: int) -> bytes:
     return payload
 
 
+@requires_r2_host
 def test_unresolved_venv_interpreter_imports_package_under_isolated_mode(
     tmp_path: Path,
 ) -> None:
@@ -463,18 +467,21 @@ def test_network_probe_rejects_connection_refusal_and_successful_bind(
     ]
 
 
+@requires_r2_host
 def test_worker_timeout_kills_infinite_loop_without_fallback(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
     _require_os_pass_or_skip(canaries, "timeout")
 
 
+@requires_r2_host
 def test_memory_bomb_hits_limit_without_parent_failure(canaries: SeatbeltCanaryReceiptV1) -> None:
     _require_os_pass_or_skip(canaries, "memory_abuse")
     expected_mechanism = "rlimit_as" if canaries.address_space_limit.enforced else "timeout_kill"
     assert canaries.canaries["memory_abuse"].mechanism == expected_mechanism
 
 
+@requires_r2_host
 def test_file_read_file_write_env_secret_socket_and_exec_are_denied(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
@@ -488,6 +495,7 @@ def test_file_read_file_write_env_secret_socket_and_exec_are_denied(
     )
 
 
+@requires_r2_host
 def test_fork_signal_trace_and_repository_read_are_denied(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
@@ -501,6 +509,7 @@ def test_fork_signal_trace_and_repository_read_are_denied(
         ("tracing", "(deny process-info*)", "(allow process-info*)"),
     ),
 )
+@requires_r2_host
 def test_governed_probe_reports_not_contained_under_permissive_profile(
     canaries: SeatbeltCanaryReceiptV1,
     tmp_path: Path,
@@ -534,12 +543,14 @@ def test_governed_probe_reports_not_contained_under_permissive_profile(
     }
 
 
+@requires_r2_host
 def test_stdout_private_fd_and_extra_frame_injection_are_denied(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
     _require_os_pass_or_skip(canaries, "stdout_injection", "private_fd_injection", "extra_frame")
 
 
+@requires_r2_host
 def test_pickle_object_dtype_and_oversize_frame_are_rejected(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
@@ -553,6 +564,7 @@ def test_pickle_object_dtype_and_oversize_frame_are_rejected(
         _validate_frame_length(REQUEST_MAX_BYTES + 1, maximum_bytes=REQUEST_MAX_BYTES)
 
 
+@requires_r2_host
 def test_worker_crash_and_malformed_response_invalidate_seed(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
@@ -564,6 +576,7 @@ def test_worker_crash_and_malformed_response_invalidate_seed(
         _decode_batch_response(bytes((0x45, 2)))
 
 
+@requires_r2_host
 def test_missing_seatbelt_or_failed_canary_fails_closed(tmp_path: Path) -> None:
     receipt = run_seatbelt_canaries(
         repository_probe=ROOT / "AGENTS.md",
@@ -614,6 +627,7 @@ def test_protocol_and_source_identity_canaries_exercise_real_rejection_paths(nam
     assert _protocol_or_identity_self_canary(name) == CanaryVerdictV1("passed", None)
 
 
+@requires_r2_host
 def test_builder_sandbox_records_every_canary_without_fabricating_pass(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:
@@ -672,6 +686,7 @@ def test_recorded_builder_receipt_separates_os_nonverification_from_self_canarie
     assert recorded["all_passed"] is False
 
 
+@requires_r2_host
 def test_canary_receipt_binds_profile_and_has_no_inherited_home_or_path(
     canaries: SeatbeltCanaryReceiptV1,
 ) -> None:

@@ -1,26 +1,25 @@
-"""Capability-minimal AST and deterministic scalar validation."""
+"""Data-only validation for the bounded task-term source language."""
 
 from __future__ import annotations
 
 import ast
 import hashlib
 import math
-import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
 
 from .contract import (
     CANDIDATE_READ_SET_V1,
-    TASK_TERM_ABS_MAX,
-    CandidateTaskInputsV1,
     RewardContractError,
     canonical_json_bytes,
 )
 
 MAX_SOURCE_BYTES = 16 * 1024
 MAX_AST_NODES = 512
+MAX_CONDITIONAL_DEPTH = 8
+STATIC_VALIDATION_SCOPE_V1 = "source_bytes_and_ast_only"
+DYNAMIC_VALIDATION_NOT_PERFORMED = "not_performed"
 SAFE_FUNCTION_NAMES = frozenset({"abs", "min", "max", "exp", "sqrt", "clip"})
 _BINARY_OPERATORS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow)
 _UNARY_OPERATORS = (ast.UAdd, ast.USub, ast.Not)
@@ -37,32 +36,49 @@ _CALL_ARITIES = {
 
 
 class StaticValidationError(RewardContractError):
-    """Raised when candidate bytes exceed the v1 language or output contract."""
+    """Raised when candidate bytes exceed the v1 static source language."""
 
 
-def _clip(value: float, lower: float, upper: float) -> float:
-    if lower > upper:
-        raise ValueError("clip lower bound exceeds upper bound")
-    return min(max(value, lower), upper)
+def _copy_plain_json(value: object) -> object:
+    """Copy exact JSON containers before any immutable view is created."""
+
+    if type(value) is dict:
+        copied: dict[str, object] = {}
+        for key, child in value.items():  # type: ignore[union-attr]
+            if type(key) is not str:
+                raise StaticValidationError("metadata keys must be strings")
+            copied[key] = _copy_plain_json(child)
+        return copied
+    if type(value) is list:
+        return [_copy_plain_json(child) for child in value]  # type: ignore[union-attr]
+    if value is None or type(value) in (bool, str, int):
+        return value
+    if type(value) is float and math.isfinite(value):
+        return value
+    raise StaticValidationError("metadata must contain only finite JSON literal values")
 
 
-SAFE_GLOBALS: Mapping[str, object] = MappingProxyType(
-    {
-        "abs": abs,
-        "min": min,
-        "max": max,
-        "exp": math.exp,
-        "sqrt": math.sqrt,
-        "clip": _clip,
-    }
-)
+def _freeze_plain_json(value: object) -> object:
+    if type(value) is dict:
+        return MappingProxyType(
+            {
+                key: _freeze_plain_json(child)
+                for key, child in value.items()  # type: ignore[union-attr]
+            }
+        )
+    if type(value) is list:
+        return tuple(_freeze_plain_json(child) for child in value)  # type: ignore[union-attr]
+    return value
 
 
-def _freeze_literal(value: object) -> object:
-    if isinstance(value, Mapping):
-        return MappingProxyType({str(key): _freeze_literal(child) for key, child in value.items()})
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_literal(child) for child in value)
+def _thaw_internal_json(value: object) -> object:
+    if type(value) is MappingProxyType:
+        return {
+            key: _thaw_internal_json(child)
+            for key, child in value.items()  # type: ignore[union-attr]
+        }
+    if type(value) is tuple:
+        return [_thaw_internal_json(child) for child in value]  # type: ignore[union-attr]
     return value
 
 
@@ -128,28 +144,40 @@ class _FunctionValidator:
     def _statements(self, statements: Sequence[ast.stmt], *, depth: int) -> None:
         if not statements:
             raise StaticValidationError("conditional blocks cannot be empty")
-        if depth > 8:
-            raise StaticValidationError("conditional nesting exceeds the bounded language")
         for statement in statements:
             if isinstance(statement, ast.Assign):
-                self._expression(statement.value)
+                self._expression(statement.value, depth=depth)
                 continue
             if isinstance(statement, ast.Return):
                 if statement.value is None:
                     raise StaticValidationError("task_term must return one scalar expression")
-                self._expression(statement.value)
+                self._expression(statement.value, depth=depth)
                 continue
             if isinstance(statement, ast.If):
-                self._expression(statement.test)
-                self._statements(statement.body, depth=depth + 1)
+                nested_depth = self._nested_conditional_depth(depth)
+                self._expression(statement.test, depth=nested_depth)
+                self._statements(statement.body, depth=nested_depth)
                 if statement.orelse:
-                    self._statements(statement.orelse, depth=depth + 1)
+                    self._statements(statement.orelse, depth=nested_depth)
                 continue
             raise StaticValidationError(
                 f"task_term statement {type(statement).__name__} is not allowed"
             )
 
-    def _expression(self, node: ast.expr, *, direct_call_name: bool = False) -> None:
+    @staticmethod
+    def _nested_conditional_depth(depth: int) -> int:
+        nested_depth = depth + 1
+        if nested_depth > MAX_CONDITIONAL_DEPTH:
+            raise StaticValidationError("conditional nesting exceeds the bounded language")
+        return nested_depth
+
+    def _expression(
+        self,
+        node: ast.expr,
+        *,
+        depth: int,
+        direct_call_name: bool = False,
+    ) -> None:
         if isinstance(node, ast.Constant):
             _numeric_literal(node)
             return
@@ -181,45 +209,46 @@ class _FunctionValidator:
                 raise StaticValidationError(
                     "power requires one finite literal exponent with magnitude at most 16"
                 )
-            self._expression(node.left)
-            self._expression(node.right)
+            self._expression(node.left, depth=depth)
+            self._expression(node.right, depth=depth)
             return
         if isinstance(node, ast.UnaryOp):
             if not isinstance(node.op, _UNARY_OPERATORS):
                 raise StaticValidationError("unary operator is not allowed")
-            self._expression(node.operand)
+            self._expression(node.operand, depth=depth)
             return
         if isinstance(node, ast.BoolOp):
             if not isinstance(node.op, _BOOLEAN_OPERATORS) or len(node.values) < 2:
                 raise StaticValidationError("boolean expression is not allowed")
             for value in node.values:
-                self._expression(value)
+                self._expression(value, depth=depth)
             return
         if isinstance(node, ast.Compare):
             if not node.ops or len(node.ops) != len(node.comparators):
                 raise StaticValidationError("comparison is malformed")
             if any(not isinstance(operator, _COMPARISON_OPERATORS) for operator in node.ops):
                 raise StaticValidationError("comparison operator is not allowed")
-            self._expression(node.left)
+            self._expression(node.left, depth=depth)
             for comparator in node.comparators:
-                self._expression(comparator)
+                self._expression(comparator, depth=depth)
             return
         if isinstance(node, ast.IfExp):
-            self._expression(node.test)
-            self._expression(node.body)
-            self._expression(node.orelse)
+            nested_depth = self._nested_conditional_depth(depth)
+            self._expression(node.test, depth=nested_depth)
+            self._expression(node.body, depth=nested_depth)
+            self._expression(node.orelse, depth=nested_depth)
             return
         if isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name):
                 raise StaticValidationError("dynamic or attribute calls are not allowed")
-            self._expression(node.func, direct_call_name=True)
+            self._expression(node.func, depth=depth, direct_call_name=True)
             minimum, maximum = _CALL_ARITIES[node.func.id]
             if not minimum <= len(node.args) <= maximum or node.keywords:
                 raise StaticValidationError(f"{node.func.id} call has the wrong fixed arity")
             for argument in node.args:
                 if isinstance(argument, ast.Starred):
                     raise StaticValidationError("starred calls are not allowed")
-                self._expression(argument)
+                self._expression(argument, depth=depth)
             return
         raise StaticValidationError(f"expression {type(node).__name__} is not allowed")
 
@@ -255,15 +284,23 @@ def _literal_metadata(module: ast.Module, function: ast.FunctionDef) -> dict[str
             raise StaticValidationError("metadata name is reserved or duplicated")
         try:
             value = ast.literal_eval(value_node)
+            value = _copy_plain_json(value)
             canonical_json_bytes(value)
-        except (ValueError, TypeError, MemoryError, RecursionError, RewardContractError) as exc:
+        except (
+            MemoryError,
+            RecursionError,
+            RewardContractError,
+            TypeError,
+            UnicodeError,
+            ValueError,
+        ) as exc:
             raise StaticValidationError("metadata values must be finite JSON literals") from exc
         metadata[name] = value
     return metadata
 
 
 def _source_bytes(value: bytes | str) -> bytes:
-    if isinstance(value, str):
+    if type(value) is str:
         try:
             encoded = value.encode("utf-8", errors="strict")
         except UnicodeError as exc:
@@ -304,75 +341,52 @@ def parse_and_validate_task_term_source(
     return encoded, module, metadata
 
 
-def _compile_task_term(module: ast.Module) -> Any:
-    namespace: dict[str, object] = {"__builtins__": {}, **SAFE_GLOBALS}
-    try:
-        code = compile(module, "<candidate-task-term>", "exec", dont_inherit=True, optimize=2)
-        exec(code, namespace, namespace)
-    except BaseException as exc:
-        raise StaticValidationError(
-            f"candidate could not be installed: {type(exc).__name__}: {exc}"
-        ) from exc
-    function = namespace.get("task_term")
-    if not callable(function):
-        raise StaticValidationError("candidate did not install task_term")
-    return function
-
-
-DEFAULT_DETERMINISM_PROBES = (
-    CandidateTaskInputsV1(-1.0, 1.0),
-    CandidateTaskInputsV1(0.75, 1.0),
-    CandidateTaskInputsV1(1.0, 1.0),
-    CandidateTaskInputsV1(1.25, 1.0),
-    CandidateTaskInputsV1(3.0, 1.0),
-    CandidateTaskInputsV1(0.5, 0.5),
-    CandidateTaskInputsV1(1.5, 1.5),
-)
-
-
-def _evaluate_one(function: Any, inputs: CandidateTaskInputsV1) -> float:
-    try:
-        value = function(inputs)
-    except BaseException as exc:
-        raise StaticValidationError(
-            f"candidate failed a deterministic probe: {type(exc).__name__}: {exc}"
-        ) from exc
-    if type(value) is not float:
-        raise StaticValidationError("task_term must return one Python float")
-    if not math.isfinite(value):
-        raise StaticValidationError("task_term returned NaN or infinity")
-    if abs(value) > TASK_TERM_ABS_MAX:
-        raise StaticValidationError("task_term breached the output envelope")
-    return value
-
-
-def _determinism_digest(function: Any, probes: Sequence[CandidateTaskInputsV1]) -> str:
-    first = [_evaluate_one(function, item) for item in probes]
-    for item in reversed(probes):
-        _evaluate_one(function, item)
-    second = [_evaluate_one(function, item) for item in probes]
-    first_bits = [struct.pack(">d", value) for value in first]
-    second_bits = [struct.pack(">d", value) for value in second]
-    if first_bits != second_bits:
-        raise StaticValidationError("task_term is not bitwise deterministic under interleaving")
-    digest = hashlib.sha256()
-    for inputs, encoded_value in zip(probes, first_bits, strict=True):
-        encoded_input = inputs.canonical_bytes
-        digest.update(len(encoded_input).to_bytes(4, "big"))
-        digest.update(encoded_input)
-        digest.update(encoded_value)
-    return digest.hexdigest()
-
-
 @dataclass(frozen=True, slots=True)
-class StaticValidationReceiptV1:
+class StaticAcceptanceReceiptV1:
     source_sha256: str
     source_bytes: int
     ast_nodes: int
     read_set: tuple[str, ...]
     metadata: Mapping[str, object]
-    determinism_sha256: str
-    passed: bool = True
+    validation_scope: str = STATIC_VALIDATION_SCOPE_V1
+    static_accepted: bool = True
+    dynamic_validation_status: str = DYNAMIC_VALIDATION_NOT_PERFORMED
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.source_sha256) is not str
+            or len(self.source_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in self.source_sha256)
+        ):
+            raise StaticValidationError("static acceptance source_sha256 is invalid")
+        if type(self.source_bytes) is not int or not 0 < self.source_bytes <= MAX_SOURCE_BYTES:
+            raise StaticValidationError("static acceptance source byte count is invalid")
+        if type(self.ast_nodes) is not int or not 0 < self.ast_nodes <= MAX_AST_NODES:
+            raise StaticValidationError("static acceptance AST node count is invalid")
+        if (
+            type(self.read_set) not in (tuple, list)
+            or any(type(item) is not str for item in self.read_set)
+            or tuple(self.read_set) != CANDIDATE_READ_SET_V1
+        ):
+            raise StaticValidationError("static acceptance read set differs from v1")
+        if type(self.metadata) is not dict:
+            raise StaticValidationError("static acceptance metadata must be a plain JSON object")
+        try:
+            plain_metadata = _copy_plain_json(self.metadata)
+            canonical_json_bytes(plain_metadata)
+            frozen_metadata = _freeze_plain_json(plain_metadata)
+        except (MemoryError, RewardContractError, RecursionError, UnicodeError) as exc:
+            raise StaticValidationError("static acceptance metadata is not finite JSON") from exc
+        if (
+            type(self.validation_scope) is not str
+            or self.validation_scope != STATIC_VALIDATION_SCOPE_V1
+            or self.static_accepted is not True
+            or type(self.dynamic_validation_status) is not str
+            or self.dynamic_validation_status != DYNAMIC_VALIDATION_NOT_PERFORMED
+        ):
+            raise StaticValidationError("static acceptance status fields differ from v1")
+        object.__setattr__(self, "read_set", CANDIDATE_READ_SET_V1)
+        object.__setattr__(self, "metadata", frozen_metadata)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -381,9 +395,10 @@ class StaticValidationReceiptV1:
             "source_bytes": self.source_bytes,
             "ast_nodes": self.ast_nodes,
             "read_set": list(self.read_set),
-            "metadata": dict(self.metadata),
-            "determinism_sha256": self.determinism_sha256,
-            "passed": self.passed,
+            "metadata": _thaw_internal_json(self.metadata),
+            "validation_scope": self.validation_scope,
+            "static_accepted": self.static_accepted,
+            "dynamic_validation_status": self.dynamic_validation_status,
         }
 
     @property
@@ -394,62 +409,112 @@ class StaticValidationReceiptV1:
     def sha256(self) -> str:
         return hashlib.sha256(self.canonical_bytes).hexdigest()
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> StaticAcceptanceReceiptV1:
+        expected = {
+            "schema_version",
+            "source_sha256",
+            "source_bytes",
+            "ast_nodes",
+            "read_set",
+            "metadata",
+            "validation_scope",
+            "static_accepted",
+            "dynamic_validation_status",
+        }
+        if (
+            type(value) is not dict
+            or any(type(key) is not str for key in value)
+            or set(value) != expected
+            or type(value["schema_version"]) is not int
+            or value["schema_version"] != 1
+        ):
+            raise StaticValidationError("static acceptance receipt keys or version differ")
+        read_set = value["read_set"]
+        metadata = value["metadata"]
+        if type(read_set) is not list or any(type(item) is not str for item in read_set):
+            raise StaticValidationError("static acceptance read_set must be a string list")
+        if type(metadata) is not dict:
+            raise StaticValidationError("static acceptance metadata must be an object")
+        return cls(
+            source_sha256=value["source_sha256"],  # type: ignore[arg-type]
+            source_bytes=value["source_bytes"],  # type: ignore[arg-type]
+            ast_nodes=value["ast_nodes"],  # type: ignore[arg-type]
+            read_set=tuple(read_set),
+            metadata=metadata,
+            validation_scope=value["validation_scope"],  # type: ignore[arg-type]
+            static_accepted=value["static_accepted"],  # type: ignore[arg-type]
+            dynamic_validation_status=value["dynamic_validation_status"],  # type: ignore[arg-type]
+        )
+
 
 @dataclass(frozen=True, slots=True)
-class ValidatedTaskTermV1:
+class StaticallyAcceptedTaskTermSourceV1:
     source_bytes: bytes
-    metadata: Mapping[str, object]
-    receipt: StaticValidationReceiptV1
-    _function: Any
+    receipt: StaticAcceptanceReceiptV1
 
-    def task_term(self, x: CandidateTaskInputsV1) -> float:
-        if not isinstance(x, CandidateTaskInputsV1):
-            raise StaticValidationError("task_term input must be CandidateTaskInputsV1")
-        return _evaluate_one(self._function, x)
+    def __post_init__(self) -> None:
+        if type(self.source_bytes) is not bytes:
+            raise StaticValidationError("statically accepted source must retain exact bytes")
+        if type(self.receipt) is not StaticAcceptanceReceiptV1:
+            raise StaticValidationError("statically accepted source requires its exact receipt")
+        _encoded, current_receipt = _derive_static_acceptance(self.source_bytes)
+        if current_receipt.canonical_bytes != self.receipt.canonical_bytes:
+            raise StaticValidationError("static acceptance receipt is stale or differs from source")
+
+    @property
+    def metadata(self) -> Mapping[str, object]:
+        return self.receipt.metadata
 
 
-def validate_task_term_source(
+def _derive_static_acceptance(
     source: bytes | str,
-    *,
-    determinism_probes: Sequence[CandidateTaskInputsV1] = DEFAULT_DETERMINISM_PROBES,
-) -> ValidatedTaskTermV1:
+) -> tuple[bytes, StaticAcceptanceReceiptV1]:
     encoded, module, metadata = parse_and_validate_task_term_source(source)
-    if (
-        not isinstance(determinism_probes, Sequence)
-        or isinstance(determinism_probes, (str, bytes))
-        or not determinism_probes
-        or any(not isinstance(item, CandidateTaskInputsV1) for item in determinism_probes)
-    ):
-        raise StaticValidationError("determinism probes must be nonempty candidate inputs")
-    function = _compile_task_term(module)
-    determinism = _determinism_digest(function, tuple(determinism_probes))
-    frozen_metadata = MappingProxyType(
-        {name: _freeze_literal(value) for name, value in metadata.items()}
-    )
-    receipt = StaticValidationReceiptV1(
+    receipt = StaticAcceptanceReceiptV1(
         source_sha256=hashlib.sha256(encoded).hexdigest(),
         source_bytes=len(encoded),
         ast_nodes=sum(1 for _node in ast.walk(module)),
         read_set=CANDIDATE_READ_SET_V1,
-        metadata=frozen_metadata,
-        determinism_sha256=determinism,
+        metadata=metadata,
     )
-    return ValidatedTaskTermV1(
+    return encoded, receipt
+
+
+def statically_validate_task_term_source(
+    source: bytes | str,
+) -> StaticallyAcceptedTaskTermSourceV1:
+    encoded, receipt = _derive_static_acceptance(source)
+    return StaticallyAcceptedTaskTermSourceV1(
         source_bytes=encoded,
-        metadata=frozen_metadata,
         receipt=receipt,
-        _function=function,
+    )
+
+
+def assert_static_acceptance_current(
+    accepted: StaticallyAcceptedTaskTermSourceV1,
+) -> StaticallyAcceptedTaskTermSourceV1:
+    """Reparse bytes and reject stale or forged static acceptance data."""
+
+    if type(accepted) is not StaticallyAcceptedTaskTermSourceV1:
+        raise StaticValidationError("a statically accepted task-term source is required")
+    return StaticallyAcceptedTaskTermSourceV1(
+        source_bytes=accepted.source_bytes,
+        receipt=accepted.receipt,
     )
 
 
 __all__ = [
-    "DEFAULT_DETERMINISM_PROBES",
+    "DYNAMIC_VALIDATION_NOT_PERFORMED",
     "MAX_AST_NODES",
+    "MAX_CONDITIONAL_DEPTH",
     "MAX_SOURCE_BYTES",
     "SAFE_FUNCTION_NAMES",
+    "STATIC_VALIDATION_SCOPE_V1",
+    "StaticAcceptanceReceiptV1",
     "StaticValidationError",
-    "StaticValidationReceiptV1",
-    "ValidatedTaskTermV1",
+    "StaticallyAcceptedTaskTermSourceV1",
+    "assert_static_acceptance_current",
     "parse_and_validate_task_term_source",
-    "validate_task_term_source",
+    "statically_validate_task_term_source",
 ]

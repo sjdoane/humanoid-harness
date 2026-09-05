@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import struct
-
 import pytest
 
-from oracle_composition.rewards.contract import CandidateTaskInputsV1
 from oracle_composition.rewards.static_validation import (
+    MAX_CONDITIONAL_DEPTH,
     StaticValidationError,
-    validate_task_term_source,
+    statically_validate_task_term_source,
 )
 
 BENIGN = b"""NAME = "symmetric_target_speed"\nVERSION = 1\n\ndef task_term(x):\n    error = abs(x.com_x_velocity_m_s - x.target_speed_m_s)\n    return 1.0 - min(1.0, error)\n"""
@@ -15,29 +13,42 @@ BENIGN = b"""NAME = "symmetric_target_speed"\nVERSION = 1\n\ndef task_term(x):\n
 
 def _reject(source: bytes | str, match: str | None = None) -> None:
     with pytest.raises(StaticValidationError, match=match):
-        validate_task_term_source(source)
+        statically_validate_task_term_source(source)
 
 
-def test_benign_candidate_passes_with_bitwise_identical_repeated_results() -> None:
-    program = validate_task_term_source(BENIGN)
-    probe = CandidateTaskInputsV1(1.25, 1.0)
-    first = struct.pack(">d", program.task_term(probe))
-    program.task_term(CandidateTaskInputsV1(-2.0, 1.5))
-    second = struct.pack(">d", program.task_term(probe))
-    assert first == second
-    assert program.receipt.passed is True
-    assert program.receipt.read_set == ("com_x_velocity_m_s", "target_speed_m_s")
-    assert len(program.receipt.sha256) == 64
+def test_benign_candidate_is_statically_accepted_without_dynamic_claim() -> None:
+    source = statically_validate_task_term_source(BENIGN)
+    assert not hasattr(source, "task_term")
+    assert source.receipt.static_accepted is True
+    assert source.receipt.validation_scope == "source_bytes_and_ast_only"
+    assert source.receipt.dynamic_validation_status == "not_performed"
+    assert source.receipt.read_set == ("com_x_velocity_m_s", "target_speed_m_s")
+    assert len(source.receipt.sha256) == 64
+    assert "determinism_sha256" not in source.receipt.to_dict()
+    assert "passed" not in source.receipt.to_dict()
 
 
 def test_literal_metadata_is_deeply_immutable() -> None:
     source = b'METADATA = {"nested": [1, 2]}\n\ndef task_term(x):\n    return 0.0\n'
-    program = validate_task_term_source(source)
+    program = statically_validate_task_term_source(source)
     nested = program.metadata["METADATA"]
     with pytest.raises(TypeError):
         nested["nested"] = ()  # type: ignore[index]
     with pytest.raises(TypeError):
         nested["nested"][0] = 3  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "METADATA = object()",
+        "METADATA = {1: 'non-string-key'}",
+        "_PRIVATE = 1",
+        "VERSION = 1\nVERSION = 2",
+    ],
+)
+def test_invalid_or_duplicated_metadata_is_rejected(metadata: str) -> None:
+    _reject(f"{metadata}\n\ndef task_term(x):\n    return 0.0\n", "metadata")
 
 
 def test_rejects_imports_dynamic_calls_and_dunders() -> None:
@@ -89,17 +100,24 @@ def test_rejects_input_mutation_recursion_loop_and_allocation_ast() -> None:
         _reject(attack)
 
 
-def test_rejects_nan_inf_wrong_type_and_output_envelope() -> None:
-    attacks = (
+def test_static_check_rejects_nonfinite_and_boolean_literals() -> None:
+    for attack in (
         "def task_term(x):\n return 1e309",
         "def task_term(x):\n return -1e309",
-        "def task_term(x):\n return 1",
         "def task_term(x):\n return True",
+    ):
+        _reject(attack)
+
+
+def test_runtime_only_output_failures_are_not_claimed_by_static_acceptance() -> None:
+    runtime_only_failures = (
+        "def task_term(x):\n return 1",
         "def task_term(x):\n return 1000.0001",
         "def task_term(x):\n return sqrt(-1.0)",
     )
-    for attack in attacks:
-        _reject(attack)
+    for source in runtime_only_failures:
+        accepted = statically_validate_task_term_source(source)
+        assert accepted.receipt.dynamic_validation_status == "not_performed"
 
 
 def test_rejects_wrong_signature_async_decorators_defaults_and_fallthrough() -> None:
@@ -118,6 +136,50 @@ def test_rejects_wrong_signature_async_decorators_defaults_and_fallthrough() -> 
 def test_rejects_non_utf8_oversize_and_ast_budget() -> None:
     _reject(b"\xff")
     with pytest.raises(StaticValidationError, match="16 KiB"):
-        validate_task_term_source(b" " * (16 * 1024 + 1))
+        statically_validate_task_term_source(b" " * (16 * 1024 + 1))
     assignments = "\n".join(f" a{i} = {i}.0" for i in range(200))
     _reject(f"def task_term(x):\n{assignments}\n return 0.0", "512 AST")
+
+
+def _statement_conditionals(depth: int, *, leaf_expression: str = "0.0") -> str:
+    lines = ["def task_term(x):"]
+    for level in range(depth):
+        lines.append(f"{'    ' * (level + 1)}if x.com_x_velocity_m_s >= {float(level)!r}:")
+    lines.append(f"{'    ' * (depth + 1)}return {leaf_expression}")
+    for level in reversed(range(depth)):
+        lines.append(f"{'    ' * (level + 1)}else:")
+        lines.append(f"{'    ' * (level + 2)}return 0.0")
+    return "\n".join(lines) + "\n"
+
+
+def _ternary_conditionals(depth: int) -> str:
+    expression = "0.0"
+    for _ in range(depth):
+        expression = f"(0.0 if x.com_x_velocity_m_s >= x.target_speed_m_s else {expression})"
+    return f"def task_term(x):\n    return {expression}\n"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        _statement_conditionals(MAX_CONDITIONAL_DEPTH),
+        _ternary_conditionals(MAX_CONDITIONAL_DEPTH),
+        _statement_conditionals(4, leaf_expression=_ternary_conditionals(4).split("return ", 1)[1]),
+    ],
+    ids=("statement-if", "ternary-ifexp", "mixed"),
+)
+def test_conditional_depth_eight_is_accepted(source: str) -> None:
+    assert statically_validate_task_term_source(source).receipt.static_accepted is True
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        _statement_conditionals(MAX_CONDITIONAL_DEPTH + 1),
+        _ternary_conditionals(MAX_CONDITIONAL_DEPTH + 1),
+        _statement_conditionals(4, leaf_expression=_ternary_conditionals(5).split("return ", 1)[1]),
+    ],
+    ids=("statement-if", "ternary-ifexp", "mixed"),
+)
+def test_conditional_depth_nine_is_rejected(source: str) -> None:
+    _reject(source, "conditional nesting")

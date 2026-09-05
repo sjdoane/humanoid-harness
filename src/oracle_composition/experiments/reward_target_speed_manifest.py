@@ -30,7 +30,7 @@ from oracle_composition.rewards.contract import (
     canonical_json_bytes,
 )
 from oracle_composition.rewards.sandbox import sandbox_source_sha256, sandbox_worker_source_sha256
-from oracle_composition.rewards.static_validation import validate_task_term_source
+from oracle_composition.rewards.static_validation import statically_validate_task_term_source
 
 from .runtime_identity import (
     dependency_lock_path,
@@ -771,7 +771,7 @@ def inspect_target_speed_runtime_v1() -> tuple[
                 __import__("oracle_composition.rewards.stock_humanoid", fromlist=["stock_humanoid"])
             ),
             "validator": hashlib.sha256(
-                Path(validate_task_term_source.__code__.co_filename).read_bytes()
+                Path(statically_validate_task_term_source.__code__.co_filename).read_bytes()
             ).hexdigest(),
             "scale_calibration": _file_sha256(
                 Path(__file__).parents[1] / "rewards" / "scale_calibration.py"
