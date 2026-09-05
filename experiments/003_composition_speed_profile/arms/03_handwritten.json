@@ -1,0 +1,63 @@
+{
+  "behaviors": [
+    "expert",
+    "medium",
+    "simple"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "fast_initial",
+  "oracle_id": "handwritten",
+  "recovery": {
+    "behavior": "expert",
+    "guard": "z_root < 1.1 or torso_up < 0.65"
+  },
+  "schema_version": 1,
+  "states": {
+    "accelerate": {
+      "behavior": "medium",
+      "min_dwell": 10
+    },
+    "brake": {
+      "behavior": "medium",
+      "min_dwell": 10
+    },
+    "fast_initial": {
+      "behavior": "expert",
+      "min_dwell": 300
+    },
+    "fast_return": {
+      "behavior": "expert",
+      "min_dwell": 0
+    },
+    "slow": {
+      "behavior": "simple",
+      "min_dwell": 250
+    }
+  },
+  "transitions": [
+    {
+      "from": "fast_initial",
+      "guard": "t >= 300 and v_x > v_target and dwell >= 300",
+      "priority": 0,
+      "to": "brake"
+    },
+    {
+      "from": "brake",
+      "guard": "t >= 310 and v_x <= 3.5 and dwell >= 10",
+      "priority": 0,
+      "to": "slow"
+    },
+    {
+      "from": "slow",
+      "guard": "t >= 600 and v_x < v_target and dwell >= 250",
+      "priority": 0,
+      "to": "accelerate"
+    },
+    {
+      "from": "accelerate",
+      "guard": "t >= 610 and v_x >= 2.5 and dwell >= 10",
+      "priority": 0,
+      "to": "fast_return"
+    }
+  ]
+}

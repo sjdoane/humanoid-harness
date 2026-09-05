@@ -1,0 +1,92 @@
+{
+  "evaluation": {
+    "aggregation": "median_over_predeclared_seeds",
+    "cycle_zero_oracle_ids": [
+      "single_fast",
+      "single_slow",
+      "playback",
+      "handwritten"
+    ],
+    "determinism_replay": "repeat_first_oracle_all_seeds_and_require_equal_trace_hashes",
+    "deterministic_actor_output": "mean",
+    "episode_steps": 1000,
+    "fall_definition": "z_root_outside_open_1.0_2.0_or_torso_up_below_0.5",
+    "falls_excluded": false,
+    "first_fall_step": "boundary_index_0_reset_or_1_to_horizon_post_step",
+    "primary_metric": "mean_absolute_speed_error_m_s",
+    "seeds": [
+      97001,
+      97002,
+      97003,
+      97004,
+      97005,
+      97006,
+      97007,
+      97008,
+      97009,
+      97010,
+      97011,
+      97012,
+      97013,
+      97014,
+      97015,
+      97016,
+      97017,
+      97018,
+      97019,
+      97020
+    ],
+    "speed_quantity": "root_x_sidecar_delta_over_0.015_s",
+    "task_return": "sum_stock_reward_descriptive_only"
+  },
+  "evidence_class": "exploratory_oracle_cycle",
+  "library_manifest_sha256": "ad57578dc2ed4fe3707da74a4f86620e758b1aa30064016785d187a5e86d3207",
+  "runtime": {
+    "control_period_seconds": 0.015,
+    "environment_id": "Humanoid-v5",
+    "frame_skip": 5,
+    "observation": "stock_348d_excluding_root_xy",
+    "physics_timestep_seconds": 0.003,
+    "stock_reward": "untouched_descriptive_task_return_only",
+    "terminate_when_unhealthy": false,
+    "time_limit_steps": 1000
+  },
+  "schema_version": 1,
+  "slow_selection": {
+    "candidates": [
+      {
+        "behavior": "medium",
+        "below_expert_m_s": 2.446748740229647,
+        "median_speed_m_s": 3.07401987589581
+      },
+      {
+        "behavior": "simple",
+        "below_expert_m_s": 4.63540862526776,
+        "median_speed_m_s": 0.8853599908576963
+      }
+    ],
+    "chosen_behavior": "simple",
+    "expert_behavior": "expert",
+    "rule": "nonexpert_median_farthest_below_expert"
+  },
+  "target_schedule": [
+    {
+      "start": 0,
+      "stop": 300,
+      "target_m_s": 5.520768616125457
+    },
+    {
+      "start": 300,
+      "stop": 600,
+      "target_m_s": 0.8853599908576963
+    },
+    {
+      "start": 600,
+      "stop": 1000,
+      "target_m_s": 5.520768616125457
+    }
+  ],
+  "task_spec_id": "humanoid_speed_profile_t1/v1",
+  "task_text": "Run at the fast gait, slow to the slow gait for the middle third, return to the fast gait, and never fall.",
+  "trace_artifact_directory": "artifacts/experiments_003"
+}

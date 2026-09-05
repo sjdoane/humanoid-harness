@@ -1,0 +1,38 @@
+{
+  "behaviors": [
+    "expert",
+    "simple"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "fast_initial",
+  "oracle_id": "playback",
+  "schema_version": 1,
+  "states": {
+    "fast_initial": {
+      "behavior": "expert",
+      "min_dwell": 300
+    },
+    "fast_return": {
+      "behavior": "expert",
+      "min_dwell": 0
+    },
+    "slow": {
+      "behavior": "simple",
+      "min_dwell": 300
+    }
+  },
+  "transitions": [
+    {
+      "from": "fast_initial",
+      "guard": "t >= 300",
+      "priority": 0,
+      "to": "slow"
+    },
+    {
+      "from": "slow",
+      "guard": "t >= 600",
+      "priority": 0,
+      "to": "fast_return"
+    }
+  ]
+}

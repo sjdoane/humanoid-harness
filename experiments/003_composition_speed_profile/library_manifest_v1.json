@@ -1,0 +1,124 @@
+{
+  "behaviors": [
+    {
+      "e3_falls": {
+        "e3_episode_count": 36,
+        "e3_step_count": 36000,
+        "fall_event_count": 2,
+        "fall_seeds": [
+          120006,
+          120201
+        ],
+        "falls_per_1000_steps": 0.05555555555555556
+      },
+      "equivalence_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_expert_03a3_v1.json",
+        "sha256": "65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e"
+      },
+      "import_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_import_expert_03a3_v1.json",
+        "sha256": "b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7"
+      },
+      "name": "expert",
+      "speed_m_s": {
+        "admitted_clip_count": 28,
+        "admitted_step_count": 28000,
+        "iqr_m_s": 0.7193024103883934,
+        "median_m_s": 5.520768616125457,
+        "q1_m_s": 4.989357212768564,
+        "q3_m_s": 5.708659623156957
+      },
+      "strict_npz": {
+        "path": "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz",
+        "sha256": "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
+      }
+    },
+    {
+      "e3_falls": {
+        "e3_episode_count": 36,
+        "e3_step_count": 36000,
+        "fall_event_count": 0,
+        "fall_seeds": [],
+        "falls_per_1000_steps": 0.0
+      },
+      "equivalence_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_medium_v1.json",
+        "sha256": "ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487"
+      },
+      "import_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_import_medium_v1.json",
+        "sha256": "b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172"
+      },
+      "name": "medium",
+      "speed_m_s": {
+        "admitted_clip_count": 28,
+        "admitted_step_count": 28000,
+        "iqr_m_s": 0.4913530374548003,
+        "median_m_s": 3.07401987589581,
+        "q1_m_s": 2.8150054252252588,
+        "q3_m_s": 3.306358462680059
+      },
+      "strict_npz": {
+        "path": "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_medium_actor_v1.npz",
+        "sha256": "2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04"
+      }
+    },
+    {
+      "e3_falls": {
+        "e3_episode_count": 36,
+        "e3_step_count": 36000,
+        "fall_event_count": 7,
+        "fall_seeds": [
+          120004,
+          120006,
+          120010,
+          120107,
+          120115,
+          120118,
+          120203
+        ],
+        "falls_per_1000_steps": 0.19444444444444445
+      },
+      "equivalence_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_equivalence_simple_v1.json",
+        "sha256": "604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268"
+      },
+      "import_receipt": {
+        "path": "artifacts/bootstrap_tqc_humanoid/external_actor_import_simple_v1.json",
+        "sha256": "bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7"
+      },
+      "name": "simple",
+      "speed_m_s": {
+        "admitted_clip_count": 28,
+        "admitted_step_count": 28000,
+        "iqr_m_s": 0.21074524052869437,
+        "median_m_s": 0.8853599908576963,
+        "q1_m_s": 0.7752067399298124,
+        "q3_m_s": 0.9859519804585067
+      },
+      "strict_npz": {
+        "path": "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_simple_actor_v1.npz",
+        "sha256": "b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917"
+      }
+    }
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "fall_measurement": "one first fall event per predeclared v2 E3 branch when healthy or upright boundary count is below 1000; all 36 branches per actor and 36000 executed steps form the denominator",
+  "manifest_id": "humanoid_three_actor_library/v1",
+  "schema_version": 1,
+  "source_evidence": {
+    "corpus_manifest_v2": {
+      "path": "artifacts/reference_corpus_v2/corpus_manifest_v2.json",
+      "sha256": "a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090"
+    },
+    "e3_certificate_v2": {
+      "path": "artifacts/reference_corpus_v2/e3_fork_certificate_v2.json",
+      "sha256": "5a91a265e057e6f8c6497d50a4a20ac3baab40b67c101115bc96b6f4b7555b74"
+    },
+    "validation_manifest_v2": {
+      "path": "experiments/reference_corpus_v1/reviews/corpus_run_v2_validation.json",
+      "sha256": "5eeedc84d13bf83fde534423fb5eb898160f543ef7dcdf325a7e136adbcfc434"
+    }
+  },
+  "speed_measurement": "pooled per-step root x sidecar difference divided by the 0.015 second control period across each actor's 28 clips whose v2 E3 block_passed field is true; NumPy linear q1 median q3"
+}
