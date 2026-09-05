@@ -3,7 +3,7 @@
 | status | current strategy |
 |---|---|
 | progress | The harness loop now runs end to end on stock `Humanoid-v5` as a CLI: task T1 (speed profile), a frozen three-gait library, cycle 0 with four predeclared arms, a prompt-only LLM-designed cycle-1 oracle, and canonical cycle reports (`50fd60c`, `2fb31dc`, cycle 1 pending commit). |
-| bottleneck | Every switching design fell in `20/20` episodes, each time `22`-`57` steps after the expert-to-medium switch at running speed; the library's controllers cannot hand over to each other, so controller switching cannot compose behaviors. Composition needs a tracker that learns transitions from a composed reference, which is the collaborator's frame and the next block to build. |
+| bottleneck | None of the three tested step-300 running-speed handovers survived (`60/60` switching episodes fell: playback switched expert to simple and fell `20`-`25` steps later; handwritten and the cycle-1 candidate switched expert to medium and fell `23`-`60` and `22`-`57` steps later). Alternative phases, timings, and state-conditioned handovers remain untested, so this is not evidence of general handover infeasibility. Composition still needs a tracker that learns transitions from a composed reference, which is the block under construction. |
 | next step | Phase B: build the fine-tuning runtime as two implementation-only slices (`FT1` contracts, exact full-authority E1 warm start, switch-only phase transfer, composed-window runtime, tracking-only reward; `FT2` training worker, supervision, persistence, report v2, CLI `train`), then a disposable 20-minute smoke under a mailbox reservation; the five-seed cohort needs Samuel's authorization. |
 
 ## Fable's authority
@@ -279,12 +279,34 @@ metric from simulator state; label `exploratory_oracle_cycle`.
 
 What the loop established: the designer can produce contract-valid programs
 from the prompt alone, the reports are deterministic (`20/20` replay), and
-the library's controllers cannot hand over to one another at running speed,
-so switching is not composition. That is the collaborator's point restated
+none of the three tested step-300 handovers at running speed survived;
+alternative phases, timings, and state-conditioned handovers are untested
+(correction recorded after the scientific review of `74d7aa5`, SCI-002). That is the collaborator's point restated
 as a measurement: the composition knob needs a tracker that follows a
 composed reference and learns the transition (fine-tuning runtime), and the
 harness's job includes detecting infeasibility and reporting it to the human
 with options rather than iterating blindly.
+
+### Corrections and phase B endpoint after the Experiment 003 reviews (2026-09-05T20:23Z)
+
+| item | correction |
+|---|---|
+| Steering text (SCI-001) | Fable's cycle-2 steering said every cycle-0 and cycle-1 fall followed an expert-to-medium switch by `22`-`57` steps. The cycle-0 playback arm switched expert to simple and fell `20`-`25` steps later; the handwritten arm switched expert to medium and fell `23`-`60` steps later; only the cycle-1 candidate has the `22`-`57` range. The cycle-2 designer worked from that inaccurate summary; the historical text stays, with this correction attached in the cycle record. |
+| Infeasibility wording (SCI-002) | "Cannot hand over" is replaced everywhere by "none of the three tested step-300 running-speed handovers survived; alternative phases, timings, and state-conditioned handovers remain untested". |
+| Evaluator lineage (SCI-004, R03, R04) | The runtime fingerprint hashed only the executor while the evaluator changed each cycle, and reports embed timestamps, so identical reruns change hashes. The repair slice binds runtime, interpreter, metric-core, report-writer, loader, and schema identities separately and chains cycles through a deterministic scientific receipt with telemetry outside the hash. |
+| Designer provenance (SCI-005, R07) | Designer isolation is audit-log-only, not OS-enforced; sanitized provenance receipts (packet, request, events, final response, allowed inputs, model and effort, canonical oracle) are committed per cycle and the property is labeled as observed, not enforced. |
+| Report wording (SCI-007) | "passed" and "improved" become "component-wise lower, equal, or higher" with "task not completed: slow segment absent" above the comparison table. |
+
+Phase B task-success endpoint, frozen before any phase B evaluation (SCI-003):
+
+| element | rule |
+|---|---|
+| Safety gate | `0/20` falls, no forbidden contact, all `1,000` steps completed; an unsafe arm never outranks a safe arm |
+| Episode success | fast, slow, and return-fast segment tolerances and both transition-latency bounds met; tolerances calibrated on a separate calibration-only split and frozen before candidate evaluation |
+| Primary endpoint | task-success proportion over the fixed evaluation seeds with an exact binomial interval |
+| Secondary endpoints | equal-weight mean of the three segment errors, transition-window error, settle latency, time to first failure |
+| Ordering | safety gate, then task-success proportion, then segment-balanced error, then transition latency; no post-hoc weighted aggregate |
+| Controls | fixed training and evaluation seeds, budget, final-checkpoint rule, tracker, reward and reference manifests, evaluator digest |
 
 ## Phase B design decisions (2026-09-05T19:32Z)
 
@@ -378,6 +400,7 @@ goal ID.
 | 2026-09-05 | `LG-01`, `LG-02`, `LG-05`, `LG-13`, `LG-15`, `LG-16` | Alignment pivot: run the composition loop now with controller switching; retire the residual tracker family; make the local policy-training block a fine-tuning runtime warm-started from the expert; move E5 and hardening off the critical path; every cycle is a CLI command with a JSON report. | Samuel's alignment request; transcript re-read; authority-gap analysis (`0/56,000` steps within `0.08`); failed screen `19/20` | cycle-0 and cycle-1 reports exist and a human can steer cycle 2 from text | recorded 2026-09-05T17:50Z; ADR 0008 |
 | 2026-09-05 | `LG-02`, `LG-05`, `LG-06`, `LG-16` | Record cycles 0 and 1 of the composition loop; conclude that controller switching cannot compose this library; make the fine-tuning runtime the next block and one steered cycle 2 the confirmation. | cycle reports `report_0`, `report_1`; designer runs `e003d1`, `e003d2` | cycle 2 confirms or refutes the infeasibility; the fine-tuning runtime smoke keeps identity at step 0 and trains | recorded 2026-09-05T18:51Z |
 | 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Freeze the phase B fine-tuning runtime design (full-authority E1 warm start, nearest-state phase transfer, tracking-only baseline reward, utility gate) and split implementation into `FT1` and `FT2`; training beyond the 20-minute smoke needs Samuel's authorization. | survey `sol-survey-20260905-ft`; phase A closure `74d7aa5` | FT1 passes the E1 receipt and phase-transfer tests; FT2 trains a fake runtime end to end; the smoke keeps identity at step 0 | recorded 2026-09-05T19:32Z |
+| 2026-09-05 | `LG-02`, `LG-05`, `LG-16` | Fold the Experiment 003 reviews: correct the steering and infeasibility record, freeze the phase B task-success endpoint, and run repair slice `E003R1` (evaluator and schema identities, deterministic scientific receipts, prior-report chain validation, sealed execution manifest, designer provenance receipts, recovery semantics, non-vacuous negatives) before the training-worker slice. | reviews `sol-review-sci-20260905-e003` (ACCEPT-WITH-REPAIRS, 6 P1) and `sol-review-adv-20260905-e003` (ACCEPT-WITH-REPAIRS, 9 P1, 1 P2) | repair slice passes its negatives; identical reruns give identical scientific receipts | recorded 2026-09-05T20:23Z |
 
 ## Known strategy inconsistencies
 
