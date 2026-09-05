@@ -87,10 +87,10 @@
     },
     {
       "commit": "58e71aa",
-      "finished_utc": "2026-09-05T20:25Z",
-      "result": "see scratch record: full suite passed except the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
-      "ruff": "clean",
-      "started_utc": "2026-09-05T20:22Z",
+      "finished_utc": "2026-09-05T20:24:13Z",
+      "result": "1351 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 266 files formatted",
+      "started_utc": "2026-09-05T20:22:02Z",
       "tree": "Slice FT1 (phase B contracts, warm start, phase transfer, reward) before the reward receipt regeneration"
     }
   ],
