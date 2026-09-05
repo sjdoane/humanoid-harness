@@ -52,6 +52,15 @@
 | F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
 | F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
 | F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
+| F3 T2-aware model protocol | read-only Sol/max planner | dispatch/collect exact active pointer | `TASK-F3-t2-model-plan.md`; one initial-call plan, no candidate execution |
+
+- Accepted F2 commit: `9bbb6587c1f9d955e684ffe4e1772e72602e3556`.
+- Reviewed handoff sent:
+  `20260905T231526.597779Z-051fd2dcdda14f949a570a5294b478df`.
+- Exact-bounds/adapter-admission proposal:
+  `20260905T231526.889802Z-539e60b2549f48459fda183b385842df`.
+- F3 must bind the actual tracking-only baseline (+0.0 task reward), not an
+  invented alpha=1,beta=0 parent or an out-of-bounds alpha=0 recipe.
 
 - F2 builder: `20260905T220615Z-651f932a-0627-4e28-a7cb-0719bdf94475`;
   terminal success and lease release verified; watcher observed completion.
