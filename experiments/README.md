@@ -3,7 +3,8 @@
 | ID | Purpose | Admission state |
 |---|---|---|
 | `000_toy_positive_control` | Prove the evaluator can detect useful state-conditioned selection | planned |
-| `bootstrap_tqc_humanoid` | Acquire and gate a base actor before tracker construction | E0 resource pass; integrity-verified external actor NPZ and fixed-batch equivalence under `external_pretrained_artifact`; interface check only, not E1 or behavior |
+| `bootstrap_tqc_humanoid` | Acquire and gate a base actor before tracker construction | E0 resource pass; integrity-verified external actor NPZ and fixed-batch equivalence under `external_pretrained_artifact`; 20-reset expert screen stopped at seed 96001's equivalence canary and has no result |
+| `reference_corpus_v1` | Build the first three-segment same-runtime composition benchmark | Stopped run: `108/108` corpus clips passed full-clip replay and `27/36` E3 blocks qualified; screen incomplete, so the run is not admitted as complete |
 | `001_humanoid_fixed_reference` | Establish static tracker feasibility only | interface and evaluator implemented; no trained checkpoint |
 | `002_humanoid_reference_use` | Install a time-varying reference and test exact/zero/shuffled/shifted causal use | offline numeric-sensitivity probe passed; behavioral gate blocked by tracker admission |
 | `003_humanoid_manual_oracle` | Test phase- and state-aware transitions/recovery | blocked by `002` |
