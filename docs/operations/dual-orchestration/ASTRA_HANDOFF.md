@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F1 repair finished; parent reproduced 232 passed/16 deferred after a replay FIFO fix. Fable explicitly accepted T2 inputs. |
-| bottleneck | F1 independent closure remains; no T2 formula/compositor or real-model/training connection exists. |
-| next step | Collect exact F1 closure review, verify its snapshot and close or repair the remaining findings. |
+| progress | F1 independent closure accepts static/synthetic plumbing; all ten reviewed hashes match. Parent pure regression: 256 passed/16 deferred/1 simulator test deselected. |
+| bottleneck | F1 still targets old B0 inputs; T2 formula/compositor mapping and authenticated model ingestion remain. |
+| next step | Collect the bounded F2 interface plan and agree the minimal Phase B reward handoff with Fable. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 20:45 UTC heartbeat; repair collected, tests reproduced, T2 peer acceptance acknowledged.
+- Last checkpoint: 2026-09-05, 21:25 UTC heartbeat; F1 closure collected and all ten hashes reverified before acceptance.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -48,7 +48,15 @@
 | F1 formula core | Sol builder + reviewer | REJECT_F1 at 19:48:21Z; three lineage defects | `F1_REVIEW_FINDINGS.md`; numerical core/input gates accepted within static scope |
 | T2 input module | Astra + reviewer | ACCEPT_T2_INPUT_ONLY at 19:48:21Z; 17 tests pass | `T2_INPUT_ACCEPTANCE.md`; not wired into formula or simulator |
 | F1 lineage repair | Sol writer + Astra | finished 20:34:23Z; parent 232 passed/16 deferred | `F1_REPAIR_PARENT_CHECKPOINT.md`; includes one FIFO-open regression fix |
-| F1 closure review | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F1-closure-review.md`; static/synthetic-only verdict |
+| F1 closure review | read-only Sol/max | ACCEPT_F1_STATIC_ONLY at 20:59:48Z | `F1_ACCEPTANCE.md`; three findings and FIFO follow-up closed |
+| F2 T2/runtime interface plan | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F2-interface-plan.md`; proposal only, no integration authority |
+
+- Current acceptance: `F1_ACCEPTANCE.md`. Its retained negative records an
+  accidentally selected simulator test failing on missing `gymnasium`; no
+  simulator started. Use `-m 'not gym'` for this dev-only checkout's pure suite.
+- Peer main observed at committed `8d91a811680599631779892a2c2bedf2127a3a74`:
+  reviewed M1 merge and accepted T2 module integrated. No peer dirty files read
+  or edited. Phase B registry/compositor remains Fable-owned.
 
 - T2 exact interface accepted by Fable in
   `20260905T202243.309823Z-181767ca33654e69aad5743d92537aeb`.
