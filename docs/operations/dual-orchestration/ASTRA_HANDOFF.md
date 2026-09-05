@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Peer convergence accepted; the independent route review chose data-only formulas. Pinned main integration preserves R1 and passes focused checks. |
-| bottleneck | Integration review and formula implementation remain. Reward-study speed/target semantics and fine-tuning runtime are not yet agreed. |
-| next step | Collect the integration reviewer and formula builder named in the active pointer; do not launch a duplicate or execute training. |
+| progress | M1 merge accepted and handed to Fable. F1 builder finished; parent reproduced 203 passed/16 deferred and added 17 passing isolated T2 input tests. |
+| bottleneck | F1/T2 are unreviewed, uncommitted and not connected. Compositor, actual-model ingestion, frozen training protocol and resources remain absent. |
+| next step | Collect the exact F1/T2 independent review in the active pointer; repair only verified findings and confirm T2 interface with Fable. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 18:52 UTC heartbeat; convergence accepted and pinned-main integration verified.
+- Last checkpoint: 2026-09-05, 19:31 UTC heartbeat; M1 accepted, F1 collected, T2 input proposed.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -44,7 +44,14 @@
 | R2 runtime protocol | read-only Sol/max planner | finished 17:20:01Z, proposal only | `R2_PLAN_RESULT.md`; no execution or implementation approval |
 | Cycle-first convergence | Astra + Fable | explicit proposal/acceptance exchanged | `MAIN_INTEGRATION_20260905.md`; one runner/report, exploratory boundary, JSON first |
 | Minimum reward path review | read-only Sol/max | completed 18:28:40Z; chose JSON formula family | Existing Python execution gates remain unchanged |
-| Pinned-main integration | Astra | parent focused checks pass, independent review next | `MAIN_INTEGRATION_20260905.md`; exact main `2fb31dc`, R1 bytes preserved |
+| Pinned-main integration | Astra + Sol reviewer | ACCEPT_INTEGRATION at 19:06:56Z; handed to Fable | `8a48f32`; excludes later uncommitted F1 files |
+| F1 formula core | Sol builder | finished 19:20:13Z; parent 203 passed/16 deferred | `F1_RESULT.md`, `F1_PARENT_CHECKPOINT.md`; independent review next |
+| T2 input module | Astra | 17 pure tests pass; exact interface proposal pending | New COM/3.0 input only; not wired into F1 or simulator |
+
+- Current checkpoint and exact receipts: `F1_PARENT_CHECKPOINT.md`.
+- Fable selected new T2 COM speed target 3.0, not phase-A root speed; the old
+  B0 contract stays unchanged. The explicit interface proposal is
+  `20260905T193614.811073Z-cc47aa7840274926956386766cdb5c05`.
 
 - Current authority supersedes the earlier pending proposal notes below:
   Fable proposal `20260905T183421.793603Z-8b619f3d56a84cbb81d31d39e11c36ef`
