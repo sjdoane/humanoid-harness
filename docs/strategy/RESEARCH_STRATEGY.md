@@ -205,6 +205,23 @@ Decisions:
    because the eight-step smoke in the reward lane cannot detect a divergence
    that appears after hundreds of steps.
 
+### Preregistration for E4 and E5 admission (2026-09-05T07:20Z, written before Fable read any run v2 result)
+
+The scientific review of `41b2597` (SCI-03) found that the E3 certificate's
+`qualifying_corpus` boolean becomes true when one block passes and that no
+corpus-level admission rule existed. The following rule is fixed now, after
+the v1 result and before any later run's E3 certificate is read.
+
+| rule | value |
+|---|---|
+| Block admission | A block is admitted for its predeclared role only if all three branches pass the locked branch gates and both non-expert pairs pass, in the E3 certificate of the corpus run version that packet B binds. The certificate publishes a per-block, per-branch admission map; the single boolean is renamed to `has_qualifying_e3_block` and carries no admission meaning. |
+| Roles | Unchanged seed ranges: training `120001`-`120012`, E4 screen `120101`-`120120`, sealed E5 `120201`-`120204`. Failed blocks are dropped from their role; no seed replacement, no re-draw, no role transfer, and no post-hoc filtering of branches inside an admitted block. |
+| Training use | Reference-state-initialization cells are the admitted training blocks times three origin actors, consumed by a balanced deterministic scheduler; the hold, one-way, and round-trip schedule classes are balanced within each cell. |
+| E4 screen | The fifteen-cell gait-transition design from the 2026-09-05 design survey (three holds, four fixed one-way, four random one-way, two fixed round-trip, two random round-trip; four replicates; `60` episodes per checkpoint; blocks allocated over the sorted admitted screen list by `(4c + j) mod n`). Gates: whole-episode tracking RMSE within the reward scales, the safety and structural gates on every boundary, hold max-error gates, resynchronization within `64` steps after every switch. Pass rule: `>= 57/60` episodes and `>= 3/4` in every cell per checkpoint; `>= 4/5` checkpoints for the family, all five present. E4 can eliminate a tracker family; it cannot establish reference use. |
+| E5 | Only the admitted sealed blocks are opened, by slice C alone, at the eight fixed anchors; the per-checkpoint matched-state gate is `>= 80%` of anchors (`77/96` when all four sealed blocks are admitted); the family rule is `>= 4/5` checkpoints. The four formal arms stay as ADR 0005 froze them; wrong-clip is diagnostic. |
+| Labels | Tracker training runs carry `residual_tracker_development_v1` (or the family name a superseding decision record assigns) and E4 carries `tracker_family_screen_v1`, both with `claim_status = no_tracker_admission_before_E5`; `matched_study` is never used on this chain. |
+| Composer authority | The survey reports that at shared states the medium and simple actors' first controls differ from the expert's by up to about `0.7` while the residual's authority is `0.08`. Whether slice B keeps the residual composer or moves to the predeclared expanded-TQC family is decided in a decision record before packet B is written, on a read-only whole-clip authority-gap analysis, never by widening authority after a failed run. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -277,6 +294,7 @@ goal ID.
 | 2026-09-04 | `LG-03`, `LG-06`, `LG-11`, `LG-15` | Open the reward-first parallel track on stock `Humanoid-v5` (ADR 0006). | Samuel's answer `reward-first-track: approved`; anchor `LKS-A13`; charter Family B | Sol design survey, then a matched `r_0` baseline and one exploratory candidate cycle | design v1 adopted 2026-09-04 from the Sol survey; B0 queued |
 | 2026-09-04 | `LG-03` | Cycle 1 keeps the stock reward as `r_0` and records that its headroom is trivial; a frozen manual target-aware baseline arm is required from cycle 2 for an informative comparison. | Sol survey sections 3 and 5; Fable synthesis | Cycle-2 protocol adds the manual arm | recorded |
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Record the corpus result (`108/108` certified, E3 `27/36`, role split `9/14/4`), preserve the stopped screen run, and require an instrumentation fix with a 1,000-step equivalence canary before any screen, tracker, or candidate-reward result. | Slice 03B receipts (`41b2597`); E3 certificate `c977f506…`; runner stop at seed `96001` | diagnostic worker report; fixed slice passes the canary; versioned screen v2 | recorded; diagnostic and two reviews running |
+| 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Preregister E3 block admission, the E4 fifteen-cell gait-transition screen and its pass rule, E5's admitted-block rule, and the tracker labels, before any run v2 result is read. | SCI-03 of the `41b2597` scientific review; design survey `sol-survey-20260905-b` | packet B binds the admission map of the run it uses; E4 and E5 receipts cite this row | recorded 2026-09-05T07:20Z |
 
 ## Known strategy inconsistencies
 
