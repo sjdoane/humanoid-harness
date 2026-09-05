@@ -57,4 +57,3 @@
 - `RESPONSE_ORIGIN` remains `unverified_synthetic_supplied_bytes`.
 - Historical builder/repair receipts remain unchanged. This decision supersedes
   their pending-acceptance status, not their original observations.
-

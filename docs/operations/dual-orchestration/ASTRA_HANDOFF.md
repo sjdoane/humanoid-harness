@@ -51,6 +51,11 @@
 | F1 closure review | read-only Sol/max | ACCEPT_F1_STATIC_ONLY at 20:59:48Z | `F1_ACCEPTANCE.md`; three findings and FIFO follow-up closed |
 | F2 T2/runtime interface plan | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F2-interface-plan.md`; proposal only, no integration authority |
 
+- Accepted F1 commit: `27330eb4f50feae27df3ab118e8c9c0d165112a8` (local only).
+- Active F2 plan: `20260905T212913Z-cb25bab9-c2f9-4809-ac32-4d68072ab70e`;
+  read-only Sol/max, with a 20-minute immutable-launch deadline watcher attached
+  in the launch tool call. No implementation or resource authority is delegated.
+
 - Current acceptance: `F1_ACCEPTANCE.md`. Its retained negative records an
   accidentally selected simulator test failing on missing `gymnasium`; no
   simulator started. Use `-m 'not gym'` for this dev-only checkout's pure suite.
