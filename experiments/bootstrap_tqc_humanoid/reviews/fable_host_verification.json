@@ -76,6 +76,14 @@
       "ruff": "clean, 250 files formatted",
       "started_utc": "2026-09-05T18:50:29Z",
       "tree": "Slice E003C1 (cycle-1 evaluation and diagnostics) before the reward receipt regeneration"
+    },
+    {
+      "commit": "74d7aa5",
+      "finished_utc": "2026-09-05T19:08Z",
+      "result": "1323 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 250 files formatted",
+      "started_utc": "2026-09-05T19:05Z",
+      "tree": "Slice E003C2 (cycle-2 evaluation, phase A closure) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1

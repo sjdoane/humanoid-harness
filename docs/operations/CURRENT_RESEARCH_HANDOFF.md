@@ -2,19 +2,32 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260905-E003C1` evaluated the read-only designer's byte-exact cycle-1 candidate on seeds `97001`-`97020` for `1,000` steps; all `20/20` determinism replay hashes matched, the detailed report exists, and cycle 2 is prepared. |
-| bottleneck | The candidate fell in `20/20`, never reached `simple`, and spent `100%` of `[300,600)` in `medium`. It matched both switching baselines' fall count and had higher median MAE (`3.2215072393 m/s`). Controller switching remains only a stand-in for frozen-tracker reference following. |
-| next step | Fable reviews and commits this slice, records the failed candidate in strategy, and retains the prepared cycle-2 prompt. The already-planned fine-tuning-runtime packet remains the next write slice unless Fable explicitly schedules another read-only designer. |
+| progress | `TASK-20260905-E003C2` evaluated the byte-exact cycle-2 candidate on all `20` frozen seeds; its `20/20` replay hashes matched, phase A is closed, and the full six-arm record exists. |
+| bottleneck | No switching design survived a running-speed handover: `60/60` episodes across `playback`, `handwritten`, and cycle 1 fell. Cycle 2 avoided the handover by holding `expert`, exactly matched `single_fast`, and did not execute the slow third. |
+| next step | Fable reviews and commits E003C2. Phase B keeps task T1 and uses a tracker-following fine-tuning runtime warm-started at the expert, so composed-reference transitions are learned instead of executed by controller switches. |
 
-Fable resume: verify the byte-identical oracle and provenance, `20/20` replay receipt, five-row report, transition and slow-third tables, ignored trace index, cycle-2 bindings, focused-test receipt, and claim ceiling; then commit E003C1 without editing the frozen task, oracle, or reports.
+Fable integration note (2026-09-05T19:11Z): Slice E003C2 committed as `74d7aa5`; Experiment
+003 phase A is closed (60/60 switching episodes fell across three designs; the
+steered cycle-2 designer concluded infeasibility and named the missing
+deceleration behavior). Astra accepted the convergence terms, merged main
+`2fb31dc` into its lane as `8a48f32`, and is building a data-only target-speed
+formula family; Fable answered the adapter question: reward-study task T2 holds
+3.0 m/s on the fine-tuning runtime with the stock COM `x_velocity` under a
+versioned input contract v2. Fable resume: read the fine-tuning runtime survey
+final (`sol-survey-20260905-ft`), write the phase B runtime packet, launch it as
+the writer; integrate Astra's reviewed merge after their M1 acceptance; the
+first training beyond a 20-minute interface-check smoke needs a mailbox
+reservation and Samuel's authorization.
 
-- Updated: `2026-09-05T18:48:39Z`
+Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
+
+- Updated: `2026-09-05T19:06:34Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `2fb31dcc85a23d1d1ed0b8ab3c86b30d460d7d51` (clean before this slice; exact launch-note commit)
+- Precondition HEAD: `19e73d9636aaac5be231fa32d5b7e9747d0021ff` (clean before this slice; exact launch-note commit)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260905-e003c1`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
+- Write lease: `CLAIMED` by `sol-builder-20260905-e003c2`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
 - Evidence class: `exploratory_oracle_cycle`
-- Builder wall time: `14m18s` from launcher start through the final lease, scope, and diff check
+- Builder wall time: `13m` from launcher acquisition through final validation and handoff
 
 ## Frozen inputs
 
@@ -90,30 +103,86 @@ No steering text was supplied. The read-only designer saw only this prompt.
 | determinism | `20/20` replay hashes matched; `7.4264 s` report wall |
 | evaluation wall | `15.0420 s` in report; `15.53 s` process wall |
 
-## Cycle-2 handoff
+## Cycle-2 designer input
 
 | artifact | SHA-256 | binding |
 |---|---|---|
-| `cycles/cycle_2/designer_prompt.md` | `99b1714912970a98d9436dfbbf9dee2f975e32d574d8a36d81ff085d02c77dab` | task, library, five-row prior report, rules, and verbatim steering sentence |
+| `cycles/cycle_2/designer_prompt.md` | `99b1714912970a98d9436dfbbf9dee2f975e32d574d8a36d81ff085d02c77dab` | task, library, five-row prior report, rules, and no human steering text |
 | `cycles/cycle_2/expected_inputs.json` | `4048d6477c7864c838c5d87717c016827d5e62dc8c8569a0a2977e77702c6d6b` | binds task, library, prompt, and `report_1.json` SHA-256 `480d5b...25f0` |
 
-Steering source: Fable launch note; no human supplied steering. Verbatim text: `No additional steering text was supplied.`
+The read-only designer's launch packet supplied steering from Fable, the
+orchestrating agent; no human steering was supplied. The exact required text is
+quoted in `cycles/cycle_2/cycle_record.md`.
+
+## Cycle-2 candidate and result
+
+| item | value |
+|---|---|
+| designer | `sol-designer-20260905-e003d2`; run `.orchestration/sol-runs/20260905T185111Z-78f29dc3-9fba-4f26-a393-b86bc71f4349`; read the cycle-2 prompt and cycle-1 report only |
+| oracle raw SHA-256 | `f1cbc2784783d4f34312b036a911c536f8406aa3da1ffcf52f35f4927808173a`; source and frozen copy matched byte-for-byte |
+| oracle canonical SHA-256 | `5868d09ea71a4fcd5f1be46ef92fa36c83ac7e3867222cecb9fa7f3000e835bf` |
+| contract validation | Pass; no oracle edit |
+| median MAE / falls | `2.0741721755 m/s / 0 of 20` |
+| median switches | `0` |
+| median behavior time | expert `1,000`; medium `0`; simple `0` steps |
+| slow-third fraction | expert `1`; medium `0`; simple `0` in every episode |
+| median descriptive task return | `10,648.5529837515` |
+
+- The program holds `expert` throughout and is behaviorally identical to
+  cycle-0 `single_fast`. All comparable outcome fields and normalized per-step
+  behavior projections matched byte-for-byte for `20/20` seeds.
+- Full serialized report rows differ only where expected for provenance,
+  trace location, size, and hash, wall time, and cycle-2 diagnostics.
+- The candidate passed the never-fall requirement but did not execute the
+  requested slow third. It is not an oracle-improvement result.
+
+| receipt | SHA-256 / result |
+|---|---|
+| runtime fingerprint | `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; unchanged from cycles 0 and 1 |
+| `report_2.json` | `e677b9f3c3daabdb13648a18981c39b47bc74fa2e6908e7fe1af9d73674e194c` |
+| `report_2.md` | `da600ce263222318ae9d71da1290971482b09e7b9e7eeebfdfb47f54c6460bba` |
+| ignored trace index | `a210e04509a1ac2266981c1ea0af1407ce5059d72d633d6ba62daf9970bdf775`; `20` entries; `13M` cycle directory |
+| determinism | `20/20` replay hashes matched; `3.3180 s` report wall |
+| evaluation wall | `6.8207 s` in report; `7.30 s` process wall |
+
+## Phase-A closure
+
+No running-speed handover survived in `60/60` switching episodes across the
+three designs (`playback`, `handwritten`, and cycle 1). The cycle-2 designer
+identified the missing library element as an admitted deceleration behavior
+with entry coverage at expert running speeds and a validated safe handoff to
+`medium` or `simple`. The full table and claim boundary are frozen in
+`experiments/003_composition_speed_profile/PROTOCOL.md`.
+
+Phase B keeps task T1 and replaces controller switching with a tracker-following
+fine-tuning runtime warm-started at the expert. The runtime learns transitions
+from the composed reference. No cycle-3 prompt was prepared.
 
 ## Validation
 
 | check | result | wall time |
 |---|---|---:|
-| focused harness tests | `13 passed` | `0.59 s` process wall |
-| cycle-1 report regression | four frozen baseline rows plus candidate; switch speed and both fall-window paths; slow-third fractions; cycle-2 prompt binding | included in focused tests |
+| focused harness tests | `14 passed` | `0.59 s` process wall |
+| cycle-2 report regression | Four cycle-0 arms plus cycle-1 and cycle-2 candidates; prior-report binding, source labels, and malformed-history rejection | included in focused tests |
 | Ruff lint | pass | `0.01 s` |
-| Ruff format check | `250 files already formatted` | `<0.01 s` |
-| fake-runtime CLI smoke | cycles 0 and 1 at `2` episodes × `50` steps; pass | included in focused tests |
+| Ruff format check | `252 files already formatted` | `0.01 s` |
+| fake-runtime CLI smoke | cycles 0, 1, and 2 at `2` episodes × `50` steps; pass | included in focused tests |
 | playback transition regression | switches exactly at `300` and `600`; pass | included in focused tests |
 | metric independence regression | corrupting a written trace does not alter the in-memory recomputed metric; pass | included in focused tests |
+| independent cycle-2 audit | Canonical report, exact seeds, all `20` indexed traces, runtime binding, and `single_fast` outcome/behavior identity; pass | `0.32 s` |
 | final `git diff --check` | pass | `0.01 s` |
 
-The E003C1 packet required focused tests, lint, format, and `git diff --check`; it did not request another full-suite run. The E003C0 exact-baseline full-suite receipt remains at base commit `2fb31dc`. The only code change fixes the report path that otherwise omitted the frozen cycle-0 comparison, per-switch diagnostics, slow-third fractions, and explicit per-metric outcomes; the regression covers the positive and negative fall-window paths.
+The only code change fixes the cycle-2 report carry-forward path. Previously it
+discarded the cycle-1 candidate and mislabeled the current row as cycle 1; the
+focused regression failed before the fix and now covers three cycles. No task
+specification, oracle, actor, runtime, reward, seed, horizon, or metric changed.
 
 ## Claim ceiling
 
-Passing supports only that the byte-exact cycle-1 candidate ran on the frozen plain `Humanoid-v5` controller-switching runtime over the predetermined seeds, its canonical report and diagnostics exist, its determinism replay matched, and the cycle-2 prompt is prepared. `task_return` is descriptive stock reward. Controller switching stands in for tracker following. These results support no oracle-quality, generalization, frozen-tracker, reference-following, task-reward, naturalness, robustness, or humanoid-competence claim.
+Phase A supports only that three exploratory controller-switching cycles ran on
+the frozen plain `Humanoid-v5` runtime over the predetermined seeds, their
+canonical reports exist, and their determinism replays matched. `task_return`
+is descriptive stock reward. Controller switching stood in for tracker
+following. These results support no oracle-quality, generalization,
+frozen-tracker, reference-following, task-reward, naturalness, robustness, or
+humanoid-competence claim.
