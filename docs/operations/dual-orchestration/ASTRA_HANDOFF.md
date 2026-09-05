@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | A1 accepted and committed at `76a0fe6`. The first live A2 attempt is retained as a rejected iteration; no response was admitted. |
-| bottleneck | CLI transport idle timeout, then parent-requested stop; no final proposal. Fable's oracle-goal interpretation and separate B0 handoff remain pending. |
-| next step | Read `A2_RESULT.md`; perform read-only connection/auth/quota/host checks and define a fresh bounded follow-up only after explaining the failure boundary. Do not retry the stopped canary or launch its revision. |
+| progress | A2R admitted a real initial proposal and linked revision; 59 focused tests pass. Fable returned its independent transcript interpretation and transferred B0 ownership. |
+| bottleneck | Reward source remains nonexecuted. B0 has blocking containment/lineage findings; no measured robot improvement or composition result is established. |
+| next step | Read `A2R_RESULT.md` and `FABLE_GOAL_ALIGNMENT.md`; collect or launch the one read-only `TASK-A3-B0-adoption-audit.md` call from the exact active-run pointer, then plan the first bounded repair. |
 
-- Date: 2026-09-04.
-- Last checkpoint: 2026-09-04 23:25 UTC, continuation of the 22:49 heartbeat.
+- Date: 2026-09-05.
+- Last checkpoint: 2026-09-05 02:23 UTC, continuation of the 01:33 heartbeat.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -30,6 +30,10 @@
 | A1 repair | detached Sol/max | completed 21:42:41Z; parent checks pass | Six findings addressed; `A1_RESULT.md` |
 | A1 final targeted review | detached Sol/max | ACCEPT at 22:06:14Z | All six original findings closed; parent corrected B0 sequencing wording |
 | A2 live-model protocol | Astra | stopped; one initial call, no revision | `A2_RESULT.md`; transport timeout and retained rejection, no retry |
+| A2R changed-condition canary | Astra | complete; both responses admitted | `A2R_RESULT.md`; text format/lineage only, no candidate execution |
+| Independent goal interpretation | Fable | substantive reply received and acknowledged | `FABLE_GOAL_ALIGNMENT.md`; composition plan reframed, not demonstrated |
+| B0 transfer | Fable → Astra | ownership transferred with P1 repair gates | Exact `89d4c34d1b04eb9efca2b75d1ffc828a13de55d7`; not execution-approved |
+| A3 B0 adoption audit | read-only Sol/max | next bounded packet; see active-run pointer | Dependencies, safe adoption route, first repair scope; no source changes |
 
 - Accepted A1 commit: `76a0fe6e86f5c4e5b52231d3b69df3d0c9b317d2` (not pushed or integrated into main).
 - Final acceptance reproduction: `59 passed in 2.35s`, Ruff/format/diff checks pass.
@@ -52,8 +56,9 @@
   prerequisite for the synthetic-input A2 canary. A2 does not execute or bind
   B0; actual B0 validation/training remains separately gated. The parent
   corrected the result wording after the final read-only review stopped.
-- Fable acceptance: `20260904T221414.221774Z-a293af4af0eb4362a66d1a71554d3c15`, replying to the exact original lane proposal. Astra acknowledged receipt. B0 transfer still requires a separate reviewed handoff; proposed reward-study contracts are not locked by this acceptance.
-- Samuel's alignment request: `20260904T221845.220763Z-d00b214439d24b7e81ae0ff37e28e8af` sent to Fable. It provides the verified private transcript path/hash, asks Fable to form its own goal interpretation, and asks whether the oracle plan should change before the next oracle experiment. No reply yet at dispatch.
+- Fable acceptance: `20260904T221414.221774Z-a293af4af0eb4362a66d1a71554d3c15`, replying to the exact original lane proposal. Astra acknowledged receipt. Proposed reward-study contracts remain unlocked.
+- B0 transfer: `20260905T010239.496518Z-74c32a4658554eb0960b1a3359f767c4`; acknowledged at 02:20 UTC, not accepted for execution. Both reviews require P1 repairs and re-review; transferred paths and exact review runs are in that message. Fable will not start another reward builder. Shared ADR/protocol/config changes still require peer agreement.
+- Samuel's alignment request: `20260904T221845.220763Z-d00b214439d24b7e81ae0ff37e28e8af`; substantive Fable reply `20260905T010211.593536Z-f9e533bf69b64867b07778cbe87b137e` received. Fable reports a full private transcript read and proposes reframing Experiment 003 as composition. See the separate alignment checkpoint for interpretation versus chosen design.
 - Central concern: a small timing adjustment on a single reference clip is a supporting diagnostic, not a demonstration of LLM-designed composition of reference behaviors into a task. Fable should distinguish source-grounded goals from its chosen oracle representation and propose the smallest meaningful composition/feedback demo.
 - Reviewer accidentally started and then stopped a nested reviewer; no output
   was used. The repair packet explicitly prohibits nested work.
@@ -103,9 +108,13 @@
    training, or robot-result claim. Write its concrete packet before dispatch.
    **This attempt stopped after call 1.** Do not resume this numbered step as
    permission to retry; follow the current next-step row and `A2_RESULT.md`.
-5. Once Fable hands over reviewed B0, plan the thin validation/evaluator adapter
-   and agree compute/run protocol. No unattended heavy job before an atomic
-   shared reservation exists.
+5. A2R completed its separate two-call protocol; retain its initial/revision
+   receipts and the failed original A2. No further candidate calls in this series.
+6. B0 ownership has now transferred with execution gates. A3 is a read-only
+   dependency/adoption audit using the existing reviews, not a new broad review.
+   Collect it before importing exact committed dependencies and dispatching a
+   scoped repair. No real candidate execution until all P1s are re-reviewed;
+   no unattended heavy job before an atomic shared reservation exists.
 
 If A1 is incomplete, preserve its diff and write a continuation packet with
 specific missing deliverables; do not silently relaunch the original task.
