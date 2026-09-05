@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | Substrate exists and is verified: three imported public actors, a plain-runtime reference corpus with replay and plain-comparison certificates (`108` clips, run v2), an E3 fork corpus (`28/36` admitted blocks), and a host-verified reward sandbox in Astra's lane. The 2026-09-05 alignment audit found that no harness cycle has run on any MDP. |
-| bottleneck | The critical path drifted into tracker admission science (E1-E5) and hardening, which the collaborator's frame treats as given. The imported expert failed its frozen development screen (`19/20`), and the authority-gap analysis shows a `0.08` residual cannot reproduce the medium or simple gaits at all (`0/56,000` steps), so the residual tracker family is dead before training. |
-| next step | Run composition-loop cycle 0 and 1 on stock `Humanoid-v5` with the library executed by controller switching (Experiment 003, packet `E003-C0`), as a CLI command with a JSON cycle report; in parallel build the fine-tuning runtime (warm start from the expert, full authority) as the local policy-training block for both knobs; move E5 and the hardening backlog off the critical path. |
+| progress | The harness loop now runs end to end on stock `Humanoid-v5` as a CLI: task T1 (speed profile), a frozen three-gait library, cycle 0 with four predeclared arms, a prompt-only LLM-designed cycle-1 oracle, and canonical cycle reports (`50fd60c`, `2fb31dc`, cycle 1 pending commit). |
+| bottleneck | Every switching design fell in `20/20` episodes, each time `22`-`57` steps after the expert-to-medium switch at running speed; the library's controllers cannot hand over to each other, so controller switching cannot compose behaviors. Composition needs a tracker that learns transitions from a composed reference, which is the collaborator's frame and the next block to build. |
+| next step | One steered cycle 2 to confirm the infeasibility finding; the fine-tuning runtime (warm start at the expert, full authority, oracle program plus reward specification in, policy plus cycle report out) as the next builder packet from the running design survey; Astra's data-only reward family plugs into it. |
 
 ## Fable's authority
 
@@ -263,6 +263,29 @@ Decisions from the audit (strategy authority; Samuel may reverse any of them; AD
 5. The sealed E5 blocks were read by the authority-gap analysis and are no
    longer sealed; if E5 ever runs, it draws new sealed seeds first.
 
+## Composition loop results (2026-09-05T18:51Z)
+
+| cycle | designer | arm | median speed MAE (m/s) | falls | note |
+|---|---|---|---:|---:|---|
+| 0 | predeclared | `single_fast` (expert only) | 2.07 | 0/20 | best score; ignores the slow third |
+| 0 | predeclared | `single_slow` (simple only) | 3.31 | 0/20 | |
+| 0 | predeclared | `playback` (switch at 300 and 600) | 3.18 | 20/20 | falls after the first switch |
+| 0 | builder | `handwritten` (velocity and time guards) | 3.21 | 20/20 | never reached `simple` |
+| 1 | read-only LLM from the prompt only | staged through `medium`, dwell 30, velocity gates, recovery | 3.22 | 20/20 | fell 22-57 steps after every expert-to-medium switch at step 300 |
+
+Task T1: fast (expert median `5.52 m/s`) for steps `0`-`299`, slow (simple
+median `0.89 m/s`) for `300`-`599`, fast again to `999`; `20` fixed seeds;
+metric from simulator state; label `exploratory_oracle_cycle`.
+
+What the loop established: the designer can produce contract-valid programs
+from the prompt alone, the reports are deterministic (`20/20` replay), and
+the library's controllers cannot hand over to one another at running speed,
+so switching is not composition. That is the collaborator's point restated
+as a measurement: the composition knob needs a tracker that follows a
+composed reference and learns the transition (fine-tuning runtime), and the
+harness's job includes detecting infeasibility and reporting it to the human
+with options rather than iterating blindly.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -337,6 +360,7 @@ goal ID.
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Record the corpus result (`108/108` certified, E3 `27/36`, role split `9/14/4`), preserve the stopped screen run, and require an instrumentation fix with a 1,000-step equivalence canary before any screen, tracker, or candidate-reward result. | Slice 03B receipts (`41b2597`); E3 certificate `c977f506…`; runner stop at seed `96001` | diagnostic worker report; fixed slice passes the canary; versioned screen v2 | recorded; diagnostic and two reviews running |
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Preregister E3 block admission, the E4 fifteen-cell gait-transition screen and its pass rule, E5's admitted-block rule, and the tracker labels, before any run v2 result is read. | SCI-03 of the `41b2597` scientific review; design survey `sol-survey-20260905-b` | packet B binds the admission map of the run it uses; E4 and E5 receipts cite this row | recorded 2026-09-05T07:20Z |
 | 2026-09-05 | `LG-01`, `LG-02`, `LG-05`, `LG-13`, `LG-15`, `LG-16` | Alignment pivot: run the composition loop now with controller switching; retire the residual tracker family; make the local policy-training block a fine-tuning runtime warm-started from the expert; move E5 and hardening off the critical path; every cycle is a CLI command with a JSON report. | Samuel's alignment request; transcript re-read; authority-gap analysis (`0/56,000` steps within `0.08`); failed screen `19/20` | cycle-0 and cycle-1 reports exist and a human can steer cycle 2 from text | recorded 2026-09-05T17:50Z; ADR 0008 |
+| 2026-09-05 | `LG-02`, `LG-05`, `LG-06`, `LG-16` | Record cycles 0 and 1 of the composition loop; conclude that controller switching cannot compose this library; make the fine-tuning runtime the next block and one steered cycle 2 the confirmation. | cycle reports `report_0`, `report_1`; designer runs `e003d1`, `e003d2` | cycle 2 confirms or refutes the infeasibility; the fine-tuning runtime smoke keeps identity at step 0 and trains | recorded 2026-09-05T18:51Z |
 
 ## Known strategy inconsistencies
 
