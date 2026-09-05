@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
@@ -19,9 +20,24 @@ from .evidence import (
     current_authority_identities,
     validate_prior_report_chain,
 )
-from .inputs import LibraryManifest, TaskSpec
+from .inputs import LibraryManifest, TaskSpec, load_frozen_inputs
 
 MAX_STEERING_CHARACTERS = 4000
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingCliDependencies:
+    """Explicit test seam; production defaults remain fail-closed and real."""
+
+    runtime_kind: str = "real"
+    test_only: bool = False
+    allow_dirty: bool = False
+    test_steps_per_environment: int = 2048
+    test_batch_size: int = 512
+    test_n_epochs: int = 10
+    failure_mode: str | None = None
+    resource_limits: object | None = None
+    utility_dependencies: object | None = None
 
 
 class CycleCliError(RuntimeError):
@@ -288,6 +304,389 @@ def _expand_oracle_paths(values: Sequence[str]) -> list[Path]:
     return result
 
 
+def _seed_list(value: str) -> tuple[int, ...]:
+    try:
+        seeds = tuple(int(item) for item in value.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("seeds must be a comma-separated integer list") from exc
+    if not seeds or any(seed <= 0 for seed in seeds) or len(set(seeds)) != len(seeds):
+        raise argparse.ArgumentTypeError("seeds must be unique positive integers")
+    return seeds
+
+
+def _canonical_mapping(path: Path) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise CycleCliError(f"input must be a regular non-linked file: {path}")
+    encoded = path.read_bytes()
+    try:
+        value = json.loads(encoded.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise CycleCliError(f"input is not valid JSON: {path}") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise CycleCliError(f"input is not one canonical JSON object: {path}")
+    return value
+
+
+def _resolve(root: Path, path: Path) -> Path:
+    return path if path.is_absolute() else root / path
+
+
+def _trace_record(path: Path, *, output: Path, role: str) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise CycleCliError(f"trace artifact is unavailable: {path}")
+    encoded = path.read_bytes()
+    return {
+        "byte_count": len(encoded),
+        "path": path.relative_to(output).as_posix(),
+        "role": role,
+        "sha256": _sha256(encoded),
+    }
+
+
+def _train_command(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    selected: TrainingCliDependencies,
+) -> int:
+    from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
+    from oracle_composition.phase_b.report_v2 import (
+        build_scientific_receipt,
+        publish_report_v2,
+    )
+    from oracle_composition.phase_b.supervision import (
+        ResourceLimits,
+        SupervisorStatus,
+        supervise_training_job,
+        validate_training_preflight,
+    )
+
+    experiment = _resolve(root, args.experiment)
+    oracle = _resolve(root, args.oracle)
+    reward = _resolve(root, args.reward)
+    output = _resolve(root, args.output)
+    if type(args.cycle) is not int or args.cycle < 0:
+        raise CycleCliError("cycle must be a non-negative integer")
+    preflight = validate_training_preflight(
+        repository_root=root,
+        experiment=experiment,
+        oracle_path=oracle,
+        reward_path=reward,
+        allow_dirty=selected.allow_dirty or selected.test_only,
+    )
+    reservation = (
+        _canonical_mapping(_resolve(root, args.reservation))
+        if args.reservation is not None
+        else None
+    )
+    limits = selected.resource_limits
+    if limits is None:
+        limits = ResourceLimits()
+    if not isinstance(limits, ResourceLimits):
+        raise CycleCliError("training resource-limit dependency differs")
+    result = supervise_training_job(
+        preflight=preflight,
+        output_directory=output,
+        seeds=args.seeds,
+        transitions=args.transitions,
+        smoke=args.smoke,
+        reservation=reservation,
+        limits=limits,
+        runtime_kind=selected.runtime_kind,
+        test_only=selected.test_only,
+        test_steps_per_environment=selected.test_steps_per_environment,
+        test_batch_size=selected.test_batch_size,
+        test_n_epochs=selected.test_n_epochs,
+        failure_mode=selected.failure_mode,
+    )
+    if result.status != SupervisorStatus.SUCCEEDED:
+        print(
+            json.dumps(
+                {
+                    "job_result": str(result.job_result.path),
+                    "status": result.status.value,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+    trace_entries = [
+        _trace_record(
+            result.execution_manifest.path,
+            output=output,
+            role="phase_b_execution_manifest",
+        ),
+        _trace_record(result.job_result.path, output=output, role="training_job_result"),
+    ]
+    if result.checkpoint_index is not None:
+        trace_entries.append(
+            _trace_record(
+                result.checkpoint_index.path,
+                output=output,
+                role="five_checkpoint_index",
+            )
+        )
+    for outcome in result.outcomes:
+        seed_directory = output / f"seed_{outcome.seed}"
+        trace_entries.append(
+            _trace_record(outcome.receipt.path, output=output, role="seed_success_receipt")
+        )
+        persistence = outcome.persistence
+        if persistence is None:
+            raise CycleCliError("successful training result omitted persistence")
+        trace_entries.extend(
+            (
+                _trace_record(
+                    seed_directory / "training_facts_v1.json",
+                    output=output,
+                    role="seed_training_facts",
+                ),
+                _trace_record(
+                    seed_directory / "rsi_ledger_v1.json",
+                    output=output,
+                    role="seed_rsi_ledger",
+                ),
+                _trace_record(
+                    persistence.receipt.path,
+                    output=output,
+                    role="seed_persistence_receipt",
+                ),
+                _trace_record(
+                    persistence.checkpoint.path,
+                    output=output,
+                    role="final_full_checkpoint",
+                ),
+                _trace_record(
+                    persistence.strict_export.path,
+                    output=output,
+                    role="final_strict_actor_export",
+                ),
+            )
+        )
+    trace_entries.sort(key=lambda item: (str(item["path"]), str(item["role"])))
+    trace_index_value = {
+        "entries": trace_entries,
+        "entry_count": len(trace_entries),
+        "schema_version": 2,
+        "trace_index_schema_id": "humanoid_phase_b_trace_index/v2",
+    }
+    trace_index = publish_bytes_without_overwrite(
+        output / "trace_index_v2.json",
+        canonical_json_bytes(trace_index_value),
+    )
+    report_inputs = dict(preflight.report_inputs)
+    report_inputs["execution_manifest_sha256"] = result.execution_manifest.sha256
+    seed_facts = [
+        outcome.report_facts for outcome in result.outcomes if outcome.report_facts is not None
+    ]
+    reward_totals: dict[str, object] = {
+        field: sum(float(seed.training["reward_totals"][field]) for seed in seed_facts)
+        for field in ("ignored_stock_reward", "r_task", "r_track", "r_train")
+    }
+    reward_totals["parameters"] = dict(_canonical_mapping(reward).get("parameters", {}))
+    report = build_scientific_receipt(
+        cycle=args.cycle,
+        inputs=report_inputs,
+        seeds=seed_facts,
+        episodes=[],
+        reference_records=[],
+        reward_totals=reward_totals,
+        trace_index_sha256=trace_index.sha256,
+        prior_scientific_receipt={
+            "cycle": 2,
+            "path": "cycles/cycle_2/scientific_receipt_v2.json",
+            "sha256": preflight.prior_scientific_receipt_sha256,
+        },
+    )
+    telemetry_rows = [
+        _canonical_mapping(output / f"seed_{outcome.seed}/telemetry_v1.json")
+        for outcome in result.outcomes
+    ]
+    reports = publish_report_v2(
+        output_directory=output,
+        report=report,
+        telemetry={"per_seed": telemetry_rows},
+    )
+    print(
+        json.dumps(
+            {
+                "checkpoint_index": (
+                    str(result.checkpoint_index.path) if result.checkpoint_index else None
+                ),
+                "job_result": str(result.job_result.path),
+                "promotable": not args.smoke and not selected.test_only,
+                "scientific_receipt": str(reports.scientific_receipt.path),
+                "status": result.status.value,
+                "telemetry": str(reports.telemetry.path),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _checkpoint_hash(checkpoint: Path, explicit: str | None) -> str:
+    if explicit is not None:
+        if len(explicit) != 64 or any(
+            character not in "0123456789abcdef" for character in explicit
+        ):
+            raise CycleCliError("checkpoint SHA-256 is invalid")
+        return explicit
+    receipt_path = checkpoint.parent / "persistence_seed_{}_v1.json".format(
+        checkpoint.name.removeprefix("checkpoint_seed_").removesuffix("_final.npz")
+    )
+    receipt = _canonical_mapping(receipt_path)
+    binding = receipt.get("checkpoint")
+    if type(binding) is not dict or binding.get("filename") != checkpoint.name:
+        raise CycleCliError("checkpoint requires its persistence receipt or an explicit hash")
+    return str(binding["sha256"])
+
+
+def _evaluate_policy_command(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    selected: TrainingCliDependencies,
+) -> int:
+    from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
+    from oracle_composition.phase_b.evaluation import (
+        UtilityEvaluationDependencies,
+        evaluate_policy_checkpoint,
+    )
+    from oracle_composition.phase_b.report_v2 import (
+        SeedReportFacts,
+        build_scientific_receipt,
+        publish_report_v2,
+    )
+    from oracle_composition.phase_b.supervision import validate_training_preflight
+
+    experiment = _resolve(root, args.experiment)
+    oracle = _resolve(root, args.oracle)
+    reward = _resolve(root, args.reward)
+    checkpoint = _resolve(root, args.checkpoint)
+    output = _resolve(root, args.output)
+    preflight = validate_training_preflight(
+        repository_root=root,
+        experiment=experiment,
+        oracle_path=oracle,
+        reward_path=reward,
+        allow_dirty=selected.allow_dirty or selected.test_only,
+    )
+    expected_checkpoint_sha = _checkpoint_hash(checkpoint, args.checkpoint_sha256)
+    if output.exists() or output.is_symlink():
+        raise CycleCliError("evaluate-policy output must be fresh and no-overwrite")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.mkdir(mode=0o700)
+    dependencies = selected.utility_dependencies
+    if dependencies is not None and not isinstance(dependencies, UtilityEvaluationDependencies):
+        raise CycleCliError("utility evaluation dependency differs")
+    evaluation = evaluate_policy_checkpoint(
+        checkpoint_path=checkpoint,
+        checkpoint_sha256=expected_checkpoint_sha,
+        step_zero_actor_path=preflight.runtime_config.starting_actor_path,
+        step_zero_actor_sha256=preflight.runtime_config.starting_actor_sha256,
+        corpus_root=root / "artifacts/reference_corpus_v2",
+        segment_targets_m_s=tuple(
+            float(segment.target_m_s) for segment in load_frozen_inputs(experiment)[1].schedule
+        ),
+        dependencies=dependencies,
+    )
+    trained_value = [episode.to_dict() for episode in evaluation.trained_episodes]
+    baseline_value = [episode.to_dict() for episode in evaluation.step_zero_episodes]
+    trained = publish_bytes_without_overwrite(
+        output / "trained_policy_metrics_v1.json", canonical_json_bytes(trained_value)
+    )
+    baseline = publish_bytes_without_overwrite(
+        output / "step_zero_metrics_v1.json", canonical_json_bytes(baseline_value)
+    )
+    trace_index_value = {
+        "entries": [
+            {
+                "byte_count": trained.byte_count,
+                "path": trained.path.name,
+                "role": "trained_policy_metrics",
+                "sha256": trained.sha256,
+            },
+            {
+                "byte_count": baseline.byte_count,
+                "path": baseline.path.name,
+                "role": "step_zero_metrics",
+                "sha256": baseline.sha256,
+            },
+        ],
+        "entry_count": 2,
+        "schema_version": 2,
+        "trace_index_schema_id": "humanoid_phase_b_trace_index/v2",
+    }
+    trace_index = publish_bytes_without_overwrite(
+        output / "trace_index_v2.json", canonical_json_bytes(trace_index_value)
+    )
+    metadata = evaluation.checkpoint.metadata
+    training_facts_path = checkpoint.parent / "training_facts_v1.json"
+    if not training_facts_path.is_file() or training_facts_path.is_symlink():
+        raise CycleCliError("checkpoint training facts are unavailable")
+    training = _canonical_mapping(training_facts_path)
+    if (
+        training.get("execution_manifest_sha256") != metadata["execution_manifest_sha256"]
+        or training.get("ppo_seed") != metadata["ppo_seed"]
+        or _sha256(training_facts_path.read_bytes()) != metadata["training_facts_sha256"]
+    ):
+        raise CycleCliError("checkpoint and training facts differ")
+    persistence_receipt = _canonical_mapping(
+        checkpoint.parent / "persistence_seed_{}_v1.json".format(metadata["ppo_seed"])
+    )
+    if persistence_receipt.get("training_facts_sha256") != metadata["training_facts_sha256"]:
+        raise CycleCliError("persistence and training facts differ")
+    worker_step_zero = training.get("step_zero_comparator")
+    if type(worker_step_zero) is not dict or worker_step_zero.get("bitwise_equal") is not True:
+        raise CycleCliError("stored checkpoint omitted its worker step-0 comparator")
+    step_zero_comparator = {
+        **worker_step_zero,
+        **dict(evaluation.step_zero_comparator),
+    }
+    seed = SeedReportFacts(
+        ppo_seed=int(metadata["ppo_seed"]),
+        checkpoint_sha256=expected_checkpoint_sha,
+        strict_export_sha256=(persistence_receipt["strict_export"]["sha256"]),
+        training=training,
+        step_zero_comparator=step_zero_comparator,
+    )
+    report_inputs = dict(preflight.report_inputs)
+    report_inputs["execution_manifest_sha256"] = metadata["execution_manifest_sha256"]
+    stored_reward_totals = training["reward_totals"]
+    reward_totals: dict[str, object] = {
+        field: float(stored_reward_totals[field])
+        for field in ("ignored_stock_reward", "r_task", "r_track", "r_train")
+    }
+    reward_totals["parameters"] = dict(_canonical_mapping(reward).get("parameters", {}))
+    report = build_scientific_receipt(
+        cycle=args.cycle,
+        inputs=report_inputs,
+        seeds=[seed],
+        episodes=evaluation.trained_episodes,
+        reference_records=[],
+        reward_totals=reward_totals,
+        trace_index_sha256=trace_index.sha256,
+        prior_scientific_receipt={
+            "cycle": 2,
+            "path": "cycles/cycle_2/scientific_receipt_v2.json",
+            "sha256": preflight.prior_scientific_receipt_sha256,
+        },
+    )
+    reports = publish_report_v2(output_directory=output, report=report, telemetry={})
+    print(
+        json.dumps(
+            {
+                "scientific_receipt": str(reports.scientific_receipt.path),
+                "step_zero_metrics": str(baseline.path),
+                "trained_metrics": str(trained.path),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m oracle_composition.harness.cycle_cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -299,6 +698,25 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--experiment", type=Path, required=True)
     evaluate.add_argument("--cycle", type=int, required=True)
     evaluate.add_argument("--oracle", action="append", required=True)
+    train = commands.add_parser("train")
+    train.add_argument("--experiment", type=Path, required=True)
+    train.add_argument("--cycle", type=int, required=True)
+    train.add_argument("--oracle", type=Path, required=True)
+    train.add_argument("--reward", type=Path, required=True)
+    train.add_argument("--output", type=Path, required=True)
+    train.add_argument("--seeds", type=_seed_list, required=True)
+    train.add_argument("--transitions", type=int, required=True)
+    train.add_argument("--reservation", type=Path)
+    train.add_argument("--smoke", action="store_true")
+    train.add_argument("--promote", action="store_true")
+    policy = commands.add_parser("evaluate-policy")
+    policy.add_argument("--experiment", type=Path, required=True)
+    policy.add_argument("--cycle", type=int, required=True)
+    policy.add_argument("--oracle", type=Path, required=True)
+    policy.add_argument("--reward", type=Path, required=True)
+    policy.add_argument("--checkpoint", type=Path, required=True)
+    policy.add_argument("--checkpoint-sha256")
+    policy.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -307,6 +725,7 @@ def main(
     *,
     repository_root: Path | None = None,
     dependencies: EvaluationDependencies | None = None,
+    training_dependencies: TrainingCliDependencies | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     root = (
@@ -327,6 +746,15 @@ def main(
         )
         print(json.dumps({"designer_prompt": str(prompt), "expected_inputs": str(expected)}))
         return 0
+    selected_training = training_dependencies or TrainingCliDependencies()
+    if args.command == "train":
+        if args.promote and args.smoke:
+            raise CycleCliError("smoke mode is interface_check and refuses promotion")
+        if args.promote and selected_training.test_only:
+            raise CycleCliError("controlled fake-runtime output refuses promotion")
+        return _train_command(args, root=root, selected=selected_training)
+    if args.command == "evaluate-policy":
+        return _evaluate_policy_command(args, root=root, selected=selected_training)
     oracle_paths = _expand_oracle_paths(args.oracle)
     report, markdown = evaluate_cycle(
         experiment=experiment,

@@ -15,6 +15,12 @@ from oracle_composition.phase_b.reference_runtime import (
     load_v2_reference_clip,
 )
 from oracle_composition.phase_b.reward import compose_tracking_only_reward
+from oracle_composition.phase_b.runtime import (
+    RealRuntimeConfig,
+    real_environment_factories,
+    real_policy_factory,
+)
+from oracle_composition.phase_b.training import PPORecipe, TrainingPlan
 from oracle_composition.sources.strict_tqc_actor_runtime import StrictTQCActorRuntime
 from oracle_composition.tracking.humanoid_reference import (
     HumanoidTrackingState,
@@ -27,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/003_composition_speed_profile"
 EXPERT_PATH = ROOT / "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz"
 EXPERT_SHA256 = "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
+STEP_ZERO_SHA256 = "6ebc2b56be9a5f304b8b584157fd0141d449d75297366213e4976291cb2dcfe0"
 
 
 def _torso_up(state: HumanoidTrackingState) -> float:
@@ -105,5 +112,52 @@ def test_step_zero_actor_runs_200_real_steps_with_composed_window() -> None:
         assert runtime.task_step == 200
         assert len(rewards) == 200
         assert all(math.isfinite(value) for value in rewards)
+    finally:
+        environment.close()
+
+
+@pytest.mark.gym
+def test_rehearsal_adapter_executes_uncounted_predecessor_then_one_counted_step() -> None:
+    config = RealRuntimeConfig(
+        repository_root=ROOT,
+        experiment=EXPERIMENT,
+        oracle_path=EXPERIMENT / "phase_b/oracle_cycle_1_reference_v1.json",
+        reward_path=EXPERIMENT / "phase_b/tracking_only_v1.json",
+        starting_actor_path=(
+            ROOT / "artifacts/experiments_003/phase_b/step_0_full_authority_actor_v1.npz"
+        ),
+        starting_actor_sha256=STEP_ZERO_SHA256,
+        value_seed=20260905,
+    )
+    plan = TrainingPlan(
+        seed=11,
+        transitions=16,
+        manifest_sha256="a" * 64,
+        evidence_class="interface_check",
+        promotable=False,
+        smoke=False,
+        steps_per_environment=4,
+        recipe=PPORecipe(batch_size=16, n_epochs=1),
+        test_only=True,
+    )
+    environment = real_environment_factories(plan=plan, config=config)[2]()
+    policy = real_policy_factory(config)(plan)
+    try:
+        observation, reset_info = environment.reset()
+        action = policy.actor.act(
+            compose_policy_input(
+                observation[:348].copy(),
+                observation[348:].reshape(8, 45).copy(),
+            )
+        ).physical
+        _next, _reward, _terminated, _truncated, info = environment.step(action)
+        predecessor = environment.rsi_ledger[0]["predecessor_receipt"]
+        assert reset_info["stream"] == "rehearsal"
+        assert predecessor["predecessor_executed"] is True
+        assert predecessor["predecessor_counted"] is False
+        assert predecessor["counted_transitions_before"] == 0
+        assert predecessor["counted_transitions_after"] == 0
+        assert environment.counted_transitions == 1
+        assert info["phase_b"]["counted_transition_delta"] == 1
     finally:
         environment.close()

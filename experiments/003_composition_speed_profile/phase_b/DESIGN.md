@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | FT1 implements and receipts the no-learning contracts, exact 708-D full-authority warm start, switch-only phase transfer, composed reference windows, and tracking-only reward composition. |
-| bottleneck | No policy has been trained. These checks establish interfaces and step-0 identity only; they do not establish reference use, transition success, or humanoid competence. |
-| next step | FT2 adds the reserved training worker, balanced supervision and RSI scheduler, persistence, report-v2 writer, and `cycle_cli train`; training still requires the stated reservation or authorization. |
+| progress | FT1 and FT2 now implement the no-learning contracts, exact 708-D warm start, custom PPO worker, balanced composition/rehearsal runtime, supervised final persistence, report-v2 writer, and train/evaluate CLI paths. The fake-runtime end-to-end and bounded real interface checks exercise those paths without training a policy. |
+| bottleneck | No disposable smoke, cohort, or protected utility evaluation has run. Interface checks do not establish numeric-reference use, transition success, oracle or reward improvement, or humanoid competence. |
+| next step | Fable reviews and commits FT2. A disposable smoke then requires its own accepted mailbox reservation; the five-seed cohort additionally requires Samuel's explicit authorization. |
 
 ## Frozen artifacts
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | `oracle_cycle_1_reference_v1.json` | `4d24f22780360d7632235572d97b3fccfe7c376162e69e15082f77bd7afcccf1` | `humanoid_reference_composition_oracle/v1`; Phase A guard grammar plus the fixed phase policy |
 | `tracking_only_v1.json` | `aeb14853490aed4a9195a6efeb4910d1a670a1edcd843d2d322c43d6ce655b83` | sole registered reward; `r_task = +0.0` |
-| `training_design_v1.json` | `1d104a52238eee4f5065b4fcc30c285662e26ab06edd847da7ca9e160364c69e` | prospective FT2 design; this slice does not execute it |
+| `training_design_v1.json` | `1d104a52238eee4f5065b4fcc30c285662e26ab06edd847da7ca9e160364c69e` | frozen worker design; FT2 implements it but does not execute a training run |
 | `utility_evaluation_design_v1.json` | `0dbcd6c6991f200cfec72033238b3a9b067684e600ded5ed5311c8b76f7393e0` | bounded utility gate definition |
 | `starting_checkpoint_v1.json` | `964868d069652766f8527d23eccc8b904906784a7792f564a292785da3f1fb28` | exact expert, E1 receipt, step-0 export, and fresh value-network binding |
 | `run_manifest_interface_check_v1.json` | `28d800f077723382f892f3ca6e68c4b33d79e6a3e30478b7b4888fd2d64f9e0e` | complete pre-model-construction binding for the interface check |
@@ -74,12 +74,99 @@ This is a reference-row comparison, not evidence that the simulator survives eit
 
 `exploratory_reference_conditioned_fine_tuning_utility_only_no_causal_reference_use_oracle_improvement_reward_improvement_generalization_naturalness_or_humanoid_competence_claim`
 
-FT1 evidence class is `interface_check`. No training loop, cohort, checkpoint selection, or reward candidate ran.
+FT2 evidence remains `interface_check`. The implementation contains a training
+loop, but no disposable smoke, cohort, checkpoint selection, utility evaluation,
+or reward candidate ran.
 
-## FT2 adds
+## FT2 implementation
 
-- Parent/worker validation and reservation boundary.
-- The four-environment `50/50` composition/rehearsal scheduler and certified RSI reconstruction.
-- PPO updates, eight-rollout reference-column/value-only warm-up, then full-actor unfreeze.
-- Atomic full checkpoints, final strict exports, per-seed receipts, and report-v2 writing.
-- Fake-runtime CLI coverage and the separately authorized disposable smoke or cohort.
+| surface | implemented boundary |
+|---|---|
+| Worker | CPU PPO with the frozen recipe, tanh-corrected likelihood, four `DummyVecEnv` environments, exact final-transition counting, eight-rollout reference-column/value-only stage, and full-actor unfreeze thereafter |
+| Streams | Environment indices `0,1` are composition and `2,3` are rehearsal, giving exact `50/50` counted transitions; the shared SHA-ranked RSI scheduler covers the 27 block-origin cells and executes uncounted predecessor restoration |
+| Supervision | Source/runtime inspection, FT1 and E003R1 manifest bindings, two-phase construction ACK, serial seeds, wall/RSS/disk/output/throughput gates, process-group cleanup, and one immutable success or failure receipt per seed |
+| Persistence | One final full checkpoint and strict actor export per successful seed, no-overwrite publication, strict canonical reload, frozen-fixture bitwise inference, checkpoint/export equivalence, and a five-seed cohort index |
+| Report v2 | Deterministic scientific receipt chained to E003R1; separate host/wall/resource telemetry; per-seed training facts; protected speed, tracking, safety, switch, resynchronization, task-success, and utility-gate fields |
+| CLI | `train` performs complete preflight before construction; `evaluate-policy` runs the three hold cells and fixed round trip for a stored checkpoint and the step-0 actor on the same 20 blocks |
+
+The fake runtime exercises the real worker process, supervisor, persistence,
+report writer, and CLI. It is controlled software evidence, not simulator or
+policy-performance evidence. The real checks are limited to the FT1 200-step
+step-0 path and one certified predecessor reconstruction followed by one
+counted step.
+
+## Commands (documented, not executed by FT2)
+
+Disposable interface-check smoke:
+
+```bash
+python -m oracle_composition.harness.cycle_cli train \
+  --experiment experiments/003_composition_speed_profile \
+  --cycle 3 \
+  --oracle experiments/003_composition_speed_profile/phase_b/oracle_cycle_1_reference_v1.json \
+  --reward experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json \
+  --output /absolute/fresh/path/phase_b_smoke_121901 \
+  --seeds 121901 \
+  --transitions 196608 \
+  --reservation /absolute/path/to/accepted_smoke_reservation.json \
+  --smoke
+```
+
+The smoke is always `interface_check` and non-promotable. `--smoke --promote`
+fails before preflight, model construction, or environment construction.
+
+Five-seed cohort, only after both reservation and Samuel authorization:
+
+```bash
+python -m oracle_composition.harness.cycle_cli train \
+  --experiment experiments/003_composition_speed_profile \
+  --cycle 3 \
+  --oracle experiments/003_composition_speed_profile/phase_b/oracle_cycle_1_reference_v1.json \
+  --reward experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json \
+  --output /absolute/fresh/path/phase_b_cohort \
+  --seeds 121001,121101,121201,121301,121401 \
+  --transitions 1048576 \
+  --reservation /absolute/path/to/accepted_cohort_reservation.json
+```
+
+Evaluate one stored final checkpoint and its step-0 comparator:
+
+```bash
+python -m oracle_composition.harness.cycle_cli evaluate-policy \
+  --experiment experiments/003_composition_speed_profile \
+  --cycle 3 \
+  --oracle experiments/003_composition_speed_profile/phase_b/oracle_cycle_1_reference_v1.json \
+  --reward experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json \
+  --checkpoint /absolute/path/to/checkpoint_seed_121001_final.npz \
+  --output /absolute/fresh/path/phase_b_utility_121001
+```
+
+## Compute reservation
+
+The full proposal text from survey section 10 is retained verbatim:
+
+```text
+owner=<owner>
+command=<exact train command>
+commit=<clean builder commit>
+inputs=<oracle/reward/task/library/checkpoint/design hash ledger>
+work=5 seeds; 5,242,880 counted transitions; serial seeds; 4 DummyVecEnv
+expected_wall=106m
+hard_wall=120m; per_seed=22m
+rss_hard=8GiB
+disk_free_preflight=20GiB
+output_cap=8GiB
+throughput_floor=800 steps/s after 65,536 transitions
+output=<fresh absolute path>
+conflict_check=no other heavy repository job
+authorization=<accepted proposal id plus Samuel authorization id>
+```
+
+The CLI consumes a canonical JSON translation with separate `hard_wall` and
+`per_seed_wall` fields, `schema_version: 1`, `accepted: true`, and
+`proposal_id`. It verifies the exact source/input ledger and clean commit,
+requires the output and work declaration to match the selected smoke or cohort,
+and seals the accepted reservation into the execution manifest. The smoke uses
+`work=1 seed; 196,608 counted transitions; 4 DummyVecEnv`,
+`expected_wall=3m`, and `hard_wall=20m`; all other fixed resource declarations
+remain unchanged.
