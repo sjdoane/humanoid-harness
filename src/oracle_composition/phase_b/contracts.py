@@ -7,11 +7,8 @@ import math
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from dataclasses import field as dataclass_field
 from pathlib import Path
 from types import MappingProxyType
-
-import numpy as np
 
 from oracle_composition.contracts.reference_identity_v2 import (
     canonical_json_bytes,
@@ -27,6 +24,11 @@ from oracle_composition.harness.contract import (
     oracle_program_from_dict,
     read_json_object,
 )
+from oracle_composition.rewards import task_inputs_v2 as task_inputs_v2_module
+from oracle_composition.rewards.task_inputs_v2 import (
+    TASK_INPUTS_V2_SCHEMA_ID,
+    task_input_contract_v2,
+)
 from oracle_composition.tracking.reward import TrackingRewardConfig
 
 ORACLE_SCHEMA_ID = "humanoid_reference_composition_oracle/v1"
@@ -35,7 +37,6 @@ REPORT_V1_SCHEMA_ID = "humanoid_composition_cycle_report/v1"
 REPORT_V2_SCHEMA_ID = "humanoid_composition_cycle_report/v2"
 STARTING_CHECKPOINT_SCHEMA_ID = "humanoid_fine_tuning_starting_checkpoint/v1"
 RUN_MANIFEST_SCHEMA_ID = "humanoid_fine_tuning_run_manifest/v1"
-CANDIDATE_INPUT_SCHEMA_ID = "candidate_task_inputs/v2"
 EVIDENCE_CLASS = "interface_check"
 CLAIM_CEILING = (
     "exploratory_reference_conditioned_fine_tuning_utility_only_"
@@ -43,6 +44,9 @@ CLAIM_CEILING = (
     "generalization_naturalness_or_humanoid_competence_claim"
 )
 EXPERT_ACTOR_NPZ_SHA256 = "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
+TASK_INPUTS_V2_SOURCE_SHA256 = "9607f2d56a54922eac06ec7fcc740b79e68d4ed9e88b192602aae2900fb3f0d2"
+TASK_INPUTS_V2_SCHEMA_SHA256 = "8f382dde13ee44c27cbbbc0b3a53a568338f6b7cebc8e660e4084425b7b494e9"
+_LEGACY_PHASE_B_ORACLE_SHA256 = "4d24f22780360d7632235572d97b3fccfe7c376162e69e15082f77bd7afcccf1"
 
 PHASE_POLICY = MappingProxyType(
     {
@@ -110,6 +114,9 @@ REWARD_SCHEMA_SHA256 = sha256_json(
             "schema_sha256",
             "schema_version",
             "stock_reward",
+            "task_inputs_schema_id",
+            "task_inputs_schema_sha256",
+            "task_inputs_source_sha256",
             "tracking_reward_config_sha256",
             "tracking_reward_id",
         ],
@@ -214,6 +221,7 @@ class PhaseBOracleProgram:
         value: Mapping[str, object],
         *,
         available_behaviors: Sequence[str],
+        allow_legacy_recovery: bool = False,
     ) -> PhaseBOracleProgram:
         required = {
             "behaviors",
@@ -249,6 +257,7 @@ class PhaseBOracleProgram:
             program = oracle_program_from_dict(
                 phase_a,
                 available_behaviors=available_behaviors,
+                allow_legacy_recovery=allow_legacy_recovery,
             )
         except OracleContractError as exc:
             raise PhaseBContractError(str(exc)) from exc
@@ -261,62 +270,15 @@ def load_phase_b_oracle(
     available_behaviors: Sequence[str],
 ) -> tuple[PhaseBOracleProgram, str]:
     value, encoded = _require_canonical_file(path)
-    program = PhaseBOracleProgram.from_dict(value, available_behaviors=available_behaviors)
+    raw_sha256 = hashlib.sha256(encoded).hexdigest()
+    program = PhaseBOracleProgram.from_dict(
+        value,
+        available_behaviors=available_behaviors,
+        allow_legacy_recovery=raw_sha256 == _LEGACY_PHASE_B_ORACLE_SHA256,
+    )
     if program.canonical_bytes != encoded:
         raise PhaseBContractError("oracle bytes differ from canonical contract serialization")
-    return program, hashlib.sha256(encoded).hexdigest()
-
-
-@dataclass(frozen=True, slots=True)
-class CandidateTaskInputsV2:
-    """Only the trusted speed scalar and two frozen constants cross the seam."""
-
-    com_x_velocity_m_s: np.float64
-    target_speed_m_s: np.float64 = dataclass_field(default_factory=lambda: np.float64(3.0))
-    cadence_seconds: np.float64 = dataclass_field(default_factory=lambda: np.float64(0.015))
-
-    def __post_init__(self) -> None:
-        for field in ("com_x_velocity_m_s", "target_speed_m_s", "cadence_seconds"):
-            value = getattr(self, field)
-            if type(value) is not np.float64 or not np.isfinite(value):
-                raise PhaseBContractError(f"{field} must be an exact finite float64")
-        if not -25.0 <= float(self.com_x_velocity_m_s) <= 25.0:
-            raise PhaseBContractError("com_x_velocity_m_s must be within [-25, 25]")
-        if self.target_speed_m_s.tobytes() != np.float64(3.0).tobytes():
-            raise PhaseBContractError("target_speed_m_s must be the exact trusted constant 3.0")
-        if self.cadence_seconds.tobytes() != np.float64(0.015).tobytes():
-            raise PhaseBContractError("cadence_seconds must be the exact trusted constant 0.015")
-
-    @classmethod
-    def from_mass_center_state(
-        cls,
-        previous_mass_center_xyz_m: np.ndarray,
-        current_mass_center_xyz_m: np.ndarray,
-    ) -> CandidateTaskInputsV2:
-        values: list[np.ndarray] = []
-        for field, raw in (
-            ("previous_mass_center_xyz_m", previous_mass_center_xyz_m),
-            ("current_mass_center_xyz_m", current_mass_center_xyz_m),
-        ):
-            if (
-                type(raw) is not np.ndarray
-                or raw.dtype.str != "<f8"
-                or raw.shape != (3,)
-                or not raw.flags.c_contiguous
-                or not np.isfinite(raw).all()
-            ):
-                raise PhaseBContractError(f"{field} must be finite C-order float64[3]")
-            values.append(raw)
-        velocity = np.float64((values[1][0] - values[0][0]) / np.float64(0.015))
-        return cls(com_x_velocity_m_s=velocity)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "cadence_seconds": float(self.cadence_seconds),
-            "com_x_velocity_m_s": float(self.com_x_velocity_m_s),
-            "input_schema_id": CANDIDATE_INPUT_SCHEMA_ID,
-            "target_speed_m_s": float(self.target_speed_m_s),
-        }
+    return program, raw_sha256
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,13 +286,15 @@ class TrackingOnlyRewardSpec:
     """The sole reward admitted before Astra supplies a reviewed V2."""
 
     @property
-    def registry_key(self) -> tuple[str, str, str, str, str]:
+    def registry_key(self) -> tuple[str, str, str, str, str, str, str]:
         return (
             REWARD_SCHEMA_SHA256,
             TRACKING_ONLY_FORMULA_SHA256,
             TRACKING_ONLY_PARSER_SHA256,
             TRACKING_ONLY_BOUNDS_SHA256,
             REWARD_COMPOSITOR_SHA256,
+            TASK_INPUTS_V2_SOURCE_SHA256,
+            TASK_INPUTS_V2_SCHEMA_SHA256,
         )
 
     @property
@@ -357,6 +321,9 @@ class TrackingOnlyRewardSpec:
             "schema_sha256": REWARD_SCHEMA_SHA256,
             "schema_version": 1,
             "stock_reward": "telemetry_only",
+            "task_inputs_schema_id": TASK_INPUTS_V2_SCHEMA_ID,
+            "task_inputs_schema_sha256": TASK_INPUTS_V2_SCHEMA_SHA256,
+            "task_inputs_source_sha256": TASK_INPUTS_V2_SOURCE_SHA256,
             "tracking_reward_config_sha256": TRACKING_REWARD_CONFIG_SHA256,
             "tracking_reward_id": TRACKING_REWARD_ID,
         }
@@ -376,6 +343,15 @@ class RewardRegistry:
     """Immutable exact-key registry; unknown reward identities abort."""
 
     def __init__(self) -> None:
+        source_path = Path(task_inputs_v2_module.__file__ or "")
+        try:
+            source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise PhaseBContractError("task-input V2 source is unavailable") from exc
+        if source_sha256 != TASK_INPUTS_V2_SOURCE_SHA256:
+            raise PhaseBContractError("task-input V2 source identity differs")
+        if sha256_json(task_input_contract_v2()) != TASK_INPUTS_V2_SCHEMA_SHA256:
+            raise PhaseBContractError("task-input V2 schema identity differs")
         baseline = TrackingOnlyRewardSpec()
         self._entries = MappingProxyType({baseline.registry_key: baseline})
 
@@ -800,7 +776,6 @@ def validate_cycle_report(value: Mapping[str, object]) -> dict[str, object]:
 
 
 __all__ = [
-    "CANDIDATE_INPUT_SCHEMA_ID",
     "CLAIM_CEILING",
     "EVIDENCE_CLASS",
     "FROZEN_TRACKING_REWARD_CONFIG",
@@ -812,6 +787,8 @@ __all__ = [
     "REWARD_SCHEMA_SHA256",
     "RUN_MANIFEST_SCHEMA_ID",
     "STARTING_CHECKPOINT_SCHEMA_ID",
+    "TASK_INPUTS_V2_SCHEMA_SHA256",
+    "TASK_INPUTS_V2_SOURCE_SHA256",
     "TRACKING_ONLY_BOUNDS_SHA256",
     "TRACKING_ONLY_FORMULA_ID",
     "TRACKING_ONLY_FORMULA_SHA256",

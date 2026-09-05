@@ -3,16 +3,16 @@
 | status | current truth |
 |---|---|
 | progress | The byte-exact cycle-2 candidate passed contract validation, ran for `1,000` steps on all `20` frozen seeds, and matched all `20/20` determinism replay hashes. |
-| bottleneck | The candidate avoids the unsafe running-speed handover by holding `expert` throughout. It has `0/20` falls but does not execute the requested slow third. |
+| bottleneck | None of the three tested step-300 running-speed handovers survived; alternative phases, timings, and state-conditioned handovers remain untested. The candidate holds `expert` and omits the slow third. |
 | next step | Close Experiment 003 phase A. Phase B runs the same T1 task through a tracker-following fine-tuning runtime warm-started at the expert; no cycle-3 prompt is prepared. |
 
 ## Candidate provenance
 
 | item | value |
 |---|---|
-| designer | `sol-designer-20260905-e003d2`; read-only |
+| designer | `sol-designer-20260905-e003d2`; launcher requested read-only; observed reads are audit-log-only, not OS-enforced isolation |
 | designer run directory | `.orchestration/sol-runs/20260905T185111Z-78f29dc3-9fba-4f26-a393-b86bc71f4349` |
-| files read by designer | `cycles/cycle_2/designer_prompt.md` and `cycles/cycle_1/report_1.md` only |
+| files read by designer | audit log records `cycles/cycle_2/designer_prompt.md` and `cycles/cycle_1/report_1.md`; this is not an OS-enforced read allowlist |
 | source | `.orchestration/oracles/cycle_2_candidate.json` |
 | frozen copy | `cycles/cycle_2/oracle_2.json` |
 | raw file SHA-256 | `f1cbc2784783d4f34312b036a911c536f8406aa3da1ffcf52f35f4927808173a` for both paths; `cmp` matched |
@@ -26,19 +26,29 @@ Source: Fable, the orchestrating agent. No human steering was supplied. Required
 
 > Both cycle-0 switching arms and the cycle-1 staged candidate fell in 20 of 20 episodes, each time 22 to 57 steps after the expert-to-medium switch at step 300, regardless of dwell, velocity gating, or recovery. Treat the switch at running speed as the suspect. ... Either design a program whose first switch happens only under a state condition you can justify from the diagnostics ..., or conclude that no switch from the expert at its running speed is survivable with this library and return the program that best serves the task without such a switch, stating the infeasibility plainly. Falls first, speed error second.
 
-## Designer rationale and infeasibility statement
+### Correction recorded 2026-09-05 (SCI-001)
 
-Quoted from the designer result:
+The historical steering above is preserved verbatim, but its evidence summary
+is inaccurate. The cycle-0 `playback` arm switched `expert` to `simple` and
+fell `20`-`25` steps later; the cycle-0 `handwritten` arm switched `expert` to
+`medium` and fell `23`-`60` steps later; only the cycle-1 candidate has the
+`22`-`57` range. The cycle-2 designer worked from that inaccurate steering
+summary.
+
+## Designer rationale and bounded handover statement
+
+Review-bounded rendering of the designer rationale; the original final response
+remains byte-hash-bound in `designer_provenance.json`:
 
 > Hold `expert` throughout: the zero-fall requirement takes precedence over speed error.
 >
 > All three switching candidates fell in 20/20 episodes; every cycle-1 scheduled switch occurred at 4.80–5.89 m/s and preceded a fall.
 >
-> A running-speed departure from `expert` is therefore infeasible with the admitted library under current evidence.
+> None of the three tested step-300 running-speed handovers survived; alternative phases, timings, and state-conditioned handovers remain untested.
 >
 > Falsifier: under the fixed evaluation, this hold falls, or a library-valid running-speed switch achieves zero falls and lower schedule MAE.
 >
-> The infeasibility would be removed by an admitted deceleration behavior with entry coverage at expert running speeds and a validated safe handoff to `medium` or `simple`.
+> An admitted deceleration behavior with entry coverage at expert running speeds and a validated safe handoff to `medium` or `simple` is one untested next direction.
 
 The returned program has one `expert` state and no transitions.
 
@@ -66,7 +76,10 @@ The returned program has one `expert` state and no transitions.
 |---|---|
 | runtime fingerprint | `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; unchanged from cycles 0 and 1 |
 | `report_2.json` | `e677b9f3c3daabdb13648a18981c39b47bc74fa2e6908e7fe1af9d73674e194c` |
-| `report_2.md` | `da600ce263222318ae9d71da1290971482b09e7b9e7eeebfdfb47f54c6460bba` |
+| `report_2.md` | corrected render `c071106fe3bbfc050ba1fdcba234a1da32f0d43df365851e5360c54b102420b6` |
+| `scientific_receipt_v2.json` | `c6dab6cb6e5a9b524b947ef11aec2e7ae64d4641f4e16828c9fd75b43a4eda7f`; deterministic scientific chain |
+| `telemetry_v1.json` | `b22fdfa7a8fb23e38811c5fb6935e5092541d8c69cc45fe74fde8b355594c077`; operational timestamps, host fields, wall times, and receipt bindings |
+| `designer_provenance.json` | `2b9ee3b2b53f6cdb3a64585da759505155c6885c31f0a0f4a71fdbe7a764e9c3`; sanitized audit-log-only receipt |
 | ignored trace index | `a210e04509a1ac2266981c1ea0af1407ce5059d72d633d6ba62daf9970bdf775`; `20` entries; cycle directory `13M` |
 | determinism replay | `20/20` hashes matched; `3.3180 s` inside the report |
 | evaluation wall time | `6.8207 s` inside the report; `7.30 s` process wall including startup and writes |

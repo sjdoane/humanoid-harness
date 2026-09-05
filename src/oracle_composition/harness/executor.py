@@ -24,9 +24,10 @@ from oracle_composition.experiments.runtime_identity import dependency_lock_path
 from oracle_composition.sources import strict_tqc_actor_runtime as actor_runtime_module
 
 from .contract import ALLOWED_SIGNALS, EVIDENCE_CLASS, OracleMachine, OracleProgram
+from .evidence import SCHEMA_VERSIONS, TRACE_SCHEMA_ID
 from .inputs import TaskSpec
 
-TRACE_SCHEMA_ID = "humanoid_controller_switching_trace/v1"
+LEGACY_TRACE_SCHEMA_ID = "humanoid_controller_switching_trace/v1"
 RUNTIME_FINGERPRINT_ID = "plain_humanoid_v5_controller_switching_runtime/v1"
 EXPECTED_PLAIN_WRAPPER_TYPES = (
     "gymnasium.wrappers.common.TimeLimit",
@@ -268,6 +269,7 @@ def execute_episode(
     task: TaskSpec,
     seed: int,
     runtime_fingerprint_sha256: str,
+    trace_identities: Mapping[str, object] | None = None,
 ) -> EpisodeExecution:
     """Run one deterministic episode and retain a metric source separate from trace bytes."""
 
@@ -367,16 +369,40 @@ def execute_episode(
         samples=metric_samples,
         behavior_names=tuple(actors),
     )
-    trace = {
+    trace: dict[str, object] = {
         "evidence_class": EVIDENCE_CLASS,
         "oracle_id": program.oracle_id,
         "oracle_sha256": program.sha256,
         "runtime_fingerprint_sha256": runtime_fingerprint_sha256,
-        "schema_version": 1,
+        "schema_version": 1 if trace_identities is None else 2,
         "seed": seed,
         "steps": trace_rows,
-        "trace_schema_id": TRACE_SCHEMA_ID,
+        "trace_schema_id": LEGACY_TRACE_SCHEMA_ID if trace_identities is None else TRACE_SCHEMA_ID,
     }
+    if trace_identities is not None:
+        expected_identity_keys = {
+            "actor_sha256_by_behavior",
+            "archive_loader_sha256",
+            "execution_manifest_sha256",
+            "library_manifest_sha256",
+            "metric_core_sha256",
+            "oracle_file_sha256",
+            "oracle_interpreter_sha256",
+            "oracle_sha256",
+            "report_writer_sha256",
+            "runtime_fingerprint_sha256",
+            "task_spec_sha256",
+        }
+        if type(trace_identities) is not dict or set(trace_identities) != expected_identity_keys:
+            raise CompositionRuntimeError("trace identities differ from the v2 contract")
+        if (
+            trace_identities["oracle_sha256"] != program.sha256
+            or trace_identities["runtime_fingerprint_sha256"] != runtime_fingerprint_sha256
+            or trace_identities["task_spec_sha256"] != task.raw_sha256
+        ):
+            raise CompositionRuntimeError("trace identities differ from the active execution")
+        trace["identities"] = dict(trace_identities)
+        trace["schema_versions"] = dict(SCHEMA_VERSIONS)
     trace_bytes = canonical_json_bytes(trace)
     return EpisodeExecution(
         metrics=metrics,

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.phase_b.contracts import (
     PHASE_POLICY,
-    CandidateTaskInputsV2,
+    TASK_INPUTS_V2_SCHEMA_SHA256,
+    TASK_INPUTS_V2_SOURCE_SHA256,
     FineTuningRunManifest,
     PhaseBContractError,
     PhaseBOracleProgram,
@@ -21,6 +22,7 @@ from oracle_composition.phase_b.contracts import (
     load_phase_b_oracle,
     validate_cycle_report,
 )
+from oracle_composition.rewards import task_inputs_v2
 
 ROOT = Path(__file__).resolve().parents[2]
 PHASE_B = ROOT / "experiments/003_composition_speed_profile/phase_b"
@@ -40,7 +42,9 @@ def test_canonical_phase_b_contract_artifacts_and_hashes() -> None:
     reward = RewardRegistry().resolve(reward_raw)
     assert reward.to_dict()["r_task"] == 0.0
     assert reward.to_dict()["tracking_reward_config_sha256"]
-    assert len(reward.registry_key) == 5
+    assert reward.to_dict()["task_inputs_source_sha256"] == TASK_INPUTS_V2_SOURCE_SHA256
+    assert reward.to_dict()["task_inputs_schema_sha256"] == TASK_INPUTS_V2_SCHEMA_SHA256
+    assert len(reward.registry_key) == 7
     assert all(len(digest) == 64 for digest in reward.registry_key)
     assert reward_bytes == canonical_json_bytes(reward_raw) == reward.canonical_bytes
 
@@ -85,24 +89,9 @@ def test_reward_registry_refuses_unknown_formula_and_schema() -> None:
         RewardRegistry().resolve(wrong_schema)
 
 
-def test_candidate_inputs_are_float64_bounded_and_constant() -> None:
-    previous = np.asarray([1.0, 2.0, 3.0], dtype="<f8")
-    current = np.asarray([1.045, 2.0, 3.0], dtype="<f8")
-    inputs = CandidateTaskInputsV2.from_mass_center_state(previous, current)
-    assert inputs.com_x_velocity_m_s == pytest.approx(3.0)
-    assert set(inputs.to_dict()) == {
-        "cadence_seconds",
-        "com_x_velocity_m_s",
-        "input_schema_id",
-        "target_speed_m_s",
-    }
-    with pytest.raises(PhaseBContractError, match=r"within \[-25, 25\]"):
-        CandidateTaskInputsV2(com_x_velocity_m_s=np.float64(25.0001))
-    with pytest.raises(PhaseBContractError, match="exact finite float64"):
-        CandidateTaskInputsV2(
-            com_x_velocity_m_s=np.float64(0.0),
-            target_speed_m_s=np.float64("nan"),
-        )
+def test_reward_registry_binds_the_authoritative_task_input_v2_module() -> None:
+    source = Path(task_inputs_v2.__file__).read_bytes()
+    assert hashlib.sha256(source).hexdigest() == TASK_INPUTS_V2_SOURCE_SHA256
 
 
 def _minimal_v2_report() -> dict[str, object]:

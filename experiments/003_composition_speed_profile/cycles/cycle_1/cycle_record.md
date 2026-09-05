@@ -10,7 +10,7 @@
 
 | item | value |
 |---|---|
-| designer | `sol-designer-20260905-e003d1`; read-only; read the cycle-1 designer prompt only |
+| designer | `sol-designer-20260905-e003d1`; launcher requested read-only; observed reads are audit-log-only, not OS-enforced isolation |
 | designer run directory | `.orchestration/sol-runs/20260905T183122Z-b0788053-4fd7-4887-af1d-8c2ef411c93b` |
 | source | `.orchestration/oracles/cycle_1_candidate.json` |
 | frozen copy | `cycles/cycle_1/oracle_1.json` |
@@ -43,7 +43,10 @@
 |---|---|
 | runtime fingerprint | `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; unchanged from cycle 0 |
 | `report_1.json` | `480d5b3521ce66593e0258f3f42904f969c72b83141b330bc7ff4759144c25f0` |
-| `report_1.md` | `88cefeeeb5cfe47f40d4623233b3a76a73e18f7ea0b70a7b186369b04029170a` |
+| `report_1.md` | corrected render `116e2a836ea5f2a0ae6b596e7005c0e0dbee701ad7a75d468c3d73d92817207b`; the pre-review bytes read by the cycle-2 designer were `88cefeeeb5cfe47f40d4623233b3a76a73e18f7ea0b70a7b186369b04029170a` and remain bound in `designer_provenance.json` |
+| `scientific_receipt_v2.json` | `5a5a996c28423dd6c33de3b33c527de43825aeedccb485338d94ad033882cecc`; deterministic scientific chain |
+| `telemetry_v1.json` | `ddec44f6de097c2514a3d29a94474d20e03b7bfa5807d7f98fa0b2aeb5bd4d51`; operational timestamps, host fields, wall times, and receipt bindings |
+| `designer_provenance.json` | `5abfca31c5e87d1d84526edc8b8c66a943f886b0333e4dcd26ffc3a1351e58a4`; sanitized audit-log-only receipt |
 | ignored trace index | `4d2c419140b71d1cc13f04c6af802d9fb569aaf690621cc17cd99ab5f4057097`; `20` entries; cycle directory `14M` |
 | determinism replay | `20/20` hashes matched; `7.4264 s` inside the report |
 | evaluation wall time | `15.0420 s` inside the report; `15.53 s` process wall including startup and writes |

@@ -14,15 +14,17 @@ The four cycle-0 rows are carried forward unchanged; only the cycle-1 candidate 
 
 ## Outcome
 
-The candidate **failed** the never-fall requirement: 20/20 episodes fell.
-Metric outcomes are reported separately because no combined ranking was predeclared. Negative deltas favor the candidate.
+The candidate **did not meet** the never-fall component: 20/20 episodes fell.
+Metric outcomes report component-wise numeric direction only; no task-success ranking was predeclared.
+
+task not completed: slow segment absent
 
 | cycle-0 baseline | fall-count delta | fall outcome | median-MAE delta (m/s) | MAE outcome |
 |---|---:|---|---:|---|
-| single_fast | +20 | worsened | +1.147335 | worsened |
-| single_slow | +20 | worsened | -0.085609 | improved |
-| playback | +0 | matched | +0.041165 | worsened |
-| handwritten | +0 | matched | +0.015291 | worsened |
+| single_fast | +20 | component-wise higher | +1.147335 | component-wise higher |
+| single_slow | +20 | component-wise higher | -0.085609 | component-wise lower |
+| playback | +0 | component-wise equal | +0.041165 | component-wise higher |
+| handwritten | +0 | component-wise equal | +0.015291 | component-wise higher |
 
 ## Candidate controller switches by episode
 

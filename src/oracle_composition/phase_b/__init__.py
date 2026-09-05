@@ -1,7 +1,6 @@
 """Phase B reference-conditioned fine-tuning runtime contracts."""
 
 from .contracts import (
-    CandidateTaskInputsV2,
     FineTuningRunManifest,
     PhaseBContractError,
     PhaseBOracleProgram,
@@ -14,7 +13,6 @@ from .contracts import (
 )
 
 __all__ = [
-    "CandidateTaskInputsV2",
     "FineTuningRunManifest",
     "PhaseBContractError",
     "PhaseBOracleProgram",

@@ -27,10 +27,12 @@ class _FakeActor:
 
 
 class _FakeEnvironment:
-    def __init__(self) -> None:
+    def __init__(self, *, stock_reward: float = 1.0, info_speed: float | None = None) -> None:
         self.unwrapped = self
         self.data = SimpleNamespace(qpos=np.zeros(24, dtype=np.float64))
         self._step = 0
+        self._stock_reward = stock_reward
+        self._info_speed = info_speed
 
     def reset(self, *, seed: int) -> tuple[np.ndarray, dict[str, object]]:
         self._step = 0
@@ -49,7 +51,8 @@ class _FakeEnvironment:
         observation = np.zeros(348, dtype=np.float64)
         observation[0] = self.data.qpos[0]
         observation[1] = self._step
-        return observation, 1.0 + delta, False, False, {"x_velocity": delta / 0.015}
+        info_speed = delta / 0.015 if self._info_speed is None else self._info_speed
+        return observation, self._stock_reward, False, False, {"x_velocity": info_speed}
 
 
 def _task() -> TaskSpec:
@@ -124,6 +127,31 @@ def test_metrics_do_not_read_the_trace_file(tmp_path: Path) -> None:
         behavior_names=("expert",),
     )
     assert before == after == execution.metrics
+
+
+def test_protected_endpoints_ignore_adversarial_reward_and_info_velocity() -> None:
+    first = execute_episode(
+        environment=_FakeEnvironment(stock_reward=17.0, info_speed=999.0),
+        actors={"expert": _FakeActor(5.0)},
+        program=_program(),
+        task=_task(),
+        seed=1,
+        runtime_fingerprint_sha256="3" * 64,
+    )
+    second = execute_episode(
+        environment=_FakeEnvironment(stock_reward=-23.0, info_speed=-999.0),
+        actors={"expert": _FakeActor(5.0)},
+        program=_program(),
+        task=_task(),
+        seed=1,
+        runtime_fingerprint_sha256="3" * 64,
+    )
+    assert first.metrics.mean_absolute_speed_error_m_s == (
+        second.metrics.mean_absolute_speed_error_m_s
+    )
+    assert first.metrics.fall == second.metrics.fall
+    assert first.metrics.first_fall_step == second.metrics.first_fall_step
+    assert first.metrics.task_return != second.metrics.task_return
 
 
 def test_playback_switches_exactly_before_actions_300_and_600() -> None:

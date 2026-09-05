@@ -13,7 +13,13 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 
 from .contract import ALLOWED_SIGNALS, EVIDENCE_CLASS, ORACLE_SCHEMA_ID, load_oracle_program
 from .evaluator import EvaluationDependencies, evaluate_cycle
-from .inputs import LibraryManifest, TaskSpec, load_frozen_inputs
+from .evidence import (
+    EvidenceChainError,
+    ValidatedScientificReceipt,
+    current_authority_identities,
+    validate_prior_report_chain,
+)
+from .inputs import LibraryManifest, TaskSpec
 
 MAX_STEERING_CHARACTERS = 4000
 
@@ -58,7 +64,7 @@ def _library_table(library: LibraryManifest) -> list[str]:
     return lines
 
 
-def _prior_table(report: dict[str, object] | None) -> list[str]:
+def _prior_table(report: ValidatedScientificReceipt | None) -> list[str]:
     lines = [
         "| arm | episodes | median MAE m/s | falls | median switches | median task return |",
         "|---|---:|---:|---:|---:|---:|",
@@ -66,12 +72,8 @@ def _prior_table(report: dict[str, object] | None) -> list[str]:
     if report is None:
         lines.append("| none | 0 | n/a | n/a | n/a | n/a |")
         return lines
-    summary = report.get("summary")
-    if type(summary) is not dict or type(summary.get("arms")) is not list:
-        raise CycleCliError("prior report summary is malformed")
-    for raw_arm in summary["arms"]:
-        if type(raw_arm) is not dict:
-            raise CycleCliError("prior report arm is malformed")
+    for arm in report.arms:
+        raw_arm = arm.value
         lines.append(
             "| {oracle_id} | {episode_count} | {mae:.6f} | {falls} | {switches:.1f} | "
             "{task_return:.6f} |".format(
@@ -91,7 +93,7 @@ def _designer_prompt(
     cycle: int,
     library: LibraryManifest,
     task: TaskSpec,
-    prior_report: dict[str, object] | None,
+    prior_report: ValidatedScientificReceipt | None,
     steering: str,
 ) -> bytes:
     schedule = ", ".join(
@@ -103,7 +105,14 @@ def _designer_prompt(
         "evidence_class": EVIDENCE_CLASS,
         "initial": "state_name",
         "oracle_id": f"cycle_{cycle}_candidate",
-        "recovery": {"behavior": "expert", "guard": "z_root < 1.1"},
+        "recovery": {
+            "behavior": "expert",
+            "guard": "z_root < 1.1",
+            "max_duration": 64,
+            "min_dwell": 8,
+            "reentry_dwell": 8,
+            "rejoin": "suspended_state_dwell_reset",
+        },
         "schema_version": 1,
         "states": {
             "next_state": {"behavior": "expert", "min_dwell": 0},
@@ -147,8 +156,9 @@ def _designer_prompt(
         "arithmetic, and unknown names are invalid.",
         "Transitions are checked in ascending priority after the current state's min_dwell is met. "
         "At most one controller switch occurs per step.",
-        "Recovery is optional, has highest priority, overrides with its behavior while true, and "
-        "rejoins the suspended state with dwell reset when false.",
+        "Recovery is optional and highest priority. It must declare positive min_dwell and "
+        "reentry_dwell, a bounded max_duration, and rejoin=suspended_state_dwell_reset. A "
+        "still-active guard at max_duration fails closed.",
         "",
         "```json",
         json.dumps(schema_example, indent=2, sort_keys=True),
@@ -200,31 +210,43 @@ def _cycle_zero_declarations(
     return result
 
 
-def prepare_cycle(*, experiment: Path, cycle: int, steering: str = "") -> tuple[Path, Path]:
+def prepare_cycle(
+    *,
+    experiment: Path,
+    cycle: int,
+    repository_root: Path,
+    steering: str = "",
+    dependencies: EvaluationDependencies | None = None,
+) -> tuple[Path, Path]:
     if type(cycle) is not int or cycle < 0:
         raise CycleCliError("cycle must be a non-negative integer")
     if type(steering) is not str or len(steering) > MAX_STEERING_CHARACTERS:
         raise CycleCliError("steering text exceeds the bounded contract")
     experiment_path = Path(experiment).resolve(strict=True)
-    library, task = load_frozen_inputs(experiment_path)
-    prior_report: dict[str, object] | None = None
+    root = Path(repository_root).resolve(strict=True)
+    selected_dependencies = dependencies or EvaluationDependencies()
+    try:
+        sealed = selected_dependencies.execution_loader(experiment_path, root)
+    except (EvidenceChainError, OSError, ValueError) as exc:
+        raise CycleCliError(str(exc)) from exc
+    library, task = sealed.library, sealed.task
+    identities = current_authority_identities()
+    metric_core_sha256 = identities["metric_core"]["sha256"]
+    prior_report: ValidatedScientificReceipt | None = None
     prior_sha256: str | None = None
     if cycle > 0:
-        prior_path = experiment_path / "cycles" / f"cycle_{cycle - 1}" / f"report_{cycle - 1}.json"
         try:
-            prior_bytes = prior_path.read_bytes()
-        except OSError as exc:
-            raise CycleCliError("prior cycle report is required") from exc
-        prior_report = json.loads(prior_bytes)
-        if type(prior_report) is not dict:
-            raise CycleCliError("prior cycle report must be an object")
-        if (
-            prior_report.get("evidence_class") != EVIDENCE_CLASS
-            or prior_report.get("task_spec_sha256") != task.raw_sha256
-            or prior_report.get("library_manifest_sha256") != library.raw_sha256
-        ):
-            raise CycleCliError("prior report does not bind the frozen task and library")
-        prior_sha256 = _sha256(prior_bytes)
+            prior_report = validate_prior_report_chain(
+                experiment=experiment_path,
+                repository_root=root,
+                library=library,
+                task=task,
+                prior_cycle=cycle - 1,
+                expected_metric_core_sha256=metric_core_sha256,
+            )
+        except EvidenceChainError as exc:
+            raise CycleCliError(str(exc)) from exc
+        prior_sha256 = prior_report.sha256
     prompt = _designer_prompt(
         cycle=cycle,
         library=library,
@@ -239,11 +261,14 @@ def prepare_cycle(*, experiment: Path, cycle: int, steering: str = "") -> tuple[
         "cycle": cycle,
         "designer_prompt_sha256": _sha256(prompt),
         "evidence_class": EVIDENCE_CLASS,
+        "execution_manifest_sha256": sealed.manifest_sha256,
         "library_manifest_sha256": library.raw_sha256,
+        "metric_core_sha256": metric_core_sha256,
         "oracle_policy": "exact_predeclared_set" if cycle == 0 else "one_designer_oracle",
         "predeclared_oracles": declarations,
         "prior_report_sha256": prior_sha256,
-        "schema_version": 1,
+        "prior_scientific_receipt_sha256": prior_sha256,
+        "schema_version": 2,
         "task_spec_sha256": task.raw_sha256,
     }
     expected_path = output / "expected_inputs.json"
@@ -296,7 +321,9 @@ def main(
         prompt, expected = prepare_cycle(
             experiment=experiment,
             cycle=args.cycle,
+            repository_root=root,
             steering=args.steer,
+            dependencies=dependencies,
         )
         print(json.dumps({"designer_prompt": str(prompt), "expected_inputs": str(expected)}))
         return 0

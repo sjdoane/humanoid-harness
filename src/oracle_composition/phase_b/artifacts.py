@@ -16,7 +16,7 @@ from oracle_composition.experiments.external_tqc_initialization_identity import 
     EXPERT_ACTOR_NPZ_SHA256,
 )
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
-from oracle_composition.harness.contract import oracle_program_from_dict
+from oracle_composition.harness.contract import load_oracle_program
 
 from .contracts import (
     CLAIM_CEILING,
@@ -28,6 +28,7 @@ from .contracts import (
 )
 
 PHASE_A_ORACLE_PATH = "experiments/003_composition_speed_profile/cycles/cycle_1/oracle_1.json"
+PHASE_A_ORACLE_SHA256 = "32bfc555ffc578d4cf8f75823acc1ba98db6621b2bcd0204f0725b0bf70af029"
 EXPERT_ACTOR_PATH = "artifacts/bootstrap_tqc_humanoid/farama_minari_humanoid_v5_tqc_actor_v1.npz"
 STEP_ZERO_EXPORT_PATH = "artifacts/experiments_003/phase_b/step_0_full_authority_actor_v1.npz"
 E1_RECEIPT_PATH = (
@@ -154,11 +155,12 @@ def publish_contract_artifacts(
 
     root = Path(repository_root).resolve(strict=True)
     output = Path(output_directory)
-    raw_oracle = json.loads((root / PHASE_A_ORACLE_PATH).read_text(encoding="utf-8"))
-    phase_a = oracle_program_from_dict(
-        raw_oracle,
+    phase_a, phase_a_sha256 = load_oracle_program(
+        root / PHASE_A_ORACLE_PATH,
         available_behaviors=("expert", "medium", "simple"),
     )
+    if phase_a_sha256 != PHASE_A_ORACLE_SHA256:
+        raise ExperimentContractError("Phase A oracle identity differs")
     oracle_value = PhaseBOracleProgram(phase_a)
     oracle = _publish(output / "oracle_cycle_1_reference_v1.json", oracle_value.to_dict())
     reward_value = TrackingOnlyRewardSpec()
