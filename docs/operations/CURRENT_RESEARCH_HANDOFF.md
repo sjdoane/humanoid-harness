@@ -2,9 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260905-FT1` is implementation-complete: no-learning Phase B contracts, exact full-authority 708-D warm start/export/reload, switch-only phase transfer, immutable composed windows, and hash-bound tracking-only reward streams. E1 passes on `4 + 64` fixtures, both static transfer ranges reproduce exactly, and `56` focused/adjacent tests include a passing 200-step real Humanoid-v5 smoke with bitwise expert actions. |
-| bottleneck | FT2 is not implemented and no training ran. Evidence remains `interface_check` only. The sandbox full suite has the same `44` known failures as its saved baseline; an unrestricted host run is still required to turn those environment-bound checks green. |
-| next step | Fable reviews and commits FT1, then packets FT2 for the worker, supervision/RSI, persistence, report writer, and CLI. Do not run the disposable smoke or cohort without their separate reservation or authorization. |
+| progress | `TASK-20260905-E003R1` repaired the Experiment 003 interface and evidence chain: exact execution seal, recomputed library statistics, separated authority identities, deterministic chained scientific receipts plus telemetry, strict shared prior validation, report/trace schemas, designer provenance, bounded recovery, and Astra V2 input binding. No simulator ran outside tests; no training ran. |
+| bottleneck | The repaired metric-core digest intentionally differs from the historical Phase A digest, so old arms cannot be carried into a new cycle without re-evaluation. R05, R06, and R10 remain explicitly deferred in `HARDENING_BACKLOG.md`; the full sandbox suite retains exactly its `44` recorded environment-bound failures. |
+| next step | Fable reviews and commits this repair slice, preserving the Phase A JSON, trace, oracle, task, and library bytes. Any later experiment must start from a fresh sealed evaluation family; FT2 still requires its own packet and authorization boundaries. |
+
+Fable integration note (2026-09-05T21:43Z): E003R1 committed as `6dc946b` on top of the Astra integration merge `8d91a81` (M1 accepted merge plus the T2 input contract). Next writer: `sol-builder-20260905-ft2` (packet `TASK-20260905-FT2`, training worker, supervision, persistence, report v2 writer, CLI train, fake-runtime end-to-end; no real training). Read-only reviews of FT1 (scientific) and E003R1 (robustness) run in parallel. Fable resume: read the FT2 final and both reviews; commit FT2; fold review findings; then propose the disposable 20-minute smoke to Astra by mailbox reservation and ask Samuel for cohort authorization before any five-seed run.
+
+E003R1 completion (2026-09-05T21:38Z): base `8d91a81`; exact execution-manifest SHA-256 `cccaf040…c00`; Phase A v1 report hashes remain `3d32dd…623`, `480d5b…5f0`, and `e677b9…94c`, and all `120` retained trace hashes match the unchanged indexes. The corrected Markdown is reproducible from those JSON reports. Deterministic v2 receipt hashes are `e1f6466a…d812`, `5a5a996c…cecc`, and `c6dab6cb…da7f`; telemetry is separate. Focused harness/Phase B/V2-input validation is `114 passed`. Full validation is `1462 passed, 18 skipped, 1 deselected, 44 failed` in `119.35 s`; the `44` failed node IDs exactly match `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. The sole deselection was the forbidden reward-lane receipt test, which was not executed or changed. Claim ceiling: interface and integrity repairs only, not behavioral evidence.
+
+Fable resume: verify the immutable Phase A hash test, strict prior/provenance tamper tests, deterministic receipt/telemetry split, recovery bounds, and Phase B `task_inputs_v2.py` source binding; then commit this complete E003R1 slice without running the forbidden reward receipt, a simulator, or training.
 
 Fable launch note (2026-09-05T19:32Z): builder `sol-builder-20260905-ft1` (packet `TASK-20260905-FT1`) starts from the clean main head after the strategy commit; read-only reviews `sol-review-sci-20260905-e003` and `sol-review-adv-20260905-e003` are running on the phase A commits. Fable resume: read the FT1 final, run the outside-sandbox suite, commit slice and integration separately, fold the two reviews, then packet `FT2` (training worker, supervision, persistence, report v2, CLI train); the disposable smoke needs a mailbox reservation; the five-seed cohort needs Samuel's authorization.
 
@@ -13,9 +19,9 @@ FT1 completion (2026-09-05T20:20:41Z): source-bound E1 receipt `c602e14a…f3788
 FT1 30-minute checkpoint (2026-09-05T20:02:41Z): lease and expert hash remained valid; `53` focused/adjacent tests, lint, and the 200-step real no-learning smoke passed. Full-suite validation was in progress. The exact forbidden reward-lane test is `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`; its receipt was not regenerated.
 
 Fable integration note (2026-09-05T19:11Z): Slice E003C2 committed as `74d7aa5`; Experiment
-003 phase A is closed (60/60 switching episodes fell across three designs; the
-steered cycle-2 designer concluded infeasibility and named the missing
-deceleration behavior). Astra accepted the convergence terms, merged main
+003 phase A is closed (60/60 episodes across the three tested step-300
+running-speed handovers fell; alternative phases, timings, and
+state-conditioned handovers remain untested). Astra accepted the convergence terms, merged main
 `2fb31dc` into its lane as `8a48f32`, and is building a data-only target-speed
 formula family; Fable answered the adapter question: reward-study task T2 holds
 3.0 m/s on the fine-tuning runtime with the stock COM `x_velocity` under a
@@ -27,15 +33,20 @@ reservation and Samuel's authorization.
 
 Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
 
-- Updated: `2026-09-05T20:20:41Z` (FT1 final handoff)
+- Updated: `2026-09-05T21:38Z` (E003R1 validation handoff)
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `f57acc3fb82e4e60ba13b0b45929319482e1a7c6` (clean before FT1; no Git writes)
+- Precondition HEAD: `8d91a81` (clean before E003R1; no Git writes)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260905-ft1`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
-- Evidence class: `interface_check`
-- Builder wall time: `48m` from launcher acquisition through final validation and handoff
+- Write lease: `CLAIMED` by `sol-builder-20260905-e003r1`, model `gpt-5.6-sol`, role `builder`, exact authorized scope; launcher owns renewal and release
+- Evidence class: interface and integrity repair; no behavioral evidence
+- Builder wall time: `73m` through the baseline-matched full-suite validation; final lint and diff checks followed
 
-## Frozen inputs
+## Historical Experiment 003 phase-A handoff
+
+The sections below preserve the pre-review phase-A handoff. E003R1's corrected
+claim and evidence-chain status above supersedes its wording where they differ.
+
+### Frozen inputs
 
 | artifact | SHA-256 | frozen fact |
 |---|---|---|
@@ -55,7 +66,7 @@ Library speed statistics use pooled per-step root-`x` sidecar differences divide
 
 `simple` is the frozen slow actor because its median is `4.6354086253 m/s` below the expert, versus `2.4467487402 m/s` for `medium`. The target is expert speed on steps `[0,300)`, simple speed on `[300,600)`, and expert speed on `[600,1000)`.
 
-## Cycle-0 result
+### Cycle-0 result
 
 | arm | median mean absolute speed error (m/s) | falls / 20 | median switches | median behavior time (steps) | median descriptive task return |
 |---|---:|---:|---:|---|---:|
@@ -72,20 +83,21 @@ Library speed statistics use pooled per-step root-`x` sidecar differences divide
 - One-table report Markdown SHA-256: `cdbe252277b62749e09e029033077795e235c5cac208ce76f983ae23a98c68a0`.
 - Ignored trace index: `artifacts/experiments_003/cycle_0/content_index.json`, `80` entries, SHA-256 `041a81cac8d77d717aacb31e6e633fcae2a47e09457fc92eade79dc103e7f983`; the ignored cycle directory is `54M`.
 
-## Cycle-1 designer input
+### Cycle-1 designer input
 
 | artifact | SHA-256 | binding |
 |---|---|---|
 | `cycles/cycle_1/designer_prompt.md` | `53b319c5975fcd0cc5a54a2de3358cefe8a02e345982c2d89d6a5ac2ffde3010` | task, library, allowed schema/signals, rules, and cycle-0 report table |
 | `cycles/cycle_1/expected_inputs.json` | `dc76c192e07bdd735df72f0263975e69ee378c8f6a95acd060d00383eb4d0351` | binds task, library, prompt, and prior report hash |
 
-No steering text was supplied. The read-only designer saw only this prompt.
+No steering text was supplied. The audit log records only this prompt read;
+that observation is not an OS-enforced read allowlist.
 
-## Cycle-1 candidate and result
+### Cycle-1 candidate and result
 
 | item | value |
 |---|---|
-| designer | `sol-designer-20260905-e003d1`; run `.orchestration/sol-runs/20260905T183122Z-b0788053-4fd7-4887-af1d-8c2ef411c93b`; prompt-only visibility |
+| designer | `sol-designer-20260905-e003d1`; run `.orchestration/sol-runs/20260905T183122Z-b0788053-4fd7-4887-af1d-8c2ef411c93b`; audit log records the prompt read, not OS-enforced isolation |
 | oracle raw SHA-256 | `32bfc555ffc578d4cf8f75823acc1ba98db6621b2bcd0204f0725b0bf70af029`; source and frozen copy matched byte-for-byte |
 | oracle canonical SHA-256 | `9d0929cb785429776283e15765bdb3c3f19c60f1a0a3166317909f5f7bef381a` |
 | contract validation | pass; no oracle edit |
@@ -104,12 +116,12 @@ No steering text was supplied. The read-only designer saw only this prompt.
 |---|---|
 | runtime fingerprint | `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; unchanged from cycle 0 |
 | `report_1.json` | `480d5b3521ce66593e0258f3f42904f969c72b83141b330bc7ff4759144c25f0` |
-| `report_1.md` | `88cefeeeb5cfe47f40d4623233b3a76a73e18f7ea0b70a7b186369b04029170a` |
+| `report_1.md` | corrected render `116e2a836ea5f2a0ae6b596e7005c0e0dbee701ad7a75d468c3d73d92817207b`; pre-review bytes read by cycle 2 were `88cefeeeb5cfe47f40d4623233b3a76a73e18f7ea0b70a7b186369b04029170a` |
 | ignored trace index | `4d2c419140b71d1cc13f04c6af802d9fb569aaf690621cc17cd99ab5f4057097`; `20` entries; `14M` cycle directory |
 | determinism | `20/20` replay hashes matched; `7.4264 s` report wall |
 | evaluation wall | `15.0420 s` in report; `15.53 s` process wall |
 
-## Cycle-2 designer input
+### Cycle-2 designer input
 
 | artifact | SHA-256 | binding |
 |---|---|---|
@@ -120,11 +132,11 @@ The read-only designer's launch packet supplied steering from Fable, the
 orchestrating agent; no human steering was supplied. The exact required text is
 quoted in `cycles/cycle_2/cycle_record.md`.
 
-## Cycle-2 candidate and result
+### Cycle-2 candidate and result
 
 | item | value |
 |---|---|
-| designer | `sol-designer-20260905-e003d2`; run `.orchestration/sol-runs/20260905T185111Z-78f29dc3-9fba-4f26-a393-b86bc71f4349`; read the cycle-2 prompt and cycle-1 report only |
+| designer | `sol-designer-20260905-e003d2`; run `.orchestration/sol-runs/20260905T185111Z-78f29dc3-9fba-4f26-a393-b86bc71f4349`; audit log records the two declared reads, not OS-enforced isolation |
 | oracle raw SHA-256 | `f1cbc2784783d4f34312b036a911c536f8406aa3da1ffcf52f35f4927808173a`; source and frozen copy matched byte-for-byte |
 | oracle canonical SHA-256 | `5868d09ea71a4fcd5f1be46ef92fa36c83ac7e3867222cecb9fa7f3000e835bf` |
 | contract validation | Pass; no oracle edit |
@@ -146,25 +158,26 @@ quoted in `cycles/cycle_2/cycle_record.md`.
 |---|---|
 | runtime fingerprint | `186fd2f4aa6b9ed9a0eb3de73faa0d2bbcb392a4fe52f992b6b443fbf33d2621`; unchanged from cycles 0 and 1 |
 | `report_2.json` | `e677b9f3c3daabdb13648a18981c39b47bc74fa2e6908e7fe1af9d73674e194c` |
-| `report_2.md` | `da600ce263222318ae9d71da1290971482b09e7b9e7eeebfdfb47f54c6460bba` |
+| `report_2.md` | corrected render `c071106fe3bbfc050ba1fdcba234a1da32f0d43df365851e5360c54b102420b6` |
 | ignored trace index | `a210e04509a1ac2266981c1ea0af1407ce5059d72d633d6ba62daf9970bdf775`; `20` entries; `13M` cycle directory |
 | determinism | `20/20` replay hashes matched; `3.3180 s` report wall |
 | evaluation wall | `6.8207 s` in report; `7.30 s` process wall |
 
-## Phase-A closure
+### Phase-A closure
 
-No running-speed handover survived in `60/60` switching episodes across the
-three designs (`playback`, `handwritten`, and cycle 1). The cycle-2 designer
-identified the missing library element as an admitted deceleration behavior
-with entry coverage at expert running speeds and a validated safe handoff to
-`medium` or `simple`. The full table and claim boundary are frozen in
+None of the three tested step-300 running-speed handovers survived; alternative
+phases, timings, and state-conditioned handovers remain untested. Those three
+designs (`playback`, `handwritten`, and cycle 1) fell in `60/60` episodes. An
+admitted deceleration behavior with entry coverage at expert running speeds
+and a validated safe handoff to `medium` or `simple` remains one untested
+direction. The full table and claim boundary are frozen in
 `experiments/003_composition_speed_profile/PROTOCOL.md`.
 
 Phase B keeps task T1 and replaces controller switching with a tracker-following
 fine-tuning runtime warm-started at the expert. The runtime learns transitions
 from the composed reference. No cycle-3 prompt was prepared.
 
-## Validation
+### Validation
 
 | check | result | wall time |
 |---|---|---:|
@@ -183,7 +196,7 @@ discarded the cycle-1 candidate and mislabeled the current row as cycle 1; the
 focused regression failed before the fix and now covers three cycles. No task
 specification, oracle, actor, runtime, reward, seed, horizon, or metric changed.
 
-## Claim ceiling
+### Claim ceiling
 
 Phase A supports only that three exploratory controller-switching cycles ran on
 the frozen plain `Humanoid-v5` runtime over the predetermined seeds, their
