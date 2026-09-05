@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | The public expert base controller is imported and integrity-verified (ADR 0005; three actors); the reward sandbox B0 is host-verified and handed to Astra's lane (ADR 0006, ADR 0007); Slice 03B produced the first research-grade corpus result: `108/108` same-runtime clips replay-certified and an E3 fork corpus with `27/36` qualifying blocks (commit `41b2597`). |
-| bottleneck | The expert development screen has no result: the plain-versus-instrumented equivalence gate fired at its first reset, so the substep-contact instrumentation perturbs the observable MDP over a long rollout. Until that is diagnosed and fixed, no screen, tracker, or E4 work can start, and the reward lane's protected evaluator shares the same instrumentation. |
-| next step | Diagnose the divergence (read-only worker running), fix it under a versioned slice with a 1,000-step expert-actor equivalence canary, rerun the screen as a versioned v2 run, then the importer closure `03A2FIX2`, then packet B (residual PPO tracker plus E4 with gait-transition episodes) on the `9/14/4` role split below. |
+| progress | Substrate exists and is verified: three imported public actors, a plain-runtime reference corpus with replay and plain-comparison certificates (`108` clips, run v2), an E3 fork corpus (`28/36` admitted blocks), and a host-verified reward sandbox in Astra's lane. The 2026-09-05 alignment audit found that no harness cycle has run on any MDP. |
+| bottleneck | The critical path drifted into tracker admission science (E1-E5) and hardening, which the collaborator's frame treats as given. The imported expert failed its frozen development screen (`19/20`), and the authority-gap analysis shows a `0.08` residual cannot reproduce the medium or simple gaits at all (`0/56,000` steps), so the residual tracker family is dead before training. |
+| next step | Run composition-loop cycle 0 and 1 on stock `Humanoid-v5` with the library executed by controller switching (Experiment 003, packet `E003-C0`), as a CLI command with a JSON cycle report; in parallel build the fine-tuning runtime (warm start from the expert, full authority) as the local policy-training block for both knobs; move E5 and the hardening backlog off the critical path. |
 
 ## Fable's authority
 
@@ -222,6 +222,47 @@ the v1 result and before any later run's E3 certificate is read.
 | Labels | Tracker training runs carry `residual_tracker_development_v1` (or the family name a superseding decision record assigns) and E4 carries `tracker_family_screen_v1`, both with `claim_status = no_tracker_admission_before_E5`; `matched_study` is never used on this chain. |
 | Composer authority | The survey reports that at shared states the medium and simple actors' first controls differ from the expert's by up to about `0.7` while the residual's authority is `0.08`. Whether slice B keeps the residual composer or moves to the predeclared expanded-TQC family is decided in a decision record before packet B is written, on a read-only whole-clip authority-gap analysis, never by widening authority after a failed run. |
 
+## Alignment audit against the transcript (2026-09-05T17:50Z)
+
+Samuel asked for a check that the work aligns with the collaborator's stated
+goal. Source: the raw transcript (`SOURCE_MANIFEST.md`, anchors `LKS-A01`-`LKS-A14`),
+re-read in full on 2026-09-05. Paraphrases only; no raw private text.
+
+| collaborator requirement (transcript) | current state | verdict | action |
+|---|---|---|---|
+| Two scientific knobs only: compose references into a task-optimal program, and iteratively enhance a task reward; the MDP, tracker, tracking reward, observations, and scene are frozen and given (`LG-01`, `LG-02`, `LG-03`, `LKS-A11`-`LKS-A13`) | Charter and strategy state this exactly; no cycle of either knob has executed on any MDP | aligned in framing, not in execution | make one full cycle run before any further substrate work |
+| Fine-tuning paradigm: a pretrained tracker anchors behavior, the task reward nudges; do not solve training-from-scratch problems (`LG-13`, `LKS-A10`) | The tracker chain (E1-E5) was built as a stand-in for the tracker the collaborator will supply; E5 causal-use ablations study the stand-in, not the harness | drifted | E5 leaves the critical path; the local tracker becomes a fine-tuning runtime warm-started from the expert, gated by a utility smoke, not an admission chain |
+| Start with something very simple: an existing locomotion policy, steer its speed with reward edits, then move to the real block when it arrives (`LG-15`, `LKS-A13`) | Astra's reward lane has a verified sandbox and a target-speed candidate family but has executed no candidate; my lane produced no policy result | drifted | first joint demo target: the reward loop on the fine-tuning runtime with the target-speed task, cycle 0 (stock reward) and cycle 1 (one candidate) |
+| Composition is the harder unsolved knob; the LLM is good at designing the program (which behavior, when, transitions) (`LG-02`, `LG-06`, `LKS-A06`-`LKS-A09`) | Experiment 003 frame recorded; the library (three gaits with certified clips) exists; no oracle designed or evaluated | ready, not started | packet `E003-C0`: cycle 0 and 1 with the library executed by controller switching, so the loop runs before any tracker is trained |
+| Deliverable: a demonstration of baseline-to-improved performance and steerable design on a couple of MDPs, a preprint, and an embarrassingly convenient open-source tool (`LG-05`, `LG-16`) | Rigor is high; usability is nil: no CLI runs a cycle | drifted | every cycle is a CLI command producing a JSON report and a one-page table; the harness code path is the product |
+| Communication: crisp progress, bottleneck, next step; tables over prose (`LKS-A05`) | Handoff and strategy follow the trifecta | aligned | keep |
+| Do not chase ten leaks with duct tape; find the one fundamental issue (`LKS-A04`) | Two review rounds produced fifteen hardening P1s on the corpus pipeline; none changes a scientific conclusion | drifted | hardening backlog file; only findings that change a claim are folded into slices |
+
+Decisions from the audit (strategy authority; Samuel may reverse any of them; ADR 0008):
+
+1. Composition-loop cycle 0 runs now on stock `Humanoid-v5`. The library is the
+   three public actors; the oracle is a state-machine program over them
+   (active behavior, state guards, dwell, transition, recovery); the executor
+   switches controllers, which stands in for a frozen tracker following
+   composed references and is labeled as such. Task: a speed-profile task the
+   library cannot solve with one behavior. Baselines: elapsed-time playback and
+   a hand-written state machine. Cycle 1 is one LLM-designed revision from the
+   cycle-0 report. Evidence label `exploratory_oracle_cycle`.
+2. The residual tracker family is retired before training on the authority-gap
+   evidence. The local policy-training block becomes a fine-tuning runtime
+   warm-started from the expert with full authority (the predeclared
+   expanded-TQC family), gated by E1 identity and a utility smoke; it serves
+   both knobs: composed references plus tracking reward for the oracle knob,
+   and candidate task rewards for the reward knob.
+3. E5 and the hardening backlog leave the critical path. The scientifically
+   necessary review items (admission map, screen label, process IDs out of
+   scientific digests, E3 manifest wording) are folded into the next slice that
+   touches those files.
+4. The imported expert stays the development base with its failed screen
+   recorded (`19/20`); no local training fallback is requested.
+5. The sealed E5 blocks were read by the authority-gap analysis and are no
+   longer sealed; if E5 ever runs, it draws new sealed seeds first.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -272,9 +313,9 @@ flowchart LR
 | gate | factor allowed to change | evidence required | current state |
 |---|---|---|---|
 | S0: interface | none | deterministic artifact, trace, metric, and evaluator contracts | implemented; regression evidence only |
-| S1: tracker admission | tracker family during development only | stable behavior plus exact immutable lineage | ADR 0005 chain: import and E1 (expanded half) done; corpus certified and E3 qualifying corpus done 2026-09-05; expert development screen blocked by the instrumentation divergence; residual PPO tracker (E4) and E5 not started |
+| S1: tracker admission | tracker family during development only | E1 identity plus a utility smoke on the library gaits and transitions | residual family retired (ADR 0008); fine-tuning runtime warm-started from the expert to be built; E4/E5 admission science off the critical path |
 | S2: causal use | reference-window intervention only | matched-state expected-direction effects | blocked by S1 |
-| S3: oracle comparison | oracle only | protected matched-budget comparison | not authorized |
+| S3: oracle comparison | oracle only | protected matched-budget comparison | cycle 0 and 1 with controller switching authorized as `exploratory_oracle_cycle` (packet `E003-C0`); formal comparison not authorized |
 | S4: reward comparison | task reward only | frozen oracle (none on the stock MDP) and protected comparison | design v1 recorded in ADR 0006; builder slice B0 (no training) queued |
 | S5: combined loop | oracle and reward by predeclared schedule | held-out multi-MDP improvement and steerability | future target |
 
@@ -295,6 +336,7 @@ goal ID.
 | 2026-09-04 | `LG-03` | Cycle 1 keeps the stock reward as `r_0` and records that its headroom is trivial; a frozen manual target-aware baseline arm is required from cycle 2 for an informative comparison. | Sol survey sections 3 and 5; Fable synthesis | Cycle-2 protocol adds the manual arm | recorded |
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Record the corpus result (`108/108` certified, E3 `27/36`, role split `9/14/4`), preserve the stopped screen run, and require an instrumentation fix with a 1,000-step equivalence canary before any screen, tracker, or candidate-reward result. | Slice 03B receipts (`41b2597`); E3 certificate `c977f506…`; runner stop at seed `96001` | diagnostic worker report; fixed slice passes the canary; versioned screen v2 | recorded; diagnostic and two reviews running |
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Preregister E3 block admission, the E4 fifteen-cell gait-transition screen and its pass rule, E5's admitted-block rule, and the tracker labels, before any run v2 result is read. | SCI-03 of the `41b2597` scientific review; design survey `sol-survey-20260905-b` | packet B binds the admission map of the run it uses; E4 and E5 receipts cite this row | recorded 2026-09-05T07:20Z |
+| 2026-09-05 | `LG-01`, `LG-02`, `LG-05`, `LG-13`, `LG-15`, `LG-16` | Alignment pivot: run the composition loop now with controller switching; retire the residual tracker family; make the local policy-training block a fine-tuning runtime warm-started from the expert; move E5 and hardening off the critical path; every cycle is a CLI command with a JSON report. | Samuel's alignment request; transcript re-read; authority-gap analysis (`0/56,000` steps within `0.08`); failed screen `19/20` | cycle-0 and cycle-1 reports exist and a human can steer cycle 2 from text | recorded 2026-09-05T17:50Z; ADR 0008 |
 
 ## Known strategy inconsistencies
 
