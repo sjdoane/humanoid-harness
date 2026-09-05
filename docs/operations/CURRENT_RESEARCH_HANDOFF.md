@@ -2,17 +2,18 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable's host record for B0 (commit `89d4c34`) reports `20/20` profile-v3 canaries and `33` sandbox tests passed; this is software-boundary evidence only. Both B0 reviews returned `ACCEPT-WITH-REPAIRS` (no P0; `6` and `10` P1). B0 is handed to Astra with those findings. The importer repair `03A2FIX` implemented all ten findings (`173` focused tests) and stopped only on the reward runtime receipt's whole-tree fingerprint. |
-| bottleneck | The reward runtime receipt binds the entire package source tree, so any commit invalidates it until regenerated. No candidate execution or training may build on B0 until its P1 findings are repaired in Astra's lane. No tracker is admitted; causal reference use is unproved. |
-| next step | Regenerate the reward runtime receipt once, run the full suite outside the sandbox, commit the importer repair as `Slice 03A2FIX`, launch its two reviews, then run `03A3` as the writer. Frame Experiment 003 as a three-gait composition task before E4. Poll the mailbox at each checkpoint. |
+| progress | 03A3 imported the public `medium` and `simple` actors through the hardened importer and passed actual E1 on the real expert bytes for both contenders (`166` focused tests). Reviews of `425d3bc`: scientific `ACCEPT-WITH-REPAIRS` with one provenance P1; robustness `ACCEPT-WITH-REPAIRS` with eight hardening P1 and two P2. Astra acknowledged the interpretation and the B0 transfer. |
+| bottleneck | The reward runtime receipt's whole-tree fingerprint breaks on every commit until Astra scopes it (a reward-lane P1). Importer hardening R-01 to R-08 is scheduled after the corpus slice because 03B consumes only the integrity-verified NPZ receipts and does not exercise the importer. No tracker is admitted; causal reference use is unproved. |
+| next step | Commit `Slice 03A3` and a separate integration commit, launch its two reviews, run `03B` (three-gait reference corpus, Tier-D certificates, E3 forks, expert development screen) as the writer, then the importer closure slice `03A2FIX2`. Poll the mailbox at each checkpoint. |
 
-- Updated: `2026-09-05T01:03Z`
+- Updated: `2026-09-05T03:13Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
 - Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
 - Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: `sol-builder-20260904-03a2r`, completed slice ready for Fable review and control transfer
+- Active write worker: `sol-builder-20260904-03a3`, exact lease owner; stopped at the protected Family-B receipt boundary
+- Fable resume: inspect the `TASK-20260904-03A3` changed-file and receipt tables below, refresh only the Family-B no-learning runtime receipt under its owning authority, then rerun the full suite and commit after review.
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
 
@@ -116,6 +117,73 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 - Start state was clean at `main` HEAD
   `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
   commit `5bdae45` each list exactly the expected 20 preserved paths.
+- `TASK-20260904-03A3` changed-files list and receipts:
+  - Preconditions passed at `main` HEAD
+    `425d3bcf203929403205a8e8f01c0cc453b60b0b`: the working tree was clean,
+    the exact `sol-builder-20260904-03a3` lease was `CLAIMED`, and the 03A2
+    expert chain was present. The required pre-change suite was `44 failed,
+    1198 passed, 11 skipped`; the sorted baseline is
+    `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`,
+    SHA-256
+    `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345`.
+  - All 18 present source files across the `medium` and `simple` local copies
+    independently matched their API byte counts and `lfs.sha256` or computed
+    Git-blob SHA-1 before any load. Both policy files also matched their pinned
+    SHA-256 and byte counts.
+  - Trackable files:
+    - `research/source_controllers/farama_minari_humanoid_v5_tqc_medium/README.md`.
+    - `research/source_controllers/farama_minari_humanoid_v5_tqc_medium/RECEIPT.json`.
+    - `research/source_controllers/farama_minari_humanoid_v5_tqc_simple/README.md`.
+    - `research/source_controllers/farama_minari_humanoid_v5_tqc_simple/RECEIPT.json`.
+    - `src/oracle_composition/sources/farama_tqc_sibling_registrations.py`.
+    - `src/oracle_composition/sources/external_sb3_actor.py`.
+    - `src/oracle_composition/sources/external_payload_policy.py`.
+    - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
+    - `src/oracle_composition/experiments/external_tqc_initialization_identity.py`.
+    - `tests/sources/test_farama_tqc_sibling_registrations.py`.
+    - `tests/sources/test_external_sb3_actor_siblings.py`.
+    - `tests/sources/test_external_sb3_actor.py`.
+    - `tests/experiments/test_external_tqc_initialization_identity.py`.
+    - `tests/policy/test_no_external_payload_in_index.py`.
+    - `experiments/bootstrap_tqc_humanoid/PUBLIC_EXPERT_IMPORT.md`.
+    - `experiments/bootstrap_tqc_humanoid/E1_INITIALIZATION_IDENTITY.md`.
+    - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
+  - Source registration receipts:
+
+    | variant | repository commit | receipt SHA-256 | bytes |
+    |---|---|---|---:|
+    | `medium` | `949f7963c1a8964587dca73d48873ad021e168b5` | `68344e980e42543ddd5ca3d164a9c8173f63950d47b4c8c9064e57283fd4e0a1` | 9,401 |
+    | `simple` | `39e2954c193fc1352535935a7d71eca9e5745d9b` | `745d82dea8fc4878f70ed58f4d6ff4cd506b0f94c85676dc70e3cffce8283ac5` | 9,401 |
+
+  - Local ignored import artifacts:
+
+    | variant | import receipt SHA-256 | strict NPZ SHA-256 | equivalence receipt SHA-256 |
+    |---|---|---|---|
+    | `expert` | `b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7` | `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b` | `65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e` |
+    | `medium` | `b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172` | `2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04` | `ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487` |
+    | `simple` | `bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7` | `b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917` | `604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268` |
+
+  - Actual E1 ignored receipt
+    `artifacts/bootstrap_tqc_humanoid/e1_initialization_identity_external_v1.json`:
+    SHA-256
+    `28725ecfba2ca89f4b4608e5e8d5b5024cfe2ed8df71383bc03a248891edf266`,
+    11,023 bytes. Both contenders pass bitwise identity on the imported expert;
+    authority is `external_pretrained_artifact`, training/environment steps are
+    zero, and behavior was not evaluated.
+  - Verification: focused import, equivalence, E1, payload-policy, and retained
+    fixture tests `166 passed`; source/API/registration/import/NPZ/equivalence/E1
+    revalidation passes; Ruff lint and format checks pass for 219 files;
+    `git diff --check` passes. Post-change full suite `45 failed, 1221 passed,
+    11 skipped`; the 44 baseline IDs remain exact and one additional failure is
+    `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`.
+    It is solely the protected Family-B source-tree binding (`7496476d...319c9c`
+    recorded versus `ba4faf45...23a13d` observed).
+  - Stop boundary: the required post-change baseline gate is not met. The
+    Family-B receipt is outside this scope and forbidden, so the builder did
+    not refresh it or weaken its validator.
+  - Fable resume: review the 03A3 diff and receipts, refresh the Family-B
+    no-learning runtime receipt under its owning authority, rerun the full
+    suite, and commit only after the additional failure clears.
 - `TASK-20260904-03A2FIX` changed-files list and receipts:
   - `src/oracle_composition/experiments/external_tqc_actor_equivalence.py`.
   - `src/oracle_composition/sources/_external_sb3_actor_worker.py`.
@@ -156,7 +224,7 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
     failed, 1197 passed, 11 skipped`: all 44 saved sandbox failures plus only
     `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`.
     The mismatch is confined to `source_tree_sha256`; the forbidden reward
-    receipt was not changed. Ruff lint passed and all 212 Python files are
+    receipt was regenerated by Fable as an integration change (see the provenance correction below). Ruff lint passed and all 212 Python files are
     formatted. No training or behavior evaluation ran.
 - `TASK-20260904-B0` tracked or trackable changed-files list:
   - `docs/operations/CURRENT_RESEARCH_HANDOFF.md`.
@@ -571,3 +639,30 @@ independent interpretation of reference composition; recorded in the strategy
 as the frame for Experiment 003: a three-gait composition task with
 state-triggered transitions and recovery, LLM-designed oracle program,
 feedback-driven revision, elapsed-time and hand-written baselines.
+
+## Provenance correction for `425d3bc` and integration rule `2026-09-05T03:13Z`
+
+Commit `425d3bc` bundled two integration-owned changes with the builder's
+packet slice: the strategy addition (Experiment 003 composition frame) and the
+regenerated reward runtime receipt
+`experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`.
+Both were authored by Fable under its lease, outside packet `03A2FIX`'s
+allowlist; the packet's changed-files ledger and the earlier "scope-only"
+wording were therefore inaccurate. Reviews `11` and `12` flagged this
+(`SCI-03A2FIX-01`, `R-07`). Rule from here on: builder slices and Fable's
+integration edits are committed separately, and every integration edit is
+listed in the handoff with its authority. Host verification results are now
+recorded durably in `experiments/bootstrap_tqc_humanoid/reviews/fable_host_verification.json`.
+
+## Importer hardening synthesis `2026-09-05T03:13Z`
+
+Robustness review `12` of `425d3bc` (run
+`20260905T010724Z-6ed23ba1-3467-46d6-8d8b-ce4cf60933be`): `R-01` rights set from
+every registered payload; `R-02` release-bundle scanning; `R-03` bounds before
+allocation; `R-04` parser exception normalization; `R-05` installed-file
+identity; `R-06` atomic publication; `R-07` provenance (fixed above); `R-08`
+boundary-level negative tests; P2 `R-09`, `R-10`. Fable accepts `R-01`,
+`R-03`, `R-04`, `R-06`, `R-08` in full, narrows `R-02` to a git-index
+guarantee until a release pipeline exists, binds locked artifact hashes and the
+Python ABI for `R-05`, and closes the loop with one scoped closure review.
+Packet `TASK-20260905-03A2FIX2` carries this; it runs after `03B`.

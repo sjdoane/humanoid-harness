@@ -1,0 +1,50 @@
+{
+  "claim_ceiling": "software behavior only; no training or behavioral evaluation",
+  "command": ".venv/bin/python -m pytest -q -p no:cacheprovider; .venv/bin/python -m ruff check .; .venv/bin/python -m ruff format --check .",
+  "host": "Apple M5 Max macOS, outside the Codex sandbox",
+  "note": "Inside the Codex workspace-write sandbox the same trees show 44 environment-only failures (denied socket binds, CPU fingerprint 'arm'); builders diff against their saved baseline instead.",
+  "recorder": "fable-395e7d0f-be34-489e-944e-bbfa673a1eea (Claude Fable 5.1 session 807bcdb2-462c-4ea8-803a-1e4b41259e12)",
+  "runs": [
+    {
+      "commit": "48955df",
+      "finished_utc": "2026-09-04T17:10:16Z",
+      "result": "1060 passed",
+      "ruff": "clean",
+      "started_utc": "2026-09-04T17:08:13Z",
+      "tree": "clean main after WIP removal"
+    },
+    {
+      "commit": "1d6b461",
+      "finished_utc": "2026-09-04T18:15:41Z",
+      "result": "1099 passed",
+      "ruff": "clean",
+      "started_utc": "2026-09-04T18:13:33Z",
+      "tree": "import slice"
+    },
+    {
+      "commit": "89d4c34",
+      "finished_utc": "2026-09-04T22:15:54Z",
+      "result": "1200 passed",
+      "ruff": "clean, 212 files formatted",
+      "started_utc": "2026-09-04T22:13:46Z",
+      "tree": "Slice B0 with B0FIX to B0FIX4 and host canary receipt"
+    },
+    {
+      "commit": "425d3bc",
+      "finished_utc": "2026-09-05T01:06:58Z",
+      "result": "1253 passed",
+      "ruff": "clean, 212 files formatted",
+      "started_utc": "2026-09-05T01:04:18Z",
+      "tree": "Slice 03A2FIX with regenerated reward runtime receipt"
+    },
+    {
+      "commit": "83375d1",
+      "finished_utc": "2026-09-05T03:16:46Z",
+      "result": "1277 passed",
+      "ruff": "clean, 219 files formatted",
+      "started_utc": "2026-09-05T03:13:26Z",
+      "tree": "Slice 03A3 with regenerated reward runtime receipt"
+    }
+  ],
+  "schema_version": 1
+}
