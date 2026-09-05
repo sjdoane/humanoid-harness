@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F2 plan completed; Fable supplied the exact registry seam and its committed main now uses the accepted T2 class. |
-| bottleneck | No reviewed T2 evaluator or shared registry entry; live-model/T2 packet and training gates remain. |
-| next step | Collect the bounded additive T2 builder, reproduce tests, then independently review and propose exact promotion hashes. |
+| progress | F2 builder completed; parent reproduced 73 focused passes, exact bounds and unchanged accepted dependency hashes. |
+| bottleneck | F2 is not independently accepted; peer interface proposal and runtime/model/training gates remain. |
+| next step | Collect the exact read-only F2 review, verify its frozen snapshot and close or repair findings before promotion. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 22:01 UTC heartbeat; F2 plan collected and peer registry requirements read from committed evidence.
+- Last checkpoint: 2026-09-05, 22:37 UTC heartbeat; F2 builder collected and focused parent verification completed.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -50,7 +50,14 @@
 | F1 lineage repair | Sol writer + Astra | finished 20:34:23Z; parent 232 passed/16 deferred | `F1_REPAIR_PARENT_CHECKPOINT.md`; includes one FIFO-open regression fix |
 | F1 closure review | read-only Sol/max | ACCEPT_F1_STATIC_ONLY at 20:59:48Z | `F1_ACCEPTANCE.md`; three findings and FIFO follow-up closed |
 | F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
-| F2 T2 evaluator | Sol/max builder | dispatch/collect exact active pointer | `TASK-F2-t2-evaluator.md`; two new source/test files, no shared integration |
+| F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
+| F2 independent review | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F2-review.md`; pure-evaluator-only verdict |
+
+- F2 builder: `20260905T220615Z-651f932a-0627-4e28-a7cb-0719bdf94475`;
+  terminal success and lease release verified; watcher observed completion.
+- Pending interface proposal:
+  `20260905T220539.436910Z-95e3e2a4b5954edc81e2bfe32f171cd7`.
+  No new peer reply at the 22:37 UTC checkpoint. Do not treat silence as agreement.
 
 - Accepted F1 commit: `27330eb4f50feae27df3ab118e8c9c0d165112a8` (local only).
 - Completed F2 plan: `20260905T212913Z-cb25bab9-c2f9-4809-ac32-4d68072ab70e`;
