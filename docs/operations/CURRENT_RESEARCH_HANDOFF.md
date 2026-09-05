@@ -2,20 +2,167 @@
 
 | status | current truth |
 |---|---|
-| progress | Slice 03B is committed as `41b2597` (implementation, runner fixes, v1 run results): `108/108` clips replay-certified (`108,000/108,000` transitions), E3 `27/36` blocks and `61/72` pairs qualified; outside-sandbox suite `1305 passed`, lint clean. Two read-only reviews of the commit and one read-only divergence diagnostic are running. |
-| bottleneck | Diagnosed: the corpus collector's post-step `mj_forward` (`reference_corpus_collector.py:292`) refreshes cached derived quantities, so the actor consumed synthesized observations and the stock reward's center-of-mass term shifted; the v1 clips are feasible under plain dynamics but are not plain closed-loop trajectories. Fable chose option (a): plain `Humanoid-v5` stays the frozen MDP; the collector becomes observation-preserving; the corpus and screen rerun as v2. |
-| next step | Builder `sol-builder-20260905-03bfix` repairs the collector and certifier replay, adds the production-path 1,000-step equivalence test, and executes run v2 (108 clips with plain-comparison receipts, certificates, E3, the 20-reset screen). Then fold the two 03B review results, then the importer closure `03A2FIX2`, then packet B from the design survey. |
+| progress | `TASK-20260905-03BFIX` is implemented and run v2 completed: `108/108` corpus plus `20/20` screen clips passed separate-process full-clip replay and per-step plain-runtime comparison (`128,000/128,000` transitions); E3 qualified `28/36` blocks and `62/72` pairs. |
+| bottleneck | The exact imported expert failed the frozen 20-reset development screen: `19/20` resets remained healthy and upright; median velocity `5.001603770686775 m/s` and displacement `20/20` passed. No retry or tuning occurred. |
+| next step | Fable reviews and commits the builder slice, records the failed expert screen without widening the claim, preserves v1 as superseded, then folds any P1 review findings and proceeds to `03A2FIX2`. |
 
-- Updated: `2026-09-05T06:32Z`
+Fable resume: review the 03BFIX diff and validation manifest; commit the builder
+slice and integration separately; record the failed screen in strategy and ADR
+0005; preserve v1 as superseded; do not admit a tracker, E4, E5, oracle,
+naturalness, or robustness claim; then fold the 03B reviews and launch
+`03A2FIX2`.
+
+- Updated: `2026-09-05T07:17:40Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
-- Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
-- Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
-- Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
+- 03BFIX clean-precondition HEAD: `a8314c9dfd3d6d09f1488935acf71c98f74180c3` (at or after required `a533606`; Slice 03B `41b2597` and integration already committed). Fable owns Git writes.
+- Strategy control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`.
+- Current write lease: `CLAIMED` by `sol-builder-20260905-03bfix`, model
+  `gpt-5.6-sol`, role `builder`, with the exact 03BFIX scope; the launcher owns
+  renewal and release.
 - Active write worker: `sol-builder-20260905-03bfix` (packet `TASK-20260905-03BFIX`). Read-only: scientific and robustness reviews of `41b2597`, packet B design survey `sol-survey-20260905-b`.
-- Fable resume: read the 03BFIX final; commit the slice (builder paths) and integration separately; fold the 03B reviews' findings into a follow-up slice if any are P1; if the screen passed, record the development-screen result in the strategy and ADR 0005; then launch `03A2FIX2`. The v1 run under `artifacts/reference_corpus_v1/` stays preserved and superseded.
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
+
+## `TASK-20260905-03BFIX` completed run v2
+
+- lease: exact launcher-owned lease remained `CLAIMED` by
+  `sol-builder-20260905-03bfix`, model `gpt-5.6-sol`, role `builder`, and the
+  packet's exact scope. The builder did not renew or release it.
+- code repair: removed the live post-step `mj_forward`; policy input and
+  canonical boundary observations now use copied `reset`/`step` returns; torso
+  orientation comes from copied `qpos`; no collector, screen, or live-certifier
+  path calls `mj_forward`, `mj_step1`, or `mj_kinematics`.
+- comparison: all `108` corpus clips and `20` screen clips carry per-step
+  bitwise checks for action bytes, integration state, explicit `qpos` and
+  `qvel`, `cfrc_ext`, canonical and returned observations, reward, simulation
+  time, wrapper counter and flags, and result flags.
+- replay: method `predecessor_transition_cache_rebuild/v2`; for `t > 0`, restore
+  boundary `t-1`, execute and discard action `t-1`, verify boundary `t`, then
+  execute and compare the target transition. Boundary `0` is verified directly
+  from the seeded reset.
+- run command: `/usr/bin/time -p .venv/bin/python -m
+  oracle_composition.experiments.reference_corpus_runner --run-version v2`;
+  exit `0`; `291.64 s` real, `287.59 s` user, `2.84 s` sys. This total includes
+  collection and the separate-process certifier; a certifier-only wall timer
+  was not retained.
+- reset-free actor preconditions:
+
+  | actor | import receipt SHA-256 | strict NPZ SHA-256 | equivalence receipt SHA-256 |
+  |---|---|---|---|
+  | expert | `b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7` | `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b` | `65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e` |
+  | medium | `b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172` | `2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04` | `ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487` |
+  | simple | `bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7` | `b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917` | `604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268` |
+
+- run-level receipt hashes:
+
+  | artifact | raw SHA-256 | result |
+  |---|---|---|
+  | E1 initialization identity | `28725ecfba2ca89f4b4608e5e8d5b5024cfe2ed8df71383bc03a248891edf266` | pass |
+  | frozen E3 manifest | `003b5b045ca9f8af2b0af3f559af206e1000835deea98ff98bd45a79fa5b9504` | unchanged |
+  | sandbox baseline failures | `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345` | 44 IDs |
+  | corpus manifest | `a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090` | 108 corpus clips |
+  | attempt ledger | `2600d408122abb5d2f2d981a75241ff7fc8dea7db2e6a50a5a0e61f4939bdf5d` | 128 one-shot attempts |
+  | runner log | `2d37545f65482d8bec1566a983ed90ca8f01cc6d4814ed57018451c338423008` | exit 0 |
+  | Tier-D certifier request | `cc2d70800c59828716950365da678f85c2b04422d797ee859e828672c94acac4` | 128 bundles, replay method v2 |
+  | Tier-D aggregate | `dcf06c8e96ebd4d7c3171ab6d3062a73045addcb1be992e0e2d3ca5f62801bf7` | internal `d70183390664cff07730814c72cb34aec668b324060f0d4978a0175b6d24e584` |
+  | E3 fork certificate | `5a91a265e057e6f8c6497d50a4a20ac3baab40b67c101115bc96b6f4b7555b74` | internal `eaeab5fb7a06b9419233b553c5fc70eca16eb62fe6d119b842c86291a306ae4d` |
+  | expert screen receipt | `0ff4bd14712729ca2bdced8d5c8511317ab0f118a98adce6f75557e24eff5a60` | internal `ecd9f07077ddf29772008b8e8ff5676609e75fbd893c9a41b4d27e2dcd577c03` |
+  | content index | `9347c741241b1138ce361f01ad319d05e09a7597c9ef51d9715b86dee6c34afa` | internal `c3cf17100248a05bc609d28ff4a7bb7fbc55b61ffb6d1d6a2a4e34b23b2b6ba8` |
+  | run result | `c41d78ff0c1d2fdd899a53cf419b0b0d3f43b8d9d24e072cca400af42e6f1e98` | completed; screen false |
+  | full-suite log | `ebff2d7543398816dcd6fec88858a9313f2ccb82ebe2f322ac24cd231b873f00` | exact baseline |
+  | v2 validation manifest | `5eeedc84d13bf83fde534423fb5eb898160f543ef7dcdf325a7e136adbcfc434` | payload-free; all 128 per-clip receipt chains |
+
+  The validation manifest records every clip's bundle core and manifest,
+  payload, reference identity, plain-comparison object, boundary-receipt array,
+  transition-receipt array, Tier-D certificate, and replay-verification digest.
+
+- replay and plain-comparison counts:
+
+  | clip group | actor | clips | Tier-D pass/fail | plain pass/fail | transitions |
+  |---|---|---:|---:|---:|---:|
+  | corpus | expert | 36 | 36 / 0 | 36 / 0 | 36,000 |
+  | corpus | medium | 36 | 36 / 0 | 36 / 0 | 36,000 |
+  | corpus | simple | 36 | 36 / 0 | 36 / 0 | 36,000 |
+  | screen | expert | 20 | 20 / 0 | 20 / 0 | 20,000 |
+  | total |  | 128 | 128 / 0 | 128 / 0 | 128,000 |
+
+- E3 results (`M` is expert-vs-medium, `S` expert-vs-simple):
+
+  | seed | M | S | block |
+  |---:|:---:|:---:|:---:|
+  | 120001 | P | P | P |
+  | 120002 | P | P | P |
+  | 120003 | P | P | P |
+  | 120004 | P | F | F |
+  | 120005 | P | P | P |
+  | 120006 | F | F | F |
+  | 120007 | P | P | P |
+  | 120008 | P | P | P |
+  | 120009 | P | P | P |
+  | 120010 | P | F | F |
+  | 120011 | P | P | P |
+  | 120012 | P | P | P |
+  | 120101 | P | P | P |
+  | 120102 | P | P | P |
+  | 120103 | P | P | P |
+  | 120104 | P | P | P |
+  | 120105 | P | P | P |
+  | 120106 | P | P | P |
+  | 120107 | P | F | F |
+  | 120108 | P | P | P |
+  | 120109 | P | P | P |
+  | 120110 | P | P | P |
+  | 120111 | P | P | P |
+  | 120112 | P | P | P |
+  | 120113 | P | P | P |
+  | 120114 | P | P | P |
+  | 120115 | P | F | F |
+  | 120116 | P | P | P |
+  | 120117 | P | P | P |
+  | 120118 | P | F | F |
+  | 120119 | P | P | P |
+  | 120120 | P | P | P |
+  | 120201 | F | F | F |
+  | 120202 | P | P | P |
+  | 120203 | P | F | F |
+  | 120204 | P | P | P |
+
+  Summary: blocks `28` pass / `8` fail; medium pairs `34/36`; simple pairs
+  `28/36`; qualifying pairs `62/72`. Branches: expert `34/36`, medium `36/36`,
+  simple `29/36`. All ten failed pairs came only from the locked branch
+  horizon/collapse/contact/replay conjunction; action and future-variation
+  thresholds passed.
+- screen result: **failed**. Healthy `19/20` (required `20`), upright `19/20`
+  (required `20`), median forward velocity `5.001603770686775 m/s` (required
+  at least `0.5`), displacement at least `5 m` in `20/20` episodes (required
+  at least `18`). Seed `96018` first became unhealthy at step `860` and first
+  not upright at step `871`; minimum height `0.16328118194073535 m`, upright
+  fraction `0.87`, displacement `65.41267369164503 m`, velocity
+  `4.360844912776202 m/s`, non-foot contact fraction `0.107`. No replacement,
+  retry, or threshold change.
+- tests and checks: focused corpus suite `33 passed in 1.93 s`; final focused
+  rerun `33 passed in 1.87 s`; ordered corpus
+  plus TQC-runtime suite `34 passed, 9 failed in 2.18 s`, with only the expected
+  `cpu_model=arm` failures; full suite with the exact reward-lane test deselected
+  `1,254 passed, 44 failed, 11 skipped, 1 deselected in 117.11 s` (`117.54 s`
+  process wall), with failure IDs exactly equal the saved baseline; Ruff lint
+  passed; Ruff format reports `231` files already formatted; `git diff --check`
+  passed.
+- v1 preservation: all named v1 artifact hashes and the v1 validation hash
+  `aa17751cb665afef0cd4d8f9a353e7889bb227f3819de98c5de9a92db48a3646`
+  remain unchanged. V1 is an instrumented-schedule run superseded by v2, not a
+  plain-runtime result.
+- claim ceiling: only the named clips as plain-runtime closed-loop trajectories
+  of the exact imported actors with full-clip replay certificates and per-step
+  plain-comparison receipts; a qualifying E3 fork corpus; and the exact expert's
+  failed predeclared screen in the pinned local runtime. No tracker, E4, E5,
+  oracle, naturalness, or robustness claim.
+- final audit at `2026-09-05T07:17:40Z`: all `128` bundle, payload,
+  plain-comparison, Tier-D, and replay-verification bindings; all `83`
+  content-addressed objects; and the seven named immutable-v1 hashes passed.
+  Validation SHA-256 remains
+  `5eeedc84d13bf83fde534423fb5eb898160f543ef7dcdf325a7e136adbcfc434`.
 
 `TASK-20260904-03B` checkpoint changed-files list:
 
@@ -223,9 +370,9 @@ Answers recorded `2026-09-04T16:31Z` from Samuel's message in the Fable session:
 | layer | current statement |
 |---|---|
 | research target | An LLM-guided harness revises a reference-composition oracle `O_k` and task reward `r_k`, using protected rollout evidence and optional human steering. |
-| implemented capability | Typed oracle artifacts; a validated linear phase-window automaton; strict public-actor NPZ runtime; complete integration-state/reference/replay bundle contracts; separate-process full-clip certifier; E3 fork certifier; Gymnasium adapter; deterministic trace/metric contracts; CLI; read-only evidence UI; research-source ledger. |
-| measured evidence | Interface and regression checks; one non-admitted falling tracker exploration; one reviewed offline numeric-reference sensitivity probe; one 100k resource calibration; three hash-pinned public actors; `108/108` named corpus clips with full-clip replay certificates; `27/36` qualifying E3 blocks. The expert screen stopped before any clip completed and has no result. |
-| not demonstrated | Expert development-screen pass/fail; stable reference tracking; causal policy use of reference windows; better transitions; recovery; oracle improvement; reward improvement; general task composition; cross-MDP generalization; an autonomous closed research loop. |
+| implemented capability | Typed oracle artifacts; a validated linear phase-window automaton; strict public-actor NPZ runtime; observation-preserving collection with per-step plain comparison; complete integration-state/reference/replay bundle contracts; predecessor-transition cache reconstruction in a separate-process certifier; E3 fork certifier; Gymnasium adapter; deterministic trace/metric contracts; CLI; read-only evidence UI; research-source ledger. |
+| measured evidence | Interface and regression checks; one non-admitted falling tracker exploration; one reviewed offline numeric-reference sensitivity probe; one 100k resource calibration; three hash-pinned public actors; run-v2 `108/108` corpus and `20/20` screen clips with full replay and plain-comparison receipts; `28/36` qualifying E3 blocks; exact expert screen failure at `19/20` healthy and upright resets while velocity and displacement passed. |
+| not demonstrated | Expert development-screen pass; stable reference tracking; causal policy use of reference windows; better transitions; recovery; oracle improvement; reward improvement; general task composition; naturalness; robustness; cross-MDP generalization; an autonomous closed research loop. |
 
 ## Scientific dependency chain
 
@@ -259,6 +406,13 @@ audit", and `docs/decisions/0005_public_expert_base_controller.md`.
 
 ## Working-tree state
 
+- Current 03BFIX state: uncommitted changes are limited to the ten authorized
+  source/test files, `README.md`, `experiments/README.md`, this handoff,
+  `experiments/reference_corpus_v1/PROTOCOL.md`, and the new payload-free
+  `experiments/reference_corpus_v1/reviews/corpus_run_v2_validation.json`.
+  Run outputs are ignored under `artifacts/reference_corpus_v2/`. No Git write
+  command was run, and no v1 artifact or v1 validation file changed.
+- The following older entries remain as historical handoff context.
 - Start state was clean at `main` HEAD
   `48955dfb299498d1893e6dfffe9facb87a4192a5`; the three-dot comparison and
   commit `5bdae45` each list exactly the expected 20 preserved paths.
@@ -598,28 +752,20 @@ Additional constraint:
 
 ## Resume order
 
-1. Run `./scripts/orchestration-doctor` for the no-usage local checks.
-2. Run `./scripts/start-fable-orchestrator`; authorize its one live identity
-   probe when prompted.
-3. Fable reads `CLAUDE.md`, the master prompt, this handoff, the strategy
-   audit section, and ADR 0005. The raw private sources need re-reading only if
-   a decision depends on disputed wording.
-4. Samuel runs `/status`; Fable checks the latest session-start model event.
-5. Fable runs `./scripts/start-sol-worker status RUN_DIR` for both review runs
-   and reads each `final.txt`.
-6. Under a fresh Fable lease, Fable records accepted findings in the strategy,
-   ADR 0005, and this file, then releases the lease.
-7. If Samuel's Q1 answer line is present and the reviews say `GO` or
-   `GO-WITH-FIXES` with fixes folded into the packet, launch:
-   `./scripts/start-sol-worker launch write sol-builder-20260904-03 builder src/oracle_composition,tests,experiments/bootstrap_tqc_humanoid,research/source_controllers,docs/experiments,README.md,experiments/README.md,pyproject.toml,artifacts/bootstrap_tqc_humanoid .orchestration/task-packets/TASK-20260904-03-import-public-expert-base-controller.md`
-8. Update this file at least every 30 minutes during active work and at every
-   control transfer.
-
-Fable resume: review the 03A2FIX scope-only diff and both regenerated schema-v2
-receipts; refresh and review the B0 runtime receipt under reward-slice authority
-because its repository-wide source-tree hash changed; rerun the full suite and
-commit only when the non-baseline failure is gone. Do not run training or
-credit import equivalence as behavior.
+1. Verify the 03BFIX lease and inspect the complete builder diff plus
+   `corpus_run_v2_validation.json`.
+2. Recheck the v2 run-level hashes and the immutable v1 hashes before any Git
+   write.
+3. Commit the builder slice and documentation/integration changes separately.
+4. Record the failed expert screen in strategy and ADR 0005 without changing
+   the frozen gate or claiming a tracker admission.
+5. Fold any P1 findings from the two read-only 03B reviews into a bounded
+   follow-up slice.
+6. Launch the already-planned importer closure `03A2FIX2`, then consume the
+   packet-B design survey.
+7. Do not train, retry the screen, or widen the v2 claim ceiling.
+8. Update this file at every control transfer and at least every 30 minutes
+   during active work.
 
 ## Handoff update contract
 
