@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F2 static review accepts the pure evaluator; all 13 hashes match and parent repeated 73 focused passes. Fable accepted the ID/parser interface. |
-| bottleneck | Exact bounds and adapter admission must be bound at promotion; no T2-aware model packet or trained reward cycle exists. |
-| next step | Send the reviewed F2 handoff, then prepare the minimal T2-aware model protocol while Fable owns registry integration. |
+| progress | F3 initial-only protocol is specified against the verified tracking-only baseline and accepted T2 bytes; no parent recipe is invented. |
+| bottleneck | Initial packet/retained-run implementation and exact F2 promotion reply remain; runtime and training are not admitted. |
+| next step | Collect the bounded F3 protocol builder, verify the actual file/test scope, then independently review before any candidate call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 23:11 UTC heartbeat; F2 acceptance collected, snapshot reverified and peer conditional agreement read.
+- Last checkpoint: 2026-09-05, 23:48 UTC heartbeat; F3 plan collected, exact baseline verified and initial-only builder packet prepared.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -52,7 +52,12 @@
 | F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
 | F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
 | F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
-| F3 T2-aware model protocol | read-only Sol/max planner | dispatch/collect exact active pointer | `TASK-F3-t2-model-plan.md`; one initial-call plan, no candidate execution |
+| F3 T2-aware model protocol | read-only Sol/max planner | finished 23:29:33Z | `F3_PLAN_RESULT.md`; parent corrected deadline and read-failure semantics |
+| F3 initial packet/ingestion | Sol/max builder | dispatch/collect exact active pointer | `TASK-F3-initial-protocol.md`; four new files, no candidate call |
+
+- Parent verified baseline `0986d4fc...224d4`, 1,144 bytes, from peer object
+  `a51ea9e`. Its run manifest agrees; `phase_b/DESIGN.md` still names a stale
+  prose hash. No peer file was edited. F3 binds the actual blob, not that table.
 
 - Accepted F2 commit: `9bbb6587c1f9d955e684ffe4e1772e72602e3556`.
 - Reviewed handoff sent:
