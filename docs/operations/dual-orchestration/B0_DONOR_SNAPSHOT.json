@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "kind": "b0_donor_snapshot",
+  "donor_commit": "89d4c34d1b04eb9efca2b75d1ffc828a13de55d7",
+  "astra_base": "96720e577727387d8f32b117f46786872a3d56c5",
+  "disposition": "unaccepted_source_for_repair_only",
+  "b0_execution_authorized": false,
+  "adoption_method": "new files via apply_patch; each Git blob identity verified against donor",
+  "entries": [
+    {
+      "path": "experiments/family_b_target_speed_v1/DECISION_RULE.md",
+      "git_blob": "9cfa144e6eabf35d65a5877cac1f740975ae7979",
+      "sha256": "83c2894c8557d94fbf0e3213b42b4ac05b78c52ac6501c2d5b4c097c02d69c2f"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/PROTOCOL.md",
+      "git_blob": "dc6c5c900396d5f8c880f36960e98d5f12b88693",
+      "sha256": "e88cb267000dc2a4792ebb892a71ea52e672e78d2552e08a10e335ecf443be9f"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/candidates/manual_target_speed_v1.py",
+      "git_blob": "1766e1a02b3ebbe459dd97dfb448c292dc005fb7",
+      "sha256": "91002109c3f445805fd3f4bf3d987c2f3f7c00072cc6ba68844f94516e4e8cbb"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/candidates/stock_r0.py",
+      "git_blob": "5a41f884b479f320ef5bbebad2a9f3fd28b640d2",
+      "sha256": "bd5d98f13d5d98b7eb8c230ed8cf288607cfaaacfe9c314674b9ea274519a9a0"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/configs/family_b_target_speed_v1.study.json",
+      "git_blob": "bd963397ed0ce25467a611f2c1382d4db982e463",
+      "sha256": "9debd0481788c50bf47f8ffd4044cd60ec11c7478ad7adbc5fc879fd215cd96d"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json",
+      "git_blob": "6d0e7e072d207d80e5e1d395282268091c8abf9e",
+      "sha256": "2f6276011998c6105ca6714f7b380575f4a1c49e8497aac471c0e35e55629ea6"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/receipts/builder_sandbox_canaries.json",
+      "git_blob": "dce25329094fd555b36549a798d58d4fb13454f5",
+      "sha256": "ba1cb6246298d90f7011ed559c1d1829e636b0bf8bf62d82ae4d980146b5a4df"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/receipts/builder_synthetic_scale.json",
+      "git_blob": "6b18e5e14ab489ac24da33260e2d495a8257388d",
+      "sha256": "b158d1fa74d88a09bcf84c53c6cb1bcc8a7d9c83ef2698b44b8887184c8c6837"
+    },
+    {
+      "path": "experiments/family_b_target_speed_v1/receipts/host_sandbox_canaries.json",
+      "git_blob": "92599cdfce20dfd7dd6c275b70d8c01cfc70aef2",
+      "sha256": "40efca8f86b268f97f2dd708b55941c803194b2f8eed1aeef2dc60542e2dc687"
+    },
+    {
+      "path": "src/oracle_composition/experiments/reward_target_speed_evaluator.py",
+      "git_blob": "4e2d70098b17f79567f33c7b4402c4a1cd69f428",
+      "sha256": "41cd3117785a6c188cdca6ee31fb7b06174f3e18bf565c2964fcb2451810859d"
+    },
+    {
+      "path": "src/oracle_composition/experiments/reward_target_speed_manifest.py",
+      "git_blob": "bb6e9920689fd5c8a7e155ba114809623b4985ec",
+      "sha256": "549ee2ec8bb3b4a00bd85e513c7ee2a18f0b87932ccd342b780b336944e0cc3f"
+    },
+    {
+      "path": "src/oracle_composition/rewards/__init__.py",
+      "git_blob": "f3e6263169d05e96931f3e8c5c1a9e7b75025a33",
+      "sha256": "5a09231a8eb7821ef3425698e76a8665e114512545d70726b0c029bae295ec6f"
+    },
+    {
+      "path": "src/oracle_composition/rewards/_sandbox_worker.py",
+      "git_blob": "60aa79cc38fcf8ca0e8ef2a2bd5019568a11e4fe",
+      "sha256": "3ab6818d75e5f2d015e9006be9a5a8dc96ff9c43ab823b9f6e0dc496a49ddac9"
+    },
+    {
+      "path": "src/oracle_composition/rewards/contract.py",
+      "git_blob": "54060518a7165c1b7f93fa385932abfb28f6bce5",
+      "sha256": "d0ec0495b11bd8c062f35f72b05760f00a5ad28422f76765a200999c38ea6320"
+    },
+    {
+      "path": "src/oracle_composition/rewards/sandbox.py",
+      "git_blob": "1776d1ed11e4155962e0c3b7538c7d3a77548b85",
+      "sha256": "008e67ffb6493d227ee770020e9dc91d6aa296d2625cb93b2e466d38ac757212"
+    },
+    {
+      "path": "src/oracle_composition/rewards/scale_calibration.py",
+      "git_blob": "54d414bec93215b5aca5aaa64365684e05956db4",
+      "sha256": "df04181999c7888f6efe3372fd439c50967e24641bf9453f4271361854c92cba"
+    },
+    {
+      "path": "src/oracle_composition/rewards/static_validation.py",
+      "git_blob": "f9f3ba517b26137f4823942ac7561dc89d2a6030",
+      "sha256": "141b30a2c0ee58c13fbd8741f62e0e81a14fb33485e2f005af7292e17a81bad4"
+    },
+    {
+      "path": "src/oracle_composition/rewards/stock_humanoid.py",
+      "git_blob": "0050ce9d6283a11759926271ffd7d0cd2ac78fd5",
+      "sha256": "2d406f610726f567c59b9757d9a3ce7f96e115ee352fac662e52c329578ce23e"
+    },
+    {
+      "path": "tests/experiments/test_reward_target_speed_evaluator.py",
+      "git_blob": "2ad95682ced24f86e919888b6bc8226d75608fe9",
+      "sha256": "e6871494d3a9c4b1d533cdb64f2699455fa7f750b91bc59a5278ebeeefbe4224"
+    },
+    {
+      "path": "tests/experiments/test_reward_target_speed_manifest.py",
+      "git_blob": "02e72d1c059d618ca73adc89f96240d8d413a731",
+      "sha256": "e949b69a4703772fe929dea4353d1d66ad1547cc5ceb8182c3d5f1151dfd0841"
+    },
+    {
+      "path": "tests/rewards/test_contract.py",
+      "git_blob": "7862e0d0df5876a3267769c0194a261538ee5870",
+      "sha256": "da51e65fd2a7770b0ae7b9740bc31d2e3d3ffed7dc913c7b93543e1d77ee440a"
+    },
+    {
+      "path": "tests/rewards/test_sandbox.py",
+      "git_blob": "c57ea982ca2b21c37241618afdab6e3f6a71543f",
+      "sha256": "258bd9b9cbde51c7618a0045f0d4577e71ab32d8ec931e2aca85e199a907ad55"
+    },
+    {
+      "path": "tests/rewards/test_scale_calibration.py",
+      "git_blob": "8fc58aebbea25fffa6ffbdcfe54ec9c56ed2ea6d",
+      "sha256": "acc9c3b5de9bd8656fd45fee69f390e2bff2c286d2bdd71f825c5f6b1810d83e"
+    },
+    {
+      "path": "tests/rewards/test_static_validation.py",
+      "git_blob": "c4b46a81b36612d57b1cd5ab78871ae6bdaf1af9",
+      "sha256": "59507bda6358dc339daec27af4f95208178a18f5d42081dc0c8dd24f6f975aac"
+    },
+    {
+      "path": "tests/rewards/test_stock_humanoid.py",
+      "git_blob": "4a804c57f2a255707dd35da82a2bc1148ecb6ae6",
+      "sha256": "7b83a60eeddce7c7d91c032cf70be12b2f6e4e8a0487589522a3f9db1ee8250e"
+    }
+  ]
+}

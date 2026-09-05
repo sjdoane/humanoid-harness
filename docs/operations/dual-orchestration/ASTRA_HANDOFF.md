@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | A2R admitted a real initial proposal and linked revision; 59 focused tests pass. Fable returned its independent transcript interpretation and transferred B0 ownership. |
-| bottleneck | Reward source remains nonexecuted. B0 has blocking containment/lineage findings; no measured robot improvement or composition result is established. |
-| next step | Read `A2R_RESULT.md` and `FABLE_GOAL_ALIGNMENT.md`; collect or launch the one read-only `TASK-A3-B0-adoption-audit.md` call from the exact active-run pointer, then plan the first bounded repair. |
+| progress | A2R proposal/revision remains accepted at the software boundary. Parent adopted 25 exact transferred B0 files after checking dependencies; no existing source was overwritten. |
+| bottleneck | B0 is retained for repair only. Parent candidate execution and other P1s block validation/training; the A3 leaf stopped on an ambiguous handoff path. |
+| next step | Collect or dispatch the single `TASK-R1-parent-execution-boundary.md` builder named in the active-run pointer. R1 is data/static-only; do not run the donor's dynamic tests. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05 02:23 UTC, continuation of the 01:33 heartbeat.
+- Last checkpoint: 2026-09-05, continuation of the 03:00 UTC heartbeat.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -33,7 +33,8 @@
 | A2R changed-condition canary | Astra | complete; both responses admitted | `A2R_RESULT.md`; text format/lineage only, no candidate execution |
 | Independent goal interpretation | Fable | substantive reply received and acknowledged | `FABLE_GOAL_ALIGNMENT.md`; composition plan reframed, not demonstrated |
 | B0 transfer | Fable → Astra | ownership transferred with P1 repair gates | Exact `89d4c34d1b04eb9efca2b75d1ffc828a13de55d7`; not execution-approved |
-| A3 B0 adoption audit | read-only Sol/max | next bounded packet; see active-run pointer | Dependencies, safe adoption route, first repair scope; no source changes |
+| A3 B0 adoption audit | read-only Sol/max, then parent | leaf stopped on ambiguous path; parent completed dependency check | `A3_RESULT.md`; exact 25-file donor snapshot, no execution approval |
+| R1 parent-execution boundary | Sol/max builder | next bounded packet; see active-run pointer | Parse-only parent, no callable calibration fallback, depth/type negatives; no dynamic proof claim |
 
 - Accepted A1 commit: `76a0fe6e86f5c4e5b52231d3b69df3d0c9b317d2` (not pushed or integrated into main).
 - Final acceptance reproduction: `59 passed in 2.35s`, Ruff/format/diff checks pass.
@@ -110,11 +111,15 @@
    permission to retry; follow the current next-step row and `A2_RESULT.md`.
 5. A2R completed its separate two-call protocol; retain its initial/revision
    receipts and the failed original A2. No further candidate calls in this series.
-6. B0 ownership has now transferred with execution gates. A3 is a read-only
-   dependency/adoption audit using the existing reviews, not a new broad review.
-   Collect it before importing exact committed dependencies and dispatching a
-   scoped repair. No real candidate execution until all P1s are re-reviewed;
-   no unattended heavy job before an atomic shared reservation exists.
+6. B0 ownership transferred with execution gates. The A3 leaf stopped without
+   audit conclusions; parent inspection found no missing predecessor source.
+   The exact 25-file snapshot is now retained for repair, excluding shared
+   operational docs. Do not rerun the ambiguous A3 packet.
+7. R1 removes parent execution and fixes pure validation defects. Collect its
+   exact run, inspect changes, and independently review the bounded repair.
+   R2 then addresses runtime containment; R3 closes lineage and receipt gates.
+   All P1s remain required before real generated-candidate execution/training.
+   No unattended heavy job before an atomic shared reservation exists.
 
 If A1 is incomplete, preserve its diff and write a continuation packet with
 specific missing deliverables; do not silently relaunch the original task.
