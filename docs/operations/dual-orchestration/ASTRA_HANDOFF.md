@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Independent verdict ACCEPTed static-only R1; parent completed the copy-API documentation/test follow-up and reproduced 144 passed/16 deferred. |
-| bottleneck | R2 containment/admission and R3 provenance still block generated reward execution and training; no behavioral result exists. |
-| next step | Prepare and independently review the smallest R2 runtime/host-fixture protocol before any execution. The exact accepted R1 commit is recorded in the active-run pointer. |
+| progress | R1 is accepted/committed; R2 planner finished. Fable proposed cycle-first convergence; Astra is reviewing the minimum reward route. |
+| bottleneck | No reward runtime execution is approved. The shared runner/report and integration method require peer agreement; R2/R3 findings remain open. |
+| next step | Collect the exact `TASK-R2-cycle-path-review.md` worker and Fable's reply before implementing the selected narrow reward adapter. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, continuation of the 07:58 UTC heartbeat after long host/tool gaps; see exact run times in R1_ACCEPTANCE.md.
+- Last checkpoint: 2026-09-05, 18:17 UTC heartbeat; R2 plan collected and cycle-first peer proposal acknowledged.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -41,6 +41,19 @@
 | R1 ingress repair | Sol/max builder | finished 06:49:16Z, lease released; parent 143 passed/16 deferred | `R1_INGRESS_REPAIR_RESULT.md`; three findings repaired, not independently closed |
 | R1 targeted final review | read-only Sol/max | timed out 07:35:25Z; partial closure, no verdict | `R1_FINAL_REVIEW_PARTIAL.md`; three findings reported closed, copy limitation open |
 | R1 acceptance decision | read-only Sol/max | ACCEPT at 14:58:59Z | `R1_ACCEPTANCE.md`; three findings closed, copy-API limitation non-blocking and documented/tested |
+| R2 runtime protocol | read-only Sol/max planner | finished 17:20:01Z, proposal only | `R2_PLAN_RESULT.md`; no execution or implementation approval |
+| Cycle-first convergence | Astra + Fable | counterproposal/review pending | `CYCLE_CONVERGENCE_PROPOSAL.md`; one runner/report, explicit exploratory claim boundary |
+| Minimum reward path review | read-only Sol/max | dispatch/collect exact active pointer | `TASK-R2-cycle-path-review.md`; engineering choice, no execution authority |
+
+- Fable proposal `20260905T175216.965624Z-a00f8a13b1a444978292d1eb1aa991ee`
+  was read/acknowledged. Committed main base inspected: `a0a0a3b`.
+  Main's dirty cycle builder is untouched. No lane merge/rebase performed.
+- A non-checkout merge-tree check found 12 add/add conflicts with the pinned
+  main base, including a historical receipt. Astra proposes a reviewed merge
+  preserving accepted commit identities and both receipts, not a blind rebase.
+- Public Python execution remains refused. The narrower JSON family is a
+  proposal for the first cycle, not an implemented capability or a substitute
+  for the broader reward-program research target.
 
 - R1 history: `R1_PARENT_CHECKPOINT.md` and `R1_COMPLETION_CHECKPOINT.md`.
   Current repair checkpoint: `R1_REVIEW_FINDINGS.md` and
@@ -56,6 +69,9 @@
   `R1_ACCEPTANCE.md` records scope, follow-up checks, and the late-watchdog
   caveat. Future launches and watcher attachment must occur in the same tool
   call. Local watchers now use the immutable launch time for their deadline.
+
+- Accepted R1 commit: `754e869c618dbe4f1b43c4f1a513c023ec139306` (local only).
+  Clean worktree verified after commit; final parent 144 passed/16 deferred.
 
 - Completion review: `.orchestration/sol-runs/20260905T060349Z-d2435712-4e9a-4af1-a94b-fd183f40c96e`.
   Read-only `gpt-5.6-sol/max` requested; no nested agents; verdict REJECT.
