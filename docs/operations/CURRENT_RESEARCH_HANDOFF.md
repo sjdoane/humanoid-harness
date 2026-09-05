@@ -2,20 +2,165 @@
 
 | status | current truth |
 |---|---|
-| progress | 03A3 imported the public `medium` and `simple` actors through the hardened importer and passed actual E1 on the real expert bytes for both contenders (`166` focused tests). Reviews of `425d3bc`: scientific `ACCEPT-WITH-REPAIRS` with one provenance P1; robustness `ACCEPT-WITH-REPAIRS` with eight hardening P1 and two P2. Astra acknowledged the interpretation and the B0 transfer. |
-| bottleneck | The reward runtime receipt's whole-tree fingerprint breaks on every commit until Astra scopes it (a reward-lane P1). Importer hardening R-01 to R-08 is scheduled after the corpus slice because 03B consumes only the integrity-verified NPZ receipts and does not exercise the importer. No tracker is admitted; causal reference use is unproved. |
-| next step | Commit `Slice 03A3` and a separate integration commit, launch its two reviews, run `03B` (three-gait reference corpus, Tier-D certificates, E3 forks, expert development screen) as the writer, then the importer closure slice `03A2FIX2`. Poll the mailbox at each checkpoint. |
+| progress | Slice 03B is committed as `41b2597` (implementation, runner fixes, v1 run results): `108/108` clips replay-certified (`108,000/108,000` transitions), E3 `27/36` blocks and `61/72` pairs qualified; outside-sandbox suite `1305 passed`, lint clean. Two read-only reviews of the commit and one read-only divergence diagnostic are running. |
+| bottleneck | The expert development screen has no result: at seed `96001` the plain-versus-instrumented equivalence gate fired, so the substep-contact instrumentation perturbs the observable MDP somewhere in a 1,000-step rollout. Leading unconfirmed diagnosis: a second `mj_forward` in `_capture_boundary` applied only to the instrumented environment. The diagnostic `sol-diag-20260905-01` must report before any fix packet or new versioned run. |
+| next step | Collect `sol-diag-20260905-01` and the two 03B reviews; write the fix packet (matched operation ordering, a 1,000-step expert-actor equivalence canary, decision on plain versus instrumented as the frozen runtime), commit the fix, then a new versioned screen run; then the importer closure `03A2FIX2`. Do not retry or relabel the v1 attempt. |
 
-- Updated: `2026-09-05T03:13Z`
+- Updated: `2026-09-05T06:14Z`
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
 - Branch: `main`
 - Baseline HEAD before orchestration: `336ded931334475a3b64384f1257e6d1e7d0e776`. Fable commits on `main`: `4a0976d` (audit and ADRs), then the builder stop record. WIP branch: `wip/tqc-v2-attempt-supervisor` at `5bdae45`.
 - Control owner: Fable session `807bcdb2-462c-4ea8-803a-1e4b41259e12`, lease owner `fable-395e7d0f-be34-489e-944e-bbfa673a1eea`
 - Fable lease: `CLAIMED` by the Fable owner while Fable works; scope `docs/strategy,docs/operations,docs/decisions,.orchestration/task-packets,artifacts/external`; released at each clean handoff
-- Active write worker: `sol-builder-20260904-03a3`, exact lease owner; stopped at the protected Family-B receipt boundary
-- Fable resume: inspect the `TASK-20260904-03A3` changed-file and receipt tables below, refresh only the Family-B no-learning runtime receipt under its owning authority, then rerun the full suite and commit after review.
+- Active write worker: none. Read-only workers: `sol-diag-20260905-01` (divergence diagnostic), scientific and robustness reviews of `41b2597`
+- Fable resume: read `.orchestration/sol-runs/20260905T060923Z-*/final.txt` (diagnostic) and the two review finals; if the diagnostic confirms an instrumentation-only operation, issue `TASK-20260905-03BFIX` with the matched-ordering fix and the 1,000-step canary test, commit it as a slice, then authorize a versioned screen run v2 (new seeds are not needed; the v1 ledger stays). If the diagnostic instead shows the plain environment is the one out of order, the decision moves to ADR 0004's frozen boundary and needs a decision record before any rerun.
 - Takeover authorization: disabled; the heartbeat may only report
 - Human gates: all three startup gates answered; see "Questions for Samuel" below
+
+`TASK-20260904-03B` checkpoint changed-files list:
+
+- `src/oracle_composition/contracts/reference_identity_v2.py`
+- `src/oracle_composition/envs/reference_corpus.py`
+- `src/oracle_composition/sources/strict_tqc_actor_runtime.py`
+- `src/oracle_composition/experiments/reference_corpus_contract.py`
+- `src/oracle_composition/experiments/reference_corpus_collector.py`
+- `src/oracle_composition/experiments/reference_corpus_bundle.py`
+- `src/oracle_composition/experiments/reference_corpus_certifier.py`
+- `src/oracle_composition/experiments/e3_fork_certifier.py`
+- `src/oracle_composition/experiments/expert_development_screen.py`
+- `src/oracle_composition/experiments/reference_corpus_runner.py`
+- `tests/experiments/test_reference_corpus_v1.py`
+- `experiments/reference_corpus_v1/e3_manifest_v1.json`
+- `artifacts/reference_corpus_v1/sandbox_baseline_failures.txt` (ignored local receipt)
+- `docs/operations/CURRENT_RESEARCH_HANDOFF.md`
+
+`TASK-20260905-03BRUN` stop receipt:
+
+- preconditions: exact lease `CLAIMED`; only the authorized 03B dirty paths;
+  three strict NPZ hashes matched `PUBLIC_EXPERT_IMPORT.md`; E3 manifest SHA-256
+  `003b5b045ca9f8af2b0af3f559af206e1000835deea98ff98bd45a79fa5b9504`
+- repair: removed `torch.set_num_threads` and `torch.set_num_interop_threads`
+  from the in-process actor runtime; added a test binding intra-op, inter-op, and
+  deterministic-algorithm state before and after actor construction
+- tests: `tests/experiments/test_reference_corpus_v1.py` -> `28 passed`; ordered
+  corpus plus TQC-runtime files -> `29 passed, 9 failed` only on the saved
+  sandbox `cpu_model = arm` mismatch; the runtime file alone -> `1 passed, 9
+  failed` on the identical IDs and cause; no thread-field failure and no error
+- lint: focused `ruff check` passed; repository `ruff format --check` reported
+  all `230` files formatted; `git diff --check` passed
+- command: `.venv/bin/python -m
+  oracle_composition.experiments.reference_corpus_runner`
+- stop: exit `1` after `0.48 s`, before any reset, at
+  `_load_json(external_actor_import_expert_03a3_v1.json)` with `JSON artifact is
+  not canonical`; the pinned raw hash is
+  `b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7`
+- diagnosis: each of the three import and three equivalence receipts is exactly
+  `canonical_json_bytes(parsed_value) + b"\n"`; no payload or receipt was
+  changed, and no retry was made
+
+`TASK-20260905-03BRUN2` stopped-run receipt:
+
+- loader repair: `_load_json(..., require_terminating_lf=True)` now admits only
+  canonical JSON plus one LF for the six importer-owned receipts. The regression
+  accepts one LF and rejects zero or two. Importers and receipt bytes are
+  unchanged.
+- reset-free preflight:
+
+  | actor | import receipt SHA-256 | strict NPZ SHA-256 | equivalence receipt SHA-256 |
+  |---|---|---|---|
+  | expert | `b790f06ccb66ca45809eaa1b0c5cd6804e072c6fd9eb48c61838ee2e558bd9d7` | `60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b` | `65b2090b783e381e799e90e372308018d4e9a50fa6be2df7934af5f24e78a23e` |
+  | medium | `b1c07c2f5070b48ff6bb28983b16ed16d1616e7ad18f557639dad89bb1f4f172` | `2677ebb70cd20e0ba8f8a591814fc853e325277db65184ebafb5bf5e21198b04` | `ede73be8db0ec3411dfb1a5ce2dbbe109d49432d1aeba97e6e4b9bf4fb44d487` |
+  | simple | `bef2a2678d30f13a9e3350bf8c8f591661bb129b063276a15b8051f94ee313f7` | `b09aa921316640024e9703671d328d7ecbabe76f04cfed8c1d8fb86fbd95a917` | `604db637d316d3b8e46fb6f5d7a9b9004cfced267836394d89df183c87615268` |
+
+- run receipts:
+
+  | artifact | SHA-256 | result |
+  |---|---|---|
+  | E3 frozen manifest | `003b5b045ca9f8af2b0af3f559af206e1000835deea98ff98bd45a79fa5b9504` | precondition pass |
+  | E1 initialization-identity receipt | `28725ecfba2ca89f4b4608e5e8d5b5024cfe2ed8df71383bc03a248891edf266` | precondition pass |
+  | sandbox baseline failure IDs | `c06586e4449fad6b00e6356e6a70e2d75e3476fb8f4fbbf0b2c4e72c547a8345` | `44` expected IDs |
+  | corpus manifest | `87c25d9b380605556a62681e44879943275a358b7136b322e0b103f2b8dff9f5` | `108` clips |
+  | attempt ledger | `29c03cbbd89cbe3045021e54bd2edb6e0a47f8624d152aefa22f01377e24c5e6` | stopped attempt retained |
+  | runner log | `03d85f84bb6ebb06c6fe15ec4aa4fb9262895d3525158f482bb45844a680f6f2` | exit `1`, `61.57 s` |
+  | certifier request | `05b22aadc791b873d7e3d8aa17558b154d200603d13e5341a2174b9a67f0af51` | `108` bundles |
+  | certifier log | `30c87b8977a0cc0aca1a8c6cf3ed2d0544491fd92befe9c0f2d7ac9d3248b4c9` | exit `0`, `64.26 s` |
+  | stopped-run Tier-D aggregate | `3b80d2b3afa5a3206004acd5cc3507cfc4483e3feac6254545ce8a395fc4d616` | binds all `108` per-clip certificates |
+  | E3 certificate | `c977f5068e7c71bcd75a91da3ccf5fc5825e63f3cad4d1608f4106ba64be50fa` | qualifying corpus |
+  | stopped-run content index | `7d9bc501f77466f7dc77151812c8024e6050e6ceda985a9e286a49628387acbb` | partial evidence only |
+  | payload-free validation manifest | `aa17751cb665afef0cd4d8f9a353e7889bb227f3819de98c5de9a92db48a3646` | binds all `108` certificate hashes |
+  | full-suite log | `6787a1c8f50cf1ef7f5100a2e8082faadff4e25a24312f0fe206e75aca777fa8` | exact sandbox baseline |
+
+- Tier-D per actor: expert `36` pass / `0` fail; medium `36` pass /
+  `0` fail; simple `36` pass / `0` fail. Every clip verified all `1,000`
+  transitions, for `108,000/108,000` transitions total.
+- E3 results (`M` is expert-vs-medium, `S` expert-vs-simple):
+
+  | seed | M | S | block |
+  |---:|:---:|:---:|:---:|
+  | 120001 | P | P | P |
+  | 120002 | F | P | F |
+  | 120003 | P | P | P |
+  | 120004 | P | P | P |
+  | 120005 | P | P | P |
+  | 120006 | P | P | P |
+  | 120007 | P | P | P |
+  | 120008 | F | F | F |
+  | 120009 | P | F | F |
+  | 120010 | P | P | P |
+  | 120011 | P | P | P |
+  | 120012 | P | P | P |
+  | 120101 | P | P | P |
+  | 120102 | F | F | F |
+  | 120103 | P | F | F |
+  | 120104 | P | P | P |
+  | 120105 | P | F | F |
+  | 120106 | P | P | P |
+  | 120107 | P | P | P |
+  | 120108 | P | P | P |
+  | 120109 | P | P | P |
+  | 120110 | P | P | P |
+  | 120111 | P | F | F |
+  | 120112 | P | P | P |
+  | 120113 | P | P | P |
+  | 120114 | P | P | P |
+  | 120115 | P | P | P |
+  | 120116 | P | P | P |
+  | 120117 | P | P | P |
+  | 120118 | F | P | F |
+  | 120119 | P | F | F |
+  | 120120 | P | P | P |
+  | 120201 | P | P | P |
+  | 120202 | P | P | P |
+  | 120203 | P | P | P |
+  | 120204 | P | P | P |
+
+  Summary: blocks `27` pass / `9` fail; medium pairs `32/36`; simple
+  pairs `29/36`; qualifying pairs `61/72`. Branches: expert `34/36`, medium
+  `34/36`, simple `31/36`. All pair failures came from the locked branch
+  horizon/collapse/contact/replay conjunction, not action or future-variation
+  thresholds.
+- screen result: seed `96001`, reset order `108`, raised
+  `ReferenceCorpusContractError: plain/instrumented reward canary differs`;
+  `0/20` clips completed; the four locomotion gates were not computed; screen
+  pass/fail is **no result**; screen receipt is absent. No retry occurred.
+- leading diagnosis, not a measured fix: Gymnasium reset already calls
+  `mj_forward`; `_capture_boundary` then calls it again only on the instrumented
+  environment before the first action. The combined guard does not retain which
+  of returned observation, reward, or flags differed. Preserve the hard gate.
+- validation: focused corpus suite `29 passed`; repository suite `1,250 passed,
+  44 failed, 11 skipped, 1 deselected` in `114.24 s`, with all `44` failure IDs
+  exactly equal to `sandbox_baseline_failures.txt`; the reward-lane replay test
+  was deselected by exact name and its receipt was untouched; Ruff lint, Ruff
+  format (`231` files), and `git diff --check` pass.
+- changed tracked paths in this continuation: runner, corpus test, root README,
+  experiment registry, new `experiments/reference_corpus_v1/PROTOCOL.md`, new
+  payload-free validation manifest, and this handoff. The pre-existing
+  reward-lane receipt remains outside this worker's changes.
+- final audit at `2026-09-05T06:03Z`: the exact launcher-owned lease remained
+  `CLAIMED`; validation target bindings and all `108` certificate entries
+  revalidated; only the authorized 03B/documentation paths and the pre-existing
+  reward-lane receipt were dirty. The builder did not renew, release, or write
+  Git state.
 
 ## Active read-only Sol workers
 
@@ -78,9 +223,9 @@ Answers recorded `2026-09-04T16:31Z` from Samuel's message in the Fable session:
 | layer | current statement |
 |---|---|
 | research target | An LLM-guided harness revises a reference-composition oracle `O_k` and task reward `r_k`, using protected rollout evidence and optional human steering. |
-| implemented capability | Typed oracle artifacts; a validated linear phase-window automaton; Gymnasium adapter; deterministic trace/metric contracts; CLI; read-only evidence UI; research-source ledger. Uncommitted TQC-v2 WIP is present, passes its focused tests, and is parked by ADR 0005. |
-| measured evidence | Interface and regression checks; one non-admitted falling tracker exploration; one reviewed offline numeric-reference sensitivity probe; one 100k resource calibration; `tests/experiments` `822 passed` on the WIP tree; hash-verified local copy of a public expert artifact (an artifact record, not behavior). |
-| not demonstrated | Stable Humanoid tracking; causal policy use of reference windows; better transitions; recovery; oracle improvement; reward improvement; cross-MDP generalization; an autonomous closed research loop. |
+| implemented capability | Typed oracle artifacts; a validated linear phase-window automaton; strict public-actor NPZ runtime; complete integration-state/reference/replay bundle contracts; separate-process full-clip certifier; E3 fork certifier; Gymnasium adapter; deterministic trace/metric contracts; CLI; read-only evidence UI; research-source ledger. |
+| measured evidence | Interface and regression checks; one non-admitted falling tracker exploration; one reviewed offline numeric-reference sensitivity probe; one 100k resource calibration; three hash-pinned public actors; `108/108` named corpus clips with full-clip replay certificates; `27/36` qualifying E3 blocks. The expert screen stopped before any clip completed and has no result. |
+| not demonstrated | Expert development-screen pass/fail; stable reference tracking; causal policy use of reference windows; better transitions; recovery; oracle improvement; reward improvement; general task composition; cross-MDP generalization; an autonomous closed research loop. |
 
 ## Scientific dependency chain
 
@@ -666,3 +811,30 @@ boundary-level negative tests; P2 `R-09`, `R-10`. Fable accepts `R-01`,
 guarantee until a release pipeline exists, binds locked artifact hashes and the
 Python ABI for `R-05`, and closes the loop with one scoped closure review.
 Packet `TASK-20260905-03A2FIX2` carries this; it runs after `03B`.
+
+## Why the open importer P1s cannot alter the corpus's NPZ chain `2026-09-05T05:18Z`
+
+Astra asked for this before treating the corpus as admitted evidence. The
+corpus consumes only the three strict NPZ files and their documented hashes
+(`PUBLIC_EXPERT_IMPORT.md`); it never calls the importer. Each NPZ was produced
+from pinned `policy.pth` bytes (SHA-256 verified against the Hugging Face LFS
+record), through a single weights-only load, by copying eight float32 tensors
+whose shapes, contiguity, and finiteness were checked, and its actor outputs
+match a locally reconstructed actor bitwise on the fixed batch. The open
+findings concern the importer's failure paths and evidence packaging, not the
+success path that copied those bytes: `R-01`, `R-02` (rights coverage and
+release scanning), `R-03`, `R-04` (bounds and exception normalization),
+`R-06` (atomic publication), `R-08`, `T-1` (test coverage), `V-1`
+(validation manifests), `E1-B`, `E1-C` (receipt revalidation and all-files
+verification). `R-05` narrows the reproducibility claim of the equivalence
+receipt to same-host, same-lock; it does not change the copied tensors. The
+zero-residual E1 gap (`E1-A`) concerns the tracker contender, which the
+corpus does not use. None of them can change an NPZ byte or its hash; the
+corpus certificates bind those hashes, and a later importer change that
+altered the bytes would break that binding.
+
+Corpus compute bounds, for the protocol: about `128` clips of `1,000` control
+steps for frozen-actor rollouts plus separate-process replay certification and
+E3 forks; minutes of CPU on this host; recorded wall time in the validation
+manifest. The 03A3 review state is `ACCEPT-WITH-REPAIRS` and E1 remains an
+interface check.

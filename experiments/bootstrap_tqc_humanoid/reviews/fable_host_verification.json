@@ -44,6 +44,14 @@
       "ruff": "clean, 219 files formatted",
       "started_utc": "2026-09-05T03:13:26Z",
       "tree": "Slice 03A3 with regenerated reward runtime receipt"
+    },
+    {
+      "commit": "41b2597",
+      "finished_utc": "2026-09-05T06:11:01Z",
+      "result": "1305 passed, 1 failed: only the reward-lane receipt binding test (whole-tree source hash) failed on the pre-regeneration receipt; after Fable regenerated the receipt the reward manifest file passed 8/8 (integration commit)",
+      "ruff": "clean, 231 files formatted",
+      "started_utc": "2026-09-05T06:08:51Z",
+      "tree": "Slice 03B (implementation, runner fixes, and the v1 corpus run results) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1
