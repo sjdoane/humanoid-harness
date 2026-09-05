@@ -23,10 +23,11 @@ class _Actor:
 
 
 class _Environment:
-    def __init__(self) -> None:
+    def __init__(self, *, fall_at_boundary: int | None = None) -> None:
         self.unwrapped = self
         self.data = SimpleNamespace(qpos=np.zeros(24, dtype=np.float64))
         self._step = 0
+        self._fall_at_boundary = fall_at_boundary
 
     def reset(self, *, seed: int) -> tuple[np.ndarray, dict[str, object]]:
         self._step = 0
@@ -42,6 +43,8 @@ class _Environment:
         self._step += 1
         delta = float(action[0])
         self.data.qpos[0] += delta
+        if self._fall_at_boundary is not None and self._step >= self._fall_at_boundary:
+            self.data.qpos[2] = 0.9
         observation = np.zeros(348, dtype=np.float64)
         observation[0] = self.data.qpos[0]
         observation[1] = self._step
@@ -261,3 +264,96 @@ def test_cli_smoke_two_episodes_by_fifty_steps_and_prepares_cycle_one(tmp_path: 
     prompt = (experiment / "cycles/cycle_1/designer_prompt.md").read_text()
     assert "Prefer fewer recovery switches." in prompt
     assert "single_fast" in prompt
+
+    candidate_path = experiment / "cycles/cycle_1/oracle_1.json"
+    candidate_path.write_bytes(
+        canonical_json_bytes(_oracle("cycle_1_candidate", "expert", "simple"))
+    )
+    cycle_one_dependencies = EvaluationDependencies(
+        environment_factory=lambda: _Environment(fall_at_boundary=20),
+        actor_loader=dependencies.actor_loader,
+        fingerprint_factory=dependencies.fingerprint_factory,
+    )
+    assert (
+        main(
+            [
+                "evaluate",
+                "--experiment",
+                str(experiment),
+                "--cycle",
+                "1",
+                "--oracle",
+                str(candidate_path),
+            ],
+            repository_root=tmp_path,
+            dependencies=cycle_one_dependencies,
+        )
+        == 0
+    )
+    cycle_one = json.loads((experiment / "cycles/cycle_1/report_1.json").read_bytes())
+    assert [arm["oracle_id"] for arm in cycle_one["summary"]["arms"]] == [
+        "single_fast",
+        "single_slow",
+        "playback",
+        "handwritten",
+        "cycle_1_candidate",
+    ]
+    assert cycle_one["cycle_zero_comparison"]["arm_count"] == 4
+    assert cycle_one["comparison_to_cycle_zero"]["never_fall_requirement"] == "failed"
+    assert cycle_one["comparison_to_cycle_zero"]["no_combined_ranking"] is True
+    assert {
+        comparison["fall_count_outcome"]
+        for comparison in cycle_one["comparison_to_cycle_zero"]["comparisons"]
+    } == {"worsened"}
+    assert len(cycle_one["per_episode"]) == 2
+    first_episode = cycle_one["per_episode"][0]
+    switches = first_episode["controller_switches"]
+    assert [
+        {key: value for key, value in switch.items() if key != "v_x_m_s"} for switch in switches
+    ] == [
+        {
+            "fall_followed_within_100_steps": True,
+            "from_behavior": "expert",
+            "step": 15,
+            "to_behavior": "simple",
+        },
+        {
+            "fall_followed_within_100_steps": False,
+            "from_behavior": "simple",
+            "step": 30,
+            "to_behavior": "expert",
+        },
+    ]
+    np.testing.assert_allclose([switch["v_x_m_s"] for switch in switches], [5.0, 1.0])
+    assert first_episode["slow_third_behavior_fractions"] == {
+        "expert": 0.0,
+        "medium": 0.0,
+        "simple": 1.0,
+    }
+    markdown = (experiment / "cycles/cycle_1/report_1.md").read_text()
+    assert "| cycle 0 baseline | single_fast |" in markdown
+    assert "| cycle 1 candidate | cycle_1_candidate |" in markdown
+    assert "The candidate **failed** the never-fall requirement" in markdown
+    assert "| 101 | 15 | expert | simple | 5.000000 | yes |" in markdown
+    assert "| 101 | 30 | simple | expert | 1.000000 | no |" in markdown
+    assert "| 101 | 0.000000 | 0.000000 | 1.000000 |" in markdown
+
+    assert (
+        main(
+            [
+                "prepare",
+                "--experiment",
+                str(experiment),
+                "--cycle",
+                "2",
+                "--steer",
+                "No additional steering text was supplied.",
+            ],
+            repository_root=tmp_path,
+            dependencies=dependencies,
+        )
+        == 0
+    )
+    cycle_two_prompt = (experiment / "cycles/cycle_2/designer_prompt.md").read_text()
+    assert "cycle_1_candidate" in cycle_two_prompt
+    assert "No additional steering text was supplied." in cycle_two_prompt
