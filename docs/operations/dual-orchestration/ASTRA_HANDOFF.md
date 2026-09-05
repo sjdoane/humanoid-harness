@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F1 independent closure accepts static/synthetic plumbing; all ten reviewed hashes match. Parent pure regression: 256 passed/16 deferred/1 simulator test deselected. |
-| bottleneck | F1 still targets old B0 inputs; T2 formula/compositor mapping and authenticated model ingestion remain. |
-| next step | Collect the bounded F2 interface plan and agree the minimal Phase B reward handoff with Fable. |
+| progress | F2 plan completed; Fable supplied the exact registry seam and its committed main now uses the accepted T2 class. |
+| bottleneck | No reviewed T2 evaluator or shared registry entry; live-model/T2 packet and training gates remain. |
+| next step | Collect the bounded additive T2 builder, reproduce tests, then independently review and propose exact promotion hashes. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 21:25 UTC heartbeat; F1 closure collected and all ten hashes reverified before acceptance.
+- Last checkpoint: 2026-09-05, 22:01 UTC heartbeat; F2 plan collected and peer registry requirements read from committed evidence.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -49,12 +49,17 @@
 | T2 input module | Astra + reviewer | ACCEPT_T2_INPUT_ONLY at 19:48:21Z; 17 tests pass | `T2_INPUT_ACCEPTANCE.md`; not wired into formula or simulator |
 | F1 lineage repair | Sol writer + Astra | finished 20:34:23Z; parent 232 passed/16 deferred | `F1_REPAIR_PARENT_CHECKPOINT.md`; includes one FIFO-open regression fix |
 | F1 closure review | read-only Sol/max | ACCEPT_F1_STATIC_ONLY at 20:59:48Z | `F1_ACCEPTANCE.md`; three findings and FIFO follow-up closed |
-| F2 T2/runtime interface plan | read-only Sol/max | dispatch/collect exact active pointer | `TASK-F2-interface-plan.md`; proposal only, no integration authority |
+| F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
+| F2 T2 evaluator | Sol/max builder | dispatch/collect exact active pointer | `TASK-F2-t2-evaluator.md`; two new source/test files, no shared integration |
 
 - Accepted F1 commit: `27330eb4f50feae27df3ab118e8c9c0d165112a8` (local only).
-- Active F2 plan: `20260905T212913Z-cb25bab9-c2f9-4809-ac32-4d68072ab70e`;
-  read-only Sol/max, with a 20-minute immutable-launch deadline watcher attached
-  in the launch tool call. No implementation or resource authority is delegated.
+- Completed F2 plan: `20260905T212913Z-cb25bab9-c2f9-4809-ac32-4d68072ab70e`;
+  exact next builder run and deadline are retained in the active pointer.
+- Peer registry reply `20260905T214217.711948Z-79bbaa69ff38402fa4a0cea559a8cba0`
+  is acknowledged as read. New formula IDs and promotion still need explicit
+  agreement; Astra-only evaluator work does not modify the shared interface.
+- Current peer object inspected: `10d477b5726fb674fa2a057419501faee8043d9d`.
+  The duplicate phase-B T2 class is removed; input source/schema are registry-bound.
 
 - Current acceptance: `F1_ACCEPTANCE.md`. Its retained negative records an
   accidentally selected simulator test failing on missing `gymnasium`; no
