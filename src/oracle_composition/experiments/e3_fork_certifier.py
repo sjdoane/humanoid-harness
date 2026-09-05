@@ -201,7 +201,7 @@ def _validate_branch(branch: E3Branch, *, seed: int, actor_variant: str) -> None
         or core["steps"] != 1000
     ):
         raise E3CertificationError("E3 branch identity differs")
-    validate_clip_arrays(dict(branch.arrays), steps=1000, screen_canary=False)
+    validate_clip_arrays(dict(branch.arrays), steps=1000, plain_comparison=True)
     if _bound_artifact_sha256(manifest, "e3_metric_source") != sha256_file(Path(__file__)):
         raise E3CertificationError("running E3 certifier source differs from the replay bundle")
     if _bound_artifact_sha256(manifest, "e3_manifest_source") != sha256_json(e3_manifest_payload()):

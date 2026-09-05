@@ -15,6 +15,7 @@ from oracle_composition.contracts.reference_identity_v2 import (
     CORPUS_ACTORS,
     CORPUS_SEEDS,
     DEVELOPMENT_SCREEN_SEEDS,
+    REPLAY_METHOD_VERSION,
     canonical_json_bytes,
     corpus_manifest_payload,
     sha256_file,
@@ -41,14 +42,11 @@ from .reference_corpus_collector import collect_reference_clip
 from .reference_corpus_contract import decode_clip_payload
 from .runtime_identity import dependency_lock_path
 
-RUNNER_ID = "reference_corpus_v1_one_shot_runner/v1"
+RUNNER_ID = "reference_corpus_v2_one_shot_runner/v2"
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_ARTIFACT_ROOT = PROJECT_ROOT / "artifacts" / "reference_corpus_v1"
+DEFAULT_ARTIFACT_ROOT = PROJECT_ROOT / "artifacts" / "reference_corpus_v2"
 DEFAULT_SCREEN_RECEIPT = (
-    PROJECT_ROOT
-    / "artifacts"
-    / "bootstrap_tqc_humanoid"
-    / "public_expert_development_screen_v1.json"
+    PROJECT_ROOT / "artifacts" / "reference_corpus_v2" / "public_expert_development_screen_v2.json"
 )
 DEFAULT_E3_MANIFEST = PROJECT_ROOT / "experiments" / "reference_corpus_v1" / "e3_manifest_v1.json"
 E1_RECEIPT = (
@@ -230,7 +228,7 @@ def _load_arrays(root: Path, manifest: dict[str, object]) -> dict[str, Any]:
     return decode_clip_payload(
         payload,
         steps=core["steps"],
-        screen_canary=core["clip_kind"] == "development_screen",
+        plain_comparison=True,
     )
 
 
@@ -250,7 +248,8 @@ def _run_certifier(
     bundles: list[PublishedClipBundle],
 ) -> dict[str, object]:
     request = {
-        "request_id": "reference_corpus_tier_d_certifier_request/v1",
+        "request_id": "reference_corpus_tier_d_certifier_request/v2",
+        "replay_method_version": REPLAY_METHOD_VERSION,
         "artifact_root": root.as_posix(),
         "bundles": [
             {
@@ -261,7 +260,7 @@ def _run_certifier(
         ],
     }
     request_path, _request_sha256 = _publish_json(
-        root / "tier_d_certifier_request_v1.json", request
+        root / "tier_d_certifier_request_v2.json", request
     )
     result = subprocess.run(
         [
@@ -294,16 +293,19 @@ def _run_certifier(
 
 def generate_reference_corpus(
     *,
+    run_version: str,
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
     screen_receipt_path: Path = DEFAULT_SCREEN_RECEIPT,
 ) -> dict[str, object]:
     """Execute the predeclared no-retry collection and certification once."""
 
+    if run_version != "v2":
+        raise ValueError("run_version must be explicitly set to v2")
     root = Path(artifact_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    if any((root / name).exists() for name in ("clips", "objects", "corpus_index_v1.json")):
+    if any((root / name).exists() for name in ("clips", "objects", "corpus_index_v2.json")):
         raise RuntimeError("reference corpus output already exists; no retry is permitted")
-    ledger = root / "attempt_ledger.jsonl"
+    ledger = root / "attempt_ledger_v2.jsonl"
     if ledger.exists():
         raise RuntimeError("reference corpus attempt ledger already exists; no retry is permitted")
     e3_design = _load_json(DEFAULT_E3_MANIFEST)
@@ -338,6 +340,7 @@ def generate_reference_corpus(
                     actor_identity=identities[variant],
                     seed=seed,
                     reset_order=reset_order,
+                    compare_plain_runtime=True,
                 )
                 bundle = publish_clip_bundle(
                     clip,
@@ -369,7 +372,7 @@ def generate_reference_corpus(
         corpus_manifest = corpus_manifest_payload(entries)
         validate_corpus_manifest(corpus_manifest)
         corpus_manifest_path, corpus_manifest_sha256 = _publish_json(
-            root / "corpus_manifest_v1.json", corpus_manifest
+            root / "corpus_manifest_v2.json", corpus_manifest
         )
         screen_bundles: list[PublishedClipBundle] = []
         for screen_index, seed in enumerate(DEVELOPMENT_SCREEN_SEEDS, start=1):
@@ -393,7 +396,7 @@ def generate_reference_corpus(
                 actor_identity=identities["expert"],
                 seed=seed,
                 reset_order=reset_order,
-                compare_plain_rewards=True,
+                compare_plain_runtime=True,
             )
             bundle = publish_clip_bundle(
                 clip,
@@ -428,8 +431,10 @@ def generate_reference_corpus(
             validate_full_clip_certificate(certificate)
             certificate_records[bundle.clip_id] = certificate
         aggregate = {
-            "certificate_id": "humanoid_reference_corpus_tier_d_aggregate/v1",
-            "schema_version": 1,
+            "certificate_id": "humanoid_reference_corpus_tier_d_aggregate/v2",
+            "schema_version": 2,
+            "run_version": run_version,
+            "replay_method_version": REPLAY_METHOD_VERSION,
             "corpus_manifest_sha256": corpus_manifest_sha256,
             "corpus_clip_count": 108,
             "development_screen_clip_count": 20,
@@ -438,6 +443,7 @@ def generate_reference_corpus(
             "failed_certificate_count": 0,
             "certifier_pid": certifier_result["certifier_pid"],
             "all_transitions_rule": True,
+            "plain_comparison_clip_count": 128,
             "certificates": [
                 {
                     "clip_id": bundle.clip_id,
@@ -451,7 +457,7 @@ def generate_reference_corpus(
         }
         aggregate["aggregate_result_sha256"] = sha256_json(aggregate)
         aggregate_path, aggregate_sha256 = _publish_json(
-            root / "reference_corpus_tier_d_aggregate_v1.json", aggregate
+            root / "reference_corpus_tier_d_aggregate_v2.json", aggregate
         )
         bundle_by_id = {bundle.clip_id: bundle for bundle in bundles}
         e3_block_results = []
@@ -477,7 +483,7 @@ def generate_reference_corpus(
                 )
             e3_block_results.append(certify_e3_block(seed, tuple(branches)))
         e3_result = summarize_e3_block_results(tuple(e3_block_results), manifest=e3_design)
-        e3_path, e3_sha256 = _publish_json(root / "e3_fork_certificate_v1.json", e3_result)
+        e3_path, e3_sha256 = _publish_json(root / "e3_fork_certificate_v2.json", e3_result)
         screen_clips = []
         for bundle in screen_bundles:
             manifest = load_bundle_manifest(
@@ -493,7 +499,7 @@ def generate_reference_corpus(
                     certificate_sha256=certificate_item["certificate_sha256"],
                     certificate=certificate_records[bundle.clip_id],
                     arrays=_load_arrays(root, manifest),
-                    reward_canary=manifest["core"]["reward_canary"],
+                    plain_comparison=manifest["core"]["plain_comparison"],
                     source_hashes={
                         role: _artifact_hash_by_role(manifest, role)
                         for role in ("screen_evaluator_source", "metric_source")
@@ -503,8 +509,9 @@ def generate_reference_corpus(
         screen_result = evaluate_public_expert_development_screen(tuple(screen_clips))
         screen_path, screen_sha256 = _publish_json(screen_receipt_path, screen_result)
         index = {
-            "index_id": "reference_corpus_v1_content_index/v1",
-            "schema_version": 1,
+            "index_id": "reference_corpus_v2_content_index/v2",
+            "schema_version": 2,
+            "run_version": run_version,
             "runner_id": RUNNER_ID,
             "corpus_manifest": {
                 "path": corpus_manifest_path.as_posix(),
@@ -521,6 +528,7 @@ def generate_reference_corpus(
                 "sha256": sha256_file(ledger),
             },
             "clip_count": len(bundles),
+            "plain_comparison_clip_count": len(bundles),
             "clips": [
                 {
                     "clip_id": bundle.clip_id,
@@ -539,9 +547,10 @@ def generate_reference_corpus(
             ),
         }
         index["index_content_sha256"] = sha256_json(index)
-        index_path, index_sha256 = _publish_json(root / "corpus_index_v1.json", index)
+        index_path, index_sha256 = _publish_json(root / "corpus_index_v2.json", index)
         result = {
             "runner_id": RUNNER_ID,
+            "run_version": run_version,
             "index_path": index_path.as_posix(),
             "index_sha256": index_sha256,
             "corpus_manifest_sha256": corpus_manifest_sha256,
@@ -552,7 +561,7 @@ def generate_reference_corpus(
             "screen_receipt_sha256": screen_sha256,
             "screen_passed": screen_result["screen_passed"],
         }
-        result_path, result_sha256 = _publish_json(root / "run_result_v1.json", result)
+        result_path, result_sha256 = _publish_json(root / "run_result_v2.json", result)
         result["run_result_path"] = result_path.as_posix()
         result["run_result_sha256"] = result_sha256
         return result
@@ -571,12 +580,14 @@ def generate_reference_corpus(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run-version", choices=("v2",), required=True)
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
     parser.add_argument("--screen-receipt", type=Path, default=DEFAULT_SCREEN_RECEIPT)
     arguments = parser.parse_args(argv)
     result = generate_reference_corpus(
         artifact_root=arguments.artifact_root,
         screen_receipt_path=arguments.screen_receipt,
+        run_version=arguments.run_version,
     )
     print(canonical_json_bytes(result).decode())
     return 0

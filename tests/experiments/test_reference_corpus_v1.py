@@ -3,8 +3,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import struct
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +18,7 @@ from oracle_composition.contracts.reference_identity_v2 import (
     CORPUS_SEEDS,
     FULL_CLIP_CERTIFICATE_ID,
     REFERENCE_SCHEMA_ID,
+    REPLAY_METHOD_VERSION,
     ROBOT_ID,
     ReferenceIdentityV2,
     ReferenceIdentityV2Error,
@@ -31,6 +34,7 @@ from oracle_composition.contracts.reference_identity_v2 import (
     validate_full_clip_certificate,
     validate_reference_derivation,
 )
+from oracle_composition.envs.humanoid import make_humanoid_env
 from oracle_composition.envs.reference_corpus import (
     EXPECTED_REFERENCE_WRAPPER_TYPES,
     FULL_CONTACT_CAPTURE_ID,
@@ -70,6 +74,9 @@ from oracle_composition.experiments.reference_corpus_contract import (
     decode_clip_payload,
     derive_reference_rows,
     encode_clip_payload,
+    plain_comparison_boundary_sha256,
+    plain_comparison_receipt,
+    plain_comparison_transition_sha256,
     reference_schema_payload,
     reference_window_index_arrays,
     require_same_runtime,
@@ -187,7 +194,28 @@ def _synthetic_clip_arrays(*, steps: int = 8) -> dict[str, np.ndarray]:
     arrays["transition_record_sha256"] = np.asarray(
         [transition_record_sha256(arrays, index) for index in range(steps)], dtype="|S64"
     )
-    return validate_clip_arrays(arrays, steps=steps, screen_canary=False)
+    arrays.update(
+        {
+            "plain_boundary_integration_state": integration.copy(),
+            "plain_boundary_observation": observation.copy(),
+            "plain_boundary_cfrc_ext": cfrc.copy(),
+            "plain_boundary_simulation_time": times.copy(),
+            "plain_boundary_wrapper_elapsed": np.arange(boundaries, dtype="<i8"),
+            "plain_boundary_wrapper_flags": wrapper_flags.copy(),
+            "plain_boundary_result_flags": result_flags.copy(),
+            "plain_transition_physical_action": physical.copy(),
+            "plain_transition_reward": np.zeros(steps, dtype="<f8"),
+        }
+    )
+    arrays["plain_comparison_boundary_sha256"] = np.asarray(
+        [plain_comparison_boundary_sha256(arrays, index) for index in range(boundaries)],
+        dtype="|S64",
+    )
+    arrays["plain_comparison_transition_sha256"] = np.asarray(
+        [plain_comparison_transition_sha256(arrays, index) for index in range(steps)],
+        dtype="|S64",
+    )
+    return validate_clip_arrays(arrays, steps=steps, plain_comparison=True)
 
 
 def _runtime_identity(
@@ -276,7 +304,7 @@ def _identity(**overrides: object) -> ReferenceIdentityV2:
 def _certificate(*, steps: int = 8) -> dict[str, object]:
     return {
         "certificate_id": FULL_CLIP_CERTIFICATE_ID,
-        "schema_version": 1,
+        "schema_version": 2,
         "clip_id": "synthetic",
         "bundle_manifest_sha256": "1" * 64,
         "reference_identity_sha256": "2" * 64,
@@ -287,6 +315,7 @@ def _certificate(*, steps: int = 8) -> dict[str, object]:
         "transitions_verified": steps,
         "covered_transition_indices_sha256": transition_indices_sha256(steps),
         "verification_digest_sha256": "4" * 64,
+        "replay_method_version": REPLAY_METHOD_VERSION,
         "all_hashes_verified": True,
         "all_transitions_passed": True,
         "first_failure": None,
@@ -335,6 +364,7 @@ def _published_unit_bundle(tmp_path: Path) -> tuple[dict[str, object], Path]:
         "equivalence_receipt_sha256": sha256_file(sources["equivalence_receipt"]),
         "inference_id": INFERENCE_ID,
     }
+    arrays = _synthetic_clip_arrays()
     clip = CollectedClip(
         clip_id="synthetic-8-expert",
         clip_kind="corpus",
@@ -342,15 +372,11 @@ def _published_unit_bundle(tmp_path: Path) -> tuple[dict[str, object], Path]:
         seed=120001,
         reset_order=0,
         steps=8,
-        arrays=_synthetic_clip_arrays(),
+        arrays=arrays,
         runtime_identity=runtime,
         rng_state={"bit_generator": "PCG64", "state": {"state": 1, "inc": 3}},
         actor_identity=actor_identity,
-        reward_canary={
-            "status": "not_applicable",
-            "role": "replay_canary_only",
-            "locomotion_metrics_may_read_reward": False,
-        },
+        plain_comparison=plain_comparison_receipt(arrays, steps=8),
         collector_pid=10,
     )
     root = tmp_path / "published"
@@ -491,7 +517,7 @@ def test_exact_array_contract_rejects_independent_one_bit_flips(
     byte_view[(*index, 0)] ^= 1
 
     with pytest.raises(ReferenceCorpusContractError):
-        validate_clip_arrays(arrays, steps=8, screen_canary=False)
+        validate_clip_arrays(arrays, steps=8, plain_comparison=True)
 
 
 def test_reference_contract_rejects_reduced_state_and_abi_drift() -> None:
@@ -502,7 +528,7 @@ def test_reference_contract_rejects_reduced_state_and_abi_drift() -> None:
                 "qvel": np.zeros((9, 23), dtype="<f8"),
             },
             steps=8,
-            screen_canary=False,
+            plain_comparison=True,
         )
 
     mutations = []
@@ -526,7 +552,7 @@ def test_reference_contract_rejects_reduced_state_and_abi_drift() -> None:
 
     for changed in mutations:
         with pytest.raises(ReferenceCorpusContractError):
-            validate_clip_arrays(changed, steps=8, screen_canary=False)
+            validate_clip_arrays(changed, steps=8, plain_comparison=True)
 
     qpos = np.ascontiguousarray(_synthetic_clip_arrays()["boundary_integration_state"][:, 1:25])
     qvel = np.ascontiguousarray(_synthetic_clip_arrays()["boundary_integration_state"][:, 25:48])
@@ -540,11 +566,11 @@ def test_reference_contract_rejects_reduced_state_and_abi_drift() -> None:
 
 def test_payload_round_trip_is_canonical_and_complete() -> None:
     arrays = _synthetic_clip_arrays()
-    first = encode_clip_payload(arrays, steps=8, screen_canary=False)
-    second = encode_clip_payload(arrays, steps=8, screen_canary=False)
+    first = encode_clip_payload(arrays, steps=8, plain_comparison=True)
+    second = encode_clip_payload(arrays, steps=8, plain_comparison=True)
 
     assert first == second
-    restored = decode_clip_payload(first, steps=8, screen_canary=False)
+    restored = decode_clip_payload(first, steps=8, plain_comparison=True)
     assert set(restored) == set(arrays)
     assert array_bindings(restored) == array_bindings(arrays)
 
@@ -750,6 +776,112 @@ def test_development_screen_episode_metrics_never_read_reward() -> None:
     assert episode.net_forward_displacement_m == pytest.approx(10.0)
 
 
+def _frozen_expert() -> tuple[Path, dict[str, object]]:
+    identity = reference_corpus_runner._actor_identity("expert")
+    path = (
+        reference_corpus_runner.PROJECT_ROOT
+        / reference_corpus_runner.ACTOR_REGISTRY["expert"]["npz"]
+    )
+    return path, identity
+
+
+@pytest.mark.gym
+def test_production_collector_path_is_plain_runtime_bitwise_for_1000_steps() -> None:
+    actor_path, identity = _frozen_expert()
+
+    clip = collect_reference_clip(
+        clip_id="production-equivalence-96001-expert",
+        clip_kind="corpus",
+        actor_variant="expert",
+        actor_npz_path=actor_path,
+        actor_identity=identity,
+        seed=96001,
+        reset_order=0,
+        steps=1000,
+        compare_plain_runtime=True,
+    )
+
+    assert clip.plain_comparison["status"] == "passed"
+    assert clip.plain_comparison["steps_compared"] == 1000
+    assert clip.plain_comparison["boundaries_compared"] == 1001
+    for hashes in clip.plain_comparison["field_hashes"].values():
+        assert hashes["instrumented_sha256"] == hashes["plain_sha256"]
+    assert (
+        clip.arrays["boundary_observation"][1:].tobytes()
+        == clip.arrays["transition_returned_observation"].tobytes()
+    )
+
+
+@pytest.mark.gym
+def test_post_step_forward_seam_exposes_boundary_one_and_reward_two() -> None:
+    import mujoco
+
+    actor_path, identity = _frozen_expert()
+
+    def inject_forward(environment: object, transition: int) -> None:
+        if transition == 0:
+            physical = environment.unwrapped
+            mujoco.mj_forward(physical.model, physical.data)
+
+    with pytest.raises(
+        ReferenceCorpusContractError,
+        match="boundary observation 1 differs from live observation cache",
+    ):
+        collect_reference_clip(
+            clip_id="negative-forward-96001-expert",
+            clip_kind="corpus",
+            actor_variant="expert",
+            actor_npz_path=actor_path,
+            actor_identity=identity,
+            seed=96001,
+            reset_order=0,
+            steps=2,
+            compare_plain_runtime=True,
+            _post_step_test_hook=inject_forward,
+        )
+
+    actor = StrictTQCActorRuntime.from_npz(
+        actor_path,
+        expected_sha256=identity["npz_sha256"],
+    )
+    plain = make_humanoid_env()
+    instrumented = make_reference_corpus_env()
+    try:
+        _plain_observation, _ = plain.reset(seed=96001)
+        instrumented_observation, _ = instrumented.reset(seed=96001)
+        action0 = actor.act(instrumented_observation).physical_action
+        plain_step1 = plain.step(action0.copy())
+        instrumented_step1 = instrumented.step(action0.copy())
+        assert np.array_equal(plain_step1[0], instrumented_step1[0])
+        mujoco.mj_forward(instrumented.unwrapped.model, instrumented.unwrapped.data)
+        assert not np.array_equal(
+            instrumented_step1[0],
+            instrumented.unwrapped._get_obs(),
+        )
+        action1 = actor.act(instrumented_step1[0]).physical_action
+        plain_step2 = plain.step(action1.copy())
+        instrumented_step2 = instrumented.step(action1.copy())
+        assert struct.pack(">d", plain_step2[1]) != struct.pack(">d", instrumented_step2[1])
+    finally:
+        plain.close()
+        instrumented.close()
+
+
+def test_live_capture_modules_do_not_call_state_touching_mujoco_helpers() -> None:
+    modules = (
+        reference_corpus_collector,
+        reference_corpus_certifier,
+        __import__(
+            "oracle_composition.experiments.expert_development_screen",
+            fromlist=["unused"],
+        ),
+    )
+    for module in modules:
+        source = Path(str(module.__file__)).read_text(encoding="utf-8")
+        for forbidden in ("mj_forward(", "mj_step1(", "mj_kinematics("):
+            assert forbidden not in source
+
+
 @pytest.mark.gym
 def test_short_clip_collect_publish_and_separate_process_certify(tmp_path: Path) -> None:
     actor_arrays = {
@@ -807,7 +939,8 @@ def test_short_clip_collect_publish_and_separate_process_certify(tmp_path: Path)
     }
     bundle = publish_clip_bundle(clip, artifact_root=root, artifact_sources=sources)
     request = {
-        "request_id": "reference_corpus_tier_d_certifier_request/v1",
+        "request_id": "reference_corpus_tier_d_certifier_request/v2",
+        "replay_method_version": REPLAY_METHOD_VERSION,
         "artifact_root": root.as_posix(),
         "bundles": [
             {
@@ -841,6 +974,54 @@ def test_short_clip_collect_publish_and_separate_process_certify(tmp_path: Path)
     assert hashlib.sha256(certificate_bytes).hexdigest() == item["certificate_sha256"]
     certificate = validate_full_clip_certificate(json.loads(certificate_bytes))
     assert certificate["transitions_verified"] == 3
+    assert certificate["replay_method_version"] == REPLAY_METHOD_VERSION
+
+
+@pytest.mark.gym
+def test_midclip_replay_requires_predecessor_transition_for_reward(
+    tmp_path: Path,
+) -> None:
+    actor_path, identity = _frozen_expert()
+    collected = collect_reference_clip(
+        clip_id="midclip-replay-96001-expert",
+        clip_kind="corpus",
+        actor_variant="expert",
+        actor_npz_path=actor_path,
+        actor_identity=identity,
+        seed=96001,
+        reset_order=0,
+        steps=5,
+        compare_plain_runtime=True,
+    )
+    clip = replace(collected, collector_pid=collected.collector_pid + 100_000)
+    model_path = reference_corpus_runner._model_path()
+    root = tmp_path / "midclip-replay"
+    bundle = publish_clip_bundle(
+        clip,
+        artifact_root=root,
+        artifact_sources=reference_corpus_runner._artifact_sources(
+            "expert",
+            model_path=model_path,
+        ),
+    )
+
+    certificate = reference_corpus_certifier.certify_bundle(
+        artifact_root=root,
+        manifest_path=bundle.manifest_path,
+        manifest_sha256=bundle.manifest_sha256,
+    )
+    assert certificate.transitions_verified == 5
+
+    with pytest.raises(
+        reference_corpus_certifier.FullClipReplayMismatch,
+        match="transition 3: reward canary differs",
+    ):
+        reference_corpus_certifier.certify_bundle(
+            artifact_root=root,
+            manifest_path=bundle.manifest_path,
+            manifest_sha256=bundle.manifest_sha256,
+            _skip_predecessor_transition_for_test=3,
+        )
 
 
 @pytest.mark.gym

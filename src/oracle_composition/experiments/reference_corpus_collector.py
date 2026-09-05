@@ -8,7 +8,7 @@ import math
 import os
 import platform
 import struct
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +45,9 @@ from .reference_corpus_contract import (
     boundary_record_sha256,
     contact_sequence_sha256,
     derive_reference_rows,
+    plain_comparison_boundary_sha256,
+    plain_comparison_receipt,
+    plain_comparison_transition_sha256,
     reference_window_index_arrays,
     transition_record_sha256,
     validate_clip_arrays,
@@ -52,7 +55,7 @@ from .reference_corpus_contract import (
 )
 from .runtime_identity import dependency_lock_path, module_sha256, space_sha256
 
-COLLECTOR_ID = "same_runtime_strict_npz_full_clip_collector/v1"
+COLLECTOR_ID = "same_runtime_strict_npz_full_clip_collector/v2"
 FLOOR_GEOM_NAME = "floor"
 FOOT_GEOM_NAMES = frozenset({"left_foot", "right_foot"})
 
@@ -71,7 +74,7 @@ class CollectedClip:
     runtime_identity: dict[str, object]
     rng_state: dict[str, object]
     actor_identity: dict[str, object]
-    reward_canary: dict[str, object]
+    plain_comparison: dict[str, object]
     collector_pid: int
 
 
@@ -195,8 +198,7 @@ def inspect_reference_corpus_runtime(environment: object) -> dict[str, object]:
     return validate_runtime_identity(runtime)
 
 
-def _wrapper_layers(environment: object) -> tuple[object, object, object, object]:
-    require_reference_wrapper_stack(environment)
+def _raw_wrapper_layers(environment: object) -> tuple[object, object, object, object]:
     time_limit = environment
     order_enforcing = time_limit.env
     passive_checker = order_enforcing.env
@@ -204,8 +206,13 @@ def _wrapper_layers(environment: object) -> tuple[object, object, object, object
     return time_limit, order_enforcing, passive_checker, physical
 
 
-def capture_wrapper_state(environment: object) -> tuple[int, np.ndarray]:
-    time_limit, order, checker, _physical = _wrapper_layers(environment)
+def _wrapper_layers(environment: object) -> tuple[object, object, object, object]:
+    require_reference_wrapper_stack(environment)
+    return _raw_wrapper_layers(environment)
+
+
+def _capture_wrapper_state(environment: object) -> tuple[int, np.ndarray]:
+    time_limit, order, checker, _physical = _raw_wrapper_layers(environment)
     elapsed = getattr(time_limit, "_elapsed_steps", None)
     if type(elapsed) is not int or elapsed < 0:
         raise ReferenceCorpusContractError("TimeLimit counter is unavailable")
@@ -222,6 +229,11 @@ def capture_wrapper_state(environment: object) -> tuple[int, np.ndarray]:
     if flags.shape != (len(WRAPPER_FLAG_NAMES),):
         raise ReferenceCorpusContractError("wrapper-state flag width differs")
     return elapsed, flags
+
+
+def capture_wrapper_state(environment: object) -> tuple[int, np.ndarray]:
+    require_reference_wrapper_stack(environment)
+    return _capture_wrapper_state(environment)
 
 
 def restore_wrapper_state(environment: object, elapsed: int, flags: np.ndarray) -> None:
@@ -268,28 +280,34 @@ def restore_rng_state(physical: object, state: Mapping[str, object]) -> None:
         raise ReferenceCorpusContractError("environment RNG state is unknown") from exc
 
 
-def _torso_up_z(physical: object) -> float:
-    import mujoco
-
-    torso_id = mujoco.mj_name2id(physical.model, mujoco.mjtObj.mjOBJ_BODY, "torso")
-    if torso_id < 0:
-        raise ReferenceCorpusContractError("Humanoid torso body is absent")
-    value = float(np.asarray(physical.data.xmat[torso_id], dtype="<f8").reshape(3, 3)[2, 2])
+def _torso_up_z(qpos: np.ndarray) -> float:
+    positions = np.asarray(qpos, dtype="<f8")
+    if positions.shape != (24,) or not np.isfinite(positions).all():
+        raise ReferenceCorpusContractError("Humanoid qpos is invalid")
+    quaternion = positions[3:7]
+    norm = float(np.linalg.norm(quaternion))
+    if not math.isfinite(norm) or norm <= 0.0:
+        raise ReferenceCorpusContractError("Humanoid torso quaternion is invalid")
+    _, x, y, _ = quaternion / norm
+    value = float(1.0 - 2.0 * (x * x + y * y))
     if not math.isfinite(value) or not -1.0 <= value <= 1.0:
         raise ReferenceCorpusContractError("torso up-axis value is invalid")
     return value
 
 
-def _capture_boundary(
+def _capture_runtime_boundary(
     environment: object,
     *,
+    returned_observation: object,
+    boundary_index: int,
     terminated: bool,
     truncated: bool,
+    reference_wrapper: bool,
 ) -> dict[str, object]:
     import mujoco
 
-    _time_limit, _order, _checker, physical = _wrapper_layers(environment)
-    mujoco.mj_forward(physical.model, physical.data)
+    layers = _wrapper_layers(environment) if reference_wrapper else _raw_wrapper_layers(environment)
+    _time_limit, _order, _checker, physical = layers
     state = np.empty(STATE_SIZE, dtype=STATE_DTYPE)
     mujoco.mj_getState(
         physical.model,
@@ -297,13 +315,25 @@ def _capture_boundary(
         state,
         mujoco.mjtState.mjSTATE_INTEGRATION,
     )
-    elapsed, wrapper_flags = capture_wrapper_state(environment)
-    observation = np.ascontiguousarray(physical._get_obs(), dtype="<f8").copy(order="C")
+    elapsed, wrapper_flags = (
+        capture_wrapper_state(environment)
+        if reference_wrapper
+        else _capture_wrapper_state(environment)
+    )
+    observation = np.ascontiguousarray(returned_observation, dtype="<f8").copy(order="C")
+    live_cache_observation = np.ascontiguousarray(physical._get_obs(), dtype="<f8")
     cfrc_ext = np.ascontiguousarray(physical.data.cfrc_ext[1:], dtype="<f8").copy(order="C")
     if observation.shape != (OBSERVATION_WIDTH,) or cfrc_ext.shape != (13, 6):
         raise ReferenceCorpusContractError("boundary observation or force shape differs")
+    if not _exact_array_equal(observation, live_cache_observation, dtype="<f8"):
+        raise ReferenceCorpusContractError(
+            f"boundary observation {boundary_index} differs from live observation cache"
+        )
     if not np.array_equal(observation[-78:].reshape(13, 6), cfrc_ext):
-        raise ReferenceCorpusContractError("boundary force sidecar differs from observation")
+        raise ReferenceCorpusContractError(
+            f"boundary observation {boundary_index} differs from live force cache"
+        )
+    qpos = np.ascontiguousarray(state[1:25], dtype="<f8")
     return {
         "integration_state": state,
         "observation": observation,
@@ -313,9 +343,45 @@ def _capture_boundary(
         "wrapper_elapsed": elapsed,
         "wrapper_flags": wrapper_flags,
         "result_flags": np.asarray([int(terminated), int(truncated)], dtype="|u1"),
-        "torso_up_z": _torso_up_z(physical),
+        "torso_up_z": _torso_up_z(qpos),
         "rng_state": _rng_state(physical),
     }
+
+
+def _capture_boundary(
+    environment: object,
+    *,
+    returned_observation: object,
+    boundary_index: int,
+    terminated: bool,
+    truncated: bool,
+) -> dict[str, object]:
+    return _capture_runtime_boundary(
+        environment,
+        returned_observation=returned_observation,
+        boundary_index=boundary_index,
+        terminated=terminated,
+        truncated=truncated,
+        reference_wrapper=True,
+    )
+
+
+def _capture_plain_boundary(
+    environment: object,
+    *,
+    returned_observation: object,
+    boundary_index: int,
+    terminated: bool,
+    truncated: bool,
+) -> dict[str, object]:
+    return _capture_runtime_boundary(
+        environment,
+        returned_observation=returned_observation,
+        boundary_index=boundary_index,
+        terminated=terminated,
+        truncated=truncated,
+        reference_wrapper=False,
+    )
 
 
 def _contact_record(environment: object) -> tuple[list[FullSubstepContactSample], bool]:
@@ -352,11 +418,11 @@ def _contact_record(environment: object) -> tuple[list[FullSubstepContactSample]
 
 def _arrays_from_records(
     boundaries: list[dict[str, object]],
+    plain_boundaries: list[dict[str, object]],
     transitions: list[dict[str, object]],
     contacts_by_transition: list[list[FullSubstepContactSample]],
     *,
     steps: int,
-    screen_canary: bool,
 ) -> dict[str, np.ndarray]:
     result: dict[str, np.ndarray] = {
         "boundary_integration_state": np.ascontiguousarray(
@@ -420,13 +486,37 @@ def _arrays_from_records(
             [item["nonfoot_floor_contact"] for item in transitions], dtype="|u1"
         ),
     }
-    if screen_canary:
-        result["canary_plain_reward"] = np.asarray(
-            [item["plain_reward"] for item in transitions], dtype="<f8"
-        )
-        result["canary_plain_returned_observation_sha256"] = np.asarray(
-            [item["plain_observation_sha256"] for item in transitions], dtype="|S64"
-        )
+    result.update(
+        {
+            "plain_boundary_integration_state": np.ascontiguousarray(
+                [item["integration_state"] for item in plain_boundaries], dtype="<f8"
+            ),
+            "plain_boundary_observation": np.ascontiguousarray(
+                [item["observation"] for item in plain_boundaries], dtype="<f8"
+            ),
+            "plain_boundary_cfrc_ext": np.ascontiguousarray(
+                [item["cfrc_ext"] for item in plain_boundaries], dtype="<f8"
+            ),
+            "plain_boundary_simulation_time": np.asarray(
+                [item["simulation_time"] for item in plain_boundaries], dtype="<f8"
+            ),
+            "plain_boundary_wrapper_elapsed": np.asarray(
+                [item["wrapper_elapsed"] for item in plain_boundaries], dtype="<i8"
+            ),
+            "plain_boundary_wrapper_flags": np.ascontiguousarray(
+                [item["wrapper_flags"] for item in plain_boundaries], dtype="|u1"
+            ),
+            "plain_boundary_result_flags": np.ascontiguousarray(
+                [item["result_flags"] for item in plain_boundaries], dtype="|u1"
+            ),
+            "plain_transition_physical_action": np.ascontiguousarray(
+                [item["plain_physical_action"] for item in transitions], dtype="<f4"
+            ),
+            "plain_transition_reward": np.asarray(
+                [item["plain_reward"] for item in transitions], dtype="<f8"
+            ),
+        }
+    )
     qpos = np.ascontiguousarray(result["boundary_integration_state"][:, 1:25], dtype="<f8")
     qvel = np.ascontiguousarray(result["boundary_integration_state"][:, 25:48], dtype="<f8")
     result["reference_rows"] = derive_reference_rows(qpos, qvel)
@@ -494,27 +584,66 @@ def _arrays_from_records(
     result["transition_record_sha256"] = np.asarray(
         [transition_record_sha256(result, index) for index in range(steps)], dtype="|S64"
     )
+    result["plain_comparison_boundary_sha256"] = np.asarray(
+        [plain_comparison_boundary_sha256(result, index) for index in range(steps + 1)],
+        dtype="|S64",
+    )
+    result["plain_comparison_transition_sha256"] = np.asarray(
+        [plain_comparison_transition_sha256(result, index) for index in range(steps)],
+        dtype="|S64",
+    )
     return result
 
 
-def _plain_boundary(environment: object) -> tuple[np.ndarray, np.ndarray, float]:
-    physical = environment.unwrapped
+def _exact_array_equal(left: object, right: object, *, dtype: str) -> bool:
+    first = np.ascontiguousarray(left, dtype=dtype)
+    second = np.ascontiguousarray(right, dtype=dtype)
     return (
-        np.ascontiguousarray(physical.data.qpos, dtype="<f8").copy(order="C"),
-        np.ascontiguousarray(physical.data.qvel, dtype="<f8").copy(order="C"),
-        float(physical.data.time),
+        first.shape == second.shape
+        and first.dtype == second.dtype
+        and first.tobytes(order="C") == second.tobytes(order="C")
     )
 
 
-def _plain_boundaries_equal(
-    left: tuple[np.ndarray, np.ndarray, float],
-    right: tuple[np.ndarray, np.ndarray, float],
-) -> bool:
-    return (
-        np.array_equal(left[0], right[0])
-        and np.array_equal(left[1], right[1])
-        and struct.pack(">d", left[2]) == struct.pack(">d", right[2])
-    )
+def _require_plain_boundary_equal(
+    plain: Mapping[str, object],
+    instrumented: Mapping[str, object],
+    *,
+    boundary_index: int,
+) -> None:
+    for field, dtype in (
+        ("integration_state", "<f8"),
+        ("observation", "<f8"),
+        ("cfrc_ext", "<f8"),
+        ("root_xy", "<f8"),
+        ("wrapper_flags", "|u1"),
+        ("result_flags", "|u1"),
+    ):
+        if not _exact_array_equal(plain[field], instrumented[field], dtype=dtype):
+            raise ReferenceCorpusContractError(
+                f"plain/instrumented {field} differs at boundary {boundary_index}"
+            )
+    plain_state = np.asarray(plain["integration_state"], dtype="<f8")
+    instrumented_state = np.asarray(instrumented["integration_state"], dtype="<f8")
+    for field, state_slice in (("qpos", slice(1, 25)), ("qvel", slice(25, 48))):
+        if not _exact_array_equal(
+            plain_state[state_slice], instrumented_state[state_slice], dtype="<f8"
+        ):
+            raise ReferenceCorpusContractError(
+                f"plain/instrumented {field} differs at boundary {boundary_index}"
+            )
+    if not _float_equal(float(plain["simulation_time"]), float(instrumented["simulation_time"])):
+        raise ReferenceCorpusContractError(
+            f"plain/instrumented simulation time differs at boundary {boundary_index}"
+        )
+    if plain["wrapper_elapsed"] != instrumented["wrapper_elapsed"]:
+        raise ReferenceCorpusContractError(
+            f"plain/instrumented wrapper counter differs at boundary {boundary_index}"
+        )
+
+
+def _float_equal(left: float, right: float) -> bool:
+    return struct.pack(">d", float(left)) == struct.pack(">d", float(right))
 
 
 def collect_reference_clip(
@@ -527,7 +656,8 @@ def collect_reference_clip(
     seed: int,
     reset_order: int,
     steps: int = 1000,
-    compare_plain_rewards: bool = False,
+    compare_plain_runtime: bool = True,
+    _post_step_test_hook: Callable[[object, int], None] | None = None,
 ) -> CollectedClip:
     """Roll out one frozen actor once; no retry or checkpoint loader exists here."""
 
@@ -543,8 +673,10 @@ def collect_reference_clip(
         raise ReferenceCorpusContractError("seed and reset order must be non-negative integers")
     if type(steps) is not int or not 1 <= steps <= 1000:
         raise ReferenceCorpusContractError("steps must be in [1, 1000]")
-    if compare_plain_rewards is not (clip_kind == "development_screen"):
-        raise ReferenceCorpusContractError("plain reward canary is required only for screen clips")
+    if compare_plain_runtime is not True:
+        raise ReferenceCorpusContractError("v2 collection requires a plain-runtime comparison")
+    if _post_step_test_hook is not None and not callable(_post_step_test_hook):
+        raise ReferenceCorpusContractError("post-step test hook must be callable")
     identity = dict(actor_identity)
     if identity.get("variant") != actor_variant:
         raise ReferenceCorpusContractError("actor identity variant differs")
@@ -559,63 +691,95 @@ def collect_reference_clip(
     if actor.loaded_actor.schema_sha256 != identity.get("actor_schema_sha256"):
         raise ReferenceCorpusContractError("actor schema identity differs")
     environment = make_reference_corpus_env()
-    plain_environment = make_humanoid_env() if compare_plain_rewards else None
+    plain_environment = make_humanoid_env()
     boundaries: list[dict[str, object]] = []
+    plain_boundaries: list[dict[str, object]] = []
     transitions: list[dict[str, object]] = []
     contacts_by_transition: list[list[FullSubstepContactSample]] = []
     try:
         reset_observation, _reset_info = environment.reset(seed=seed)
-        if plain_environment is not None:
-            plain_observation, _plain_info = plain_environment.reset(seed=seed)
-            if not np.array_equal(reset_observation, plain_observation):
-                raise ReferenceCorpusContractError("plain/instrumented reset observation differs")
-            if not _plain_boundaries_equal(
-                _plain_boundary(plain_environment), _plain_boundary(environment)
-            ):
-                raise ReferenceCorpusContractError("plain/instrumented reset state differs")
+        plain_observation, _plain_info = plain_environment.reset(seed=seed)
         runtime = inspect_reference_corpus_runtime(environment)
-        boundaries.append(_capture_boundary(environment, terminated=False, truncated=False))
-        if not np.array_equal(
-            np.asarray(reset_observation, dtype="<f8"), boundaries[0]["observation"]
-        ):
+        boundaries.append(
+            _capture_boundary(
+                environment,
+                returned_observation=reset_observation,
+                boundary_index=0,
+                terminated=False,
+                truncated=False,
+            )
+        )
+        plain_boundaries.append(
+            _capture_plain_boundary(
+                plain_environment,
+                returned_observation=plain_observation,
+                boundary_index=0,
+                terminated=False,
+                truncated=False,
+            )
+        )
+        _require_plain_boundary_equal(plain_boundaries[0], boundaries[0], boundary_index=0)
+        if not _exact_array_equal(reset_observation, boundaries[0]["observation"], dtype="<f8"):
             raise ReferenceCorpusContractError("reset return differs from canonical observation")
         initial_rng = boundaries[0]["rng_state"]
         for index in range(steps):
             action = actor.act(boundaries[-1]["observation"])
-            plain_reward: float | None = None
-            plain_observation_hash: str | None = None
-            if plain_environment is not None:
-                before_plain = _plain_boundary(plain_environment)
-                before_instrumented = _plain_boundary(environment)
-                if not _plain_boundaries_equal(before_plain, before_instrumented):
-                    raise ReferenceCorpusContractError("plain/instrumented pre-step state differs")
-                plain_observation, raw_plain_reward, plain_terminated, plain_truncated, _ = (
-                    plain_environment.step(action.physical_action.copy())
-                )
-                plain_reward = float(raw_plain_reward)
-                plain_observation_hash = array_sha256(
-                    np.ascontiguousarray(plain_observation, dtype="<f8")
-                )
-            returned_observation, reward, terminated, truncated, _info = environment.step(
-                action.physical_action.copy()
+            expected_action = np.ascontiguousarray(action.physical_action, dtype="<f4").copy(
+                order="C"
             )
+            plain_action = expected_action.copy(order="C")
+            instrumented_action = expected_action.copy(order="C")
+            if not _exact_array_equal(plain_action, instrumented_action, dtype="<f4"):
+                raise ReferenceCorpusContractError(f"action bytes differ at transition {index}")
+            plain_observation, raw_plain_reward, plain_terminated, plain_truncated, _ = (
+                plain_environment.step(plain_action)
+            )
+            returned_observation, reward, terminated, truncated, _info = environment.step(
+                instrumented_action
+            )
+            if _post_step_test_hook is not None:
+                _post_step_test_hook(environment, index)
             contact_samples, nonfoot = _contact_record(environment)
-            if plain_environment is not None:
-                if (
-                    not np.array_equal(returned_observation, plain_observation)
-                    or struct.pack(">d", float(reward)) != struct.pack(">d", plain_reward)
-                    or bool(terminated) is not bool(plain_terminated)
-                    or bool(truncated) is not bool(plain_truncated)
-                ):
-                    raise ReferenceCorpusContractError("plain/instrumented reward canary differs")
-                after_plain = _plain_boundary(plain_environment)
-                after_instrumented = _plain_boundary(environment)
-                if not _plain_boundaries_equal(after_plain, after_instrumented):
-                    raise ReferenceCorpusContractError("plain/instrumented post-step state differs")
+            next_index = index + 1
             next_boundary = _capture_boundary(
                 environment,
+                returned_observation=returned_observation,
+                boundary_index=next_index,
                 terminated=bool(terminated),
                 truncated=bool(truncated),
+            )
+            next_plain_boundary = _capture_plain_boundary(
+                plain_environment,
+                returned_observation=plain_observation,
+                boundary_index=next_index,
+                terminated=bool(plain_terminated),
+                truncated=bool(plain_truncated),
+            )
+            if not _exact_array_equal(
+                returned_observation, next_boundary["observation"], dtype="<f8"
+            ):
+                raise ReferenceCorpusContractError(
+                    f"returned observation differs from canonical boundary {next_index}"
+                )
+            if not _exact_array_equal(plain_action, expected_action, dtype="<f4") or not (
+                _exact_array_equal(instrumented_action, expected_action, dtype="<f4")
+            ):
+                raise ReferenceCorpusContractError(f"action bytes mutated at transition {index}")
+            if not _float_equal(float(raw_plain_reward), float(reward)):
+                raise ReferenceCorpusContractError(
+                    f"plain/instrumented reward differs at transition {index}"
+                )
+            if (bool(plain_terminated), bool(plain_truncated)) != (
+                bool(terminated),
+                bool(truncated),
+            ):
+                raise ReferenceCorpusContractError(
+                    f"plain/instrumented result flags differ at transition {index}"
+                )
+            _require_plain_boundary_equal(
+                next_plain_boundary,
+                next_boundary,
+                boundary_index=next_index,
             )
             if index < steps - 1 and (terminated or truncated):
                 raise ReferenceCorpusContractError("clip ended before its declared horizon")
@@ -639,13 +803,13 @@ def collect_reference_clip(
                     np.ascontiguousarray(returned_observation, dtype="<f8")
                 ),
                 "nonfoot_floor_contact": nonfoot,
+                "plain_physical_action": expected_action,
+                "plain_reward": float(raw_plain_reward),
             }
-            if plain_environment is not None:
-                transition["plain_reward"] = plain_reward
-                transition["plain_observation_sha256"] = plain_observation_hash
             transitions.append(transition)
             contacts_by_transition.append(contact_samples)
             boundaries.append(next_boundary)
+            plain_boundaries.append(next_plain_boundary)
         if any(
             sha256_json(boundary["rng_state"]) != sha256_json(initial_rng)
             for boundary in boundaries
@@ -655,28 +819,13 @@ def collect_reference_clip(
             )
         arrays = _arrays_from_records(
             boundaries,
+            plain_boundaries,
             transitions,
             contacts_by_transition,
             steps=steps,
-            screen_canary=compare_plain_rewards,
         )
-        validate_clip_arrays(arrays, steps=steps, screen_canary=compare_plain_rewards)
-        reward_canary: dict[str, object]
-        if compare_plain_rewards:
-            reward_canary = {
-                "status": "passed",
-                "role": "plain_vs_instrumented_equivalence_only",
-                "locomotion_metrics_may_read_reward": False,
-                "instrumented_reward_sha256": array_sha256(arrays["transition_reward"]),
-                "plain_reward_sha256": array_sha256(arrays["canary_plain_reward"]),
-                "visual_capture": "disabled_by_external_screen_design/v1",
-            }
-        else:
-            reward_canary = {
-                "status": "not_applicable",
-                "role": "replay_canary_only",
-                "locomotion_metrics_may_read_reward": False,
-            }
+        validate_clip_arrays(arrays, steps=steps, plain_comparison=True)
+        comparison = plain_comparison_receipt(arrays, steps=steps)
         return CollectedClip(
             clip_id=clip_id,
             clip_kind=clip_kind,
@@ -688,13 +837,12 @@ def collect_reference_clip(
             runtime_identity=runtime,
             rng_state=copy.deepcopy(initial_rng),
             actor_identity=identity,
-            reward_canary=reward_canary,
+            plain_comparison=comparison,
             collector_pid=os.getpid(),
         )
     finally:
         environment.close()
-        if plain_environment is not None:
-            plain_environment.close()
+        plain_environment.close()
 
 
 def clip_array_bindings(clip: CollectedClip) -> list[dict[str, object]]:

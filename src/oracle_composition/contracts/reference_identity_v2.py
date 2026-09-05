@@ -14,8 +14,9 @@ from types import MappingProxyType
 import numpy as np
 
 REFERENCE_IDENTITY_ID = "humanoid_same_runtime_reference_identity/v2"
-REPLAY_BUNDLE_ID = "humanoid_full_clip_replay_bundle/v1"
-FULL_CLIP_CERTIFICATE_ID = "humanoid_full_clip_tier_d_certificate/v1"
+REPLAY_BUNDLE_ID = "humanoid_full_clip_replay_bundle/v2"
+FULL_CLIP_CERTIFICATE_ID = "humanoid_full_clip_tier_d_certificate/v2"
+REPLAY_METHOD_VERSION = "predecessor_transition_cache_rebuild/v2"
 CORPUS_MANIFEST_ID = "humanoid_reference_corpus_36x3/v1"
 E3_MANIFEST_ID = "humanoid_same_state_fork_e3/v1"
 ROBOT_ID = "gymnasium/Humanoid-v5"
@@ -302,6 +303,7 @@ def validate_full_clip_certificate(value: Mapping[str, object]) -> dict[str, obj
         "transitions_verified",
         "covered_transition_indices_sha256",
         "verification_digest_sha256",
+        "replay_method_version",
         "all_hashes_verified",
         "all_transitions_passed",
         "first_failure",
@@ -309,8 +311,10 @@ def validate_full_clip_certificate(value: Mapping[str, object]) -> dict[str, obj
         "claim_ceiling",
     }
     require_exact_keys(value, expected_keys, field="full-clip certificate")
-    if value["certificate_id"] != FULL_CLIP_CERTIFICATE_ID or value["schema_version"] != 1:
+    if value["certificate_id"] != FULL_CLIP_CERTIFICATE_ID or value["schema_version"] != 2:
         raise ReferenceIdentityV2Error("full-clip certificate identity differs")
+    if value["replay_method_version"] != REPLAY_METHOD_VERSION:
+        raise ReferenceIdentityV2Error("full-clip replay method differs")
     steps = value["steps_expected"]
     if type(steps) is not int or not 1 <= steps <= 1000:
         raise ReferenceIdentityV2Error("certificate steps_expected is invalid")
@@ -458,6 +462,7 @@ __all__ = [
     "REFERENCE_IDENTITY_ID",
     "REFERENCE_SCHEMA_ID",
     "REFERENCE_WIDTH",
+    "REPLAY_METHOD_VERSION",
     "ArrayBindingV2",
     "ArtifactBindingV2",
     "ReferenceIdentityV2",

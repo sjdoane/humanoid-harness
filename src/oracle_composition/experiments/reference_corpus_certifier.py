@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from oracle_composition.contracts.reference_identity_v2 import (
+    REPLAY_METHOD_VERSION,
     ArtifactBindingV2,
     array_sha256,
     canonical_json_bytes,
@@ -50,7 +51,7 @@ from .reference_corpus_contract import (
     validate_bundle_manifest,
 )
 
-CERTIFIER_ID = "separate_process_all_transition_tier_d_certifier/v1"
+CERTIFIER_ID = "separate_process_all_transition_tier_d_certifier/v2"
 
 
 class FullClipReplayMismatch(RuntimeError):
@@ -196,6 +197,7 @@ def certify_bundle(
     artifact_root: Path,
     manifest_path: Path,
     manifest_sha256: str,
+    _skip_predecessor_transition_for_test: int | None = None,
 ) -> PublishedTierDCertificate:
     """Replay every transition and publish exactly one pass certificate."""
 
@@ -208,10 +210,14 @@ def certify_bundle(
         raise ReferenceCorpusContractError("running certifier source differs from the bundle")
     clip_id = core["clip_id"]
     steps = core["steps"]
-    screen_canary = core["clip_kind"] == "development_screen"
+    if _skip_predecessor_transition_for_test is not None and not (
+        type(_skip_predecessor_transition_for_test) is int
+        and 1 <= _skip_predecessor_transition_for_test < steps
+    ):
+        raise ReferenceCorpusContractError("skipped predecessor test transition is invalid")
     payload_binding = _payload_binding(core)
     payload = (root / payload_binding.object_path).read_bytes()
-    arrays = decode_clip_payload(payload, steps=steps, screen_canary=screen_canary)
+    arrays = decode_clip_payload(payload, steps=steps, plain_comparison=True)
     _verify_bundle_arrays(core, arrays)
     actor_binding = _binding_by_role(core, "strict_actor_npz")
     source_actor = core["source_actor"]
@@ -237,55 +243,98 @@ def certify_bundle(
     environment = make_reference_corpus_env()
     verification_digest = hashlib.sha256()
     try:
-        environment.reset(seed=0)
+        reset_observation, _reset_info = environment.reset(seed=core["seed"])
         observed_runtime = inspect_reference_corpus_runtime(environment)
         require_same_runtime(core["runtime_identity"], observed_runtime)
         import mujoco
 
         physical = environment.unwrapped
         for transition in range(steps):
-            mujoco.mj_setState(
-                physical.model,
-                physical.data,
-                arrays["boundary_integration_state"][transition],
-                mujoco.mjtState.mjSTATE_INTEGRATION,
-            )
-            restore_wrapper_state(
-                environment,
-                int(arrays["boundary_wrapper_elapsed"][transition]),
-                arrays["boundary_wrapper_flags"][transition],
-            )
-            restore_rng_state(physical, rng_state)
-            anchor = _capture_boundary(
-                environment,
-                terminated=bool(arrays["boundary_result_flags"][transition, 0]),
-                truncated=bool(arrays["boundary_result_flags"][transition, 1]),
-            )
-            for field, array_name in (
-                ("integration state", "boundary_integration_state"),
-                ("observation", "boundary_observation"),
-                ("cfrc_ext", "boundary_cfrc_ext"),
-                ("root x/y", "boundary_root_xy"),
-            ):
-                _require_array(
-                    anchor[array_name.removeprefix("boundary_")],
-                    arrays[array_name][transition],
-                    clip_id=clip_id,
-                    transition=transition,
-                    field=f"restored {field}",
+            verify_anchor = True
+            if transition == 0:
+                anchor_observation = reset_observation
+                anchor_terminated = False
+                anchor_truncated = False
+            elif transition == _skip_predecessor_transition_for_test:
+                environment.reset(seed=core["seed"] + 1)
+                mujoco.mj_setState(
+                    physical.model,
+                    physical.data,
+                    arrays["boundary_integration_state"][transition],
+                    mujoco.mjtState.mjSTATE_INTEGRATION,
                 )
-            if not _float_equal(
-                anchor["simulation_time"], arrays["boundary_simulation_time"][transition]
-            ):
-                raise FullClipReplayMismatch(clip_id, transition, "restored simulation time")
-            if anchor["wrapper_elapsed"] != int(
-                arrays["boundary_wrapper_elapsed"][transition]
-            ) or not np.array_equal(
-                anchor["wrapper_flags"], arrays["boundary_wrapper_flags"][transition]
-            ):
-                raise FullClipReplayMismatch(clip_id, transition, "restored wrapper state")
-            if not _float_equal(anchor["torso_up_z"], arrays["boundary_torso_up_z"][transition]):
-                raise FullClipReplayMismatch(clip_id, transition, "restored torso up axis")
+                restore_wrapper_state(
+                    environment,
+                    int(arrays["boundary_wrapper_elapsed"][transition]),
+                    arrays["boundary_wrapper_flags"][transition],
+                )
+                restore_rng_state(physical, rng_state)
+                anchor_observation = arrays["boundary_observation"][transition]
+                anchor_terminated = bool(arrays["boundary_result_flags"][transition, 0])
+                anchor_truncated = bool(arrays["boundary_result_flags"][transition, 1])
+                verify_anchor = False
+            else:
+                predecessor = transition - 1
+                mujoco.mj_setState(
+                    physical.model,
+                    physical.data,
+                    arrays["boundary_integration_state"][predecessor],
+                    mujoco.mjtState.mjSTATE_INTEGRATION,
+                )
+                restore_wrapper_state(
+                    environment,
+                    int(arrays["boundary_wrapper_elapsed"][predecessor]),
+                    arrays["boundary_wrapper_flags"][predecessor],
+                )
+                restore_rng_state(physical, rng_state)
+                (
+                    anchor_observation,
+                    _discarded_reward,
+                    anchor_terminated,
+                    anchor_truncated,
+                    _discarded_info,
+                ) = environment.step(arrays["transition_physical_action"][predecessor].copy())
+            if verify_anchor:
+                anchor = _capture_boundary(
+                    environment,
+                    returned_observation=anchor_observation,
+                    boundary_index=transition,
+                    terminated=bool(anchor_terminated),
+                    truncated=bool(anchor_truncated),
+                )
+                for field, array_name in (
+                    ("integration state", "boundary_integration_state"),
+                    ("observation", "boundary_observation"),
+                    ("cfrc_ext", "boundary_cfrc_ext"),
+                    ("root x/y", "boundary_root_xy"),
+                ):
+                    _require_array(
+                        anchor[array_name.removeprefix("boundary_")],
+                        arrays[array_name][transition],
+                        clip_id=clip_id,
+                        transition=transition,
+                        field=f"restored {field}",
+                    )
+                if not _float_equal(
+                    anchor["simulation_time"], arrays["boundary_simulation_time"][transition]
+                ):
+                    raise FullClipReplayMismatch(clip_id, transition, "restored simulation time")
+                if anchor["wrapper_elapsed"] != int(
+                    arrays["boundary_wrapper_elapsed"][transition]
+                ) or not np.array_equal(
+                    anchor["wrapper_flags"], arrays["boundary_wrapper_flags"][transition]
+                ):
+                    raise FullClipReplayMismatch(clip_id, transition, "restored wrapper state")
+                if not np.array_equal(
+                    anchor["result_flags"], arrays["boundary_result_flags"][transition]
+                ):
+                    raise FullClipReplayMismatch(clip_id, transition, "restored result flags")
+                if not _float_equal(
+                    anchor["torso_up_z"], arrays["boundary_torso_up_z"][transition]
+                ):
+                    raise FullClipReplayMismatch(clip_id, transition, "restored torso up axis")
+            else:
+                anchor = {"observation": anchor_observation}
             previous_quaternion = (
                 arrays["reference_rows"][transition - 1, 1:5] if transition > 0 else None
             )
@@ -359,6 +408,8 @@ def certify_bundle(
                 raise FullClipReplayMismatch(clip_id, transition, "termination flags")
             next_boundary = _capture_boundary(
                 environment,
+                returned_observation=returned,
+                boundary_index=transition + 1,
                 terminated=bool(terminated),
                 truncated=bool(truncated),
             )
@@ -418,8 +469,8 @@ def certify_bundle(
     finally:
         environment.close()
     certificate = {
-        "certificate_id": "humanoid_full_clip_tier_d_certificate/v1",
-        "schema_version": 1,
+        "certificate_id": "humanoid_full_clip_tier_d_certificate/v2",
+        "schema_version": 2,
         "clip_id": clip_id,
         "bundle_manifest_sha256": manifest_sha256,
         "reference_identity_sha256": manifest["reference_identity_sha256"],
@@ -430,6 +481,7 @@ def certify_bundle(
         "transitions_verified": steps,
         "covered_transition_indices_sha256": transition_indices_sha256(steps),
         "verification_digest_sha256": verification_digest.hexdigest(),
+        "replay_method_version": REPLAY_METHOD_VERSION,
         "all_hashes_verified": True,
         "all_transitions_passed": True,
         "first_failure": None,
@@ -459,11 +511,15 @@ def certify_request(path: Path) -> dict[str, object]:
         raise ReferenceCorpusContractError("certifier request is invalid JSON") from exc
     if canonical_json_bytes(request) != encoded or set(request) != {
         "request_id",
+        "replay_method_version",
         "artifact_root",
         "bundles",
     }:
         raise ReferenceCorpusContractError("certifier request differs")
-    if request["request_id"] != "reference_corpus_tier_d_certifier_request/v1":
+    if (
+        request["request_id"] != "reference_corpus_tier_d_certifier_request/v2"
+        or request["replay_method_version"] != REPLAY_METHOD_VERSION
+    ):
         raise ReferenceCorpusContractError("certifier request identity differs")
     root = Path(request["artifact_root"])
     if type(request["bundles"]) is not list or not request["bundles"]:
@@ -493,6 +549,7 @@ def certify_request(path: Path) -> dict[str, object]:
     return {
         "certifier_id": CERTIFIER_ID,
         "certifier_pid": os.getpid(),
+        "replay_method_version": REPLAY_METHOD_VERSION,
         "certificate_count": len(results),
         "certificates": results,
     }

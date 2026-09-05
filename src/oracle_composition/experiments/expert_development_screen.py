@@ -35,7 +35,7 @@ class DevelopmentScreenClip:
     certificate_sha256: str
     certificate: Mapping[str, object]
     arrays: Mapping[str, np.ndarray]
-    reward_canary: Mapping[str, object]
+    plain_comparison: Mapping[str, object]
     source_hashes: Mapping[str, str]
 
 
@@ -153,16 +153,16 @@ def evaluate_public_expert_development_screen(
             raise ReferenceCorpusContractError("screen Tier-D certificate binding differs")
         if dict(clip.source_hashes) != expected_source_hashes:
             raise ReferenceCorpusContractError("screen evaluator or metric source differs")
-        canary = clip.reward_canary
+        comparison = clip.plain_comparison
         if (
-            type(canary) is not dict
-            or canary.get("status") != "passed"
-            or canary.get("role") != "plain_vs_instrumented_equivalence_only"
-            or canary.get("locomotion_metrics_may_read_reward") is not False
-            or canary.get("instrumented_reward_sha256") != canary.get("plain_reward_sha256")
-            or canary.get("visual_capture") != "disabled_by_external_screen_design/v1"
+            type(comparison) is not dict
+            or comparison.get("status") != "passed"
+            or comparison.get("steps_compared") != 1000
+            or comparison.get("boundaries_compared") != 1001
+            or comparison.get("field_hashes", {}).get("reward", {}).get("instrumented_sha256")
+            != comparison.get("field_hashes", {}).get("reward", {}).get("plain_sha256")
         ):
-            raise ReferenceCorpusContractError("screen reward equivalence canary differs")
+            raise ReferenceCorpusContractError("screen plain-runtime comparison differs")
         episode = development_episode_from_arrays(seed=clip.seed, arrays=clip.arrays)
         episodes.append(episode)
         clip_bindings.append(
@@ -171,7 +171,7 @@ def evaluate_public_expert_development_screen(
                 "bundle_manifest_sha256": clip.bundle_manifest_sha256,
                 "reference_identity_sha256": clip.reference_identity_sha256,
                 "tier_d_certificate_sha256": clip.certificate_sha256,
-                "reward_canary_sha256": sha256_json(dict(canary)),
+                "plain_comparison_sha256": sha256_json(dict(comparison)),
             }
         )
     cohort = summarize_tqc_development_cohort(

@@ -36,7 +36,8 @@ from oracle_composition.tracking.humanoid_reference import (
     HUMANOID_REFERENCE_SCHEMA,
 )
 
-CLIP_PAYLOAD_ID = "humanoid_full_clip_arrays_canonical_npz/v1"
+CLIP_PAYLOAD_ID = "humanoid_full_clip_arrays_canonical_npz/v2"
+PLAIN_COMPARISON_ID = "plain_humanoid_v5_per_step_bitwise/v2"
 RUNTIME_ID = "humanoid_reference_corpus_runtime/v1"
 WRAPPER_STATE_ID = "gymnasium_exact_reference_corpus_wrapper_state/v1"
 REFERENCE_CONSTRUCTION_ID = "humanoid_boundary_state_to_45d_sign_continuous/v1"
@@ -226,7 +227,7 @@ def validate_reference_window_indices(
 
 
 def _array_schema(
-    steps: int, contacts: int, *, screen_canary: bool
+    steps: int, contacts: int, *, plain_comparison: bool
 ) -> dict[str, tuple[np.dtype[Any], tuple[int, ...]]]:
     boundaries = steps + 1
     schema: dict[str, tuple[np.dtype[Any], tuple[int, ...]]] = {
@@ -273,13 +274,170 @@ def _array_schema(
         "contact_geom2_name": (np.dtype(f"|S{GEOM_NAME_BYTES}"), (contacts,)),
         "contact_force_torque": (np.dtype("<f8"), (contacts, 6)),
     }
-    if screen_canary:
-        schema["canary_plain_reward"] = (np.dtype("<f8"), (steps,))
-        schema["canary_plain_returned_observation_sha256"] = (
-            np.dtype("|S64"),
-            (steps,),
+    if plain_comparison:
+        schema.update(
+            {
+                "plain_boundary_integration_state": (
+                    np.dtype("<f8"),
+                    (boundaries, STATE_SIZE),
+                ),
+                "plain_boundary_observation": (
+                    np.dtype("<f8"),
+                    (boundaries, OBSERVATION_WIDTH),
+                ),
+                "plain_boundary_cfrc_ext": (
+                    np.dtype("<f8"),
+                    (boundaries, *CFRCE_SHAPE),
+                ),
+                "plain_boundary_simulation_time": (np.dtype("<f8"), (boundaries,)),
+                "plain_boundary_wrapper_elapsed": (np.dtype("<i8"), (boundaries,)),
+                "plain_boundary_wrapper_flags": (
+                    np.dtype("|u1"),
+                    (boundaries, len(WRAPPER_FLAG_NAMES)),
+                ),
+                "plain_boundary_result_flags": (np.dtype("|u1"), (boundaries, 2)),
+                "plain_transition_physical_action": (
+                    np.dtype("<f4"),
+                    (steps, ACTION_WIDTH),
+                ),
+                "plain_transition_reward": (np.dtype("<f8"), (steps,)),
+                "plain_comparison_boundary_sha256": (np.dtype("|S64"), (boundaries,)),
+                "plain_comparison_transition_sha256": (np.dtype("|S64"), (steps,)),
+            }
         )
     return schema
+
+
+def _array_bytes_equal(left: np.ndarray, right: np.ndarray) -> bool:
+    return (
+        left.dtype == right.dtype
+        and left.shape == right.shape
+        and left.tobytes(order="C") == right.tobytes(order="C")
+    )
+
+
+def plain_comparison_boundary_sha256(arrays: Mapping[str, np.ndarray], index: int) -> str:
+    return sha256_json(
+        {
+            "index": index,
+            "integration_state_sha256": array_sha256(
+                arrays["plain_boundary_integration_state"][index]
+            ),
+            "qpos_sha256": array_sha256(
+                np.ascontiguousarray(arrays["plain_boundary_integration_state"][index, QPOS_SLICE])
+            ),
+            "qvel_sha256": array_sha256(
+                np.ascontiguousarray(arrays["plain_boundary_integration_state"][index, QVEL_SLICE])
+            ),
+            "cfrc_ext_sha256": array_sha256(arrays["plain_boundary_cfrc_ext"][index]),
+            "observation_sha256": array_sha256(arrays["plain_boundary_observation"][index]),
+            "simulation_time_ieee754": struct.pack(
+                ">d", float(arrays["plain_boundary_simulation_time"][index])
+            ).hex(),
+            "wrapper_elapsed": int(arrays["plain_boundary_wrapper_elapsed"][index]),
+            "wrapper_flags": [
+                int(value) for value in arrays["plain_boundary_wrapper_flags"][index]
+            ],
+            "result_flags": [int(value) for value in arrays["plain_boundary_result_flags"][index]],
+        }
+    )
+
+
+def plain_comparison_transition_sha256(arrays: Mapping[str, np.ndarray], index: int) -> str:
+    return sha256_json(
+        {
+            "index": index,
+            "action_bytes_sha256": array_sha256(arrays["plain_transition_physical_action"][index]),
+            "returned_observation_sha256": array_sha256(
+                arrays["plain_boundary_observation"][index + 1]
+            ),
+            "reward_ieee754": struct.pack(
+                ">d", float(arrays["plain_transition_reward"][index])
+            ).hex(),
+            "next_boundary_sha256": plain_comparison_boundary_sha256(arrays, index + 1),
+        }
+    )
+
+
+def plain_comparison_receipt(arrays: Mapping[str, np.ndarray], *, steps: int) -> dict[str, object]:
+    field_pairs = {
+        "action_bytes": ("transition_physical_action", "plain_transition_physical_action"),
+        "integration_state": (
+            "boundary_integration_state",
+            "plain_boundary_integration_state",
+        ),
+        "cfrc_ext": ("boundary_cfrc_ext", "plain_boundary_cfrc_ext"),
+        "boundary_observation": (
+            "boundary_observation",
+            "plain_boundary_observation",
+        ),
+        "reward": ("transition_reward", "plain_transition_reward"),
+        "simulation_time": (
+            "boundary_simulation_time",
+            "plain_boundary_simulation_time",
+        ),
+        "wrapper_counter": (
+            "boundary_wrapper_elapsed",
+            "plain_boundary_wrapper_elapsed",
+        ),
+        "wrapper_flags": (
+            "boundary_wrapper_flags",
+            "plain_boundary_wrapper_flags",
+        ),
+        "result_flags": ("boundary_result_flags", "plain_boundary_result_flags"),
+    }
+    hashes: dict[str, dict[str, str]] = {}
+    for field, (instrumented_name, plain_name) in field_pairs.items():
+        instrumented = np.ascontiguousarray(arrays[instrumented_name])
+        plain = np.ascontiguousarray(arrays[plain_name])
+        if not _array_bytes_equal(instrumented, plain):
+            raise ReferenceCorpusContractError(f"plain comparison {field} differs")
+        hashes[field] = {
+            "instrumented_sha256": array_sha256(instrumented),
+            "plain_sha256": array_sha256(plain),
+        }
+    returned = np.ascontiguousarray(arrays["transition_returned_observation"])
+    plain_returned = np.ascontiguousarray(arrays["plain_boundary_observation"][1:])
+    if not _array_bytes_equal(returned, plain_returned):
+        raise ReferenceCorpusContractError("plain comparison returned_observation differs")
+    hashes["returned_observation"] = {
+        "instrumented_sha256": array_sha256(returned),
+        "plain_sha256": array_sha256(plain_returned),
+    }
+    instrumented_state = arrays["boundary_integration_state"]
+    plain_state = arrays["plain_boundary_integration_state"]
+    for field, state_slice in (("qpos", QPOS_SLICE), ("qvel", QVEL_SLICE)):
+        instrumented = np.ascontiguousarray(instrumented_state[:, state_slice])
+        plain = np.ascontiguousarray(plain_state[:, state_slice])
+        if not _array_bytes_equal(instrumented, plain):
+            raise ReferenceCorpusContractError(f"plain comparison {field} differs")
+        hashes[field] = {
+            "instrumented_sha256": array_sha256(instrumented),
+            "plain_sha256": array_sha256(plain),
+        }
+    return {
+        "comparison_id": PLAIN_COMPARISON_ID,
+        "status": "passed",
+        "steps_compared": steps,
+        "boundaries_compared": steps + 1,
+        "bitwise_equal_fields": [
+            "action_bytes",
+            "integration_state",
+            "qpos",
+            "qvel",
+            "cfrc_ext",
+            "boundary_observation",
+            "returned_observation",
+            "reward",
+            "simulation_time",
+            "wrapper_counter",
+            "wrapper_flags",
+            "result_flags",
+        ],
+        "field_hashes": hashes,
+        "boundary_receipts_sha256": array_sha256(arrays["plain_comparison_boundary_sha256"]),
+        "transition_receipts_sha256": array_sha256(arrays["plain_comparison_transition_sha256"]),
+    }
 
 
 def _hash_ascii(values: np.ndarray, *, name: str) -> None:
@@ -370,14 +528,14 @@ def validate_clip_arrays(
     values: Mapping[str, np.ndarray],
     *,
     steps: int,
-    screen_canary: bool,
+    plain_comparison: bool,
 ) -> dict[str, np.ndarray]:
     """Validate every serialized array and all cross-array invariants."""
 
     if type(steps) is not int or not 1 <= steps <= 1000:
         raise ReferenceCorpusContractError("steps must be in [1, 1000]")
-    if type(screen_canary) is not bool:
-        raise ReferenceCorpusContractError("screen_canary must be boolean")
+    if type(plain_comparison) is not bool:
+        raise ReferenceCorpusContractError("plain_comparison must be boolean")
     if type(values) is not dict:
         raise ReferenceCorpusContractError("clip arrays must be an exact mapping")
     offsets = values.get("contact_offsets")
@@ -388,7 +546,7 @@ def validate_clip_arrays(
     if offsets[0] != 0 or np.any(np.diff(offsets) < 0):
         raise ReferenceCorpusContractError("contact offsets must be contiguous and monotone")
     contacts = int(offsets[-1])
-    schema = _array_schema(steps, contacts, screen_canary=screen_canary)
+    schema = _array_schema(steps, contacts, plain_comparison=plain_comparison)
     if set(values) != set(schema):
         raise ReferenceCorpusContractError("clip array names differ from the exact schema")
     result: dict[str, np.ndarray] = {}
@@ -403,6 +561,11 @@ def validate_clip_arrays(
         "transition_next_wrapper_flags",
         "transition_nonfoot_floor_contact",
     )
+    if plain_comparison:
+        boolean_arrays += (
+            "plain_boundary_wrapper_flags",
+            "plain_boundary_result_flags",
+        )
     if any(np.any(result[name] > 1) for name in boolean_arrays):
         raise ReferenceCorpusContractError("boolean byte arrays must contain only zero or one")
     if not np.array_equal(result["boundary_wrapper_elapsed"], np.arange(steps + 1)):
@@ -506,6 +669,11 @@ def validate_clip_arrays(
         "transition_contact_sequence_sha256",
         "transition_record_sha256",
     )
+    if plain_comparison:
+        hash_arrays += (
+            "plain_comparison_boundary_sha256",
+            "plain_comparison_transition_sha256",
+        )
     for name in hash_arrays:
         _hash_ascii(result[name], name=name)
     for index in range(steps + 1):
@@ -542,6 +710,22 @@ def validate_clip_arrays(
         for name, digest in expected.items():
             if bytes(result[name][index]).decode() != digest:
                 raise ReferenceCorpusContractError(f"{name} differs at transition {index}")
+    if plain_comparison:
+        receipt = plain_comparison_receipt(result, steps=steps)
+        for index in range(steps + 1):
+            observed = bytes(result["plain_comparison_boundary_sha256"][index]).decode()
+            if observed != plain_comparison_boundary_sha256(result, index):
+                raise ReferenceCorpusContractError(
+                    f"plain comparison boundary receipt differs at boundary {index}"
+                )
+        for index in range(steps):
+            observed = bytes(result["plain_comparison_transition_sha256"][index]).decode()
+            if observed != plain_comparison_transition_sha256(result, index):
+                raise ReferenceCorpusContractError(
+                    f"plain comparison transition receipt differs at transition {index}"
+                )
+        if receipt["status"] != "passed":  # pragma: no cover - defensive invariant
+            raise ReferenceCorpusContractError("plain comparison receipt did not pass")
     return result
 
 
@@ -567,9 +751,9 @@ def encode_clip_payload(
     values: dict[str, np.ndarray],
     *,
     steps: int,
-    screen_canary: bool,
+    plain_comparison: bool,
 ) -> bytes:
-    arrays = validate_clip_arrays(values, steps=steps, screen_canary=screen_canary)
+    arrays = validate_clip_arrays(values, steps=steps, plain_comparison=plain_comparison)
     stream = io.BytesIO()
     with ZipFile(stream, mode="w", compression=ZIP_DEFLATED, compresslevel=6) as archive:
         for name in sorted(arrays):
@@ -590,7 +774,7 @@ def decode_clip_payload(
     payload: bytes,
     *,
     steps: int,
-    screen_canary: bool,
+    plain_comparison: bool,
 ) -> dict[str, np.ndarray]:
     if type(payload) is not bytes or not payload or len(payload) > MAX_CLIP_PAYLOAD_BYTES:
         raise ReferenceCorpusContractError("clip payload bytes are invalid")
@@ -624,8 +808,8 @@ def decode_clip_payload(
         raise
     except (BadZipFile, EOFError, OSError, ValueError) as exc:
         raise ReferenceCorpusContractError(f"clip payload is invalid: {exc}") from exc
-    validated = validate_clip_arrays(arrays, steps=steps, screen_canary=screen_canary)
-    if encode_clip_payload(validated, steps=steps, screen_canary=screen_canary) != payload:
+    validated = validate_clip_arrays(arrays, steps=steps, plain_comparison=plain_comparison)
+    if encode_clip_payload(validated, steps=steps, plain_comparison=plain_comparison) != payload:
         raise ReferenceCorpusContractError("clip payload bytes are not canonical")
     return validated
 
@@ -775,7 +959,7 @@ def validate_bundle_manifest(value: Mapping[str, object]) -> dict[str, object]:
     }
     if type(value) is not dict or set(value) != expected_keys:
         raise ReferenceCorpusContractError("bundle manifest keys differ")
-    if value["bundle_id"] != "humanoid_full_clip_replay_bundle/v1" or value["schema_version"] != 1:
+    if value["bundle_id"] != "humanoid_full_clip_replay_bundle/v2" or value["schema_version"] != 2:
         raise ReferenceCorpusContractError("bundle manifest identity differs")
     core = value["core"]
     if type(core) is not dict:
@@ -803,7 +987,7 @@ def validate_bundle_manifest(value: Mapping[str, object]) -> dict[str, object]:
         "policy_visible_input",
         "controller_state",
         "rng_state",
-        "reward_canary",
+        "plain_comparison",
         "source_hashes",
         "same_host_determinism_scope",
     }
@@ -1012,38 +1196,57 @@ def validate_bundle_manifest(value: Mapping[str, object]) -> dict[str, object]:
             raise ReferenceCorpusContractError(f"runtime {role} differs from its bound object")
         if size_field is not None and matches[0].byte_count != core["runtime_identity"][size_field]:
             raise ReferenceCorpusContractError(f"runtime {role} size differs")
-    reward_canary = core["reward_canary"]
-    if type(reward_canary) is not dict:
-        raise ReferenceCorpusContractError("reward canary must be an exact mapping")
-    if core["clip_kind"] == "development_screen":
+    comparison = core["plain_comparison"]
+    expected_comparison_fields = [
+        "action_bytes",
+        "integration_state",
+        "qpos",
+        "qvel",
+        "cfrc_ext",
+        "boundary_observation",
+        "returned_observation",
+        "reward",
+        "simulation_time",
+        "wrapper_counter",
+        "wrapper_flags",
+        "result_flags",
+    ]
+    if (
+        type(comparison) is not dict
+        or set(comparison)
+        != {
+            "comparison_id",
+            "status",
+            "steps_compared",
+            "boundaries_compared",
+            "bitwise_equal_fields",
+            "field_hashes",
+            "boundary_receipts_sha256",
+            "transition_receipts_sha256",
+        }
+        or comparison["comparison_id"] != PLAIN_COMPARISON_ID
+        or comparison["status"] != "passed"
+        or comparison["steps_compared"] != core["steps"]
+        or comparison["boundaries_compared"] != core["boundaries"]
+        or comparison["bitwise_equal_fields"] != expected_comparison_fields
+        or type(comparison["field_hashes"]) is not dict
+        or set(comparison["field_hashes"]) != set(expected_comparison_fields)
+    ):
+        raise ReferenceCorpusContractError("plain comparison receipt differs")
+    for field, hashes in comparison["field_hashes"].items():
         if (
-            set(reward_canary)
-            != {
-                "status",
-                "role",
-                "locomotion_metrics_may_read_reward",
-                "instrumented_reward_sha256",
-                "plain_reward_sha256",
-                "visual_capture",
-            }
-            or reward_canary["status"] != "passed"
-            or reward_canary["role"] != "plain_vs_instrumented_equivalence_only"
-            or reward_canary["locomotion_metrics_may_read_reward"] is not False
-            or reward_canary["instrumented_reward_sha256"] != reward_canary["plain_reward_sha256"]
-            or reward_canary["visual_capture"] != "disabled_by_external_screen_design/v1"
+            type(hashes) is not dict
+            or set(hashes) != {"instrumented_sha256", "plain_sha256"}
+            or hashes["instrumented_sha256"] != hashes["plain_sha256"]
         ):
-            raise ReferenceCorpusContractError("development-screen reward canary differs")
-        for field in ("instrumented_reward_sha256", "plain_reward_sha256"):
-            try:
-                require_sha256(reward_canary[field], field=field)
-            except ReferenceIdentityV2Error as exc:
-                raise ReferenceCorpusContractError(str(exc)) from exc
-    elif reward_canary != {
-        "status": "not_applicable",
-        "role": "replay_canary_only",
-        "locomotion_metrics_may_read_reward": False,
-    }:
-        raise ReferenceCorpusContractError("corpus reward canary differs")
+            raise ReferenceCorpusContractError(f"plain comparison {field} hash differs")
+        require_sha256(hashes["plain_sha256"], field=f"plain comparison {field}")
+    for field, array_name in (
+        ("boundary_receipts_sha256", "plain_comparison_boundary_sha256"),
+        ("transition_receipts_sha256", "plain_comparison_transition_sha256"),
+    ):
+        if comparison[field] != array_sha256_from_binding(core["array_bindings"], array_name):
+            raise ReferenceCorpusContractError(f"plain comparison {field} differs")
     if core.get("core_sha256", False):
         raise ReferenceCorpusContractError("bundle core must not contain its own hash")
     if value["core_sha256"] != sha256_json(core):
@@ -1130,6 +1333,7 @@ __all__ = [
     "EXPECTED_STATE_COMPONENT_SIZES",
     "GEOM_NAME_BYTES",
     "OBSERVATION_WIDTH",
+    "PLAIN_COMPARISON_ID",
     "POLICY_INPUT_ID",
     "QPOS_SLICE",
     "QVEL_SLICE",
@@ -1149,6 +1353,9 @@ __all__ = [
     "derive_reference_row",
     "derive_reference_rows",
     "encode_clip_payload",
+    "plain_comparison_boundary_sha256",
+    "plain_comparison_receipt",
+    "plain_comparison_transition_sha256",
     "reference_schema_payload",
     "reference_window_index_arrays",
     "require_same_runtime",

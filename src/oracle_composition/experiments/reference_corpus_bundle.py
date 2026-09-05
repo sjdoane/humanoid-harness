@@ -26,11 +26,12 @@ from .reference_corpus_contract import (
     WRAPPER_STATE_ID,
     array_bindings,
     encode_clip_payload,
+    plain_comparison_receipt,
     reference_schema_payload,
     validate_bundle_manifest,
 )
 
-BUNDLE_PUBLISHER_ID = "content_addressed_reference_replay_bundle_publisher/v1"
+BUNDLE_PUBLISHER_ID = "content_addressed_reference_replay_bundle_publisher/v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +143,7 @@ def publish_clip_bundle(
     payload = encode_clip_payload(
         clip.arrays,
         steps=clip.steps,
-        screen_canary=clip.clip_kind == "development_screen",
+        plain_comparison=True,
     )
     payload_sha256 = hashlib.sha256(payload).hexdigest()
     payload_path = clip_directory / f"payload-{payload_sha256}.npz"
@@ -198,6 +199,9 @@ def publish_clip_bundle(
         role: _binding_by_role(bound, role).sha256
         for role in ("collector_source", "certifier_source", "metric_source")
     }
+    expected_comparison = plain_comparison_receipt(clip.arrays, steps=clip.steps)
+    if canonical_json_bytes(clip.plain_comparison) != canonical_json_bytes(expected_comparison):
+        raise ValueError("plain comparison receipt differs from clip arrays")
     core: dict[str, object] = {
         "artifact_type": "same_runtime_full_integration_replay",
         "clip_id": clip.clip_id,
@@ -257,7 +261,7 @@ def publish_clip_bundle(
             "binding": rng_binding.to_dict(),
             "boundary_hash_array": "boundary_rng_state_sha256",
         },
-        "reward_canary": clip.reward_canary,
+        "plain_comparison": clip.plain_comparison,
         "source_hashes": source_hashes,
         "same_host_determinism_scope": "same_host_same_process_settings_bitwise/v1",
     }
@@ -289,8 +293,8 @@ def publish_clip_bundle(
         },
     )
     manifest = {
-        "bundle_id": "humanoid_full_clip_replay_bundle/v1",
-        "schema_version": 1,
+        "bundle_id": "humanoid_full_clip_replay_bundle/v2",
+        "schema_version": 2,
         "core": core,
         "core_sha256": core_sha256,
         "reference_identity": reference_identity.to_dict(),
