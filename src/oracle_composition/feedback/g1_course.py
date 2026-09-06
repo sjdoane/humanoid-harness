@@ -391,13 +391,13 @@ def _training_telemetry_diagnosis(
                 f"episode-return means {first_return:.6g}/{last_return:.6g}"
             )
         else:
-            first_ppo = completed[0]["episodes"]["ppo_input_returns"]["mean"]
-            last_ppo = completed[-1]["episodes"]["ppo_input_returns"]["mean"]
+            first_ppo = completed[0]["episodes"]["scaled_environment_returns"]["mean"]
+            last_ppo = completed[-1]["episodes"]["scaled_environment_returns"]["mean"]
             first_raw = completed[0]["episodes"]["raw_environment_returns"]["mean"]
             last_raw = completed[-1]["episodes"]["raw_environment_returns"]["mean"]
             episode_text = (
                 f"{total_completed} completed episodes; first/last available rollout "
-                f"PPO-input return means {first_ppo:.6g}/{last_ppo:.6g}; raw environment "
+                f"Scaled pre-bootstrap return means {first_ppo:.6g}/{last_ppo:.6g}; raw environment "
                 f"return means {first_raw:.6g}/{last_raw:.6g}"
             )
     else:

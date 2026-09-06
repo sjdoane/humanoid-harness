@@ -460,6 +460,8 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         "venv": venv,
         "gmt_assets": loaded.assets,
     }
+    if loaded.course_trainer is not None:
+        inputs["trainer"] = effective_training_contract(loaded.course_trainer)
     return _PlanMaterial(
         root=root,
         commit=commit,

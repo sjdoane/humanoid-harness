@@ -184,7 +184,7 @@ def test_scaled_v2_telemetry_names_ppo_input_and_raw_environment_returns(tmp_pat
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     episode = rows[0]["episodes"]
     assert "returns" not in episode
-    assert episode["ppo_input_returns"]["mean"] == 1.0
+    assert episode["scaled_environment_returns"]["mean"] == 1.0
     assert episode["raw_environment_returns"]["mean"] == 64.0
     assert descriptor["telemetry_id"] == "gmt_g1_ppo_training_telemetry/v2"
     validate_training_telemetry_descriptor(

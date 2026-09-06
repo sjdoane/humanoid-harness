@@ -231,8 +231,8 @@ class EpisodeAccumulator:
         episodes, self.completed = self.completed, []
         returns = (
             {
-                "ppo_input_returns": _moments(
-                    [row["return"] for row in episodes], "PPO-input episode returns"
+                "scaled_environment_returns": _moments(
+                    [row["return"] for row in episodes], "scaled pre-bootstrap episode returns"
                 ),
                 "raw_environment_returns": _moments(
                     [row["raw_return"] for row in episodes], "raw environment episode returns"
@@ -269,7 +269,7 @@ class EpisodeAccumulator:
                 episode["return"] = float(self.returns[index])
             else:
                 assert self.raw_returns is not None
-                episode["ppo_input_return"] = float(self.returns[index])
+                episode["scaled_environment_return"] = float(self.returns[index])
                 episode["raw_environment_return"] = float(self.raw_returns[index])
             result.append(episode)
         return result
@@ -495,7 +495,7 @@ def _valid_episode_counts(value: object, *, scaled: bool) -> bool:
         "terminal_true",
     }
     required.update(
-        {"ppo_input_returns", "raw_environment_returns"} if scaled else {"returns"}
+        {"scaled_environment_returns", "raw_environment_returns"} if scaled else {"returns"}
     )
     if set(value) != required or not all(
         _valid_nonnegative_count(value[name]) for name in ("completed", "falls", "horizons")
@@ -508,7 +508,7 @@ def _valid_episode_counts(value: object, *, scaled: bool) -> bool:
         or not all(
             _valid_moments(value[name], completed)
             for name in (
-                ("ppo_input_returns", "raw_environment_returns")
+                ("scaled_environment_returns", "raw_environment_returns")
                 if scaled
                 else ("returns",)
             )
@@ -559,7 +559,7 @@ def _valid_incomplete(value: object, *, scaled: bool) -> bool:
     if type(value) is not list:
         return False
     expected = (
-        {"length", "last_metrics", "ppo_input_return", "raw_environment_return"}
+        {"length", "last_metrics", "scaled_environment_return", "raw_environment_return"}
         if scaled
         else {"length", "last_metrics", "return"}
     )

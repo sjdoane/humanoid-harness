@@ -356,7 +356,7 @@ def test_scaled_feedback_names_ppo_input_and_raw_return_units(tmp_path, monkeypa
     diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())[
         "diagnosis"
     ]
-    assert "PPO-input return means 1/1" in diagnosis
+    assert "Scaled pre-bootstrap return means 1/1" in diagnosis
     assert "raw environment return means 64/64" in diagnosis
     assert "value loss is in scaled optimization-reward units" in diagnosis
     assert "not comparable to value loss from raw-reward runs" in diagnosis

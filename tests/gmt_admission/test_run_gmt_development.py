@@ -448,6 +448,37 @@ def test_profiles_and_commands_are_fixed(tmp_path: Path) -> None:
     assert DEVELOPMENT._profile("course", "train")[0].wall_seconds == 1_200
 
 
+@pytest.mark.parametrize("scaled", [False, True])
+def test_exact_request_pins_opt_in_trainer_without_changing_raw_input_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scaled: bool
+) -> None:
+    loaded = _loaded(tmp_path, mode="train", scaled=scaled)
+    root = tmp_path / "repo"
+    root.mkdir()
+    request = DEVELOPMENT.DevelopmentRequest(
+        workload="course",
+        repository_root=root,
+        venv_python=tmp_path / ".venv/bin/python",
+        config_path=tmp_path / "config.json",
+        output_directory=tmp_path / "new-output",
+        owner="owner",
+    )
+    monkeypatch.setattr(
+        DEVELOPMENT, "_repository_sources", lambda _: (root, "a" * 40, {})
+    )
+    monkeypatch.setattr(DEVELOPMENT.supervisor, "_venv_identity", lambda _: {})
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+    plan = DEVELOPMENT.build_development_plan(request)
+    DEVELOPMENT.validate_development_plan(plan)
+    if not scaled:
+        assert "trainer" not in plan.inputs
+        return
+    assert plan.inputs["trainer"] == effective_training_contract(loaded.course_trainer)
+    plan.inputs["trainer"]["reward_preconditioning"]["total_training_reward_scale"] = 1.0
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="bound inputs changed"):
+        DEVELOPMENT.validate_development_plan(plan)
+
+
 def test_nondefault_limits_are_part_of_the_accepted_reservation(tmp_path: Path) -> None:
     plan, _ = _plan(tmp_path)
     accepted = plan.accepted_fields()

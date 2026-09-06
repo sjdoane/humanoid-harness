@@ -47,7 +47,8 @@ observations, actions, termination, the base actor, PPO hyperparameters, or chec
 Timeout bootstrap values therefore share the scaled PPO value units.
 
 Opt-in runs emit `training_telemetry_v2.jsonl`. Complete-episode summaries use the literal fields
-`ppo_input_returns` and `raw_environment_returns`; the latter are accumulated from retained
+`scaled_environment_returns` and `raw_environment_returns`. Both exclude the later
+PPO timeout bootstrap; the latter are accumulated from retained
 unscaled step info, not reconstructed by multiplying quantized scaled values. Value loss is in
 scaled optimization-reward units, so its magnitude is not comparable with raw-reward runs.
 The config, effective trainer identity, reward-unit metadata, v2 descriptor, and v2 output must
