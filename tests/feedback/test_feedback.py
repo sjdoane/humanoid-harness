@@ -10,7 +10,7 @@ import pytest
 
 from oracle_composition.cli import main
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
-from oracle_composition.feedback.context import build_candidate_context
+from oracle_composition.feedback.context import _query, build_candidate_context
 from oracle_composition.feedback.evidence import (
     FeedbackEvidenceError,
     _phase_b_report_route,
@@ -239,3 +239,15 @@ def test_steering_rejects_oversize_and_symlink(tmp_path: Path) -> None:
     link.symlink_to(target)
     with pytest.raises(FeedbackEvidenceError, match="bounded"):
         load_steering(link)
+
+
+def test_retrieval_query_targets_mechanism_not_hypothesis_verbosity() -> None:
+    diagnosis = _diagnose_report([_row("hold_expert", utility=True, task_success=False)], HASH_A)
+    development = replace(
+        diagnosis,
+        action_surface="oracle",
+        source_identities={"phase_a_scientific_receipt_sha256": HASH_A},
+    )
+    revised_text = replace(development, hypothesis="frozen controller " * 100, rivals=())
+    assert _query(development) == _query(revised_text)
+    assert _query(development) == "reference composition phase transition motion stitching"

@@ -70,8 +70,15 @@ def _uses_protected_results(diagnosis: FeedbackDiagnosis) -> bool:
 def _query(diagnosis: FeedbackDiagnosis) -> str:
     if _uses_protected_results(diagnosis):
         return "independent development evidence measurement diagnostic probe oracle reward"
-    terms = [diagnosis.action_surface, diagnosis.hypothesis, *diagnosis.rivals]
-    return " ".join(" ".join(terms).lower().split())[:1_024]
+    # Retrieval should address the mechanism, not rank repeated caveat words
+    # such as "frozen controller" above the actual transition failure.
+    return {
+        "oracle": "reference composition phase transition motion stitching",
+        "task_reward": "task reward speed tracking component feedback revision",
+        "adapter_repair": "reference conditioning policy training runtime failure",
+        "measurement": "robot state contact phase tracking failure diagnosis",
+        "none": "independent evaluation baseline task success",
+    }.get(diagnosis.action_surface, "robot reference reward diagnostic evidence")
 
 
 def _source_lines(bundle: SourceBundle | None) -> list[str]:

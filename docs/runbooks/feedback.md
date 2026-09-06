@@ -23,6 +23,11 @@ Omit `--no-research-graph` to retrieve at most six cards from the existing local
 seed-failure receipt shape. Add `--steering-file PATH` for bounded UTF-8 human steering; its exact
 bytes are hashed and labelled as steering, never measurement.
 
+Retrieval uses short, mechanism-specific queries. It does not search the whole
+diagnostic paragraph: repeated caveat language otherwise outranks useful motion
+transition and reference-alignment evidence. The graph remains one existing index,
+rebuilt with `humanoid-harness research build` when source extractions change.
+
 The command publishes:
 
 - `diagnosis_v1.json`: validated facts, hypothesis, rivals, prediction, falsifier, identities,
