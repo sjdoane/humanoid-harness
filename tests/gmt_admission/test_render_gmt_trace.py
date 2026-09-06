@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from oracle_composition.adapters.gmt import trace_admission as TRACE
 from oracle_composition.adapters.gmt.contracts import (
     DEFAULT_DOF_POSITION,
     GMT_G1_MESH_NAMES,
@@ -56,7 +57,7 @@ def _abi() -> ModelABI:
 
 
 def _trace_arrays(simulation_steps: int = 20) -> dict[str, np.ndarray]:
-    contract = RENDER.expected_trace_contract(simulation_steps)
+    contract = TRACE.expected_trace_contract(simulation_steps)
     arrays = {key: np.zeros(shape, dtype=dtype) for key, (shape, dtype) in contract.items()}
     arrays["sim_time"] = np.arange(simulation_steps) * 0.001
     arrays["control_sim_step"] = np.arange(arrays["control_sim_step"].shape[0]) * 20
@@ -117,12 +118,12 @@ def test_trace_validation_is_data_only_and_checks_clocks(tmp_path: Path) -> None
     digest = write_deterministic_npz(path, arrays)
     manifest = _manifest(path, digest, arrays)
 
-    abi, contract = RENDER.validate_trace_manifest(
+    abi, contract = TRACE.validate_trace_manifest(
         manifest,
         trace_path=path,
         support_files=_support_files(),
     )
-    loaded = RENDER.read_trace_arrays(path, expected_sha256=digest, contract=contract)
+    loaded = TRACE.read_trace_arrays(path, expected_sha256=digest, contract=contract)
 
     assert abi == _abi()
     np.testing.assert_array_equal(loaded["sim_qpos"], arrays["sim_qpos"])
@@ -131,13 +132,13 @@ def test_trace_validation_is_data_only_and_checks_clocks(tmp_path: Path) -> None
     bad_path = tmp_path / "bad_trace.npz"
     bad_digest = write_deterministic_npz(bad_path, arrays)
     bad_manifest = _manifest(bad_path, bad_digest, arrays)
-    _, bad_contract = RENDER.validate_trace_manifest(
+    _, bad_contract = TRACE.validate_trace_manifest(
         bad_manifest,
         trace_path=bad_path,
         support_files=_support_files(),
     )
     with pytest.raises(GMTAdmissionError, match="control-time clock"):
-        RENDER.read_trace_arrays(
+        TRACE.read_trace_arrays(
             bad_path,
             expected_sha256=bad_digest,
             contract=bad_contract,
@@ -152,7 +153,7 @@ def test_manifest_rejects_mesh_identity_mismatch(tmp_path: Path) -> None:
     manifest["inputs"]["support_files"]["assets/robots/g1/meshes/pelvis.STL"] = "0" * 64
 
     with pytest.raises(GMTAdmissionError, match="model/mesh identities"):
-        RENDER.validate_trace_manifest(
+        TRACE.validate_trace_manifest(
             manifest,
             trace_path=path,
             support_files=_support_files(),
@@ -165,6 +166,6 @@ def test_manifest_reader_requires_exact_hash_and_rejects_duplicates(tmp_path: Pa
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
     with pytest.raises(GMTAdmissionError, match="duplicate manifest key"):
-        RENDER.read_trace_manifest(path, expected_sha256=digest)
+        TRACE.read_trace_manifest(path, expected_sha256=digest)
     with pytest.raises(GMTAdmissionError, match="SHA-256 mismatch"):
-        RENDER.read_trace_manifest(path, expected_sha256="0" * 64)
+        TRACE.read_trace_manifest(path, expected_sha256="0" * 64)

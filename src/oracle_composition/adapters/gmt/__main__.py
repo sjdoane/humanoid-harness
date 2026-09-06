@@ -37,6 +37,23 @@ def _parser() -> argparse.ArgumentParser:
     replay.add_argument("--motion-name", required=True)
     replay.add_argument("--trace", type=Path, required=True)
     replay.add_argument("--duration-seconds", type=float, default=10.0)
+
+    sensitivity = subparsers.add_parser(
+        "reference-sensitivity",
+        help="measure matched-state actor sensitivity to reference-only interventions",
+    )
+    sensitivity.add_argument("--trace", type=Path, required=True)
+    sensitivity.add_argument("--trace-sha256", required=True)
+    sensitivity.add_argument("--manifest", type=Path, required=True)
+    sensitivity.add_argument("--manifest-sha256", required=True)
+    sensitivity.add_argument("--upstream-root", type=Path, required=True)
+    sensitivity.add_argument("--weights", type=Path, required=True)
+    sensitivity.add_argument("--weights-sha256", required=True)
+    sensitivity.add_argument("--motion", type=Path, required=True)
+    sensitivity.add_argument("--motion-sha256", required=True)
+    sensitivity.add_argument("--motion-name", required=True)
+    sensitivity.add_argument("--shuffle-seed", type=int, required=True)
+    sensitivity.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -61,7 +78,7 @@ def main() -> int:
             "motions": motions,
             "support_files": support_files,
         }
-    else:
+    elif args.command == "replay":
         from .replay import ReplayConfig, run_headless_replay
 
         result = run_headless_replay(
@@ -74,6 +91,28 @@ def main() -> int:
                 motion_name=args.motion_name,
                 trace_path=args.trace,
                 duration_seconds=args.duration_seconds,
+            )
+        )
+    else:
+        from .reference_sensitivity import (
+            ReferenceSensitivityConfig,
+            run_reference_sensitivity,
+        )
+
+        result = run_reference_sensitivity(
+            ReferenceSensitivityConfig(
+                trace_path=args.trace,
+                trace_sha256=args.trace_sha256,
+                manifest_path=args.manifest,
+                manifest_sha256=args.manifest_sha256,
+                upstream_root=args.upstream_root,
+                weights_path=args.weights,
+                weights_sha256=args.weights_sha256,
+                motion_path=args.motion,
+                motion_sha256=args.motion_sha256,
+                motion_name=args.motion_name,
+                shuffle_seed=args.shuffle_seed,
+                output_path=args.output,
             )
         )
     print(json.dumps(result, sort_keys=True, indent=2))
