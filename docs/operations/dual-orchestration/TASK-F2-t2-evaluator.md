@@ -25,10 +25,12 @@
 FORMULA_RUNTIME_ID = "target_speed_triangular_affine_t2_adapter/v1"
 PARSER_ID = "target_speed_triangular_affine_recipe/v1"
 
+
 def evaluate_target_speed_formula_t2(
     recipe: TargetSpeedFormulaRecipeV1,
     inputs: CandidateTaskInputsV2,
 ) -> float: ...
+
 
 def target_speed_formula_t2_bounds() -> dict[str, object]: ...
 ```
