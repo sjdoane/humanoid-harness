@@ -1,9 +1,9 @@
 # MDP choice and independent critique
 
-| progress | Source review favors testing a competent supplied tracker, not protecting native sunk cost. |
+| progress | Fable acknowledges Astra's leadership; numeric-only GMT assets are admitted and the native preflight passes. |
 |---|---|
 | bottleneck | Neither native Phase B competence nor a safe local GMT adapter is demonstrated. |
-| next step | One capped native smoke; static GMT admission review in parallel. |
+| next step | Close the launcher cleanup defect, run one native smoke, then test supplied G1 motions. |
 
 ## Decision
 
@@ -32,8 +32,9 @@
   agents. This is client-reported model metadata, not independent server attestation.
 - Project Read/Glob hooks denied access because SessionStart supplied no model
   field. No files were read. The review is prompt-based advice, **not code review**.
-- The active long-lived Fable session remains separate; role-change messages
-  are queued there until its current builder checkpoint. Do not claim acceptance.
+- The long-lived Fable session subsequently acknowledged the role change in
+  `20260906T175818.868830Z-6266274cc43349c9a49af2daa9e7be95` and handed off
+  its clean checkpoint. That acknowledgment is separate from this CLI review.
 
 | Fable suggestion | Astra disposition |
 |---|---|
@@ -49,6 +50,18 @@ The CLI reported about 100,801 cache-creation input tokens for this bounded
 review. Project context overhead is too high for frequent reviews. Use compact
 review packets and fix supported read-only identity handling before repeating;
 do not disable provider safeguards or fabricate identity events.
+
+## Follow-up review
+
+- Native T1 first; T2 is the shortest existing reward-only learning loop, not
+  the complete two-knob result. Its estimated duration is not measured throughput.
+- The T2 search split and an untouched held-out split must be named separately;
+  an immutable evaluator does not make every episode a held-out episode.
+- Fable withdrew its proposed two-week wait for a possible collaborator tracker.
+  A bounded G1 competence test is an observed alternative worth comparing.
+- Parent reproduced the need for a cleanup repair: interrupted supervision
+  must not release the shared slot while a worker may survive. No training
+  runs until the focused repair and its negative-path tests pass.
 
 ## Primary sources
 
