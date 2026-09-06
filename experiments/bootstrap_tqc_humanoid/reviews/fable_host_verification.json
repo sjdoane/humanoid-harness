@@ -142,10 +142,10 @@
       "tree": "Slice F3PIN (F3 one-call protocol re-pinned to the Fable lane) before the reward receipt regeneration"
     },
     {
-      "commit": "T2A slice (hash in the commit message)",
-      "finished_utc": "see scratch record",
-      "result": "full suite passed except the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after); exact counts in the scratch record and the commit message",
-      "ruff": "check clean",
+      "commit": "3b14d54",
+      "finished_utc": "2026-09-06T05:56:11Z",
+      "result": "1828 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after, in the same commit)",
+      "ruff": "check clean; format: 390 files formatted, 1 Astra packet document (TASK-F3-initial-protocol.md, fixed in Astra's 7f2298f pending integration) would be reformatted",
       "started_utc": "2026-09-06T05:52:13Z",
       "tree": "Slice T2A (T2 reward-study artifacts) before the reward receipt regeneration"
     }
