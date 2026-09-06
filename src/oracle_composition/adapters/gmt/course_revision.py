@@ -107,7 +107,8 @@ def _verify_current_feedback_packet(
     if label not in _LABELS:
         raise ValueError("source label must be zero_residual or final_policy")
     with tempfile.TemporaryDirectory(prefix="gmt-course-feedback-verification-") as temporary:
-        rebuilt_root = Path(temporary) / "packet"
+        # macOS may return /var, an alias of /private/var, for our owned workspace.
+        rebuilt_root = Path(temporary).resolve(strict=True) / "packet"
         build_g1_course_feedback(
             manifest_path=manifest_path,
             expected_manifest_sha256=manifest_sha256,

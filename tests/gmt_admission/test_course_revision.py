@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -216,6 +217,33 @@ def test_oracle_receipt_separates_actual_from_allowed_changed_fields(
     assert receipt["factor"] == "oracle"
     assert receipt["actual_changed_fields"] == ["oracle"]
     assert receipt["allowed_changed_fields"] == ["oracle", "segments"]
+
+
+def test_owned_temporary_workspace_resolves_os_alias_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs)
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "os_alias"
+    alias.symlink_to(real, target_is_directory=True)
+    owned = real / "owned"
+    owned.mkdir()
+
+    @contextmanager
+    def aliased_temporary_directory(**_kwargs):
+        yield str(alias / "owned")
+
+    builder = module.build_g1_course_feedback
+
+    def require_resolved_workspace(**kwargs):
+        assert kwargs["output"].parent == owned
+        return builder(**kwargs)
+
+    monkeypatch.setattr(module.tempfile, "TemporaryDirectory", aliased_temporary_directory)
+    monkeypatch.setattr(module, "build_g1_course_feedback", require_resolved_workspace)
+    assert _run(inputs, tmp_path / "revision")["status"] == "completed"
 
 
 @pytest.mark.parametrize(
