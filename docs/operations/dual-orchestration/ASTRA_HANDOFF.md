@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F3 builder finished; parent reproduced 79 focused tests and all 13 predecessor hashes. Fable accepted exact F2 promotion and merged F1/F2. |
-| bottleneck | F3 remains unreviewed and pins the superseded baseline; no candidate call, runtime or training is admitted. |
-| next step | Collect the bounded independent verification, then address confirmed findings and refresh the exact baseline before reviewing a one-call protocol. |
+| progress | Independent F3 review completed with 79 focused passes; parent reproduced seven negative probes and retained exact originals. |
+| bottleneck | Three confirmed contract defects block acceptance; expected-model metadata and the superseded baseline also need repair. No candidate call or training. |
+| next step | Collect the bounded four-file repair/baseline-refresh worker, verify its regressions and exact hashes, then independently close the findings. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 01:05 UTC heartbeat; F3 parent verification complete, test-output-only independent review prepared.
+- Last checkpoint: 2026-09-06, 01:42 UTC heartbeat; F3 review collected, findings reproduced and bounded repair/baseline-refresh packet prepared.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -54,7 +54,14 @@
 | F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
 | F3 T2-aware model protocol | read-only Sol/max planner | finished 23:29:33Z | `F3_PLAN_RESULT.md`; parent corrected deadline and read-failure semantics |
 | F3 initial packet/ingestion | Sol/max builder + Astra | completed 00:13:01Z; parent 79 focused passes | `F3_PARENT_CHECKPOINT.md`; four new files, not accepted |
-| F3 independent verification | Sol/max test-output-only writer | dispatch/collect exact active pointer | `TASK-F3-independent-review.md`; source immutable, no candidate call |
+| F3 independent verification | Sol/max test-output-only writer | REJECT_F3 at 01:21:49Z; 79 focused tests and seven probes | `F3_REVIEW_FINDINGS.md`; parent reproduced defects, all 18 hashes unchanged |
+| F3 repair and baseline refresh | Sol/max builder | dispatch/collect exact active pointer | `TASK-F3-repair-refresh.md`; four files only, no candidate call |
+
+- Review source and negative fixtures are retained; do not overwrite them.
+  `.orchestration/f3-pre-repair-20260906/` holds the four original F3 files
+  under their relative paths; parent verified all four original hashes.
+- Current repair findings and precise review timing correction:
+  `F3_REVIEW_FINDINGS.md`. This is not static acceptance or model-call authority.
 
 - Exact F2 promotion accepted by
   `20260906T002718.313618Z-cbaf7f3f6326473ab7226e0c183ea53a`.
