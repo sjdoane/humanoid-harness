@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Settling-score repair `3406bb5` independently accepted and handed to Fable; 23 focused tests pass. |
-| bottleneck | Calibration provenance and evaluator gaps remain. No tracker approval or trained result; pairing base still awaited. |
-| next step | Execute bounded `TASK-OT1E01-manifest-admission.md` in Astra only, then independently review. No training or Astra reward call. |
+| progress | Manifest-admission repair `57add6e` independently accepted; 20 parent tests pass. First-principles review and native reference staging complete. |
+| bottleneck | No trained reference-following result. Calibration/runtime gates remain; revised strategy awaits peer assessment. |
+| next step | Fable integration of accepted source; agree a capped real-reference test. No automatic cohort, new reward call or environment migration. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 06:55 UTC; scoring acceptance recorded; evaluator-admission packet prepared.
+- Last checkpoint: 2026-09-06, 07:50 UTC; research reassessment, data setup and manifest-admission closure.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,26 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Latest user priority: investigate composition from scale and policy ICL, then
+  make the smallest feasible joint reference/reward demonstration. Advisory
+  note: `docs/strategy/astra/FIRST_PRINCIPLES_20260906.md`; companion source
+  ledger and `REFERENCE_LIBRARY_SETUP_20260906.md` retain evidence boundaries.
+- Drop universal claims that references are insufficient or ICL cannot solve
+  humanoid tasks. Compare conditional adaptation value and cost instead.
+- Native corpus staged locally: 477 files / 128 NPZ; 36 training clips decoded
+  and all library artifact hashes verified. No simulator or training ran.
+- OT1E01 builder terminal at 07:38:42 UTC, lease released. Parent 20 pure tests
+  pass; independent `ACCEPT_OT1E01_MANIFEST_ONLY`; commit
+  `57add6e8713fab4aa06bbfb1c70179202bb55787`. See `OT1E01_RESULT.md`.
+- T2PAIR source scope accepted on main `ed9f1d3`, with T2AR1 prerequisite:
+  reply `20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103`.
+  This supersedes the earlier pending-base notes below, but does not approve
+  implementation, compute or scientific results. Preserve Fable's paths.
+- No new worker is running in Astra. Resume from current receipts, not the
+  historical builder-dispatch directions below.
+
+### Prior dispatch context (retained)
 
 - Accepted scoring repair and exact receipts: `OT1_NARROW_RESULTS.md`.
 - Next code base: `3406bb5f0af3c2479d47cdd2d245c3e738a168fe`; dispatch adds docs only.
