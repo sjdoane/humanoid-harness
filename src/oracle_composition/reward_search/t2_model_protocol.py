@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+import oracle_composition
 from oracle_composition.rewards.target_speed_formula import (
     FORMULA_ID,
     parse_target_speed_formula_recipe,
@@ -38,8 +39,25 @@ from .publication import (
     publish_json_without_overwrite,
 )
 from .t2_model_contracts import (
+    EXPECTED_BRANCH,
+    EXPECTED_CANDIDATE_OWNER,
+    EXPECTED_CANDIDATE_ROLE,
+    EXPECTED_CANDIDATE_SCOPE,
+    EXPECTED_CHECKOUT_REALPATH,
+    EXPECTED_IMPORT_ORIGIN,
+    EXPECTED_METADATA_SEMANTICS,
+    EXPECTED_MODEL,
+    EXPECTED_PREPARATION_OWNER,
+    EXPECTED_PREPARATION_ROLE,
+    EXPECTED_PREPARATION_SCOPE,
+    EXPECTED_REASONING_EFFORT,
+    EXPECTED_RUNNER_KIND,
+    PINNED_BASELINE_BYTE_COUNT,
+    PINNED_BASELINE_SHA256,
     RUN_ARTIFACT_NAMES,
     T2ContractBundle,
+    T2FableExpectedConfiguration,
+    T2InitialDispatchIntent,
     T2InitialEvidenceDossier,
     T2InitialPacketRecord,
     T2InitialRequest,
@@ -56,11 +74,11 @@ MAX_FINAL_BYTES = 65_536
 MAX_LOCAL_ARTIFACT_BYTES = 262_144
 MAX_RUN_SECONDS = 1_200
 
-BASELINE_GIT_OBJECT = "87d2e39c47b6747b505bc2657d505aeda2265b5e"
+BASELINE_GIT_OBJECT = "8d617e30dd239529a42e3a0211314d6173ffeafd"
 BASELINE_GIT_PATH = "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json"
 BASELINE_ARTIFACT_ID = f"git:{BASELINE_GIT_OBJECT}:{BASELINE_GIT_PATH}"
-BASELINE_SHA256 = "eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"
-BASELINE_BYTE_COUNT = 1_773
+BASELINE_SHA256 = PINNED_BASELINE_SHA256
+BASELINE_BYTE_COUNT = PINNED_BASELINE_BYTE_COUNT
 
 RECIPE_SOURCE_ID = "src/oracle_composition/rewards/target_speed_formula.py"
 EVALUATOR_SOURCE_ID = "src/oracle_composition/rewards/target_speed_formula_t2.py"
@@ -75,12 +93,11 @@ TASK_INPUTS_SCHEMA_SHA256 = "8f382dde13ee44c27cbbbc0b3a53a568338f6b7cebc8e660e40
 PARAMETER_BOUNDS_SHA256 = "2c6030264231a52320a44fe0f4d4ed519bc2e635b892f1b9c0d8929166106933"
 PARAMETER_BOUNDS_BYTE_COUNT = 137
 
-EXPECTED_OWNER = "astra-f3-initial"
-EXPECTED_ROLE = "candidate"
-EXPECTED_SCOPE = "t2-initial-parameter-hypothesis-only"
-EXPECTED_MODEL = "gpt-5.6-sol"
-EXPECTED_EFFORT = "max"
-EXPECTED_RUNNER = "screen"
+EXPECTED_OWNER = EXPECTED_CANDIDATE_OWNER
+EXPECTED_ROLE = EXPECTED_CANDIDATE_ROLE
+EXPECTED_SCOPE = EXPECTED_CANDIDATE_SCOPE
+EXPECTED_EFFORT = EXPECTED_REASONING_EFFORT
+EXPECTED_RUNNER = EXPECTED_RUNNER_KIND
 
 _ROOT = Path(__file__).resolve().parents[3]
 _NATIVE_PATH_TYPE = type(Path())
@@ -143,6 +160,46 @@ def _model_bytes(model: BaseModel) -> bytes:
 
 def _model_sha256(model: BaseModel) -> str:
     return hashlib.sha256(_model_bytes(model)).hexdigest()
+
+
+def _expected_configuration() -> T2FableExpectedConfiguration:
+    return T2FableExpectedConfiguration(
+        expected_checkout_realpath=EXPECTED_CHECKOUT_REALPATH,
+        expected_branch=EXPECTED_BRANCH,
+        expected_import_origin=EXPECTED_IMPORT_ORIGIN,
+        expected_preparation_owner=EXPECTED_PREPARATION_OWNER,
+        expected_preparation_role=EXPECTED_PREPARATION_ROLE,
+        expected_preparation_scope=EXPECTED_PREPARATION_SCOPE,
+        expected_model=EXPECTED_MODEL,
+        expected_reasoning_effort=EXPECTED_EFFORT,
+        expected_runner_kind=EXPECTED_RUNNER,
+        expected_owner=EXPECTED_OWNER,
+        expected_role=EXPECTED_ROLE,
+        expected_scope=EXPECTED_SCOPE,
+        metadata_semantics=EXPECTED_METADATA_SEMANTICS,
+    )
+
+
+def _validate_local_origin() -> None:
+    expected_checkout = Path(EXPECTED_CHECKOUT_REALPATH)
+    expected_import = Path(EXPECTED_IMPORT_ORIGIN)
+    package_spec = getattr(oracle_composition, "__spec__", None)
+    package_file = getattr(oracle_composition, "__file__", None)
+    spec_origin = getattr(package_spec, "origin", None)
+    if type(package_file) is not str or type(spec_origin) is not str:
+        raise T2ProtocolError("F3 package import origin is unavailable")
+    try:
+        observed_checkout = Path(__file__).resolve(strict=True).parents[3]
+        observed_import = Path(package_file).resolve(strict=True)
+        observed_spec_origin = Path(spec_origin).resolve(strict=True)
+    except OSError as exc:
+        raise T2ProtocolError("F3 package import origin is unavailable") from exc
+    if (
+        observed_checkout != expected_checkout
+        or observed_import != expected_import
+        or observed_spec_origin != expected_import
+    ):
+        raise T2ProtocolError("F3 package import origin differs from the expected Fable checkout")
 
 
 def _snapshot(artifact_id: str, encoded: bytes) -> T2RetainedArtifact:
@@ -271,6 +328,8 @@ def _semantic_request(
         baseline_byte_count=baseline.byte_count,
         t2_contract_sha256=contracts_sha256,
         evidence_dossier_sha256=dossier_sha256,
+        task_text="Hold 3.0 m/s COM forward speed from the expert start.",
+        baseline_artifact_id=BASELINE_ARTIFACT_ID,
         target_speed_m_s=TARGET_SPEED_M_S,
         control_period_seconds=CONTROL_PERIOD_SECONDS,
         trusted_formula_id=FORMULA_ID,
@@ -311,6 +370,26 @@ def _render_prompt(
     response_schema = finite_pretty_json(
         T2ParameterProposal.model_json_schema(mode="validation")
     ).decode("utf-8")
+    task_dossier = "\n".join(
+        (
+            "Task: Hold 3.0 m/s COM forward speed from the expert start.",
+            f"Baseline artifact: {BASELINE_ARTIFACT_ID}",
+            f"Baseline bytes/SHA-256: {BASELINE_BYTE_COUNT} / {BASELINE_SHA256}",
+            (
+                "Accepted F2 family: "
+                f"{FORMULA_ID}; parser {PARSER_ID}; runtime {FORMULA_RUNTIME_ID}."
+            ),
+            f"F2 evaluator source SHA-256: {EVALUATOR_SOURCE_SHA256}",
+            f"F2 recipe/parser source SHA-256: {RECIPE_SOURCE_SHA256}",
+            f"T2 task-input source SHA-256: {TASK_INPUTS_SOURCE_SHA256}",
+            (
+                "F2 authorable bounds: alpha [0.25, 4.0], beta [-10.0, 10.0]; "
+                f"canonical bounds SHA-256 {PARAMETER_BOUNDS_SHA256}."
+            ),
+            "Only alpha and beta are authorable.",
+            "No measured feedback exists for this initial hypothesis call.",
+        )
+    )
     sections = [
         "# F3 initial-only T2 parameter hypothesis packet\n",
         (
@@ -326,6 +405,7 @@ def _render_prompt(
             "baseline, and alpha=0 is outside this formula family. Any response is hypothesis-only "
             "and not admitted.\n"
         ),
+        "## Initial T2 evidence dossier\n" + task_dossier,
         "## Visible immutable identities\n" + visible_identities,
         "## Canonical semantic request payload\n" + request_payload.decode("utf-8"),
         "## Required response JSON schema\n" + response_schema,
@@ -337,6 +417,7 @@ def _render_prompt(
 
 
 def _build_record(baseline_reward_bytes: bytes) -> tuple[T2InitialPacketRecord, bytes, bytes]:
+    _validate_local_origin()
     _validate_baseline(baseline_reward_bytes)
     baseline = _snapshot(BASELINE_ARTIFACT_ID, baseline_reward_bytes)
     contracts = _contract_bundle()
@@ -358,6 +439,7 @@ def _build_record(baseline_reward_bytes: bytes) -> tuple[T2InitialPacketRecord, 
         evidence_dossier_sha256=dossier_sha,
     )
     record = T2InitialPacketRecord(
+        **_expected_configuration().model_dump(mode="python"),
         schema_version=3,
         kind="t2_initial_parameter_packet_record",
         baseline=baseline,
@@ -447,6 +529,40 @@ def publish_initial_t2_packet(
     packet = publish_bytes_without_overwrite(packet_path, prompt)
     record = publish_bytes_without_overwrite(record_path, canonical_record)
     return T2PublishedPacket(packet=packet, record=record)
+
+
+def publish_initial_t2_dispatch_intent(
+    record_bytes: bytes,
+    intent_path: Path,
+) -> PublishedArtifact:
+    """Publish the sole initial-call intent without overwrite."""
+
+    if type(record_bytes) is not bytes:
+        raise T2ProtocolError("record_bytes must be exact builtin bytes")
+    intent_path = _require_native_path(intent_path, label="intent_path")
+    if intent_path.name != "dispatch-intent.json":
+        raise T2ProtocolError("intent_path must end in dispatch-intent.json")
+    record, prompt, canonical_record = _validated_record(record_bytes)
+    intent = T2InitialDispatchIntent(
+        **_expected_configuration().model_dump(mode="python"),
+        schema_version=3,
+        kind="t2_initial_dispatch_intent",
+        maximum_initial_calls=1,
+        attempts_remaining_after_intent=0,
+        revision_calls_authorized=0,
+        retries_authorized=0,
+        deadline_seconds_from_request_creation=MAX_RUN_SECONDS,
+        record_sha256=hashlib.sha256(canonical_record).hexdigest(),
+        record_byte_count=len(canonical_record),
+        rendered_prompt_sha256=hashlib.sha256(prompt).hexdigest(),
+        rendered_prompt_byte_count=len(prompt),
+        baseline_sha256=record.baseline_sha256,
+        baseline_byte_count=record.baseline.byte_count,
+        request_payload_sha256=record.request_payload_sha256,
+        t2_contract_sha256=record.t2_contract_sha256,
+        evidence_dossier_sha256=record.evidence_dossier_sha256,
+    )
+    return publish_json_without_overwrite(intent_path, intent.model_dump(mode="json"))
 
 
 def _validate_run_paths(run_directory: Path, records_directory: Path) -> tuple[Path, Path, str]:
@@ -652,6 +768,7 @@ def _receipt(
 ) -> T2ModelCallReceipt:
     accepted = proposal is not None and recipe_bytes is not None and rejection_reason is None
     return T2ModelCallReceipt(
+        **_expected_configuration().model_dump(mode="python"),
         schema_version=3,
         kind="t2_initial_model_call_receipt",
         source_class="local_detached_sol_retained_run_v1",
@@ -669,19 +786,12 @@ def _receipt(
         baseline_byte_count=record.baseline.byte_count,
         t2_contract_sha256=record.t2_contract_sha256,
         evidence_dossier_sha256=record.evidence_dossier_sha256,
-        expected_model=EXPECTED_MODEL,
-        expected_reasoning_effort=EXPECTED_EFFORT,
-        expected_runner_kind=EXPECTED_RUNNER,
-        expected_owner=EXPECTED_OWNER,
-        expected_role=EXPECTED_ROLE,
-        expected_scope=EXPECTED_SCOPE,
         result_thread_id=result_thread_id if envelope_verified else None,
         proposal_sha256=None if proposal is None else _model_sha256(proposal),
         candidate_recipe_sha256=(
             None if recipe_bytes is None else hashlib.sha256(recipe_bytes).hexdigest()
         ),
         rejection_reason=rejection_reason,
-        metadata_semantics="expected_configuration_not_served_model_attestation",
         local_envelope_consistency="verified" if envelope_verified else "not_verified",
         authenticated_model_origin="not_attested",
         candidate_reward_admission="missing",
@@ -789,6 +899,7 @@ def ingest_initial_t2_sol_run(
 __all__ = [
     "ingest_initial_t2_sol_run",
     "prepare_initial_t2_packet",
+    "publish_initial_t2_dispatch_intent",
     "publish_initial_t2_packet",
     "render_initial_t2_prompt",
 ]

@@ -22,9 +22,45 @@ MISSING_EVIDENCE = (
     "candidate_measurements",
 )
 
+EXPECTED_CHECKOUT_REALPATH = "/Users/samueldoane/Documents/ChatGPT/humanoid-harness"
+EXPECTED_BRANCH = "main"
+EXPECTED_IMPORT_ORIGIN = (
+    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness/src/oracle_composition/__init__.py"
+)
+EXPECTED_PREPARATION_OWNER = "fable-f3-prepare"
+EXPECTED_PREPARATION_ROLE = "builder"
+EXPECTED_PREPARATION_SCOPE = "t2-initial-packet-preparation-and-ingestion-only"
+EXPECTED_CANDIDATE_OWNER = "fable-f3-initial"
+EXPECTED_CANDIDATE_ROLE = "candidate"
+EXPECTED_CANDIDATE_SCOPE = "t2-initial-parameter-hypothesis-only"
+EXPECTED_MODEL = "gpt-5.6-sol"
+EXPECTED_REASONING_EFFORT = "max"
+EXPECTED_RUNNER_KIND = "screen"
+EXPECTED_METADATA_SEMANTICS = "expected_configuration_not_served_model_attestation"
+PINNED_BASELINE_SHA256 = "eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"
+PINNED_BASELINE_BYTE_COUNT = 1_773
+
 
 class T2StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
+
+
+class T2FableExpectedConfiguration(T2StrictModel):
+    expected_checkout_realpath: Literal["/Users/samueldoane/Documents/ChatGPT/humanoid-harness"]
+    expected_branch: Literal["main"]
+    expected_import_origin: Literal[
+        "/Users/samueldoane/Documents/ChatGPT/humanoid-harness/src/oracle_composition/__init__.py"
+    ]
+    expected_preparation_owner: Literal["fable-f3-prepare"]
+    expected_preparation_role: Literal["builder"]
+    expected_preparation_scope: Literal["t2-initial-packet-preparation-and-ingestion-only"]
+    expected_model: Literal["gpt-5.6-sol"]
+    expected_reasoning_effort: Literal["max"]
+    expected_runner_kind: Literal["screen"]
+    expected_owner: Literal["fable-f3-initial"]
+    expected_role: Literal["candidate"]
+    expected_scope: Literal["t2-initial-parameter-hypothesis-only"]
+    metadata_semantics: Literal["expected_configuration_not_served_model_attestation"]
 
 
 class T2RetainedArtifact(T2StrictModel):
@@ -129,6 +165,11 @@ class T2InitialRequest(T2StrictModel):
     baseline_byte_count: int = Field(ge=1, le=131_072)
     t2_contract_sha256: str = Field(pattern=SHA256_PATTERN)
     evidence_dossier_sha256: str = Field(pattern=SHA256_PATTERN)
+    task_text: Literal["Hold 3.0 m/s COM forward speed from the expert start."]
+    baseline_artifact_id: Literal[
+        "git:8d617e30dd239529a42e3a0211314d6173ffeafd:"
+        "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json"
+    ]
     target_speed_m_s: float
     control_period_seconds: float
     trusted_formula_id: Literal["target_speed_triangular_affine/v1"]
@@ -171,7 +212,7 @@ class T2InitialRequest(T2StrictModel):
         return self
 
 
-class T2InitialPacketRecord(T2StrictModel):
+class T2InitialPacketRecord(T2FableExpectedConfiguration):
     schema_version: Literal[3]
     kind: Literal["t2_initial_parameter_packet_record"]
     baseline: T2RetainedArtifact
@@ -184,6 +225,25 @@ class T2InitialPacketRecord(T2StrictModel):
     evidence_dossier_sha256: str = Field(pattern=SHA256_PATTERN)
     rendered_prompt_sha256: str = Field(pattern=SHA256_PATTERN)
     rendered_prompt_byte_count: int = Field(ge=1, le=131_072)
+
+
+class T2InitialDispatchIntent(T2FableExpectedConfiguration):
+    schema_version: Literal[3]
+    kind: Literal["t2_initial_dispatch_intent"]
+    maximum_initial_calls: Literal[1]
+    attempts_remaining_after_intent: Literal[0]
+    revision_calls_authorized: Literal[0]
+    retries_authorized: Literal[0]
+    deadline_seconds_from_request_creation: Literal[1200]
+    record_sha256: str = Field(pattern=SHA256_PATTERN)
+    record_byte_count: int = Field(ge=1, le=131_072)
+    rendered_prompt_sha256: str = Field(pattern=SHA256_PATTERN)
+    rendered_prompt_byte_count: int = Field(ge=1, le=131_072)
+    baseline_sha256: Literal["eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"]
+    baseline_byte_count: Literal[1773]
+    request_payload_sha256: str = Field(pattern=SHA256_PATTERN)
+    t2_contract_sha256: str = Field(pattern=SHA256_PATTERN)
+    evidence_dossier_sha256: str = Field(pattern=SHA256_PATTERN)
 
 
 class T2ParameterValues(T2StrictModel):
@@ -254,7 +314,7 @@ class T2RunArtifactBinding(T2StrictModel):
         return self
 
 
-class T2ModelCallReceipt(T2StrictModel):
+class T2ModelCallReceipt(T2FableExpectedConfiguration):
     schema_version: Literal[3]
     kind: Literal["t2_initial_model_call_receipt"]
     source_class: Literal["local_detached_sol_retained_run_v1"]
@@ -266,21 +326,14 @@ class T2ModelCallReceipt(T2StrictModel):
     record_sha256: str = Field(pattern=SHA256_PATTERN)
     record_byte_count: int = Field(ge=1, le=131_072)
     request_payload_sha256: str = Field(pattern=SHA256_PATTERN)
-    baseline_sha256: str = Field(pattern=SHA256_PATTERN)
-    baseline_byte_count: int = Field(ge=1, le=131_072)
+    baseline_sha256: Literal["eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"]
+    baseline_byte_count: Literal[1773]
     t2_contract_sha256: str = Field(pattern=SHA256_PATTERN)
     evidence_dossier_sha256: str = Field(pattern=SHA256_PATTERN)
-    expected_model: Literal["gpt-5.6-sol"]
-    expected_reasoning_effort: Literal["max"]
-    expected_runner_kind: Literal["screen"]
-    expected_owner: Literal["astra-f3-initial"]
-    expected_role: Literal["candidate"]
-    expected_scope: Literal["t2-initial-parameter-hypothesis-only"]
     result_thread_id: str | None = Field(default=None, max_length=512)
     proposal_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
     candidate_recipe_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
     rejection_reason: str | None = Field(default=None, min_length=1, max_length=4_096)
-    metadata_semantics: Literal["expected_configuration_not_served_model_attestation"]
     local_envelope_consistency: Literal["verified", "not_verified"]
     authenticated_model_origin: Literal["not_attested"]
     candidate_reward_admission: Literal["missing"]
@@ -323,9 +376,26 @@ class T2ModelCallReceipt(T2StrictModel):
 
 
 __all__ = [
+    "EXPECTED_BRANCH",
+    "EXPECTED_CANDIDATE_OWNER",
+    "EXPECTED_CANDIDATE_ROLE",
+    "EXPECTED_CANDIDATE_SCOPE",
+    "EXPECTED_CHECKOUT_REALPATH",
+    "EXPECTED_IMPORT_ORIGIN",
+    "EXPECTED_METADATA_SEMANTICS",
+    "EXPECTED_MODEL",
+    "EXPECTED_PREPARATION_OWNER",
+    "EXPECTED_PREPARATION_ROLE",
+    "EXPECTED_PREPARATION_SCOPE",
+    "EXPECTED_REASONING_EFFORT",
+    "EXPECTED_RUNNER_KIND",
     "MISSING_EVIDENCE",
+    "PINNED_BASELINE_BYTE_COUNT",
+    "PINNED_BASELINE_SHA256",
     "RUN_ARTIFACT_NAMES",
     "T2ContractBundle",
+    "T2FableExpectedConfiguration",
+    "T2InitialDispatchIntent",
     "T2InitialEvidenceDossier",
     "T2InitialPacketRecord",
     "T2InitialRequest",

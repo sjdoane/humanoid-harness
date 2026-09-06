@@ -14,6 +14,13 @@ from oracle_composition.reward_search.formula_contracts import (
 from oracle_composition.reward_search.loop import RewardSearchError, parse_model_bytes
 from oracle_composition.reward_search.publication import finite_pretty_json
 from oracle_composition.reward_search.t2_model_contracts import (
+    EXPECTED_BRANCH,
+    EXPECTED_CHECKOUT_REALPATH,
+    EXPECTED_IMPORT_ORIGIN,
+    EXPECTED_PREPARATION_OWNER,
+    EXPECTED_PREPARATION_ROLE,
+    EXPECTED_PREPARATION_SCOPE,
+    T2InitialDispatchIntent,
     T2InitialPacketRecord,
     T2ModelCallReceipt,
     T2ParameterProposal,
@@ -22,6 +29,7 @@ from oracle_composition.reward_search.t2_model_contracts import (
 from oracle_composition.reward_search.t2_model_protocol import (
     BASELINE_BYTE_COUNT,
     BASELINE_GIT_OBJECT,
+    BASELINE_GIT_PATH,
     BASELINE_SHA256,
     EVALUATOR_SOURCE_SHA256,
     PARAMETER_BOUNDS_SHA256,
@@ -31,6 +39,7 @@ from oracle_composition.reward_search.t2_model_protocol import (
     T2ProtocolError,
     ingest_initial_t2_sol_run,
     prepare_initial_t2_packet,
+    publish_initial_t2_dispatch_intent,
     publish_initial_t2_packet,
     render_initial_t2_prompt,
 )
@@ -78,7 +87,7 @@ def _envelope(
     request: dict[str, object] = {
         "schema_version": 1,
         "mode": "read-only",
-        "owner": "astra-f3-initial",
+        "owner": "fable-f3-initial",
         "role": "candidate",
         "scope": "t2-initial-parameter-hypothesis-only",
         "requested_model": "gpt-5.6-sol",
@@ -139,6 +148,7 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     assert len(BASELINE) == BASELINE_BYTE_COUNT
     assert hashlib.sha256(BASELINE).hexdigest() == BASELINE_SHA256
     assert not BASELINE.endswith(b"\n")
+    assert (ROOT / BASELINE_GIT_PATH).read_bytes() == BASELINE
     baseline_payload = json.loads(BASELINE)
     assert baseline_payload["r_task"] == 0.0
     assert baseline_payload["task_input_admission_contract"] == {
@@ -158,8 +168,18 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     assert record.contracts.canonical_parameter_bounds.sha256 == PARAMETER_BOUNDS_SHA256
     assert record.contracts.canonical_parameter_bounds.byte_count == 137
     assert record.evidence_dossier.aggregate_feedback == []
+    assert record.semantic_request.task_text == (
+        "Hold 3.0 m/s COM forward speed from the expert start."
+    )
     assert record.semantic_request.target_speed_m_s == 3.0
     assert record.semantic_request.control_period_seconds == 0.015
+    assert record.expected_checkout_realpath == EXPECTED_CHECKOUT_REALPATH
+    assert record.expected_branch == EXPECTED_BRANCH
+    assert record.expected_import_origin == EXPECTED_IMPORT_ORIGIN
+    assert record.expected_preparation_owner == EXPECTED_PREPARATION_OWNER
+    assert record.expected_preparation_role == EXPECTED_PREPARATION_ROLE
+    assert record.expected_preparation_scope == EXPECTED_PREPARATION_SCOPE
+    assert record.expected_owner == "fable-f3-initial"
     for digest in (
         record.request_payload_sha256,
         record.baseline_sha256,
@@ -168,6 +188,51 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     ):
         assert digest.encode() in prompt
     assert record.rendered_prompt_sha256.encode() not in prompt
+
+
+def test_rendered_prompt_is_deterministic_hash_bound_and_minimal() -> None:
+    first_record_bytes, first_record = _record()
+    second_record_bytes, second_record = _record()
+    first_prompt = render_initial_t2_prompt(first_record_bytes)
+    second_prompt = render_initial_t2_prompt(second_record_bytes)
+
+    assert first_record_bytes == second_record_bytes
+    assert first_record == second_record
+    assert first_prompt == second_prompt
+    assert len(first_prompt) == 6_011
+    assert hashlib.sha256(first_prompt).hexdigest() == (
+        "4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc"
+    )
+    assert first_record.rendered_prompt_sha256 == hashlib.sha256(first_prompt).hexdigest()
+    assert first_record.rendered_prompt_byte_count == len(first_prompt)
+
+    required = (
+        b"Task: Hold 3.0 m/s COM forward speed from the expert start.",
+        first_record.semantic_request.baseline_artifact_id.encode(),
+        BASELINE_SHA256.encode(),
+        b"target_speed_triangular_affine/v1",
+        EVALUATOR_SOURCE_SHA256.encode(),
+        RECIPE_SOURCE_SHA256.encode(),
+        TASK_INPUTS_SOURCE_SHA256.encode(),
+        PARAMETER_BOUNDS_SHA256.encode(),
+        b"Only alpha and beta are authorable.",
+        b"No measured feedback exists for this initial hypothesis call.",
+    )
+    assert all(value in first_prompt for value in required)
+    assert BASELINE not in first_prompt
+    assert b"qpos" not in first_prompt
+    assert b"qvel" not in first_prompt
+    assert b"worker_inputs" not in first_prompt
+    assert b"45ce5baa" not in first_prompt
+    retained_payloads = (
+        first_record.baseline,
+        first_record.contracts.recipe_parser_source,
+        first_record.contracts.evaluator_source,
+        first_record.contracts.task_inputs_source,
+        first_record.contracts.canonical_task_inputs_schema,
+        first_record.contracts.canonical_parameter_bounds,
+    )
+    assert all(item.content_base64.encode() not in first_prompt for item in retained_payloads)
 
 
 def test_valid_local_envelope_retains_raw_bytes_and_emits_honest_recipe(
@@ -196,7 +261,13 @@ def test_valid_local_envelope_retains_raw_bytes_and_emits_honest_recipe(
     assert receipt.expected_model == "gpt-5.6-sol"
     assert receipt.expected_reasoning_effort == "max"
     assert receipt.expected_runner_kind == "screen"
-    assert receipt.expected_owner == "astra-f3-initial"
+    assert receipt.expected_checkout_realpath == EXPECTED_CHECKOUT_REALPATH
+    assert receipt.expected_branch == EXPECTED_BRANCH
+    assert receipt.expected_import_origin == EXPECTED_IMPORT_ORIGIN
+    assert receipt.expected_preparation_owner == EXPECTED_PREPARATION_OWNER
+    assert receipt.expected_preparation_role == EXPECTED_PREPARATION_ROLE
+    assert receipt.expected_preparation_scope == EXPECTED_PREPARATION_SCOPE
+    assert receipt.expected_owner == "fable-f3-initial"
     assert receipt.expected_role == "candidate"
     assert receipt.expected_scope == "t2-initial-parameter-hypothesis-only"
     assert receipt.metadata_semantics == "expected_configuration_not_served_model_attestation"
@@ -212,7 +283,7 @@ RUN_FILES = ("request.json", "task-packet.md", "result.json", "final.txt")
     ("request_updates", "result_updates", "packet"),
     [
         ({"prompt_sha256": "0" * 64}, {}, None),
-        ({"owner": "other"}, {}, None),
+        ({"owner": "astra-f3-initial"}, {}, None),
         ({}, {"status": "FAILED", "exit_code": 1}, None),
         ({}, {"termination_escalated": True}, None),
         ({}, {"thread_id": None}, None),
@@ -326,6 +397,34 @@ def test_mismatched_model_and_malformed_request_do_not_invent_observations(
         )
         retained = cases / f"records-{index}" / request_binding["retained_filename"]
         assert retained.read_bytes() == (run / "request.json").read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("field", "astra_value"),
+    [
+        ("expected_owner", "astra-f3-initial"),
+        (
+            "expected_checkout_realpath",
+            "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra",
+        ),
+    ],
+)
+def test_astra_configuration_receipts_are_rejected(
+    tmp_path: Path,
+    field: str,
+    astra_value: str,
+) -> None:
+    payload = _accepted_receipt_payload(tmp_path)
+    payload[field] = astra_value
+    with pytest.raises(RewardSearchError):
+        parse_model_bytes(finite_pretty_json(payload), T2ModelCallReceipt, max_bytes=65_536)
+
+
+def test_receipt_with_mismatched_baseline_hash_is_rejected(tmp_path: Path) -> None:
+    payload = _accepted_receipt_payload(tmp_path)
+    payload["baseline_sha256"] = "0" * 64
+    with pytest.raises(RewardSearchError):
+        parse_model_bytes(finite_pretty_json(payload), T2ModelCallReceipt, max_bytes=65_536)
 
 
 @pytest.mark.parametrize("accepted", [False, True])
@@ -549,6 +648,13 @@ def test_exact_bytes_and_path_boundaries_reject_every_argument_before_work(
         lambda: publish_initial_t2_packet(record_bytes, "packet.md", record_path),
         lambda: publish_initial_t2_packet(record_bytes, packet_path, PathSubclass(record_path)),
         lambda: publish_initial_t2_packet(record_bytes, packet_path, "record.json"),
+        lambda: publish_initial_t2_dispatch_intent(
+            BytesSubclass(record_bytes), tmp_path / "dispatch-intent.json"
+        ),
+        lambda: publish_initial_t2_dispatch_intent(
+            record_bytes, PathSubclass(tmp_path / "dispatch-intent.json")
+        ),
+        lambda: publish_initial_t2_dispatch_intent(record_bytes, "dispatch-intent.json"),
         lambda: ingest_initial_t2_sol_run(BytesSubclass(record_bytes), run, records_path),
         lambda: ingest_initial_t2_sol_run(record, run, records_path),
         lambda: ingest_initial_t2_sol_run(record_bytes, PathSubclass(run), records_path),
@@ -594,6 +700,29 @@ def test_packet_publication_uses_no_overwrite(tmp_path: Path) -> None:
     assert published.record.path.read_bytes() == record_bytes
     with pytest.raises(ValueError, match="overwrite"):
         publish_initial_t2_packet(record_bytes, packet, tmp_path / "other.json")
+
+
+def test_second_dispatch_intent_is_refused_without_changing_the_first(tmp_path: Path) -> None:
+    record_bytes, record = _record()
+    intent_path = tmp_path / "dispatch-intent.json"
+    published = publish_initial_t2_dispatch_intent(record_bytes, intent_path)
+    original = intent_path.read_bytes()
+    intent = parse_model_bytes(original, T2InitialDispatchIntent, max_bytes=65_536)
+
+    assert published.path == intent_path
+    assert intent.maximum_initial_calls == 1
+    assert intent.attempts_remaining_after_intent == 0
+    assert intent.revision_calls_authorized == 0
+    assert intent.retries_authorized == 0
+    assert intent.deadline_seconds_from_request_creation == 1_200
+    assert intent.record_sha256 == hashlib.sha256(record_bytes).hexdigest()
+    assert intent.rendered_prompt_sha256 == record.rendered_prompt_sha256
+    assert intent.expected_owner == "fable-f3-initial"
+    assert intent.expected_preparation_owner == "fable-f3-prepare"
+
+    with pytest.raises(ValueError, match="overwrite"):
+        publish_initial_t2_dispatch_intent(record_bytes, intent_path)
+    assert intent_path.read_bytes() == original
 
 
 def test_t2_response_and_receipt_do_not_cross_parse_a1_or_f1(tmp_path: Path) -> None:
