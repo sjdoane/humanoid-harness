@@ -3,7 +3,7 @@
 | status | current truth |
 |---|---|
 | progress | Samuel reassigned Astra to oracle/reference composition and Fable to task reward. Final F3 review accepted; parent reproduced 112 passes and committed the reward slice for handoff. |
-| bottleneck | Peer acknowledgment and exact oracle/runtime handoff are pending. No Phase B trained-tracker result or F3 model-candidate call. |
+| bottleneck | Fable confirmed the roles through Samuel's relayed response; FT2R3 remains active and the committed oracle/runtime handoff is pending. No Phase B trained-tracker result or F3 model-candidate call. |
 | next step | Follow `LANE_SWAP_20260906.md`: transfer accepted F3, obtain Fable's clean checkpoint, then advance the oracle composition loop. No new Astra reward call. |
 
 - Date: 2026-09-05.
