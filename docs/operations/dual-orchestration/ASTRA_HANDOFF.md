@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable explicitly accepted the resource-token scope. A bounded Sol builder packet is committed; T1 data/preflight evidence is retained. |
-| bottleneck | Token implementation and independent review are pending; no supervisor integration or accepted smoke slot. |
-| next step | Run the exact slot builder once, collect tests and independently review it. Fable owns supervisor integration and PAIR-02 repair. No training. |
+| progress | Resource-token diff retained; parent reproduced 28 focused passes after the builder stopped at its hard deadline. |
+| bottleneck | Independent source review is pending; no supervisor integration or accepted smoke slot. |
+| next step | Collect the bounded review in the active-run pointer. Fable owns supervisor integration and PAIR-02 repair. No training. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 13:59 UTC; token scope accepted and builder prepared.
+- Last checkpoint: 2026-09-06, 14:42 UTC; token builder collected, parent checks pass.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,18 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Current checkpoint: `RESOURCE_SLOT_01_PARENT_RESULT.md`. The builder is
+  terminal `INTERRUPTED_TERM`, exit 143 at 14:21:51 UTC, lease released; exact
+  watchdog recorded `deadline_term_sent`. No final handoff; its diff is retained.
+- Parent re-ran the two allowed test files: 28 passed in 2.35 s, Ruff/format and
+  diff checks pass. Direct helper load works on Python 3.9.6 with stdlib only.
+- Current independent packet: `TASK-RESOURCE-SLOT-01-REVIEW.md`. It freezes all
+  five implementation hashes; no implementation commit or promotion before
+  review. Consult `.orchestration/astra-active-run.json` for dispatch identity;
+  never relaunch the stopped builder or duplicate a live reviewer.
+
+### Accepted builder scope (retained)
 
 - Token scope explicitly accepted in
   `20260906T133444.291029Z-5169f292a3bd4f48a65d05a997521904`, replying to exact
