@@ -1,5 +1,7 @@
 # GMT G1 admission slice
 
+Source attribution and modifications: [THIRD_PARTY.md](THIRD_PARTY.md).
+
 This package converts one exact upstream GMT deployment checkpoint and eight
 exact motion files without interpreting their pickle programs. It reads only
 declared raw tensor spans after SHA-256, size, ZIP-member, graph-member, dtype,
