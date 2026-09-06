@@ -1,0 +1,12 @@
+{
+  "actor": "fable-395e7d0f-be34-489e-944e-bbfa673a1eea (Fable integration)",
+  "command": "python -c 'inspect_target_speed_runtime_v1()' (module oracle_composition.experiments.reward_target_speed_manifest); the inspection executes the eight-step no-learning smoke of the stock and target-speed environments in-process; no training",
+  "head_before_commit": "df3c41d5980ac31efb5024798e20e473f36fa17b",
+  "no_learning_smoke_sha256": "048cf64ca8b06f6bd9f00c1b591ba1d0b40fb87620114db6f3a3c367f4218bdc",
+  "reason": "the receipt binds a whole-source-tree hash and goes stale after every source commit; regenerated at integration",
+  "receipt_sha256_after": "7ef1f9780092108872b3abe7cacabb254801718596aa2de1067db8074ead7efc",
+  "receipt_sha256_before": "29cb96106cf4c77f3724446259ce8625d8654d6ddff5b6ac068f182998f50201",
+  "runtime_sha256": "445c8ce22507cdbf7da1af1f78ed4f0d11f5c5a265aac4618fc5a197d9962465",
+  "schema": "reward_receipt_regeneration/v1",
+  "utc": "20260906T123326Z"
+}
