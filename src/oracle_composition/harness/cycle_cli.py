@@ -665,6 +665,9 @@ def _evaluate_policy_command(
             output_directory=str(output),
             evaluator_source_sha256=str(source_identity["sha256"]),
             repository_root=str(root),
+            evaluation_manifest_path=str(evaluation_manifest.path),
+            evaluation_manifest_sha256=evaluation_manifest.sha256,
+            evaluation_manifest_byte_count=evaluation_manifest.byte_count,
         ),
         evaluation_manifest=evaluation_manifest,
     )
