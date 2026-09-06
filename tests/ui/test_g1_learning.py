@@ -332,6 +332,8 @@ def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None
     assert "full-task development gate" in html
     assert "Historical native Humanoid-v5" in html
     assert "Protected evaluation must not steer candidate authoring." in html
+    assert '<section class="view is-visible" id="g1-learning"' in html
+    assert "Historical native Humanoid-v5 admission" in html
     assert "The protected evaluator feeds the next iteration." not in html
     assert 'loadJson("/api/g1-learning")' in script
     assert "row.training.algorithm" in script

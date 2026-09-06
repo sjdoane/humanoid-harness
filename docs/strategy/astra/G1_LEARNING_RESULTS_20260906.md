@@ -2,9 +2,19 @@
 
 | status | evidence |
 |---|---|
-| progress | 17 bounded training runs completed (557,056 transitions); oracle/reward revisions and two exact reproduction controls are retained. |
+| progress | 19 bounded training runs completed (622,592 transitions); the single-seed trainer-scaling screen passes and all revisions/failures remain retained. |
 | bottleneck | No policy passes the full posture-course gate. Depth and heading remain unresolved. |
-| next step | Retain O2/r1; test explicitly versioned training-reward scaling before increasing the learning budget. |
+| next step | Replicate scaled O2/r1 on predetermined seeds, restore the matched reward contrast, and repair the failed O4 exit transition. |
+
+- Latest: [trainer screen](../../../experiments/005_g1_training_conditioning/RESULTS.md)
+  and [fixed replication jobs](../../../experiments/005_g1_training_conditioning/REPLICATION.md).
+- Scaling improves last-16 explained variance to 0.924 and lateral error to
+  0.526 m on seed 20260906. Full task still fails. This is a trainer effect,
+  not a new reward result; replication is pending.
+- O4 reaches 83.1% posture compliance without a residual but falls at 5.4 s.
+  It is rejected for learning admission, not promoted from its posture score.
+- The G1 UI validates 12 explicitly registered snapshots through the same
+  feedback/evaluator path. It is a selected evidence view, not all 19 runs.
 
 ## Architecture actually used
 

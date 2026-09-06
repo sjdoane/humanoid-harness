@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | 17 G1 training runs completed. Three-seed controls, three rejected LLM revisions, exact code/telemetry reproduction, recorded replay and feedback/revision CLI exist. |
+| progress | 19 G1 training runs completed. Single-seed trainer scaling passes its screen; the new UI validates 12 registered snapshots. |
 | bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Test an opt-in training-reward scale with matched O2r1 controls. Keep native Humanoid-v5 and longer-budget comparisons separate. |
+| next step | Run the five predefined scaled-trainer replication/reward jobs; diagnose O4 exit before training that oracle. |
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
@@ -16,10 +16,16 @@
   speed MAE 0.424 versus 0.307 m/s. No full task pass.
 - Main fast-forwarded to `9188ed0`; no push. Astra telemetry source `0923a5a`:
   all nine O2r1 output artifacts byte-identical, 266 focused tests pass.
-- Telemetry: near-zero explained variance throughout 64 updates; 149 attempted
-  epochs, not completed epochs. Opt-in scaling is being implemented separately.
-- Refresh `.orchestration/astra-active-run.json` and the mailbox before launching.
-  No live heavy job at 22:41 UTC; one separate-worktree trainer builder is active.
+- Initial raw telemetry: near-zero explained variance throughout 64 updates;
+  149 attempted epochs, not completed epochs. The resulting scaling screen is
+  now completed; see the current result above.
+- Latest screen and exact receipts: `../../../experiments/005_g1_training_conditioning/RESULTS.md`.
+- Current source includes reviewed UI commits through `9dd3e6b`; 330 focused
+  adapter/feedback/CLI/UI tests pass. No full task pass; main remains `9188ed0`.
+- Scale64 seed 06: explained variance 0.924, lateral 0.526 m, 20 s/no fall;
+  posture/timing/inside-speed still fail. O4 zero-residual probe falls at 5.4 s.
+- Refresh `.orchestration/astra-active-run.json` and mailbox before launching.
+  No heavy job at 23:30 UTC. Local G1 UI is on port 8766, separate from old 8765.
 - Whole-suite failures remain; see `../TEST_MATRIX_20260906.md`. Focused G1 checks pass.
 - Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
 - Everything below is historical context, not current dispatch authority.

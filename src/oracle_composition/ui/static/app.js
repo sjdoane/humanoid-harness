@@ -836,6 +836,7 @@ document.querySelector("#research-search").addEventListener("submit", async (eve
   }
 });
 
+loadG1Learning();
 loadStatus();
 loadGraphStats();
 loadLocalExploration();

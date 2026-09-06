@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 17 completed training runs, verified reference/reward revision loops and a recorded task-overlay replay. Main promoted to `9188ed0`; later Astra telemetry preserves all nine control artifacts exactly. |
+| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 19 completed training runs; static trainer scaling passes its single-seed screen. The G1 UI validates 12 registered snapshots; main remains `9188ed0`. |
 | bottleneck | No full G1 task pass. Native Humanoid-v5 remains a separate family: T1 failed its likelihood audit; no qualifying native policy or protected-evaluation result. |
-| next step | Test explicit trainer preconditioning using measured G1 diagnostics. Native retries require the remaining likelihood repair, fresh preflight/T2 re-seal and exact reviewed run authority. |
+| next step | Replicate the scaled trainer and matched reward contrast; diagnose the rejected O4 transition. Native retries remain separate and require repaired/sealed source plus exact run authority. |
 
 - Current: [G1 results](../strategy/astra/G1_LEARNING_RESULTS_20260906.md),
   [Astra handoff](dual-orchestration/ASTRA_HANDOFF.md), and the live mailbox.
