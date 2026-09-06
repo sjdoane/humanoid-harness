@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Manifest-admission repair `57add6e` independently accepted; 20 parent tests pass. First-principles review and native reference staging complete. |
-| bottleneck | No trained reference-following result. Calibration/runtime gates remain; revised strategy awaits peer assessment. |
-| next step | Fable integration of accepted source; agree a capped real-reference test. No automatic cohort, new reward call or environment migration. |
+| progress | Slot helper independently accepted and committed at `b7b67b7`; parent recheck has 37 focused passes. |
+| bottleneck | Fable-owned supervisor integration and exact smoke resource agreement remain pending. |
+| next step | Hand accepted source to Fable; review/import its clean integration, refresh T1 preflight, then propose the bounded smoke. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 07:50 UTC; research reassessment, data setup and manifest-admission closure.
+- Last checkpoint: 2026-09-06, 15:56 UTC; helper accepted and committed for peer integration.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,216 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- **Accepted source:** `b7b67b7925650db2e999953e6b85e81f865c7d34`.
+  `RESOURCE_SLOT_01_ACCEPTANCE.md` records the exact closure and caller duties.
+- Closure verdict `ACCEPT_RESOURCE_SLOT_HELPER_ONLY`, terminal 15:29:43 UTC,
+  exit 0; watcher observed completion. Both defects closed, all five hashes
+  verified; final parent recheck 37 passed in 2.69 s. No live Astra worker.
+- Fable owns supervisor integration and main promotion. Do not duplicate the
+  helper review, modify its peer checkout, or acquire a real compute slot.
+  Refresh T1 preflight only after the reviewed final integration is available.
+- Fable reports pairing closure and one initial F3 call. Its `2806729` ledger
+  records alpha 1.0 / beta 0.0, hypothesis only, not admitted or measured.
+  Astra read the committed record and acknowledged the message, not raw logs.
+
+### Repair checkpoint (retained)
+
+- Current result: `RESOURCE_SLOT_01_REVIEW_RESULT.md`; original independent
+  verdict `REPAIRS_RESOURCE_SLOT_01`, terminal 14:54:15 UTC, watcher observed
+  completion. Parent reproduced 8 failing new cases before repair; final
+  two-file suite has 37 passes. Exact repaired hashes are retained for closure.
+- Current packet: `TASK-RESOURCE-SLOT-01-CLOSURE.md`. Use active-run pointer;
+  do not duplicate a live review or edit its five frozen implementation files.
+- Fable reports its own combined readback of T2PAIRR2 and F3PINR2. Handoff
+  acknowledged; no duplicate pairing review or reward dispatch from Astra.
+
+### Original builder and first review (retained)
+
+- Current checkpoint: `RESOURCE_SLOT_01_PARENT_RESULT.md`. The builder is
+  terminal `INTERRUPTED_TERM`, exit 143 at 14:21:51 UTC, lease released; exact
+  watchdog recorded `deadline_term_sent`. No final handoff; its diff is retained.
+- Parent re-ran the two allowed test files: 28 passed in 2.35 s, Ruff/format and
+  diff checks pass. Direct helper load works on Python 3.9.6 with stdlib only.
+- Current independent packet: `TASK-RESOURCE-SLOT-01-REVIEW.md`. It freezes all
+  five implementation hashes; no implementation commit or promotion before
+  review. Consult `.orchestration/astra-active-run.json` for dispatch identity;
+  never relaunch the stopped builder or duplicate a live reviewer.
+
+### Accepted builder scope (retained)
+
+- Token scope explicitly accepted in
+  `20260906T133444.291029Z-5169f292a3bd4f48a65d05a997521904`, replying to exact
+  proposal `20260906T132352.198444Z-b86226c1a7b544e997ae9ce2324a4145`.
+  No more scope approval is needed for those five files; no compute is implied.
+- Builder packet: `TASK-RESOURCE-SLOT-01.md`, committed at `b028542`;
+  SHA-256 `9cdcf4430df96600df181de758cb8e7528521d928e51b276c5699ab39aa1ad17`,
+  6,095 bytes. Base `6a39aaaf26455caa30e30cd527100ec7df375bc9`, docs-only
+  descendants allowed. Requested Sol/max, write mode, no nested agents.
+- Dispatch once as owner `astra-resource-slot-builder-20260906`. The launcher
+  creates the exact durable run/request and writer lease. Read the active-run
+  pointer and matching request before retrying; a prepared packet is not a launch.
+- Target 12 minutes, stop work at 18, exact watchdog 20. Retain watcher errors
+  and verify detached startup. Only five agreed files and two focused test files;
+  no actual shared token, supervisor edit, simulator, full suite or training.
+- After terminal/lease release: inspect exact diff and tests, then independent
+  closure review before committing/promoting the implementation. Fable retains
+  its combined review, supervisor integration and main promotion.
+
+### Pre-dispatch evidence (retained)
+
+- **Current T1 evidence:** `T1_SMOKE_ROUTE_RESULT.md`. Fable accepted the exact
+  local-only data handoff in `20260906T124406.664008Z-62f7bdad6c224e699f9316dc1928c5bd`.
+  All 137 files / 85,097,632 bytes copied with source/copy hash verification;
+  existing private receipts unchanged. Real preflight passed in 9.45 s from
+  clean `f18d698`, with 103 sealed inputs. No simulator construction or training.
+- Copy ledger retained at `.orchestration/t1-history-handoff/verified-uar5nco2/copy_receipt.json`.
+  Its full identity and live preflight digests are in the T1 result above.
+- Fable confirms there is no implemented atomic heavy-job token. Returned a
+  formal scope proposal because its offer was embedded in an acceptance:
+  `20260906T132352.198444Z-b86226c1a7b544e997ae9ce2324a4145`.
+  Astra owns the proposed pure `harness/resource_slot.py`, focused tests and
+  mailbox adapters; Fable retains supervisor integration and main promotion.
+  Await explicit scope agreement before dispatching this shared-interface slice.
+  No token, resource slot or heavy-job authority has been claimed.
+- **Current pairing verdict:** `REPAIRS_T2PAIRR1`, retained at
+  `T2PAIRR1_REVIEW_RESULT.md`; PAIR-01/03 closed, PAIR-02 sink-level regression
+  still open. Terminal at 12:49:59 UTC, exit 0; watcher `terminal_observed`.
+  Final SHA-256 `ee7aec165c938c9f7c808a4dec1c987dd68cf1e8ce09e192f07785a107a8bafe`.
+- Findings returned to Fable via review
+  `20260906T131903.412132Z-030ff3ac4ab84fe09e332b3e8311ed20`.
+  It retains all pairing repairs and the combined T2AR2/F3 review. No worker
+  remains running in Astra; do not redispatch the completed closure packet.
+
+### Earlier admission and dispatch checkpoints (retained)
+
+- T1 verdict and actual preflight refusal: `T1_SMOKE_ROUTE_RESULT.md`.
+  Read-only audit returned `READY_TO_PROPOSE_T1_SMOKE` at 12:07:29 UTC;
+  watcher retained `terminal_observed`, with no timeout path exercised.
+  Parent's real preflight refused missing raw designer audit data after 0.84 s;
+  no simulator construction/step or training ran. Later checks remain unverified.
+- Exact local-only data-handoff proposal:
+  `20260906T124209.502736Z-57bb88fcef6d4b6e8bfe994f6b0ad51e`.
+  It requests both historical six-file designer bundles, their original oracle
+  files, and three content indexes with 80/20/20 bound traces. Nothing is copied
+  yet; raw data remains private and ignored. Do not fabricate or regenerate it.
+- The same proposal asks Fable for its promised atomic heavy-job token's exact
+  mechanism/status. It is not a compute reservation. Complete live preflight
+  before binding a future exact clean commit/input ledger into a smoke request.
+- Pairing repair handoff received/acknowledged as read:
+  `20260906T123327.297282Z-f8b27d09b938465baa5175c6277249cc`.
+  Source `df3c41d5980ac31efb5024798e20e473f36fa17b`; inspect Git objects only.
+  Parent verified contracts SHA-256 `c25d61de985f06ab69945842185fd004be3a623d3c984df11718ca1af53855f1`
+  and pairing receipt SHA-256 `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348`.
+  The committed full-suite summary reports **1 failure**, not a green run.
+  `78f6c7b` subsequently changes the historical reward no-learning receipt and
+  its regeneration record; do not infer a reproduced green suite from that.
+- Active read-only Sol/max closure packet `TASK-T2PAIRR1-CLOSURE.md` at `3de76b4`;
+  3,661 bytes, SHA-256 `6ae7798fcf7458a44d442acc3e9d8e52de1fff2f03a5a39d93c5a58c4132eb41`.
+  Only PAIR-01..03; Fable keeps the combined T2AR2/F3 dispatch review.
+- Run `.orchestration/sol-runs/20260906T124421Z-f2726334-bd50-4caa-a9f1-c512af01f0be`;
+  owner `astra-t2pairr1-review-20260906`; launched 12:44:21 UTC;
+  exact watchdog deadline **13:04:21 UTC**. No imports, tests or runtime.
+- Separate-session watcher PID 34036 survived the tool return (PPID 1);
+  start receipt binds exact Bash runner 34038. Error output is retained in the
+  run's `watcher.stdout-stderr.log`. Check the final outcome before attesting it.
+
+### Completed T1 audit dispatch (retained)
+
+- Audit: `TASK-T1-SMOKE-ROUTE-AUDIT.md`, committed at `9e567a6`;
+  4,941 bytes, SHA-256 `3a7cdb299b44c139c5ac8e28c5c2682fee66a8d594202d51eca473640d34905b`.
+- Pinned source: `2c2a32ba26c88ef253a47ce0b2823d846500c474` in Astra.
+  Scope: actual training-only prerequisites, not another broad tracker review.
+  Determine which gates are reachable; do not waive incomplete source reviews.
+- Read-only Sol/max run:
+  `.orchestration/sol-runs/20260906T115529Z-63dd62e7-a207-4d8a-a989-d5ec5940f097`.
+  Owner `astra-t1-route-review-20260906`; launched 11:55:29 UTC;
+  exact watchdog deadline 12:15:29 UTC. No imports, tests, simulator or training.
+- Watcher started in a separate session; PID 19521 remained alive with PPID 1
+  after the launch tool returned. Start receipt names exact Bash runner 18882;
+  stdout/stderr retained in the run's `watcher.stdout-stderr.log` (empty at check).
+  This verifies durable startup, not eventual deadline enforcement.
+- The launch wrapper first misparsed the launcher's text as JSON. The worker
+  had already launched successfully; no duplicate was started. Watcher attached
+  11 seconds later to the exact retained run, still using the original deadline.
+- Parent source check: the existing smoke reservation requires 1,200 seconds
+  (20 minutes), stricter than the strategy's 45-minute upper cap. Preserve it.
+  The training command produces an empty-evaluation/non-scoring report; it does
+  not invoke `evaluate-policy`. The independent audit must check remaining
+  reachable training gates before a concrete smoke reservation can be proposed.
+- Fable progress `20260906T114656.703183Z-aa616f999a0e4fc1a5179107ead9a225`
+  reports T2AR2 at `d780bf9`, re-seal `487a796`, and T2PAIRR1 starting.
+  Parent verified no `contracts.py` delta from `0b4a8a1` to `d780bf9`; SHA-256
+  `c8b6fd3cb61f0a79a086156f1a3440e64a5dae7395086735c59a886b2ec8448a`.
+  Peer test counts are not independently reproduced. No source imported.
+- Fable keeps T2PAIRR1 and its planned combined review. Astra progress reply:
+  `20260906T115626.178150Z-9e793b05e8864fdf88fe2b0f886f592f`.
+  Any future shared training/runtime/contracts import needs a delta assessment;
+  a verdict on this pinned Astra source cannot attest future integrated bytes.
+
+### Completed pairing review
+
+- Current verdict: `REPAIRS_T2PAIR`; exact findings and source locators in
+  `T2PAIR_REVIEW_RESULT.md`. No pairing or study execution acceptance.
+- Review returned to Fable in
+  `20260906T112039.620591Z-a4aa4e27ac6d4bfaa8c88e57f8a71362`, replying to its
+  exact T2PAIR handoff. Its existing T2AR2 writer retains repair ownership.
+- Reviewer terminal at 10:50:41 UTC, exit 0, before its declared deadline;
+  final SHA-256 `340ef1bf94c79a5522b2a8461b8b852e1922dcb42109eaaa327f7ea3b936bc33`.
+  The watcher-start record exists but its final record is absent; deadline
+  enforcement is not verified. No runner/watcher remained at collection.
+- Preserve existing records. On the next launch verify durable watcher life
+  and retain its error output. Do not fabricate a final-watch outcome.
+- The original pairing review is finished. Fable owns the repair and contract
+  path; the current Astra worker above is only its narrow read-only closure.
+
+### Pairing dispatch checkpoint (retained)
+
+- Current review packet: `TASK-T2PAIR-INDEPENDENT-REVIEW.md`, committed at
+  `00dcf8e`; SHA-256 `d37d98bd6e890c02f28f77a2bc7f630f0f5b3a96f269a4b940237f5d9fca2e47`,
+  4,715 bytes. Reviewer reads exact Git objects, never the peer's dirty files.
+- Detached run: `.orchestration/sol-runs/20260906T103625Z-03f6ffe1-99f1-4b50-bc11-d817301ec04e`.
+  Owner `astra-t2pair-review-20260906`; read-only Sol/max, no nested agents.
+  Launched 10:36:25 UTC; exact watcher attached in the same call, deadline
+  10:56:25 UTC. Review is static: no tests, fake runtime, simulator or training.
+- Reviewed slice: `0b4a8a1fda322eac1a12071593a79747cff1b8b3`, base
+  `7698256dfe721c020c2aa264432867523e1dc99c`. Parent verified pairing-receipt
+  Git bytes: 9,770 bytes, SHA-256
+  `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`.
+  It is a synthetic primitive-stream receipt, not a physical rollout.
+- Fable handoff `20260906T102035.254055Z-d65272207ef446eeba0cc6d16c5ec3e8`
+  is acknowledged as read. T2AR1's reported verdict is ACCEPT-WITH-REPAIRS;
+  final-ready report admission, registry-resolved candidate and execution-seal
+  verification remain with Fable's T2AR2. Do not duplicate that worker.
+- Any later T2AR2 change to `phase_b/contracts.py` needs delta review before
+  reusing a T2PAIR acceptance. This review cannot attest changing future bytes.
+- Current main `03a482600656f1a91d2f588ea4f62388eb81367e` now includes
+  `d47f528` by ancestry and contains all three advisory documents. This closes
+  the earlier title-versus-tree discrepancy below; no peer source was imported.
+
+### Earlier coordination checkpoints (retained)
+
+- Fable explicitly accepted research proposal
+  `20260906T075217.479909Z-0fe7bb48513649d5a37100b9bbc5c810` in
+  `20260906T083628.043657Z-ead8dd69e6734d1693d2ce05fe7374d4`.
+  Its independent assessment is committed at `49c0511` in main's
+  `docs/strategy/RESEARCH_STRATEGY.md`, section "First-principles challenge".
+- Accepted route: conditional benefit/cost, strong simpler baselines, optional
+  vision, and one non-promotable T1 mechanism smoke capped at 196,608 transitions
+  or 45 minutes. This accepts a route, not a run, resource allocation or cohort.
+- Proposed order: T1 mechanism check; separate T2 expert-hold reward study;
+  then the joint speed-zone comparison after the reference-use gate. T2 alone
+  is a reward intervention, not a joint reference/reward demonstration.
+- Source ancestry verified: `57add6e` is included in main
+  `7698256dfe721c020c2aa264432867523e1dc99c`. That merge's title also names
+  `d47f528`, but its tree contains no `docs/strategy/astra/` and the advisory
+  commit is not an ancestor. Advisory-document integration is still pending,
+  consistent with Fable's mailbox body; do not infer it from the title.
+- Fable reports T2AR1 committed at `e50a307`, receipt regeneration at `cca4600`,
+  and T2PAIR dispatched from `7698256`. Packet SHA-256:
+  `515516fc81e925e8d056bb26fab128115733405332cf81d82233bf0789a93d60`.
+  Peer review is ongoing. No new peer source imported into Astra; preserve
+  the existing source until the exact finished handoff is reviewed.
 
 - Latest user priority: investigate composition from scale and policy ICL, then
   make the smallest feasible joint reference/reward demonstration. Advisory
@@ -37,8 +247,8 @@
   reply `20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103`.
   This supersedes the earlier pending-base notes below, but does not approve
   implementation, compute or scientific results. Preserve Fable's paths.
-- No new worker is running in Astra. Resume from current receipts, not the
-  historical builder-dispatch directions below.
+- At the 07:50 checkpoint no worker was running in Astra. The current bounded
+  review above supersedes that state; no new builder has been dispatched.
 
 ### Prior dispatch context (retained)
 

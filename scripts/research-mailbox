@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -38,6 +39,42 @@ TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$")
 
 class MailboxError(Exception):
     pass
+
+
+_RESOURCE_SLOT: Any | None = None
+
+
+def resource_slot_module() -> Any:
+    """Load the helper from this script's checkout, without installed fallbacks."""
+
+    global _RESOURCE_SLOT
+    if _RESOURCE_SLOT is not None:
+        return _RESOURCE_SLOT
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "oracle_composition"
+        / "harness"
+        / "resource_slot.py"
+    )
+    spec = importlib.util.spec_from_file_location("_research_mailbox_resource_slot", source)
+    if spec is None or spec.loader is None:
+        raise MailboxError("cannot load the resource-slot helper from this checkout")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError) as error:
+        raise MailboxError("cannot load the resource-slot helper from this checkout") from error
+    _RESOURCE_SLOT = module
+    return module
+
+
+def slot_call(name: str, *arguments: Any, **keywords: Any) -> Any:
+    module = resource_slot_module()
+    try:
+        return getattr(module, name)(*arguments, **keywords)
+    except module.ResourceSlotError as error:
+        raise MailboxError(str(error)) from error
 
 
 def emit(value: Any, *, stream: Any = sys.stdout) -> None:
@@ -267,6 +304,27 @@ def command_status(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
     return status
 
 
+def command_reserve(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    token = slot_call(
+        "reserve_slot",
+        root,
+        owner=arguments.owner,
+        reservation_path=arguments.reservation,
+        expected_wall_seconds=arguments.expected_wall_seconds,
+    )
+    return {"created": True, "slot": token}
+
+
+def command_release(root: Path, arguments: argparse.Namespace) -> dict[str, Any]:
+    token = slot_call(
+        "release_slot",
+        root,
+        owner=arguments.owner,
+        token_id=arguments.token_id,
+    )
+    return {"released": True, "slot": token}
+
+
 def load_status(root: Path, agent: str) -> dict[str, Any] | None:
     path = root / "status" / f"{agent}.json"
     if not path.exists():
@@ -295,7 +353,21 @@ def command_board(root: Path, _: argparse.Namespace) -> dict[str, Any]:
         addressed = [message for message in messages if message["to"] == agent]
         unread = sum(load_ack(root, message) is None for message in addressed)
         mail[agent] = {"total": len(addressed), "unread": unread}
-    return {"mail": mail, "statuses": {agent: load_status(root, agent) for agent in AGENTS}}
+    return {
+        "heavy_job_slot": slot_call("slot_status", root),
+        "mail": mail,
+        "statuses": {agent: load_status(root, agent) for agent in AGENTS},
+    }
+
+
+def positive_seconds(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
 
 
 def parser() -> argparse.ArgumentParser:
@@ -328,6 +400,19 @@ def parser() -> argparse.ArgumentParser:
     status.add_argument("--bottleneck", required=True)
     status.add_argument("--next-step", dest="next_step", required=True)
     status.set_defaults(handler=command_status)
+    reserve = commands.add_parser("reserve")
+    reserve.add_argument("--owner", required=True)
+    reserve.add_argument("--reservation", type=Path, required=True)
+    reserve.add_argument(
+        "--expected-wall-seconds",
+        type=positive_seconds,
+        required=True,
+    )
+    reserve.set_defaults(handler=command_reserve)
+    release = commands.add_parser("release")
+    release.add_argument("--owner", required=True)
+    release.add_argument("--token-id", required=True)
+    release.set_defaults(handler=command_release)
     board = commands.add_parser("board")
     board.set_defaults(handler=command_board)
     return result
@@ -336,9 +421,15 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     arguments = parser().parse_args()
     try:
-        root = arguments.root.resolve() if arguments.root else default_root()
+        root = arguments.root if arguments.root else default_root()
+        if arguments.command in {"reserve", "release", "board"} and root.is_symlink():
+            raise MailboxError("coordination root must not be a symlink")
+        root = root.resolve()
         prepare(root)
         emit(arguments.handler(root, arguments))
+    except ValueError:
+        emit({"error": "invalid mailbox path or text", "ok": False}, stream=sys.stderr)
+        return 2
     except (MailboxError, OSError) as error:
         emit({"error": str(error), "ok": False}, stream=sys.stderr)
         return 2
