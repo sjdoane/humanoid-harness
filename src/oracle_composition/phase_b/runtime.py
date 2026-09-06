@@ -401,21 +401,6 @@ class _SharedResetAssignments:
         return block
 
 
-class _SharedFakeRehearsalCounter:
-    def __init__(self) -> None:
-        self.value = 0
-        self.by_environment = {2: 0, 3: 0}
-
-    def take(self, *, environment_index: int, pairing_declared: bool) -> int:
-        if pairing_declared:
-            value = self.by_environment[environment_index]
-            self.by_environment[environment_index] += 1
-            return value
-        value = self.value
-        self.value += 1
-        return value
-
-
 def _torso_up(state: HumanoidTrackingState) -> float:
     w, x, y, z = (float(value) for value in state.root_orientation_wxyz)
     norm_squared = w * w + x * x + y * y + z * z
@@ -725,16 +710,15 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         *,
         environment_index: int,
         plan: TrainingPlan,
-        scheduler: BalancedRSIScheduler,
-        rehearsal_counter: _SharedFakeRehearsalCounter | None = None,
+        assignments: _SharedResetAssignments,
         failure_mode: str | None = None,
         episode_steps: int = 13,
     ) -> None:
         self.environment_index = environment_index
         self.plan = plan
         self.stream = STREAM_BY_ENVIRONMENT[environment_index]
-        self.scheduler = scheduler
-        self.rehearsal_counter = rehearsal_counter or _SharedFakeRehearsalCounter()
+        self.assignments = assignments
+        self.scheduler = assignments.scheduler
         self.failure_mode = failure_mode
         self.episode_steps = episode_steps
         self.action_space = gym.spaces.Box(
@@ -751,6 +735,7 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         self._episode = 0
         self._step = 0
         self.counted_transitions = 0
+        self.reset_ledger: list[dict[str, object]] = []
         self._rsi_ledger: list[dict[str, object]] = []
         self.rsi_reset_count = 0
 
@@ -782,15 +767,19 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
     ) -> tuple[np.ndarray, dict[str, object]]:
         del seed, options
         self._step = 0
-        if self.stream == "rehearsal":
-            self.rsi_reset_count += 1
-            assignment = self.scheduler.assignment(
-                global_episode_index=self.rehearsal_counter.take(
-                    environment_index=self.environment_index,
-                    pairing_declared=self.scheduler.pairing_declared,
-                ),
-                environment_index=self.environment_index,
+        if self.stream == "composition":
+            self.reset_ledger.append(
+                {
+                    "block": self.assignments.composition_block(self.environment_index),
+                    "environment_index": self.environment_index,
+                    "global_episode_index": self._episode,
+                    "stream": self.stream,
+                }
             )
+        else:
+            self.rsi_reset_count += 1
+            assignment = self.assignments.rehearsal(self.environment_index)
+            self.reset_ledger.append({**assignment.to_dict(), "stream": self.stream})
             receipt = RSIRestorationReceipt(
                 start_boundary=assignment.start_boundary,
                 predecessor_boundary=(
@@ -976,13 +965,12 @@ def fake_environment_factories(
     episode_steps: int = 13,
 ) -> tuple[Callable[[], object], ...]:
     scheduler = BalancedRSIScheduler.from_plan(plan)
-    rehearsal_counter = _SharedFakeRehearsalCounter()
+    assignments = _SharedResetAssignments(scheduler)
     return tuple(
         lambda index=index: FakePhaseBTrainingEnv(
             environment_index=index,
             plan=plan,
-            scheduler=scheduler,
-            rehearsal_counter=rehearsal_counter,
+            assignments=assignments,
             failure_mode=failure_mode,
             episode_steps=episode_steps,
         )

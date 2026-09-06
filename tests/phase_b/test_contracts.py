@@ -120,6 +120,38 @@ def test_t2_pairing_contract_requires_exact_canonical_study_and_arm_bytes() -> N
         T2RewardPairing.from_study_manifest_bytes(encoded + b"\n")
 
 
+@pytest.mark.parametrize(
+    ("field", "alias", "message"),
+    [
+        ("transitions_per_seed", 1_048_576.0, "transition budget must be an integer"),
+        ("retries_or_seed_replacement", 0, "retries flag must be a boolean"),
+    ],
+)
+def test_t2_pairing_contract_refuses_python_equal_candidate_type_aliases(
+    field: str,
+    alias: object,
+    message: str,
+) -> None:
+    value = json.loads(
+        (ROOT / "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json").read_bytes()
+    )
+    baseline_common = {
+        name: item
+        for name, item in value["arms"][0].items()
+        if name not in contracts_module.PAIRING_EXCLUDED_ARM_FIELDS
+    }
+    value["arms"][1]["training"][field] = alias
+    candidate_common = {
+        name: item
+        for name, item in value["arms"][1].items()
+        if name not in contracts_module.PAIRING_EXCLUDED_ARM_FIELDS
+    }
+    assert baseline_common == candidate_common
+    assert canonical_json_bytes(baseline_common) != canonical_json_bytes(candidate_common)
+    with pytest.raises(PhaseBContractError, match=message):
+        T2RewardPairing.from_study_manifest_bytes(canonical_json_bytes(value))
+
+
 def test_run_manifest_rejects_unreviewed_smoke_budget_even_when_json_is_valid() -> None:
     raw = json.loads((PHASE_B / "run_manifest_training_admission_v2.json").read_bytes())
     raw["execution_profiles"]["smoke"]["transitions_per_seed"] = 196_607

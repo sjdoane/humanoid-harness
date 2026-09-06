@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2AR2 re-seals the pending one-call packet with integrated pairing receipt `e5351c3b…a259`, exact study/evaluator/execution bindings, and the unchanged 6,011-byte prompt. Preparation verifies the receipt before prompt rendering. |
-| bottleneck | Dispatch remains withheld at `withheld_pending_dispatch_verdict`: the canonical candidate is TBD, T2AR2 needs independent review and commit, and no candidate call or behavioral result exists. |
-| next step | Independently review and commit T2AR2, then obtain a separate dispatch verdict. A future accepted candidate must pass the one-step final admission and clean-HEAD re-seal before report or runtime admission. |
+| progress | T2PAIRR1 re-seals the pending one-call inputs with integrated pairing receipt `1a2b7ece…2348` and repaired production-routing contracts. Preparation verifies the receipt before prompt rendering. |
+| bottleneck | Dispatch remains withheld at `withheld_pending_dispatch_verdict`: the canonical candidate is TBD, T2PAIRR1 needs narrow independent review and commit, and no candidate call or behavioral result exists. |
+| next step | Independently review and commit T2PAIRR1, then obtain a separate dispatch verdict. A future accepted candidate must pass the one-step final admission and clean-HEAD re-seal before report or runtime admission. |
 
 ## Purpose and strict scope
 
@@ -19,7 +19,7 @@
 
 1. Independent verdict `ACCEPT_F3_STATIC_ONLY` closed the original F3 findings,
    while the Fable re-pin review and T2AR1 review required later repairs.
-   T2AR2 must be independently accepted and committed, and a separate dispatch
+   T2PAIRR1 must be independently accepted and committed, and a separate dispatch
    verdict must exist; any rejection, missing verdict, or different source bytes
    stops dispatch.
 2. The accepted Astra source is merged into `main`; this configuration is bound
@@ -35,14 +35,14 @@
    FT2R3 did not change it. It remains declared configuration, not observed load.
 4. Preparation receives and verifies the exact 1,671-byte
    `experiments/004_t2_reward_study/t2_seal_v1.json`, SHA-256
-   `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e`,
+   `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d`,
    before it renders the prompt. The non-model-facing seal binds the expert-hold
    oracle, T2 training design, evaluator design, pending execution manifest,
    study manifest, tracking-only baseline, arm-invariant pairing key, and exact
    integrated pairing-receipt SHA-256. Every bound file is re-read and
    hash/count checked; the receipt is validated and the pairing key is
    recomputed from equal common arm fields. The current seal truth is
-   `pairing_receipt: e5351c3b…a259` and `withheld_pending_dispatch_verdict`.
+   `pairing_receipt: 1a2b7ece…2348` and `withheld_pending_dispatch_verdict`.
    Therefore dispatch remains prohibited.
 5. The preparation and ingestion lease configuration is owner
    `fable-f3-prepare`, role `builder`, scope

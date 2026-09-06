@@ -82,6 +82,10 @@ def test_exact_byte_authority_refuses_schema_shaped_common_field_addition() -> N
 def test_reward_only_arms_have_identical_integrated_fake_runtime_streams() -> None:
     receipt = json.loads(RECEIPT_PATH.read_bytes())
     assert validate_pairing_receipt(receipt) == receipt
+    for binding in receipt["runtime_sources"].values():
+        source = ROOT / binding["path"]
+        assert source.stat().st_size == binding["byte_count"]
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == binding["sha256"]
     assert receipt["reward_sha256"]["baseline"] != receipt["reward_sha256"]["candidate"]
     assert all(row["identical"] is True for row in receipt["per_seed"])
     assert all(row["identical"] is True for row in receipt["per_seed_and_environment_slot"])
@@ -250,14 +254,14 @@ def test_committed_receipt_is_canonical_and_retains_predecessor_lineage() -> Non
     value = json.loads(encoded)
     assert encoded == canonical_json_bytes(value)
     assert hashlib.sha256(encoded).hexdigest() == (
-        "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+        "1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348"
     )
     assert validate_pairing_receipt(value) == value
     assert value["source_study_manifest_sha256"] == (
-        "4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627"
+        "8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10"
     )
     assert value["study_pairing_sha256"] == (
-        "fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0"
+        "64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7"
     )
     assert (
         hashlib.sha256(STUDY_PATH.read_bytes()).hexdigest() != value["source_study_manifest_sha256"]

@@ -414,7 +414,7 @@ def _primitive_streams(
 def _receipt_pairing(path: Path) -> tuple[T2RewardPairing, dict[str, object], str]:
     source_bytes = Path(path).read_bytes()
     source = _canonical_study_bytes(source_bytes)
-    from .study_manifest import validate_t2_study_manifest
+    from .study_manifest import STUDY_FINAL_READY_STATUS, validate_t2_study_manifest
 
     validate_t2_study_manifest(source)
     fake = copy.deepcopy(source)
@@ -424,6 +424,7 @@ def _receipt_pairing(path: Path) -> tuple[T2RewardPairing, dict[str, object], st
         "reward_id": "target_speed_triangular_affine_t2_adapter/v1",
         "sha256": hashlib.sha256(candidate_reward.canonical_bytes).hexdigest(),
     }
+    fake["status"] = STUDY_FINAL_READY_STATUS
     fake_bytes = canonical_json_bytes(fake)
     validate_t2_study_manifest(fake)
     return (

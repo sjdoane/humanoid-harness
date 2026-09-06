@@ -186,7 +186,7 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     prompt = render_initial_t2_prompt(record_bytes)
     seal = parse_model_bytes(T2_SEAL, T2PreDispatchSeal, max_bytes=65_536)
     assert seal.pairing_receipt == (
-        "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+        "1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348"
     )
     assert seal.dispatch_state == "withheld_pending_dispatch_verdict"
     assert record.schema_version == 4

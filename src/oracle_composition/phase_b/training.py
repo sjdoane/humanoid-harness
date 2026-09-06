@@ -325,9 +325,17 @@ def plan_domain_separated_seed(
 
     if type(plan) is not TrainingPlan:
         raise ValueError("seed derivation requires an exact TrainingPlan")
-    if plan.study_pairing is None:
+    if not _paired_routing_enabled(plan):
         return domain_separated_seed(plan.manifest_sha256, plan.seed, domain, index)
+    if plan.study_pairing is None:
+        raise AssertionError("declared pairing authority is unavailable")
     return paired_domain_separated_seed(plan.study_pairing, plan.seed, domain, index)
+
+
+def _paired_routing_enabled(plan: TrainingPlan) -> bool:
+    """Single production-routing seam used by the bounded mutation regression."""
+
+    return plan.pairing_declared
 
 
 def paired_action_noise(
@@ -467,7 +475,7 @@ class BalancedRSIScheduler:
         return cls(
             manifest_sha256=plan.manifest_sha256,
             ppo_seed=plan.seed,
-            study_pairing=plan.study_pairing,
+            study_pairing=(plan.study_pairing if _paired_routing_enabled(plan) else None),
         )
 
     @property
@@ -946,7 +954,7 @@ def _collect_rollout(
             rollout_index=rollout_index,
             steps_per_environment=plan.steps_per_environment,
         )
-        if plan.pairing_declared
+        if _paired_routing_enabled(plan)
         else None
     )
     for step_index in range(plan.steps_per_environment):
@@ -1140,7 +1148,7 @@ def _ppo_update(
                 update_index=rollout_index * plan.recipe.n_epochs + epoch_index,
                 sample_count=sample_count,
             )
-            if plan.pairing_declared
+            if _paired_routing_enabled(plan)
             else minibatch_rng.permutation(sample_count)
         )
         for start in range(0, sample_count, plan.recipe.batch_size):

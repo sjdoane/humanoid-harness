@@ -236,6 +236,25 @@
       "note": "binds the exact target SHA to the retained host run record",
       "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pair.txt",
       "retained_scratch_record_sha256": "5211ba6b677819d58fc544b32222eb0b6abc52064cd2553d6607d9c0205d7b7f"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2PAIRR1 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T12:32:50Z",
+      "result": "1 failed, 1922 passed, 16 skipped, 2 warnings in 370.64s (0:06:10); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr1.txt",
+      "retained_scratch_record_sha256": "73151835c7eb43ebd09561de8a4fdaec0bd038dbcb744d1a60f88fc2cea35fcf",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T12:24:12Z",
+      "tree": "Slice T2PAIRR1 (pairing review repairs PAIR-01..03, re-seal)"
+    },
+    {
+      "commit": "d780bf9",
+      "follow_up_receipt_for": "Slice T2AR2",
+      "note": "binds the exact target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar2.txt",
+      "retained_scratch_record_sha256": "92df0d9481de2193e4db553c99d1ea83c0db55859c718ad8604c8f88fe5efa8b"
     }
   ],
   "schema_version": 1

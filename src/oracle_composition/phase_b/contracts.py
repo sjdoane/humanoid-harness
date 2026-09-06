@@ -1058,10 +1058,13 @@ class T2RewardPairing:
             for name, value in candidate.items()
             if name not in PAIRING_EXCLUDED_ARM_FIELDS
         }
-        if baseline_common != candidate_common:
-            raise PhaseBContractError("paired arms differ outside the reward-only exclusions")
         _validate_t2_pairing_common_fields(baseline_common)
-        pairing_sha256 = hashlib.sha256(canonical_json_bytes(baseline_common)).hexdigest()
+        _validate_t2_pairing_common_fields(candidate_common)
+        baseline_common_bytes = canonical_json_bytes(baseline_common)
+        candidate_common_bytes = canonical_json_bytes(candidate_common)
+        if baseline_common_bytes != candidate_common_bytes:
+            raise PhaseBContractError("paired arms differ outside the reward-only exclusions")
+        pairing_sha256 = hashlib.sha256(baseline_common_bytes).hexdigest()
         _sha(study.get("study_pairing_sha256"), field="study_pairing_sha256")
         if study["study_pairing_sha256"] != pairing_sha256:
             raise PhaseBContractError("study pairing SHA-256 differs from exact arm bytes")

@@ -56,7 +56,7 @@ CANDIDATE_REWARD_ID = "target_speed_triangular_affine_t2_adapter/v1"
 INTEGRATED_PAIRING_RECEIPT_PATH = "experiments/004_t2_reward_study/pairing_receipt_v1.json"
 INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT = 9_770
 INTEGRATED_PAIRING_RECEIPT_SHA256 = (
-    "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+    "1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348"
 )
 PAIRING_EXCLUDED_ARM_FIELDS = frozenset({"arm_label", "output_path", "reward", "timestamps"})
 _COMMON_ARM_FIELDS = {

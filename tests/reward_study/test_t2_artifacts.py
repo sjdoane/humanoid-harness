@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -49,6 +50,28 @@ from oracle_composition.reward_study.t2_evaluator import (
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/004_t2_reward_study"
 PAIRING_RECEIPT = ROOT / "artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json"
+
+
+def test_protocol_source_hash_ledger_matches_exact_source_bytes() -> None:
+    protocol = (EXPERIMENT / "PROTOCOL.md").read_text()
+    documented = dict(
+        re.findall(
+            r"^\| `((?:reward_study|phase_b)/[^`]+\.py)` \| source \| `([0-9a-f]{64})` \|",
+            protocol,
+            flags=re.MULTILINE,
+        )
+    )
+    expected = {
+        "phase_b/protected_metrics.py",
+        "phase_b/report_v2.py",
+        "reward_study/pairing.py",
+        "reward_study/t2_evaluator.py",
+        "reward_study/t2_report.py",
+    }
+    assert set(documented) == expected
+    for relative, digest in documented.items():
+        source = ROOT / "src/oracle_composition" / relative
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
 
 
 def _signals(step: int) -> dict[str, object]:
@@ -99,7 +122,7 @@ def test_resealed_execution_manifest_is_canonical_and_records_launch_provenance(
     value = json.loads(encoded)
     digest = hashlib.sha256(encoded).hexdigest()
     assert encoded == canonical_json_bytes(value)
-    assert digest == "9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368"
+    assert digest == "7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c"
     study = json.loads((EXPERIMENT / "t2_reward_study_expert_hold_v1.json").read_bytes())
     expected_binding = {
         "byte_count": manifest_path.stat().st_size,
@@ -161,9 +184,9 @@ def test_evaluator_design_is_canonical_and_source_bound() -> None:
 def test_study_manifest_verifies_common_files_and_pairing_key() -> None:
     path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
     value, digest = load_t2_study_manifest(path, repository_root=ROOT)
-    assert digest == "8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10"
+    assert digest == "a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb"
     assert value["study_pairing_sha256"] == (
-        "64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7"
+        "affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19"
     )
     assert value["integrated_pairing_receipt_sha256"] == INTEGRATED_PAIRING_RECEIPT_SHA256
     assert value["status"] == STUDY_STATUS

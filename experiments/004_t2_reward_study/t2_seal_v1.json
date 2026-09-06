@@ -8,7 +8,7 @@
   "execution_manifest": {
     "byte_count": 3554,
     "path": "experiments/004_t2_reward_study/execution_manifest_t2_v1.json",
-    "sha256": "9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368"
+    "sha256": "7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c"
   },
   "expert_hold_oracle": {
     "byte_count": 964,
@@ -16,16 +16,16 @@
     "sha256": "489b82591cf65034d58d30f921442a84c93c9c98885cb2f5b22dcaf645a77010"
   },
   "kind": "t2_pre_dispatch_seal",
-  "pairing_receipt": "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259",
+  "pairing_receipt": "1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348",
   "schema_version": 1,
   "seal_id": "f3_t2_pre_dispatch_seal/v1",
   "study_id": "t2_reward_study_expert_hold/v1",
   "study_manifest": {
     "byte_count": 5908,
     "path": "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json",
-    "sha256": "8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10"
+    "sha256": "a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb"
   },
-  "study_pairing_sha256": "64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7",
+  "study_pairing_sha256": "affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19",
   "tracking_only_baseline": {
     "byte_count": 1773,
     "path": "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json",

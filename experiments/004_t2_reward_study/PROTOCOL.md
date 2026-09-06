@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2AR2 binds the reviewed `pairing_receipt_v1.json`, re-seals the evaluator, pending execution manifest, matched-arm study, and F3 ledger, and adds a fail-closed `final_ready` report-admission gate. Report hashes named files and replays traces; cross-manifest reconciliation is enforced by the final-ready gate. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
+| progress | T2PAIRR1 closes PAIR-01 through PAIR-03: both common projections are type-validated and byte-compared, two paired fake-runtime arms traverse the production PPO/reset/RSI routes with a disabling mutation control, and the source ledger plus pending seal chain are regenerated. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
 | bottleneck | Execution remains **NO-GO**: baseline is registry-resolved; the candidate resolver is unit-tested and the canonical candidate is TBD. Report admission therefore stops with `study_not_final_ready`; the actual execution commit and clean tree cannot be sealed until candidate admission. |
-| next step | Fable independently reviews and commits T2AR2, then obtains a separate dispatch verdict. If a candidate is later accepted, the admission step must registry-resolve both rewards, verify the actual clean execution HEAD, and regenerate the execution manifest, study manifest, and seal together before any report or runtime decision. |
+| next step | Astra performs the narrow T2PAIRR1 delta review. A later candidate still needs a separate dispatch verdict, registry resolution of both rewards, exact clean execution HEAD verification, and one final-ready execution/study/seal regeneration before any runtime decision. |
 
 ## Frozen artifact ledger
 
@@ -12,20 +12,20 @@
 |---|---:|---|---|
 | `oracle_expert_hold_v1.json` | 964 | `489b82591cf65034d58d30f921442a84c93c9c98885cb2f5b22dcaf645a77010` | canonical Phase B oracle; no transitions or recovery |
 | `training_design_t2_v1.json` | 1,815 | `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e` | exact T2 Phase B design contract |
-| `execution_manifest_t2_v1.json` | 3,554 | `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` | frozen MDP/model/ABI/source/lock/host seal; records launch-base provenance; the execution commit is verified at admission |
+| `execution_manifest_t2_v1.json` | 3,554 | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` | frozen MDP/model/ABI/source/lock/host seal; records launch-base provenance; the execution commit is verified at admission |
 | `evaluator_design_t2_v1.json` | 1,808 | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | evaluator/report/protected-core source-bound design |
-| `t2_reward_study_expert_hold_v1.json` | 5,908 | `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` | pending state; exact common bindings; integrated receipt bound; candidate remains `TBD` |
-| `t2_seal_v1.json` | 1,671 | `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` | non-model-facing ledger; `pairing_receipt` is the integrated receipt SHA-256; dispatch awaits a separate verdict |
+| `t2_reward_study_expert_hold_v1.json` | 5,908 | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` | pending state; exact common bindings; integrated receipt bound; candidate remains `TBD` |
+| `t2_seal_v1.json` | 1,671 | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` | non-model-facing ledger; `pairing_receipt` is the integrated receipt SHA-256; dispatch awaits a separate verdict |
 | `artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` | 1,736 | `6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a` | superseded adapter receipt; report admission refuses it when labeled integrated |
-| `pairing_receipt_v1.json` | 9,770 | `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` | integrated shared-runtime interface receipt; immutable predecessor study lineage `4eb3440b…3627`; five seeds x four slots |
-| `reward_study/pairing.py` | source | `6fe7aae67bd23557eb5e914e366bace5fcec7273c271b5c242d6f2546ce7261f` | exact-byte pairing authority bound by the current study and receipt |
+| `pairing_receipt_v1.json` | 9,770 | `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` | integrated shared-runtime interface receipt; immutable predecessor study lineage `8e81792a…2d10`; five seeds x four slots |
+| `reward_study/pairing.py` | source | `8bdd0e3b0f2ba0b4c867a1d2be12869c59e7e59d1a584b22f9d093f19490f627` | exact-byte pairing authority bound by the current study and receipt |
 | `reward_study/t2_evaluator.py` | source | `6f42b49b628ea11a2df13cf37a2ad170cde2be231427112103225e58b6f2e975` | protected direct-state computation and verified reference chain |
 | `reward_study/t2_report.py` | source | `50bce64dce17151e5ef94494e27963fc58e9fc31900b9275c071807bea11e4f8` | final-ready reconciliation, input resolution, raw-trace replay, deterministic receipt, and separate telemetry writers |
 | `phase_b/protected_metrics.py` | source | `a7456f038c08d6592a7bb4a92b4970e171ed38e6ac736cd477dcaa9f60760da6` | bound metric core preserving finite raw actions for independent bounds scoring |
 | `phase_b/report_v2.py` | source | `a3a173c0717a0af8e1693c30e9ffef9e47a3fe876bdbde9132d5d6b2e1a324f2` | bound deterministic-receipt and telemetry schema authority |
 
 The common arm-invariant pairing key is
-`64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7`.
+`affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19`.
 It excludes only reward, arm label, output path, and timestamps. Any common
 field change changes the key and creates a different execution family.
 
@@ -83,6 +83,32 @@ are retained outside the 6,011-byte prompt. The receipt is now verified, but
 `withheld_pending_dispatch_verdict` remains a verified preparation state, not
 dispatch authority.
 
+### T2PAIRR1 pairing-review repair re-seal
+
+PAIR-01 changed the exact `phase_b/contracts.py` bytes from
+`c8b6fd3cb61f0a79a086156f1a3440e64a5dae7395086735c59a886b2ec8448a`
+to `c25d61de985f06ab69945842185fd004be3a623d3c984df11718ca1af53855f1`.
+PAIR-02 also changed the source-bound training and runtime bytes. The receipt
+generator was repaired to create its controlled candidate in the required
+`final_ready` validation state, changing `reward_study/pairing.py` from
+`6fe7aae67bd23557eb5e914e366bace5fcec7273c271b5c242d6f2546ce7261f`
+to `8bdd0e3b0f2ba0b4c867a1d2be12869c59e7e59d1a584b22f9d093f19490f627`.
+
+| identity | T2AR2 seal | T2PAIRR1 seal |
+|---|---|---|
+| pairing receipt | `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` | `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` |
+| execution manifest | `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` |
+| evaluator design | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` |
+| study manifest | `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| study pairing key | `64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7` | `affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19` |
+| F3 seal | `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+
+The pairing receipt remains 9,770 bytes, but its bytes **did change**. It binds
+the repaired contract, training, runtime, and pairing source bytes and retains
+the T2AR2 study hash and pairing key as immutable predecessor lineage. The
+evaluator design was regenerated and remained byte-identical. No run consumed
+the superseded T2AR2 chain.
+
 ## Frozen protocol `t2_reward_study_expert_hold/v1`
 
 | field | frozen value |
@@ -94,7 +120,7 @@ dispatch authority.
 | Candidate timing | The independent evaluator is frozen first; one initial F3 call; admit the candidate and seal both arm manifests before exposing baseline measurements |
 | Common references and initialization | Corpus `a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090`; library `ad57578dc2ed4fe3707da74a4f86620e758b1aa30064016785d187a5e86d3207`; starting checkpoint `9931750c5015ae5a385ac42202485868b0338530918421234c5aacbfe9b3e3b5`; exact reference bytes, ABI, provenance, E1 actor, and value initialization unchanged |
 | Training | Design SHA-256 `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e`; PPO seeds `121001,121101,121201,121301,121401`; `1,048,576` transitions per seed; four environments, two expert-hold composition and two expert-reference rehearsal; first eight rollouts restricted, then full actor; final checkpoint only; no retries |
-| Pairing | `t2_reward_pairing/v1`; current pending-study `study_pairing_sha256=64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7`. The runtime accepts it only through exact canonical study bytes plus both exact embedded arm manifests. Action noise is indexed by rollout and environment slot; minibatch permutations by update; composition blocks and reset/RSI block, origin, class, and start by global episode index within each slot; declared evaluation seeds are the actual reset seeds at declared indices. The integrated receipt is exactly `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`. |
+| Pairing | `t2_reward_pairing/v1`; current pending-study `study_pairing_sha256=affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19`. The runtime accepts it only through exact canonical study bytes plus both exact embedded arm manifests. Action noise is indexed by rollout and environment slot; minibatch permutations by update; composition blocks and reset/RSI block, origin, class, and start by global episode index within each slot; declared evaluation seeds are the actual reset seeds at declared indices. The integrated receipt is exactly `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348`. |
 | Evaluation | Seeds `97001`-`97020`; deterministic actions; expert start; full 1,000-step sufficient traces; direct-state formulas; reward-telemetry separation proven by test; verified library/corpus/index/bundle/payload/row chain; evaluator/report design SHA-256 `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708`; report schema `t2_reward_study_report/v1`; calibration `none` |
 | Primary endpoint | Per checkpoint, mean over 20 episode values; each episode value is the mean of all `1,000` absolute per-step COM speed errors against `3.0 m/s`; no censoring |
 | Arm estimator | Five paired PPO-seed differences `d_s = Y_baseline - Y_candidate`; report every pair, mean, median, range, paired 95% t interval using the five policies, and the exact one-sided sign result; pooled `n = 100` inference is forbidden |
@@ -126,6 +152,14 @@ Per-slot episode counters keep reset schedules aligned even if the two policies
 later terminate at different times. Action-bound failure is interface-reachable;
 no production T2 trace producer has run. The re-sealed receipt binding does not
 authorize dispatch, smoke, or training.
+
+The PAIR-02 regression additionally sends both reward arms through
+`run_ppo_training` and the controlled fake runtime, observes the action-noise
+arrays and minibatch permutations at their production consumers, and compares
+each environment slot's reset ledger plus the RSI ledger. A test seam disables
+the shared paired route; the same regression then detects the misroute. This is
+production-routing evidence with fake environments, not a simulator or behavior
+result.
 
 ## Execution gates and claim ceiling
 

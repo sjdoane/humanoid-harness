@@ -2,9 +2,80 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2AR2` binds the accepted T2PAIR receipt into a re-sealed pending study, adds the fail-closed `final_ready` report gate, and adds one-step deep-metric tamper plus candidate/evaluator/execution/oracle/training/pairing cross-link negatives. Report hashes named files and replays traces; cross-manifest reconciliation is enforced by the final-ready gate. |
-| bottleneck | T2 execution remains **NO-GO**. Baseline is registry-resolved; the candidate resolver is unit-tested and the canonical candidate is TBD. Report admission returns `study_not_final_ready`, and dispatch still lacks an independent verdict. No candidate call, smoke, training, cohort, protected evaluation, or behavioral result exists. |
-| next step | Fable reviews and commits the complete T2AR2 slice, then obtains a separate dispatch verdict. If a candidate is accepted, run the admission step once to registry-resolve both rewards, verify the actual clean execution HEAD, and regenerate the execution manifest, final-ready study, and post-admission seal together. |
+| progress | `T2PAIRR1` closes PAIR-01 through PAIR-03, exercises both paired arms through the production PPO and controlled fake-runtime routes with a disabling mutation control, and re-seals the pending T2 chain. The interface-only focused suite passes. |
+| bottleneck | T2 execution remains **NO-GO**. The canonical candidate is TBD, report admission remains `study_not_final_ready`, and dispatch lacks an independent verdict. No candidate call, smoke, training, cohort, protected evaluation, or behavioral result exists. |
+| next step | Astra performs the narrow T2PAIRR1 delta review. A later accepted candidate still requires registry resolution, exact clean execution-HEAD verification, and one final-ready execution/study/seal regeneration before any runtime decision. |
+
+T2PAIRR1 completion (2026-09-06): launch base `487a796` was clean. The
+builder started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2pairr1`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write. Builder wall time was `35m` from lease acquisition through
+the final handoff audit.
+
+PAIR-01 changes exactly one function in `phase_b/contracts.py`:
+
+| function | before | after |
+|---|---|---|
+| `T2RewardPairing.__post_init__` | Compared the Python dictionaries, validated only the baseline projection, and hashed newly serialized baseline data | Validates both arm projections, serializes each to canonical bytes, compares those bytes exactly, and hashes the verified-equal baseline bytes |
+
+The exact `phase_b/contracts.py` file SHA-256 changed from
+`c8b6fd3cb61f0a79a086156f1a3440e64a5dae7395086735c59a886b2ec8448a`
+to `c25d61de985f06ab69945842185fd004be3a623d3c984df11718ca1af53855f1`.
+Actual-constructor regressions prove that `1048576` versus `1048576.0` and
+`false` versus `0` compare equal in Python but have different canonical bytes
+and are refused by the candidate projection's type validation.
+
+PAIR-02 sends two paired fake-runtime arms through `run_ppo_training`,
+`fake_policy_factory`, `fake_environment_factories`, the production action-noise
+and PPO minibatch consumers, and the shared per-slot reset/RSI assignment path.
+The regression captures and compares the consumed action primitives, minibatch
+permutations, all four slots' reset streams, and both rehearsal slots' RSI
+streams while retaining distinct arm execution hashes. Monkeypatching the
+single production routing seam `_paired_routing_enabled` to false makes the
+same bounded check fail, so removal or misrouting of the paired branch is not a
+passing test configuration. These controlled fake environments are interface
+evidence, not simulator or behavior evidence.
+
+PAIR-03 regenerates every source row in the Experiment 004 protocol ledger
+from exact source bytes. A documentation-to-source regression requires the
+complete five-row source set and recomputes every SHA-256. The receipt generator
+now places its controlled candidate copy in the required `final_ready` state
+before validating it; this restores re-seal generation after T2AR2 without
+weakening pending-study admission.
+
+| artifact | T2AR2 identity | T2PAIRR1 identity |
+|---|---|---|
+| pairing receipt, 9,770 bytes | `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` | `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` |
+| pending execution manifest, 3,554 bytes | `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` |
+| evaluator design, 1,808 bytes | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` |
+| pending study manifest, 5,908 bytes | `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| pending study pairing key | `64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7` | `affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19` |
+| F3 seal, 1,671 bytes | `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+
+The pairing receipt bytes **changed** even though its byte count stayed 9,770.
+It binds the repaired contract, training, runtime, and pairing sources and
+retains the T2AR2 study hash `8e81792a…2d10` and pairing key `64529d78…c1e7`
+as predecessor lineage. The evaluator design was regenerated and remained
+byte-identical. The forbidden reward-lane no-learning receipt was not run or
+regenerated and remains 4,150 bytes / `29cb9610…0201`.
+
+| T2PAIRR1 verification | result |
+|---|---|
+| Focused Phase B and reward-study tests | `245 passed in 238.63s` |
+| F3 seal consumer plus updated reward pairing/artifact tests | `121 passed in 8.53s` |
+| Full suite with the named reward-lane receipt test deselected | `1876 passed, 18 skipped, 1 deselected, 44 failed in 358.66s` |
+| Recorded sandbox-ledger comparison | all `44` unique expected nodes failed; observed and recorded sets are exactly equal |
+| Repository-wide Ruff lint | passed |
+| Repository-wide Ruff format check | all `408` files formatted |
+| `git diff --check` | passed at the final audit |
+
+Fable resume: inspect the PAIR-01 constructor delta, the PAIR-02 full-route
+regression and disabling mutation control, the five-row PAIR-03 source ledger,
+the exact receipt/study/seal supersession chain, and the final validation record;
+commit the complete slice, then send its exact commit to Astra for narrow
+re-review. Preserve `withheld_pending_dispatch_verdict`. Do not call for a
+candidate, run a smoke, or run training from this builder result.
 
 T2AR2 completion (2026-09-06): launch base `03a4826` was clean. The builder
 started only after the launcher acquired the exact write lease as
