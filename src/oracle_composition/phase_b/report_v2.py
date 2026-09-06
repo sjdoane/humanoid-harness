@@ -863,6 +863,9 @@ def _derived_task_success(
     latencies = [record.get("settle_latency_steps") for record in episode.resynchronization_records]
     return (
         episode.safety_passed
+        and episode.settled_state_normalized_error is not None
+        and episode.settled_state_normalized_error
+        <= calibration.settled_state_normalized_error_band
         and set(episode.segment_errors) == set(calibration.segment_speed_error_bands_m_s)
         and all(
             float(episode.segment_errors[name]) <= bound

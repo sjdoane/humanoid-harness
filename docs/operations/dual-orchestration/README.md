@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Samuel requested a lane swap: Astra leads oracle composition; Fable leads task reward. Astra's last reward review is complete and continuity instructions are updated. |
-| bottleneck | Fable confirmed the roles through Samuel's relayed response. The exact FT2R3 oracle/runtime checkpoint is pending; physical checkouts and current worker ownership remain unchanged. |
-| next step | Exchange reviewed committed handoffs, then resume the new lanes. See `LANE_SWAP_20260906.md`; no new Astra reward dispatch. |
+| progress | Narrow tracker reviews completed; omitted settling check repaired and parent-tested. Pairing correction proposed to Fable. |
+| bottleneck | Independent scoring-repair closure, calibration provenance and evaluator controls remain open; no trained-tracker result. |
+| next step | Review the small repair; see `OT1_NARROW_RESULTS.md`. No new Astra reward dispatch. |
 
 ## Ownership
 

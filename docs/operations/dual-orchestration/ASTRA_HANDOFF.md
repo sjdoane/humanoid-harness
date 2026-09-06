@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Samuel reassigned Astra to oracle/reference composition and Fable to task reward. Final F3 review accepted; parent reproduced 112 passes and committed the reward slice for handoff. |
-| bottleneck | Fable confirmed the roles through Samuel's relayed response; FT2R3 remains active and the committed oracle/runtime handoff is pending. No Phase B trained-tracker result or F3 model-candidate call. |
-| next step | Follow `LANE_SWAP_20260906.md`: transfer accepted F3, obtain Fable's clean checkpoint, then advance the oracle composition loop. No new Astra reward call. |
+| progress | OT1C/OT1E reviews completed. Parent repaired the omitted settling threshold in both scoring paths; 23 focused tests pass. |
+| bottleneck | Independent closure of the scoring repair, calibration provenance and evaluator gaps remain. No tracker approval or trained result. |
+| next step | Follow `OT1_NARROW_RESULTS.md`; review OT1C-02 only before the next bounded repair. Pairing agreement still pending; no training or Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06 UTC; interactive lane swap and final F3 acceptance.
+- Last checkpoint: 2026-09-06, 05:40 UTC; narrow verdicts retained and scoring regression repaired in Astra only.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
