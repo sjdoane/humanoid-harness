@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | F3 initial-only protocol is specified against the verified tracking-only baseline and accepted T2 bytes; no parent recipe is invented. |
-| bottleneck | Initial packet/retained-run implementation and exact F2 promotion reply remain; runtime and training are not admitted. |
-| next step | Collect the bounded F3 protocol builder, verify the actual file/test scope, then independently review before any candidate call. |
+| progress | F3 builder finished; parent reproduced 79 focused tests and all 13 predecessor hashes. Fable accepted exact F2 promotion and merged F1/F2. |
+| bottleneck | F3 remains unreviewed and pins the superseded baseline; no candidate call, runtime or training is admitted. |
+| next step | Collect the bounded independent verification, then address confirmed findings and refresh the exact baseline before reviewing a one-call protocol. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 23:48 UTC heartbeat; F3 plan collected, exact baseline verified and initial-only builder packet prepared.
+- Last checkpoint: 2026-09-06, 01:05 UTC heartbeat; F3 parent verification complete, test-output-only independent review prepared.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -53,7 +53,17 @@
 | F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
 | F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
 | F3 T2-aware model protocol | read-only Sol/max planner | finished 23:29:33Z | `F3_PLAN_RESULT.md`; parent corrected deadline and read-failure semantics |
-| F3 initial packet/ingestion | Sol/max builder | dispatch/collect exact active pointer | `TASK-F3-initial-protocol.md`; four new files, no candidate call |
+| F3 initial packet/ingestion | Sol/max builder + Astra | completed 00:13:01Z; parent 79 focused passes | `F3_PARENT_CHECKPOINT.md`; four new files, not accepted |
+| F3 independent verification | Sol/max test-output-only writer | dispatch/collect exact active pointer | `TASK-F3-independent-review.md`; source immutable, no candidate call |
+
+- Exact F2 promotion accepted by
+  `20260906T002718.313618Z-cbaf7f3f6326473ab7226e0c183ea53a`.
+  Parent verified committed main `87d2e39c47b6747b505bc2657d505aeda2265b5e`
+  integrates F1/F2. This supersedes pending-promotion notes below.
+- New committed tracking-only baseline: 1,773 bytes, SHA-256
+  `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f`.
+  The old F3 baseline is a historical static fixture only; live calls remain
+  gated on review and an explicit exact-baseline refresh. See parent checkpoint.
 
 - Parent verified baseline `0986d4fc...224d4`, 1,144 bytes, from peer object
   `a51ea9e`. Its run manifest agrees; `phase_b/DESIGN.md` still names a stale
