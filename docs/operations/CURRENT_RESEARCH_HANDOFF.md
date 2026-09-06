@@ -2,9 +2,34 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2C2` repairs the execution-seal paradox with a clean admission commit, exact source snapshot, and bounded record-only descendant rule; training and evaluation now validate Astra's complete shared heavy-job token at the immediate pre-spawn boundary and release its exact identity after terminal cleanup. |
-| bottleneck | T2C2 is dirty builder output, so the clean-commit v2 re-seal has correctly not run. T2C1's v1 artifacts remain current, and cycle 0 remains **NO-GO** with no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence. |
-| next step | Fable reviews and commits T2C2, runs the protocol's exact re-seal command once at that clean commit, commits only the three regenerated record files as its child, and obtains independent review before proposing runtime. |
+| progress | `T2C2` is committed at `402595e` and re-sealed once at that clean commit (`b11f921`: execution manifest `7ac1e516…b216`, study manifest `5e22a863…c011`, T2 seal `9814872f…cb2a`); the manifest validates at the docs-only descendant HEAD. Candidate `c09e93dc…c123` (alpha 1.0, beta 0.0) is the retained F3 hypothesis. Astra now leads implementation, bounded training, and main promotion; Fable reviews. |
+| bottleneck | Astra's independent review found a verified slot-lifetime defect in `supervision.py` (backlog `T2C2-A01`): a worker can outlive the released heavy-job token. Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
+| next step | Astra merges `f3edcff…` or its docs-only child, repairs `T2C2-A01` with a regression test, re-runs the documented re-seal at its clean source commit (a source change invalidates the per-file binding), obtains Fable's review, then proposes the T1 smoke reservation. |
+
+T2C2 integration (2026-09-06, Fable): slice committed as
+`402595e9ee5ed253ccb7eb19f19ed53e0d876b6e`; the documented re-seal ran once at
+that commit and its three regenerated records were committed as `b11f921`;
+the reward-lane receipt was regenerated in a receipted commit (`ed7e041`); the
+retained host record is `f3edcff`. Outside-sandbox full run of the T2C2 tree:
+`1978 passed, 16 skipped, 2 failed`, the two failures being the expected
+reward-receipt binding before regeneration and
+`tests/phase_b/test_supervision.py::test_spawned_worker_strips_non_allowlisted_environment`,
+which then passed alone on the host in 11 s. With the earlier phase B
+end-to-end case, that makes two worker-spawning tests that fail only under the
+full suite on this host; the cause is unexplained and open.
+
+Open finding `T2C2-A01` (Astra's independent review, verified by Fable at
+`f3edcff`): `_supervise_seed` spawns the worker before its monitoring `try`,
+and the `cleanup_worker` call sits after the `try`/`except` rather than in a
+`finally`, so `KeyboardInterrupt`, `SystemExit`, or any exception between
+spawn and the monitor loop leaves the worker running while
+`supervise_training_job`'s `finally` releases the heavy-job token
+unconditionally, including after `cleanup_worker` reports failure
+(`CLEANUP_FAILURE`). A surviving worker can then coexist with a newly admitted
+heavy job. Minimal repair: `BaseException`-safe cleanup from the spawn point
+onward, and retain the token (refuse release) when cleanup is unverified. The
+repair is Astra's; it changes `supervision.py`, so the T2 re-seal must run
+again at Astra's clean source commit before any runtime.
 
 T2C2 completion (2026-09-06): launch base
 `8773961167ab797c7f911f704a7555a39f506e82`. The launcher acquired the exact

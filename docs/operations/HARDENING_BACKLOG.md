@@ -13,6 +13,7 @@ them. Source reviews: `sol-review-sci-20260905-03b` and `sol-review-adv-20260905
 | R03B-08, SCI-04 | corpus tests | wrapper-counter bit flip, ledger replacement and order, six receipts plus three NPZs before reset, child replay corruption negatives | backlog |
 | R03B-09 | payload policy | enforcement is the git index only; no release or export scanner | backlog (release gate) |
 | SCI-07 | E3 receipt | wall time (present from run v2) | done in v2 |
+| T2C2-A01 | phase B supervision (`_supervise_seed`, `supervise_training_job`) | worker spawned before the monitor `try`; cleanup not in a `finally`, so `KeyboardInterrupt`/`SystemExit` or a post-spawn exception orphans the worker; wrapper `finally` releases the heavy-job token even after `cleanup_worker` fails, permitting duplicate heavy work | open blocker before any smoke or training (Astra owns the repair; found by Astra's review of `f4309e62…`, verified by Fable at `f3edcff`) |
 
 Folded into the next touching slice because they change a claim's wording or
 reproducibility: SCI-03 (admission map; rename the boolean), SCI-05 (screen
