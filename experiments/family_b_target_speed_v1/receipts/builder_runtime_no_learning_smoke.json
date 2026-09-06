@@ -99,7 +99,7 @@
       "trainer": "1bc9eecd01229e477404cc70a7ce27e1cb4b437173fe2aaa67140f1159aaab5f",
       "validator": "4c3819007127e4db3126080896b1bcaf6684fc44ee98d7546e66e3cd43888de0"
     },
-    "source_tree_sha256": "8b76f818b801ce450549d2b09e75f460796ed687ca7f94629f8b17d589b70c0c",
+    "source_tree_sha256": "fa76898f935d8e84e1f10feb97ef731cc30f128788578a1fdb09239b09cbf514",
     "torque_capacity_n_m": [
       40.0,
       40.0,
@@ -120,7 +120,7 @@
       10.0
     ]
   },
-  "runtime_sha256": "ecb8308ac2c7c042d5fec45c4ae9c77e8fa63afb1dc68e8b10c6fbe07bc77625",
+  "runtime_sha256": "830ddf943fbd8d20cf6c25c4b74fae8784fa521c5f71e2dd3b5d8a34c95f2d0e",
   "schema_version": 1,
   "training_run": false
 }

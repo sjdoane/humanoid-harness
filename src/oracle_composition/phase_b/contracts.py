@@ -67,6 +67,19 @@ COHORT_SEEDS = (121001, 121101, 121201, 121301, 121401)
 SMOKE_TRANSITIONS = 196_608
 COHORT_TRANSITIONS = 1_048_576
 FINAL_CHECKPOINT_RULE = "final_transition_only"
+T2_TRAINING_DESIGN_SCHEMA_ID = "humanoid_fine_tuning_training_design_t2/v1"
+T2_RSI_FAMILY_ID = "expert_reference_nine_block_rsi/v1"
+T2_TRAINING_BLOCKS = (
+    120001,
+    120002,
+    120003,
+    120005,
+    120007,
+    120008,
+    120009,
+    120011,
+    120012,
+)
 
 PHASE_POLICY = MappingProxyType(
     {
@@ -722,6 +735,63 @@ def training_design_contract_value() -> dict[str, object]:
     }
 
 
+def t2_training_design_contract_value() -> dict[str, object]:
+    """Return the exact expert-only T2 design without changing the T1 contract."""
+
+    value = training_design_contract_value()
+    value["environments"] = {
+        "count": 4,
+        "implementation": "DummyVecEnv",
+        "stream_by_environment": [
+            "composition",
+            "composition",
+            "rehearsal",
+            "rehearsal",
+        ],
+        "stream_contracts": {
+            "composition": {
+                "environment_indices": [0, 1],
+                "oracle_program_id": "expert_hold_v1",
+                "oracle_variant": "expert_hold/v1",
+                "reset": "expert_start_boundary_0",
+            },
+            "rehearsal": {
+                "environment_indices": [2, 3],
+                "reference_behavior": "expert",
+                "rsi_family": T2_RSI_FAMILY_ID,
+            },
+        },
+        "stream_mix": {"composition": 2, "rehearsal": 2},
+    }
+    value["pairing"] = {
+        "declared": True,
+        "key_field": "study_pairing_sha256",
+        "runtime_requirement": "reviewed_integrated_pairing_receipt",
+        "stream_derivation_id": "t2_reward_study_rng_substream/v1",
+    }
+    value["rsi"] = {
+        "environment_indices": [2, 3],
+        "reference_behavior": "expert",
+        "rsi_family": T2_RSI_FAMILY_ID,
+        "schedule_class": "hold",
+        "start_boundary_hash_modulus": 489,
+        "training_blocks": list(T2_TRAINING_BLOCKS),
+    }
+    value["training_design_schema_id"] = T2_TRAINING_DESIGN_SCHEMA_ID
+    return value
+
+
+def validate_training_design(value: Mapping[str, object]) -> dict[str, object]:
+    """Admit exactly the frozen T1 design or the expert-only T2 design."""
+
+    if type(value) is not dict:
+        raise PhaseBContractError("training design must be an object")
+    observed = dict(value)
+    if observed not in (training_design_contract_value(), t2_training_design_contract_value()):
+        raise PhaseBContractError("training design semantics differ")
+    return observed
+
+
 def utility_evaluation_design_contract_value() -> dict[str, object]:
     return {
         "cell_episode_counts": {
@@ -1193,6 +1263,9 @@ __all__ = [
     "REWARD_SCHEMA_SHA256",
     "RUN_MANIFEST_SCHEMA_ID",
     "STARTING_CHECKPOINT_SCHEMA_ID",
+    "T2_RSI_FAMILY_ID",
+    "T2_TRAINING_BLOCKS",
+    "T2_TRAINING_DESIGN_SCHEMA_ID",
     "TARGET_SPEED_BOUNDS_BYTES",
     "TARGET_SPEED_BOUNDS_SHA256",
     "TARGET_SPEED_FORMULA_ID",
@@ -1222,7 +1295,9 @@ __all__ = [
     "load_fine_tuning_run_manifest",
     "load_phase_b_oracle",
     "load_starting_checkpoint",
+    "t2_training_design_contract_value",
     "training_design_contract_value",
     "utility_evaluation_design_contract_value",
     "validate_cycle_report",
+    "validate_training_design",
 ]

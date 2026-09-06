@@ -2,9 +2,47 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260906-F3PIN` re-pins the independently accepted F3 initial-only protocol to Fable's `main` checkout and owners. The exact baseline/F2 identities and one-call semantics are unchanged; 117 focused tests pass and the full-suite failures exactly match the 44-node sandbox baseline. |
-| bottleneck | The re-pin still needs Fable review and commit. No candidate call, admission, experimental simulator run, training, protected evaluation, measured feedback, or reward result exists. |
-| next step | Fable reviews and commits the static re-pin, then freezes the separate matched T2 reward-study protocol from the survey. Do not dispatch the F3 candidate call from this handoff. |
+| progress | `TASK-20260906-T2A` freezes the canonical expert-hold oracle, expert-only T2 training design, source-bound direct-state evaluator/report, matched-arm study manifest, and source-bound uncalled pairing adapter. The 25 focused tests pass; the release-byte full suite adds no failure beyond the recorded sandbox baseline. |
+| bottleneck | T2 execution remains **NO-GO**. The candidate reward SHA-256 and Astra-accepted integrated trainer pairing receipt are both TBD; the local adapter receipt is an interface check and does not show that `phase_b/training.py` consumes the pairing key. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
+| next step | Fable reviews and commits T2A (force-add the intentionally ignored pairing receipt), then—only if the separate F3PIN review accepts—runs the one initial F3 call and admits/seals the candidate. Astra must explicitly accept and integrate the shared trainer seam before any smoke or cohort proposal; every cohort still needs its own reservation and Samuel authorization. |
+
+Fable integration note (2026-09-06T05:56Z): T2A is committed in this same commit with the force-added pairing adapter receipt. F3PIN review verdict: ACCEPT_F3_REPIN_STATIC_ONLY, WITHHOLD_DISPATCH; repairs in packet TASK-20260906-F3PINR1 (next writer). The pairing seam (packet TASK-20260906-T2PAIR) launches only after Astra accepts proposal 20260906T055257. A read-only review of T2A runs in parallel. Fable resume: read the F3PINR1 final and the T2A review; commit; if Astra accepted the pairing terms, launch T2PAIR; the single F3 call waits for the T2 seal, the pairing receipt, and a dispatch verdict; cohorts wait for a reservation and Samuel's authorization.
+
+T2A completion (2026-09-06T05:50Z): base/head `077e4e8`; expert-hold oracle
+`489b8259…7010`, T2 training design `84543f08…e67e`, evaluator design
+`d8f54f80…a04b`, matched-arm manifest `7aefaafc…0738`, arm-invariant pairing
+key `4af9c953…2464`, and adapter receipt `01c591c5…1f1` all reload from
+canonical bytes and their source/artifact bindings. The unchanged T1 training
+design remains `1d104a52…c69e`, and `src/oracle_composition/phase_b/training.py`
+is byte-untouched. The evaluator recomputes COM speed and six tracking errors
+from direct state and authoritative expert rows; the deterministic report keeps
+reward diagnostics and host/wall telemetry outside protected endpoints, uses
+five final checkpoints as the independent units, and reports incomplete traces
+as safety failures without pooled inference.
+
+Focused T2 validation is `25 passed` in `5.07 s`. Ruff lint and the authorized
+`243`-file source/test format check pass, as does `git diff --check`. The final
+full suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1782 passed, 18 skipped, 1 deselected, 44 failed` in `223.83 s`; the exact
+set of all `44` failed node IDs equals
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. An
+earlier adjacent-only run had one transient fake-supervisor worker crash; its
+isolated rerun and the release-byte full suite both passed, with no repair made.
+The pairing adapter receipt lives at ignored path
+`artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` and must be
+force-added by Fable if retained. No Git write, F3/candidate call, standalone
+simulator run, smoke, training, cohort, or protected behavioral evaluation ran.
+Builder wall time was `64m` through release-byte full-suite reconciliation.
+
+Fable resume: inspect the Experiment 004 protocol, canonical JSONs, protected
+evaluator/report, study equality checks, and pairing negatives; force-add the
+ignored adapter receipt and commit the complete slice. Read the independent
+F3PIN verdict before dispatch. If accepted, perform exactly the authorized
+single initial call, admit the candidate, update and seal both arms, then obtain
+Astra's explicit pairing integration and a production-runtime receipt. Only
+after those gates may Fable propose the disposable smoke or ask Samuel to
+authorize cycle 0.
 
 Fable integration note (2026-09-06T04:40Z): F3PIN committed as `b071fc5`. Reward lane: the T2 protocol is frozen in the strategy (`t2_reward_study_expert_hold/v1`, commit c0332b1); the pairing-key runtime change is proposed to Astra; builder `sol-builder-20260906-t2a` (packet `TASK-20260906-T2A`) builds the study artifacts; a targeted read-only review of F3PIN runs in parallel. Fable resume: read the T2A final and the F3PIN review; commit; if the review accepts, run the single F3 call under the re-pinned protocol (preparation and ingestion by Fable under its lease, candidate worker read-only), admit and seal the candidate, then propose the cycle-0 smoke and cohort reservation and ask Samuel for authorization 1.
 
