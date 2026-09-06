@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable is repairing the pairing findings. Astra launched a narrow T1 training-only prerequisite audit, independently of the T2 reward study. |
-| bottleneck | No T1 smoke-readiness verdict or accepted resource reservation; T2PAIR repairs remain unreviewed. No robot result. |
-| next step | Collect the bounded T1 audit and Fable's exact pairing repair. No duplicate worker, source import, training or reward call. |
+| progress | T1 route audit permits a smoke proposal; real preflight identified missing historical data. Fable's pairing repair has a narrow independent closure review running. |
+| bottleneck | T1 needs exact designer audit/trace artifacts and an atomic resource slot; no launch-ready input ledger yet. Pairing closure remains pending. |
+| next step | Obtain Fable's data-handoff acceptance, then rerun preflight. Collect the exact pairing review; no duplicate worker, import, training or reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 11:58 UTC; T1 route audit running.
+- Last checkpoint: 2026-09-06, 12:44 UTC; T1 admission blocker recorded, pairing closure running.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,39 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- T1 verdict and actual preflight refusal: `T1_SMOKE_ROUTE_RESULT.md`.
+  Read-only audit returned `READY_TO_PROPOSE_T1_SMOKE` at 12:07:29 UTC;
+  watcher retained `terminal_observed`, with no timeout path exercised.
+  Parent's real preflight refused missing raw designer audit data after 0.84 s;
+  no simulator construction/step or training ran. Later checks remain unverified.
+- Exact local-only data-handoff proposal:
+  `20260906T124209.502736Z-57bb88fcef6d4b6e8bfe994f6b0ad51e`.
+  It requests both historical six-file designer bundles, their original oracle
+  files, and three content indexes with 80/20/20 bound traces. Nothing is copied
+  yet; raw data remains private and ignored. Do not fabricate or regenerate it.
+- The same proposal asks Fable for its promised atomic heavy-job token's exact
+  mechanism/status. It is not a compute reservation. Complete live preflight
+  before binding a future exact clean commit/input ledger into a smoke request.
+- Pairing repair handoff received/acknowledged as read:
+  `20260906T123327.297282Z-f8b27d09b938465baa5175c6277249cc`.
+  Source `df3c41d5980ac31efb5024798e20e473f36fa17b`; inspect Git objects only.
+  Parent verified contracts SHA-256 `c25d61de985f06ab69945842185fd004be3a623d3c984df11718ca1af53855f1`
+  and pairing receipt SHA-256 `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348`.
+  The committed full-suite summary reports **1 failure**, not a green run.
+  `78f6c7b` subsequently changes the historical reward no-learning receipt and
+  its regeneration record; do not infer a reproduced green suite from that.
+- Active read-only Sol/max closure packet `TASK-T2PAIRR1-CLOSURE.md` at `3de76b4`;
+  3,661 bytes, SHA-256 `6ae7798fcf7458a44d442acc3e9d8e52de1fff2f03a5a39d93c5a58c4132eb41`.
+  Only PAIR-01..03; Fable keeps the combined T2AR2/F3 dispatch review.
+- Run `.orchestration/sol-runs/20260906T124421Z-f2726334-bd50-4caa-a9f1-c512af01f0be`;
+  owner `astra-t2pairr1-review-20260906`; launched 12:44:21 UTC;
+  exact watchdog deadline **13:04:21 UTC**. No imports, tests or runtime.
+- Separate-session watcher PID 34036 survived the tool return (PPID 1);
+  start receipt binds exact Bash runner 34038. Error output is retained in the
+  run's `watcher.stdout-stderr.log`. Check the final outcome before attesting it.
+
+### Completed T1 audit dispatch (retained)
 
 - Audit: `TASK-T1-SMOKE-ROUTE-AUDIT.md`, committed at `9e567a6`;
   4,941 bytes, SHA-256 `3a7cdb299b44c139c5ac8e28c5c2682fee66a8d594202d51eca473640d34905b`.
@@ -66,8 +99,8 @@
   enforcement is not verified. No runner/watcher remained at collection.
 - Preserve existing records. On the next launch verify durable watcher life
   and retain its error output. Do not fabricate a final-watch outcome.
-- No pairing worker remains in Astra. Fable owns the pairing repair and its
-  contract path; do not create a competing patch. The new T1 audit is read-only.
+- The original pairing review is finished. Fable owns the repair and contract
+  path; the current Astra worker above is only its narrow read-only closure.
 
 ### Pairing dispatch checkpoint (retained)
 
