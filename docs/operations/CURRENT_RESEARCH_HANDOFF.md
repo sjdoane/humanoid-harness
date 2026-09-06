@@ -2,9 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260905-FT2` is implemented: the full-authority PPO worker, exact `50/50` composition/rehearsal runtime, predecessor RSI, parent/worker ACK and resource supervision, deterministic final persistence, five-checkpoint index, report-v2 writer, `train`, and `evaluate-policy`. The fake-runtime exercises the real process/persistence/report path for two seeds and every required failure status. No training or disposable smoke ran. |
-| bottleneck | The smoke, five-seed cohort, and protected utility evaluation remain unrun. Segment tolerances are explicitly `placeholder_until_calibrated`; the implementation and no-learning checks provide no behavioral, promotion, reference-use, oracle-improvement, or reward-improvement evidence. |
-| next step | Fable reviews and commits FT2, then requests a separate mailbox reservation for the disposable smoke. The cohort additionally requires Samuel's explicit authorization; neither run should start from this builder handoff. |
+| progress | `TASK-20260905-FT2R1` closes FT1-SCI-01 through 05 and ADV-01 through 07 with code and non-vacuous negatives: live-source E1 replay, exact optimizer receipts, certified task inputs, a reviewed Phase B execution seal, executable disjoint calibration, trace-grounded Phase A metrics, strict designer provenance, bounded actor archives, short-circuit sentinels, and normalized numeric bounds. No training ran. |
+| bottleneck | No calibration receipt, disposable smoke, five-seed cohort, protected utility evaluation, or behavioral evidence exists. The implementation remains `interface_check`; it establishes neither causal reference use nor oracle, reward, transition, or humanoid performance. |
+| next step | Fable reviews and commits FT2R1. A disjoint calibration receipt must be collected and frozen before task-success scoring; any later smoke needs its accepted mailbox reservation, and the cohort still needs Samuel's explicit authorization. |
+
+Fable integration note (2026-09-06T00:32Z): FT2R1 committed as `5965f0c`. Astra's F2 evaluator commit `9bbb658` is merged next; then writer `sol-builder-20260906-ft2r2` (packet `TASK-20260906-FT2R2`), then `FT2R3`, then one combined re-review, then the smoke reservation proposal to Astra and Samuel's cohort authorization. No training has run. Fable resume: read the FT2R2 final; commit; launch FT2R3; do not run the smoke before both repairs and the re-review.
+
+FT2R1 completion (2026-09-06T00:24Z): base/head `a51ea9e`; focused harness/Phase B/reward validation is `287 passed, 16 skipped` in `99.10 s`. The final full suite is `1525 passed, 18 skipped, 1 deselected, 44 failed` in `250.15 s`; all `44` failed node IDs exactly match `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. The sole deselection was the forbidden reward-lane receipt test `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`; it was not executed or changed. Ruff lint, the `332`-file format check, `git diff --check`, frozen Phase A byte identity/reproducibility, and documentation-to-artifact hash checks pass. No training or training smoke ran; simulator execution was limited to the existing bounded no-learning tests.
+
+The FT1 `policy.py` bytes had to change to close ADV-03's pre-allocation NPZ defect; E1 was regenerated against live policy `fd1d8729…3fd1` and receipt-generator `9cc5914d…d0c0`. Final seals are E1 `5754db8e…34bc9`, starting checkpoint `9931750c…e3b5`, tracking-only reward `eea2b6a9…1c5f`, evaluator `4145c7ba…4f7d`, and reviewed training-admission manifest `45ce5baa…ebb`. The ignored step-0 actor export remains byte-identical at `6ebc2b56…cfe0`; Astra's reviewed `task_inputs_v2.py` remains unchanged at `9607f2d5…f0d2`, and no pending adapter was added to the sole-entry `tracking_only/v1` registry. Strict provenance regeneration produced cycle-1/2 provenance `690b0852…0838` / `b9a75768…c19c` and scientific receipts `c44ac70d…b8f2` / `2a8d1d77…0f0e`.
+
+Fable resume: inspect the FT2R1 diff and the final full-suite baseline comparison; verify the E1/manifest/documentation seals and regenerated Phase A provenance chain; then commit this complete interface-only slice. Do not run training from this handoff. Collect and review the disjoint calibration receipt before task-success evaluation, obtain a mailbox reservation before the smoke, and obtain Samuel's explicit authorization before the cohort.
 
 Fable integration note (2026-09-05T23:11Z): FT2 committed as `f6287e5`. Next writer: `sol-builder-20260905-ft2r1` (packet `TASK-20260905-FT2R1`, the twelve FT1 and E003R1 review findings; no training). Read-only reviews of FT2 run in parallel. Astra's F2 formula interface is accepted with the velocity-bound admission certificate condition; their reviewed adapter hash is pending. Fable resume: read the FT2R1 final and the FT2 reviews; commit; fold; then send Astra the smoke reservation proposal (seed 121901, 196,608 transitions, expected 3 min, hard 20 min) and ask Samuel for the five-seed cohort authorization before any cohort run.
 
@@ -41,13 +49,13 @@ reservation and Samuel's authorization.
 
 Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
 
-- Updated: `2026-09-05T23:04Z` (FT2 implementation and validation handoff)
+- Updated: `2026-09-06T00:24Z` (FT2R1 training-admission repair handoff)
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `10d477b` (clean at FT2 launch; no Git writes)
+- Precondition HEAD: `a51ea9e` (clean at FT2R1 launch; no Git writes)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260905-ft2`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
+- Write lease: `CLAIMED` by `sol-builder-20260905-ft2r1`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
 - Evidence class: `interface_check`; no training or behavioral evidence
-- Builder wall time: `83m` through final lint, format, diff, scope, and sealed-input checks
+- Builder wall time: `73m` through final lint, format, diff, scope, sealed-input checks, and handoff
 
 ## Historical Experiment 003 phase-A handoff
 

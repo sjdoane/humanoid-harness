@@ -108,6 +108,14 @@
       "ruff": "clean, 328 files formatted",
       "started_utc": "2026-09-05T23:07:59Z",
       "tree": "Slice FT2 (training worker, supervision, persistence, report v2, CLI train) before the reward receipt regeneration"
+    },
+    {
+      "commit": "5965f0c",
+      "finished_utc": "2026-09-06T00:31:47Z",
+      "result": "1571 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 332 files formatted",
+      "started_utc": "2026-09-06T00:26:33Z",
+      "tree": "Slice FT2R1 (training-admission repairs) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1
