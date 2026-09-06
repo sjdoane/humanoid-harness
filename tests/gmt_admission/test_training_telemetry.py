@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 import torch
 
+from oracle_composition.adapters.gmt.training_contract import TRAINING_REWARD_SCALE
 from oracle_composition.adapters.gmt.training_telemetry import (
+    SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     EpisodeAccumulator,
     TrainingTelemetry,
@@ -43,6 +45,19 @@ def _info(step: int, *, fallen: bool = False, horizon: bool = False) -> dict:
 
 def _observations(value: float = 0.0) -> np.ndarray:
     return np.full((2, 2171), value, dtype=np.float32)
+
+
+def _scaled_info(step: int, *, raw_reward: float, done: bool) -> dict:
+    info = _info(step, horizon=done)
+    info["training_reward"] = {
+        "schema_id": "gmt_g1_training_reward_observation/v1",
+        "raw_total_reward": raw_reward,
+        "scaled_optimization_reward": float(
+            np.float32(raw_reward * TRAINING_REWARD_SCALE)
+        ),
+        "total_training_reward_scale": TRAINING_REWARD_SCALE,
+    }
+    return info
 
 
 def _numpy_state_equal(left: tuple, right: tuple) -> bool:
@@ -152,6 +167,34 @@ def test_episode_summary_spans_rollout_boundaries_and_records_termination() -> N
     assert summary["horizons"] == 1
     assert summary["terminal_true"]["horizon_reached"] == 1
     assert accumulator.incomplete() == []
+
+
+def test_scaled_v2_telemetry_names_ppo_input_and_raw_environment_returns(tmp_path) -> None:
+    path = tmp_path / SCALED_TELEMETRY_FILENAME
+    with TrainingTelemetry(path, reward_scale=TRAINING_REWARD_SCALE) as telemetry:
+        telemetry.observe_step(
+            np.asarray([1.0], dtype=np.float32),
+            [True],
+            [_scaled_info(1, raw_reward=64.0, done=True)],
+        )
+        telemetry.rollout_boundary(512, _observations(), {}, None)
+        telemetry.final_update({}, None)
+        descriptor = telemetry.descriptor(512)
+
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    episode = rows[0]["episodes"]
+    assert "returns" not in episode
+    assert episode["ppo_input_returns"]["mean"] == 1.0
+    assert episode["raw_environment_returns"]["mean"] == 64.0
+    assert descriptor["telemetry_id"] == "gmt_g1_ppo_training_telemetry/v2"
+    validate_training_telemetry_descriptor(
+        descriptor,
+        path.read_bytes(),
+        512,
+        reward_scale=TRAINING_REWARD_SCALE,
+    )
+    with pytest.raises(ValueError, match="identity"):
+        validate_training_telemetry(path.read_bytes(), 512)
 
 
 @pytest.mark.parametrize(

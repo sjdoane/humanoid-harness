@@ -11,7 +11,7 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.harness.contract import decode_json_object, oracle_program_from_dict
 
 from .composition import ReferenceSegment
-from .course_config import CONFIG_KEYS, CourseRunConfig
+from .course_config import CourseRunConfig
 from .course_evaluation import COURSE_EVALUATOR_ID
 from .course_task import TaskRewardRecipe
 
@@ -204,9 +204,10 @@ def apply_proposal(parent: CourseRunConfig, proposal: dict, feedback: bytes) -> 
         changed = {"reward"}
     else:
         raise ValueError("proposal factor must be oracle or reward")
-    if set(candidate) != CONFIG_KEYS or any(
+    parent_fields = set(parent.raw)
+    if set(candidate) != parent_fields or any(
         canonical_json_bytes(candidate[name]) != canonical_json_bytes(parent.raw[name])
-        for name in CONFIG_KEYS - changed
+        for name in parent_fields - changed
     ):
         raise ValueError("proposal changed a frozen parent config field")
     return candidate

@@ -14,9 +14,12 @@ from oracle_composition.harness.contract import decode_json_object
 
 from .contracts import OBSERVATION_DIM
 from .course_task import TASK_FEATURE_NAMES
+from .training_contract import TRAINING_REWARD_INFO_ID, TRAINING_REWARD_SCALE
 
 TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v1"
 TELEMETRY_FILENAME = "training_telemetry_v1.jsonl"
+SCALED_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v2"
+SCALED_TELEMETRY_FILENAME = "training_telemetry_v2.jsonl"
 ROLLOUT_STEPS = 512
 MAX_TELEMETRY_BYTES = 4 * 1024**2
 
@@ -64,6 +67,14 @@ _DESCRIPTOR_FIELDS = {
 _ROLLOUT_SEMANTICS = "current_rollout_with_previous_update_then_final_flush"
 _UPDATE_COUNT_SEMANTICS = "attempted_ppo_epochs_including_kl_stopped_partial_epochs"
 _UNAVAILABLE_REASONS = {"missing", "undefined_nonfinite"}
+
+
+def _telemetry_identity(reward_scale: float | None) -> tuple[str, str]:
+    if reward_scale is None:
+        return TELEMETRY_ID, TELEMETRY_FILENAME
+    if type(reward_scale) is not float or reward_scale != TRAINING_REWARD_SCALE:
+        raise ValueError("scaled telemetry requires the fixed 1/64 trainer factor")
+    return SCALED_TELEMETRY_ID, SCALED_TELEMETRY_FILENAME
 
 
 def _float(value: object, name: str) -> float:
@@ -144,8 +155,11 @@ def _terminal(info: Mapping[str, object]) -> dict[str, object]:
 class EpisodeAccumulator:
     """Summarize complete episodes while carrying partial episodes between rollouts."""
 
-    def __init__(self) -> None:
+    def __init__(self, reward_scale: float | None = None) -> None:
+        _telemetry_identity(reward_scale)
+        self.reward_scale = reward_scale
         self.returns: np.ndarray | None = None
+        self.raw_returns: np.ndarray | None = None
         self.lengths: np.ndarray | None = None
         self.last: list[dict[str, object] | None] = []
         self.completed: list[dict[str, object]] = []
@@ -164,6 +178,8 @@ class EpisodeAccumulator:
             raise ValueError("training reward, done, or info vectors differ")
         if self.returns is None:
             self.returns = np.zeros(rewards.size, dtype=np.float64)
+            if self.reward_scale is not None:
+                self.raw_returns = np.zeros(rewards.size, dtype=np.float64)
             self.lengths = np.zeros(rewards.size, dtype=np.int64)
             self.last = [None] * rewards.size
         if rewards.shape != self.returns.shape:
@@ -172,23 +188,62 @@ class EpisodeAccumulator:
         self.returns += rewards
         self.lengths += 1
         for index, (done, info) in enumerate(zip(dones, infos, strict=True)):
+            raw_reward = None
+            if self.reward_scale is not None:
+                evidence = info.get("training_reward")
+                if type(evidence) is not dict or set(evidence) != {
+                    "schema_id",
+                    "raw_total_reward",
+                    "scaled_optimization_reward",
+                    "total_training_reward_scale",
+                }:
+                    raise ValueError("scaled training transition lacks reward-unit evidence")
+                raw_reward = _float(evidence["raw_total_reward"], "raw total reward")
+                scaled_reward = _float(
+                    evidence["scaled_optimization_reward"], "scaled optimization reward"
+                )
+                if (
+                    evidence["schema_id"] != TRAINING_REWARD_INFO_ID
+                    or evidence["total_training_reward_scale"] != self.reward_scale
+                    or scaled_reward != float(rewards[index])
+                    or scaled_reward != float(np.float32(raw_reward * self.reward_scale))
+                ):
+                    raise ValueError("scaled training reward evidence differs")
+                assert self.raw_returns is not None
+                self.raw_returns[index] += raw_reward
             terminal = _terminal(info)
             self.last[index] = terminal
             if bool(done):
-                self.completed.append(
-                    {
-                        "return": float(self.returns[index]),
-                        "length": int(self.lengths[index]),
-                        **terminal,
-                    }
-                )
+                episode = {
+                    "return": float(self.returns[index]),
+                    "length": int(self.lengths[index]),
+                    **terminal,
+                }
+                if raw_reward is not None:
+                    assert self.raw_returns is not None
+                    episode["raw_return"] = float(self.raw_returns[index])
+                self.completed.append(episode)
                 self.returns[index], self.lengths[index], self.last[index] = 0.0, 0, None
+                if self.raw_returns is not None:
+                    self.raw_returns[index] = 0.0
 
     def take_summary(self) -> dict[str, object]:
         episodes, self.completed = self.completed, []
+        returns = (
+            {
+                "ppo_input_returns": _moments(
+                    [row["return"] for row in episodes], "PPO-input episode returns"
+                ),
+                "raw_environment_returns": _moments(
+                    [row["raw_return"] for row in episodes], "raw environment episode returns"
+                ),
+            }
+            if self.reward_scale is not None
+            else {"returns": _moments([row["return"] for row in episodes], "episode returns")}
+        )
         return {
             "completed": len(episodes),
-            "returns": _moments([row["return"] for row in episodes], "episode returns"),
+            **returns,
             "lengths": _moments([row["length"] for row in episodes], "episode lengths"),
             "falls": sum(bool(row["fallen"]) for row in episodes),
             "horizons": sum(bool(row["horizon_reached"]) for row in episodes),
@@ -205,11 +260,19 @@ class EpisodeAccumulator:
         if self.returns is None:
             return []
         assert self.lengths is not None
-        return [
-            {"return": float(self.returns[i]), "length": int(length), "last_metrics": self.last[i]}
-            for i, length in enumerate(self.lengths)
-            if length
-        ]
+        result = []
+        for index, length in enumerate(self.lengths):
+            if not length:
+                continue
+            episode = {"length": int(length), "last_metrics": self.last[index]}
+            if self.reward_scale is None:
+                episode["return"] = float(self.returns[index])
+            else:
+                assert self.raw_returns is not None
+                episode["ppo_input_return"] = float(self.returns[index])
+                episode["raw_environment_return"] = float(self.raw_returns[index])
+            result.append(episode)
+        return result
 
 
 def ppo_update_record(
@@ -251,10 +314,14 @@ def ppo_update_record(
 class TrainingTelemetry:
     """Write one record per rollout and one post-train final-update record."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, reward_scale: float | None = None) -> None:
         self.path = Path(path)
+        self.telemetry_id, self.filename = _telemetry_identity(reward_scale)
+        if self.path.name != self.filename:
+            raise ValueError("training telemetry filename differs from its version")
         self.handle = self.path.open("xb")
-        self.episodes, self.last_boundary = EpisodeAccumulator(), None
+        self.reward_scale = reward_scale
+        self.episodes, self.last_boundary = EpisodeAccumulator(reward_scale), None
         self.records = self.rollouts = self.bytes_written = 0
         self.finished = False
 
@@ -298,7 +365,7 @@ class TrainingTelemetry:
         self._write(
             {
                 "schema_version": 1,
-                "telemetry_id": TELEMETRY_ID,
+                "telemetry_id": self.telemetry_id,
                 "event": "rollout_boundary",
                 "rollout_index": self.rollouts,
                 "collected_through_transitions": through,
@@ -315,7 +382,7 @@ class TrainingTelemetry:
         self._write(
             {
                 "schema_version": 1,
-                "telemetry_id": TELEMETRY_ID,
+                "telemetry_id": self.telemetry_id,
                 "event": "final_update",
                 "collected_through_transitions": self.last_boundary,
                 "update": ppo_update_record(self.last_boundary, logger_values, model_n_updates),
@@ -329,13 +396,15 @@ class TrainingTelemetry:
             raise ValueError("training telemetry lacks its final update")
         self.handle.flush()
         encoded = self.path.read_bytes()
-        counts = validate_training_telemetry(encoded, expected_transitions)
+        counts = validate_training_telemetry(
+            encoded, expected_transitions, reward_scale=self.reward_scale
+        )
         if counts["record_count"] != self.records:
             raise ValueError("training telemetry writer and validator disagree")
         return {
             "schema_version": 1,
-            "telemetry_id": TELEMETRY_ID,
-            "path": TELEMETRY_FILENAME,
+            "telemetry_id": self.telemetry_id,
+            "path": self.filename,
             "sha256": hashlib.sha256(encoded).hexdigest(),
             "size_bytes": len(encoded),
             **counts,
@@ -414,18 +483,20 @@ def _valid_moments(value: object, expected_count: int) -> bool:
     )
 
 
-def _valid_episode_counts(value: object) -> bool:
+def _valid_episode_counts(value: object, *, scaled: bool) -> bool:
     if type(value) is not dict:
         return False
     required = {
         "completed",
-        "returns",
         "lengths",
         "falls",
         "horizons",
         "terminal_metrics",
         "terminal_true",
     }
+    required.update(
+        {"ppo_input_returns", "raw_environment_returns"} if scaled else {"returns"}
+    )
     if set(value) != required or not all(
         _valid_nonnegative_count(value[name]) for name in ("completed", "falls", "horizons")
     ):
@@ -434,7 +505,14 @@ def _valid_episode_counts(value: object) -> bool:
     if (
         value["falls"] > completed
         or value["horizons"] > completed
-        or not _valid_moments(value["returns"], completed)
+        or not all(
+            _valid_moments(value[name], completed)
+            for name in (
+                ("ppo_input_returns", "raw_environment_returns")
+                if scaled
+                else ("returns",)
+            )
+        )
         or not _valid_moments(value["lengths"], completed)
         or type(value["terminal_metrics"]) is not dict
         or set(value["terminal_metrics"]) != {"control_step", *_METRIC_FLOATS}
@@ -477,7 +555,34 @@ def _valid_observation_counts(value: object) -> bool:
     return True
 
 
-def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> dict[str, object]:
+def _valid_incomplete(value: object, *, scaled: bool) -> bool:
+    if type(value) is not list:
+        return False
+    expected = (
+        {"length", "last_metrics", "ppo_input_return", "raw_environment_return"}
+        if scaled
+        else {"length", "last_metrics", "return"}
+    )
+    return all(
+        type(item) is dict
+        and set(item) == expected
+        and type(item["length"]) is int
+        and item["length"] > 0
+        and all(
+            type(item[name]) in {int, float} and math.isfinite(item[name])
+            for name in expected - {"length", "last_metrics"}
+        )
+        and type(item["last_metrics"]) is dict
+        for item in value
+    )
+
+
+def validate_training_telemetry(
+    encoded: bytes,
+    expected_transitions: int,
+    *,
+    reward_scale: float | None = None,
+) -> dict[str, object]:
     """Validate the bounded identity and previous-update transition alignment."""
 
     if (
@@ -488,13 +593,15 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
         or expected_transitions % ROLLOUT_STEPS
     ):
         raise ValueError("training telemetry bytes or budget is invalid")
+    telemetry_id, _filename = _telemetry_identity(reward_scale)
+    scaled = reward_scale is not None
     lines, rollouts = encoded.splitlines(), expected_transitions // ROLLOUT_STEPS
     if len(lines) != rollouts + 1 or any(not line for line in lines):
         raise ValueError("training telemetry record count differs")
     rows = [decode_json_object(line, source="training telemetry row") for line in lines]
     for row in rows:
         _finite_json(row)
-        if row.get("schema_version") != 1 or row.get("telemetry_id") != TELEMETRY_ID:
+        if row.get("schema_version") != 1 or row.get("telemetry_id") != telemetry_id:
             raise ValueError("training telemetry identity differs")
     rollout_keys = {
         "schema_version",
@@ -517,7 +624,7 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
             or row["collected_through_transitions"] != through
             or (index == 1 and row["previous_update"] is not None)
             or (index > 1 and not _valid_update(row["previous_update"], through - ROLLOUT_STEPS))
-            or not _valid_episode_counts(row["episodes"])
+            or not _valid_episode_counts(row["episodes"], scaled=scaled)
             or not _valid_observation_counts(row["observation_groups"])
         ):
             raise ValueError("training rollout telemetry fields or sequence differ")
@@ -536,7 +643,7 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
         or type(final["collected_through_transitions"]) is not int
         or final["collected_through_transitions"] != expected_transitions
         or not _valid_update(final["update"], expected_transitions)
-        or type(final["incomplete_episodes"]) is not list
+        or not _valid_incomplete(final["incomplete_episodes"], scaled=scaled)
     ):
         raise ValueError("training final-update telemetry differs")
     return {
@@ -547,7 +654,11 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
 
 
 def validate_training_telemetry_descriptor(
-    value: object, encoded: bytes, expected_transitions: int
+    value: object,
+    encoded: bytes,
+    expected_transitions: int,
+    *,
+    reward_scale: float | None = None,
 ) -> dict[str, object]:
     """Bind an exact optional descriptor to its retained JSONL bytes."""
 
@@ -558,11 +669,14 @@ def validate_training_telemetry_descriptor(
         for name in ("size_bytes", "record_count", "rollout_boundary_count")
     ):
         raise ValueError("training telemetry descriptor counts differ")
-    counts = validate_training_telemetry(encoded, expected_transitions)
+    telemetry_id, filename = _telemetry_identity(reward_scale)
+    counts = validate_training_telemetry(
+        encoded, expected_transitions, reward_scale=reward_scale
+    )
     expected = {
         "schema_version": 1,
-        "telemetry_id": TELEMETRY_ID,
-        "path": TELEMETRY_FILENAME,
+        "telemetry_id": telemetry_id,
+        "path": filename,
         "sha256": hashlib.sha256(encoded).hexdigest(),
         "size_bytes": len(encoded),
         **counts,
@@ -576,6 +690,8 @@ def validate_training_telemetry_descriptor(
 
 __all__ = [
     "MAX_TELEMETRY_BYTES",
+    "SCALED_TELEMETRY_FILENAME",
+    "SCALED_TELEMETRY_ID",
     "TELEMETRY_FILENAME",
     "TELEMETRY_ID",
     "EpisodeAccumulator",

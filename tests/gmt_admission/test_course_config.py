@@ -91,12 +91,81 @@ def test_exact_config_and_raw_byte_identity(admitted_config):
     raw, path = admitted_config
     path.write_text(json.dumps(raw))
     admitted = module.load_run_config(path)
+    assert admitted.encoded == path.read_bytes()
+    assert admitted.trainer is None and "trainer" not in admitted.raw
     assert admitted.program.initial == "before"
     assert admitted.task.horizon_steps == 1000
     assert admitted.segments["walk"].duration == 10.0
     original = admitted.sha256
     path.write_text(json.dumps(raw, indent=2))
     assert module.load_run_config(path).sha256 != original
+
+
+def test_exact_opt_in_trainer_profile_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": module.CourseTrainerSpec(1.0 / 64.0).to_dict()["schema_id"],
+        "schema_version": 1,
+        "total_training_reward_scale": 0.015625,
+    }
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == module.CourseTrainerSpec(1.0 / 64.0)
+
+
+@pytest.mark.parametrize("scale", [1.0, True, float("nan"), float("inf"), "0.015625"])
+def test_unadmitted_training_reward_scales_fail_closed(admitted_config, scale):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": 1,
+        "total_training_reward_scale": scale,
+    }
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match=r"reward scale|JSON"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize("schema_version", [True, 1.0])
+def test_trainer_schema_version_requires_exact_integer(admitted_config, schema_version):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": schema_version,
+        "total_training_reward_scale": 0.015625,
+    }
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="schema identity"):
+        module.load_run_config(path)
+
+
+def test_trainer_rejects_unknown_fields_and_probe_mode(admitted_config):
+    raw, path = admitted_config
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": 1,
+        "total_training_reward_scale": 0.015625,
+        "learning_rate": 1e-3,
+    }
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="trainer fields"):
+        module.load_run_config(path)
+    raw["trainer"].pop("learning_rate")
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="train mode"):
+        module.load_run_config(path)
 
 
 def test_course_config_admits_exact_reward_v2(admitted_config):

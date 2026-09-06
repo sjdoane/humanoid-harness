@@ -32,6 +32,7 @@ from .contracts import (
 from .course_task import CourseTaskSpec, TaskFrame
 from .io import GMTAdmissionError, read_verified_bytes, sha256_file, write_json_receipt
 from .replay import _extract_model_abi, validate_model_abi
+from .training_contract import CourseTrainerSpec, effective_training_contract
 
 FRAME_WIDTH = 480
 FRAME_HEIGHT = 360
@@ -66,6 +67,7 @@ _CONFIG_KEYS = {
     "seed",
     "training_steps",
 }
+_CONFIG_KEYS_WITH_TRAINER = {*_CONFIG_KEYS, "trainer"}
 _REPORT_KEYS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -412,9 +414,28 @@ def load_course_render_inputs(
     config, config_encoded = read_json_object(config_path)
     if hashlib.sha256(config_encoded).hexdigest() != config_digest:
         raise GMTAdmissionError("retained course config SHA-256 differs")
-    config = _exact_object(config, _CONFIG_KEYS, "course config")
+    if type(config) is not dict or set(config) not in (
+        _CONFIG_KEYS,
+        _CONFIG_KEYS_WITH_TRAINER,
+    ):
+        raise GMTAdmissionError("course config fields differ from the course-render contract")
     if config["schema_version"] != 1 or config["mode"] not in {"probe", "train"}:
         raise GMTAdmissionError("course config identity or mode differs")
+    try:
+        trainer = CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
+    except ValueError as exc:
+        raise GMTAdmissionError("course trainer preconditioning is invalid") from exc
+    if trainer is not None and config["mode"] != "train":
+        raise GMTAdmissionError("course trainer preconditioning requires train mode")
+    frozen_runtime = manifest["frozen_runtime"]
+    if (
+        type(frozen_runtime) is not dict
+        or (
+            trainer is not None
+            and frozen_runtime.get("trainer") != effective_training_contract(trainer)
+        )
+    ):
+        raise GMTAdmissionError("course trainer runtime differs from the retained config")
     if label == "final_policy" and config["mode"] != "train":
         raise GMTAdmissionError("final_policy rendering requires a retained train-mode run")
     if type(config["assets"]) is not dict or type(config["assets"].get("upstream_root")) is not str:

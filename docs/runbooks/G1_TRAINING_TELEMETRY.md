@@ -1,4 +1,4 @@
-# G1 training telemetry v1
+# G1 training telemetry and reward units
 
 | status | evidence boundary |
 |---|---|
@@ -31,3 +31,24 @@ descriptor or file appearing alone is rejected. The JSONL is capped at 4 MiB.
 These records support diagnosis of optimization behavior and episode termination. They are not
 held-out evidence, a universal convergence test, or authority to change the frozen task, MDP,
 trainer family, or evaluation gates.
+
+## Opt-in training reward preconditioning
+
+The legacy config omits `trainer`; that path, manifest contract, and v1 telemetry serialization
+remain unchanged. The sole admitted opt-in profile is:
+
+```json
+{"schema_id":"gmt_g1_total_training_reward_preconditioning/v1","schema_version":1,"total_training_reward_scale":0.015625}
+```
+
+The training-only wrapper sends `float32(raw total reward / 64)` to PPO. Evaluation remains on
+the unwrapped raw environment. It does not change task-reward weights, reward components,
+observations, actions, termination, the base actor, PPO hyperparameters, or checkpoint selection.
+Timeout bootstrap values therefore share the scaled PPO value units.
+
+Opt-in runs emit `training_telemetry_v2.jsonl`. Complete-episode summaries use the literal fields
+`ppo_input_returns` and `raw_environment_returns`; the latter are accumulated from retained
+unscaled step info, not reconstructed by multiplying quantized scaled values. Value loss is in
+scaled optimization-reward units, so its magnitude is not comparable with raw-reward runs.
+The config, effective trainer identity, reward-unit metadata, v2 descriptor, and v2 output must
+appear as one exact validated set. Proposals preserve the parent `trainer` field and cannot edit it.

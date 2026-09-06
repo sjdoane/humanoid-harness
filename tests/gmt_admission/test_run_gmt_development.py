@@ -12,7 +12,14 @@ from typing import Any
 import numpy as np
 import pytest
 
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+    training_reward_metadata,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
 )
@@ -37,13 +44,16 @@ def _write_json(path: Path, value: object) -> str:
     return _digest(path)
 
 
-def _loaded(tmp_path: Path, mode: str = "probe") -> Any:
+def _loaded(tmp_path: Path, mode: str = "probe", *, scaled: bool = False) -> Any:
     config_path = tmp_path / "config.json"
     raw = {
         "mode": mode,
         "training_steps": 0 if mode == "probe" else 512,
         "task": {"horizon_steps": 50},
     }
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    if trainer is not None:
+        raw["trainer"] = trainer.to_dict()
     config_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
     return DEVELOPMENT._LoadedWorkload(
         raw=raw,
@@ -56,6 +66,7 @@ def _loaded(tmp_path: Path, mode: str = "probe") -> Any:
         weights_path=tmp_path / "weights.npz",
         weights_sha256=DEVELOPMENT.supervisor.OFFICIAL_ACTOR_SHA256,
         course_mode=mode,
+        course_trainer=trainer,
         course_identities={
             "task": "1" * 64,
             "oracle": "2" * 64,
@@ -65,8 +76,14 @@ def _loaded(tmp_path: Path, mode: str = "probe") -> Any:
     )
 
 
-def _plan(tmp_path: Path, workload: str = "course", mode: str = "probe") -> tuple[Any, Any]:
-    loaded = _loaded(tmp_path, mode)
+def _plan(
+    tmp_path: Path,
+    workload: str = "course",
+    mode: str = "probe",
+    *,
+    scaled: bool = False,
+) -> tuple[Any, Any]:
+    loaded = _loaded(tmp_path, mode, scaled=scaled)
     output = tmp_path / "output"
     output.mkdir()
     config_path = tmp_path / "config.json"
@@ -136,14 +153,23 @@ def _write_course_result(
         DEVELOPMENT.COURSE_PROBE_OUTPUTS
         if loaded.course_mode == "probe"
         else (
-            DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
+            (
+                DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
+                if loaded.course_trainer is not None
+                else DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
+            )
             if telemetry
             else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
         )
     )
     telemetry_descriptor = None
+    scaled = loaded.course_trainer is not None
+    telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
     if telemetry:
-        with TrainingTelemetry(output / TELEMETRY_FILENAME) as writer:
+        reward_scale = TRAINING_REWARD_SCALE if scaled else None
+        with TrainingTelemetry(
+            output / telemetry_filename, reward_scale=reward_scale
+        ) as writer:
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
             writer.final_update({}, None)
             telemetry_descriptor = writer.descriptor(512)
@@ -152,7 +178,7 @@ def _write_course_result(
         path = output / name
         if name == "input_config.json":
             path.write_bytes((Path(plan.inputs["config"]["path"])).read_bytes())
-        elif name == TELEMETRY_FILENAME:
+        elif name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}:
             pass
         else:
             path.write_bytes(f"fixture:{name}".encode())
@@ -170,6 +196,10 @@ def _write_course_result(
         }
         if telemetry_descriptor is not None:
             training["telemetry"] = telemetry_descriptor
+        if loaded.course_trainer is not None:
+            training["reward_preconditioning"] = training_reward_metadata(
+                loaded.course_trainer
+            )
         final_policy = _summary(residual_rms=0.02)
     manifest = {
         "schema_version": 1,
@@ -178,7 +208,14 @@ def _write_course_result(
         "input_config_sha256": loaded.sha256,
         "outputs": outputs,
         "identities": loaded.course_identities,
-        "frozen_runtime": {"gym": "fixed"},
+        "frozen_runtime": {
+            "gym": "fixed",
+            **(
+                {"trainer": effective_training_contract(loaded.course_trainer)}
+                if loaded.course_trainer is not None
+                else {}
+            ),
+        },
         "training": training,
         "zero_residual": _summary(residual_rms=0.0),
         "final_policy": final_policy,
@@ -223,6 +260,41 @@ def test_course_verifier_accepts_only_exact_paired_telemetry(
 
     assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
     assert artifacts["outputs"][TELEMETRY_FILENAME]["size"] > 0
+
+
+def test_course_verifier_accepts_exact_scaled_trainer_and_v2_telemetry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan, loaded = _plan(tmp_path, mode="train", scaled=True)
+    _write_course_result(plan, loaded, telemetry=True)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
+    assert artifacts["outputs"][SCALED_TELEMETRY_FILENAME]["size"] > 0
+
+
+@pytest.mark.parametrize("mutation", ["missing_telemetry", "metadata", "runtime"])
+def test_course_verifier_rejects_incomplete_scaled_trainer_pairing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    plan, loaded = _plan(tmp_path, mode="train", scaled=True)
+    manifest = _write_course_result(plan, loaded, telemetry=mutation != "missing_telemetry")
+    if mutation == "metadata":
+        manifest["training"].pop("reward_preconditioning")
+    elif mutation == "runtime":
+        manifest["frozen_runtime"]["trainer"] = effective_training_contract(None)
+    _write_json(plan.config.output_directory / DEVELOPMENT.COURSE_MANIFEST_FILENAME, manifest)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    with pytest.raises(
+        DEVELOPMENT.supervisor.ProbeError,
+        match=r"output hash ledger|training record|runtime",
+    ):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 @pytest.mark.parametrize("mutation", ["orphan_output", "orphan_descriptor", "digest"])

@@ -21,6 +21,11 @@ from oracle_composition.adapters.gmt.course_render import (
 )
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, write_deterministic_npz
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+)
 
 
 def _sha(path: Path) -> str:
@@ -92,6 +97,7 @@ def _fixture(
     nonzero_residual: bool = False,
     row_qpos_offset: float = 0.0,
     contact_substeps: int = 20,
+    scaled: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
@@ -111,6 +117,9 @@ def _fixture(
         "seed": 7,
         "training_steps": 0 if mode == "probe" else 512,
     }
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    if trainer is not None:
+        config["trainer"] = trainer.to_dict()
     config_path = tmp_path / "input_config.json"
     config_path.write_bytes((json.dumps(config, sort_keys=True) + "\n").encode())
     config_sha = _sha(config_path)
@@ -186,7 +195,11 @@ def _fixture(
         "input_config_sha256": config_sha,
         "outputs": outputs,
         "identities": {"task": task.sha256, "oracle": "a" * 64, "reward": "b" * 64},
-        "frozen_runtime": {},
+        "frozen_runtime": (
+            {"trainer": effective_training_contract(trainer)}
+            if trainer is not None
+            else {}
+        ),
         "training": {} if mode == "train" else None,
         "zero_residual": report if label == "zero_residual" else None,
         "final_policy": report if label == "final_policy" else None,
@@ -224,6 +237,21 @@ def test_admission_crosslinks_data_without_importing_mujoco(tmp_path: Path) -> N
     assert annotation.executed_mode == "inside"
     assert annotation.progress_m == pytest.approx(0.04)
     assert annotation.forward_speed_m_s == pytest.approx(1.0)
+
+
+def test_admission_accepts_exact_scaled_trainer_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path, mode="train", label="final_policy", scaled=True
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
 
 
 def test_admission_rejects_manifest_config_identity_disagreement(tmp_path: Path) -> None:

@@ -18,6 +18,10 @@ from oracle_composition.adapters.gmt.course_proposal import (
 )
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskRewardRecipe
 from oracle_composition.adapters.gmt.reference_runtime import ReferenceMotion
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+)
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.harness.contract import oracle_program_from_dict
 
@@ -158,6 +162,20 @@ def _feedback(parent: CourseRunConfig) -> bytes:
     )
 
 
+def _parent_with_trainer() -> CourseRunConfig:
+    parent = _parent()
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE)
+    raw = {**copy.deepcopy(parent.raw), "trainer": trainer.to_dict()}
+    encoded = canonical_json_bytes(raw)
+    return replace(
+        parent,
+        raw=raw,
+        encoded=encoded,
+        sha256=hashlib.sha256(encoded).hexdigest(),
+        trainer=trainer,
+    )
+
+
 def _reward_replacement() -> dict:
     return {"reward": TaskRewardRecipe(1.5, 2.0, 1.0, 0.5, 1.0).to_dict()}
 
@@ -257,6 +275,23 @@ def test_oracle_proposal_changes_only_oracle_and_segments() -> None:
     }
     for field in CONFIG_KEYS - {"oracle", "segments"}:
         assert canonical_json_bytes(candidate[field]) == canonical_json_bytes(parent.raw[field])
+
+
+def test_proposal_preserves_explicit_trainer_and_cannot_author_it() -> None:
+    parent = _parent_with_trainer()
+    feedback = _feedback(parent)
+
+    candidate = apply_proposal(parent, _proposal(parent, feedback), feedback)
+
+    assert candidate["trainer"] == parent.raw["trainer"]
+    proposal = _proposal(parent, feedback)
+    proposal["replacement"]["trainer"] = parent.raw["trainer"]
+    with pytest.raises(ValueError, match="exactly reward"):
+        apply_proposal(parent, proposal, feedback)
+    proposal = _proposal(parent, feedback)
+    proposal["trainer"] = parent.raw["trainer"]
+    with pytest.raises(ValueError, match="proposal fields"):
+        apply_proposal(parent, proposal, feedback)
 
 
 @pytest.mark.parametrize("frozen_field", ["task", "assets", "training_steps", "mode", "seed"])

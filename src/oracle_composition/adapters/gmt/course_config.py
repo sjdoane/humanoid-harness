@@ -19,6 +19,7 @@ from .contracts import MOTION_SPECS
 from .course_task import CourseTaskSpec, TaskRewardRecipe
 from .io import sha256_file
 from .reference_runtime import ReferenceMotion
+from .training_contract import CourseTrainerSpec
 
 ACTOR_SHA256 = "bc444fbd56ba4a582d7c6367504f2093ccb081c6956fcee8f30f2e85ced28686"
 ADMITTED_CONVERTED_MOTION_SHA256 = {
@@ -42,6 +43,7 @@ CONFIG_KEYS = {
     "seed",
     "training_steps",
 }
+CONFIG_KEYS_WITH_TRAINER = {*CONFIG_KEYS, "trainer"}
 
 
 def _keys(value: object, expected: set[str], field: str) -> dict:
@@ -72,11 +74,13 @@ class CourseRunConfig:
     recipe: TaskRewardRecipe
     program: OracleProgram
     segments: dict[str, ReferenceSegment]
+    trainer: CourseTrainerSpec | None = None
 
 
 def load_run_config(path: Path) -> CourseRunConfig:
     raw, encoded = read_json_object(path)
-    _keys(raw, CONFIG_KEYS, "course run")
+    if type(raw) is not dict or set(raw) not in (CONFIG_KEYS, CONFIG_KEYS_WITH_TRAINER):
+        raise ValueError("course run fields differ")
     if type(raw["schema_version"]) is not int or raw["schema_version"] != 1:
         raise ValueError("course run schema version differs")
     if raw["mode"] not in {"probe", "train"}:
@@ -89,6 +93,9 @@ def load_run_config(path: Path) -> CourseRunConfig:
         raise ValueError("training steps must match the bounded mode and rollout size")
     if type(raw["seed"]) is not int or not 0 <= raw["seed"] < 2**31:
         raise ValueError("seed must be a nonnegative signed 32-bit integer")
+    trainer = CourseTrainerSpec.from_dict(raw["trainer"]) if "trainer" in raw else None
+    if trainer is not None and raw["mode"] != "train":
+        raise ValueError("trainer preconditioning is valid only for train mode")
     assets = _keys(raw["assets"], {"upstream_root", "weights", "motions"}, "assets")
     if type(assets["upstream_root"]) is not str or not Path(assets["upstream_root"]).is_absolute():
         raise ValueError("upstream_root must be an absolute path")
@@ -150,4 +157,5 @@ def load_run_config(path: Path) -> CourseRunConfig:
         TaskRewardRecipe.from_dict(raw["reward"]),
         program,
         admitted,
+        trainer,
     )

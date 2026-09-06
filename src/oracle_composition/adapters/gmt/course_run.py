@@ -9,6 +9,7 @@ import platform
 import time
 from pathlib import Path
 
+import gymnasium as gym
 import numpy as np
 import torch
 from stable_baselines3 import PPO
@@ -20,29 +21,17 @@ from .course_config import CourseRunConfig, load_run_config
 from .course_evaluation import evaluate_episode
 from .gym_env import GYM_RUNTIME_ID, RESIDUAL_OBSERVATION_DIM, RESIDUAL_RAW_SCALE, GMTResidualEnv
 from .io import sha256_file, write_deterministic_npz, write_json_receipt
-from .training_telemetry import TELEMETRY_FILENAME, TrainingTelemetry
-
-TRAINING_CONTRACT = {
-    "algorithm": "stable_baselines3.PPO",
-    "device": "cpu",
-    "n_steps": 512,
-    "batch_size": 128,
-    "n_epochs": 4,
-    "learning_rate": 0.0003,
-    "gamma": 0.99,
-    "gae_lambda": 0.95,
-    "clip_range": 0.2,
-    "target_kl": 0.02,
-    "ent_coef": 0.0,
-    "vf_coef": 0.5,
-    "max_grad_norm": 0.5,
-    "net_arch": [128, 128],
-    "log_std_init": -1.5,
-    "observation_normalization": "none",
-    "reward_normalization": "none",
-    "initial_mean_action": "zero_output_layer",
-    "checkpoint_selection": "final_fixed_budget_only",
-}
+from .training_contract import (
+    TRAINING_CONTRACT,
+    effective_training_contract,
+    training_reward_metadata,
+)
+from .training_telemetry import (
+    SCALED_TELEMETRY_FILENAME,
+    TELEMETRY_FILENAME,
+    TrainingTelemetry,
+)
+from .training_wrapper import training_env as precondition_training_env
 
 
 def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMTResidualEnv:
@@ -59,7 +48,7 @@ def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMT
     )
 
 
-def make_policy(env: GMTResidualEnv, seed: int) -> PPO:
+def make_policy(env: gym.Env, seed: int) -> PPO:
     kwargs = {
         key: TRAINING_CONTRACT[key]
         for key in (
@@ -247,18 +236,29 @@ def run_course(config_path: Path, output: Path) -> dict:
     learned_steps = 0
     training = None
     if config.raw["mode"] == "train":
-        training_env = make_env(config)
-        base_before = _frozen_actor_digest(training_env)
+        raw_training_env = make_env(config)
+        training_env = precondition_training_env(raw_training_env, config.trainer)
+        base_before = _frozen_actor_digest(raw_training_env)
         model = make_policy(training_env, config.raw["seed"])
         outputs["initial_residual_policy.npz"] = _numeric_policy(
             model, output / "initial_residual_policy.npz"
         )
-        with TrainingTelemetry(output / TELEMETRY_FILENAME) as telemetry:
+        reward_scale = (
+            config.trainer.total_training_reward_scale
+            if config.trainer is not None
+            else None
+        )
+        telemetry_filename = (
+            SCALED_TELEMETRY_FILENAME if reward_scale is not None else TELEMETRY_FILENAME
+        )
+        with TrainingTelemetry(
+            output / telemetry_filename, reward_scale=reward_scale
+        ) as telemetry:
             callback = _TrainingProgress(telemetry)
             model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
             telemetry_descriptor = telemetry.descriptor(config.raw["training_steps"])
-        outputs[TELEMETRY_FILENAME] = str(telemetry_descriptor["sha256"])
-        base_after = _frozen_actor_digest(training_env)
+        outputs[telemetry_filename] = str(telemetry_descriptor["sha256"])
+        base_after = _frozen_actor_digest(raw_training_env)
         if base_after != base_before:
             raise ValueError("training changed the frozen base actor state")
         learned_steps = int(model.num_timesteps)
@@ -278,6 +278,8 @@ def run_course(config_path: Path, output: Path) -> dict:
             "frozen_base_state_after_sha256": base_after,
             "telemetry": telemetry_descriptor,
         }
+        if config.trainer is not None:
+            training["reward_preconditioning"] = training_reward_metadata(config.trainer)
         training_env.close()
     env.close()
     manifest = {
@@ -297,7 +299,7 @@ def run_course(config_path: Path, output: Path) -> dict:
             "composition": COMPOSITION_RUNTIME_ID,
             "observation_dim": RESIDUAL_OBSERVATION_DIM,
             "residual_raw_scale": float(RESIDUAL_RAW_SCALE),
-            "trainer": TRAINING_CONTRACT,
+            "trainer": effective_training_contract(config.trainer),
         },
         "training": training,
         "zero_residual": initial,

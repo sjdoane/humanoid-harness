@@ -20,8 +20,14 @@ from oracle_composition.adapters.gmt.contracts import GMT_UPSTREAM_COMMIT, MOTIO
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
+from oracle_composition.adapters.gmt.training_contract import (
+    CourseTrainerSpec,
+    effective_training_contract,
+    training_reward_metadata,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
     MAX_TELEMETRY_BYTES,
+    SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     validate_training_telemetry_descriptor,
 )
@@ -65,6 +71,10 @@ COURSE_TRAIN_OUTPUTS = {
     "final_policy_evaluation.json",
 }
 COURSE_TRAIN_TELEMETRY_OUTPUTS = {*COURSE_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
+COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    SCALED_TELEMETRY_FILENAME,
+}
 LAUNCHER_SOURCES = ("scripts/run_gmt_probe.py", "scripts/run_gmt_development.py")
 PARITY_CONFIG_FIELDS = {
     "manifest_path",
@@ -120,6 +130,7 @@ class _LoadedWorkload:
     weights_sha256: str
     course_mode: str | None = None
     course_identities: dict[str, object] | None = None
+    course_trainer: CourseTrainerSpec | None = None
     parity_receipt_inputs: dict[str, object] | None = None
 
 
@@ -359,6 +370,7 @@ def _load_course(path: Path) -> _LoadedWorkload:
         weights_path=weights_path,
         weights_sha256=weights_sha256,
         course_mode=mode,
+        course_trainer=config.trainer,
         course_identities={
             "task": config.task.sha256,
             "oracle": config.program.sha256,
@@ -718,6 +730,7 @@ def _validate_training_record(
     mode: str,
     steps: int,
     telemetry_encoded: bytes | None,
+    trainer: CourseTrainerSpec | None,
 ) -> None:
     if mode == "probe":
         if value is not None:
@@ -733,6 +746,8 @@ def _validate_training_record(
     }
     if telemetry_encoded is not None:
         expected.add("telemetry")
+    if trainer is not None:
+        expected.add("reward_preconditioning")
     if not isinstance(value, Mapping) or set(value) != expected:
         raise supervisor.ProbeError("course training record fields differ")
     if (
@@ -751,10 +766,19 @@ def _validate_training_record(
     if telemetry_encoded is not None:
         try:
             validate_training_telemetry_descriptor(
-                value["telemetry"], telemetry_encoded, steps
+                value["telemetry"],
+                telemetry_encoded,
+                steps,
+                reward_scale=(
+                    trainer.total_training_reward_scale if trainer is not None else None
+                ),
             )
         except ValueError as exc:
             raise supervisor.ProbeError(str(exc)) from exc
+    if trainer is not None and value["reward_preconditioning"] != training_reward_metadata(
+        trainer
+    ):
+        raise supervisor.ProbeError("course reward preconditioning metadata differs")
 
 
 def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
@@ -784,6 +808,8 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     valid_output_sets = (
         {frozenset(COURSE_PROBE_OUTPUTS)}
         if mode == "probe"
+        else {frozenset(COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS)}
+        if loaded.course_trainer is not None
         else {
             frozenset(COURSE_TRAIN_OUTPUTS),
             frozenset(COURSE_TRAIN_TELEMETRY_OUTPUTS),
@@ -807,7 +833,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             raise supervisor.ProbeError(f"course output hash differs: {name}")
         expected_names.add(name)
         artifacts[name] = {"path": name, "sha256": observed, "size": path.stat().st_size}
-        if name == TELEMETRY_FILENAME:
+        if name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}:
             telemetry_encoded = supervisor._read_bounded(
                 path, MAX_TELEMETRY_BYTES, "course training telemetry"
             )
@@ -863,6 +889,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         mode=mode,
         steps=training_steps,
         telemetry_encoded=telemetry_encoded,
+        trainer=loaded.course_trainer,
     )
     if manifest.get("identities") != loaded.course_identities:
         raise supervisor.ProbeError("course semantic identities differ from admitted config")
@@ -875,8 +902,15 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     }
     if manifest.get("claims") != expected_claims:
         raise supervisor.ProbeError("course run claim limits differ")
-    if not isinstance(manifest.get("frozen_runtime"), Mapping) or not isinstance(
-        manifest.get("runtime"), Mapping
+    frozen_runtime = manifest.get("frozen_runtime")
+    if (
+        not isinstance(frozen_runtime, Mapping)
+        or (
+            loaded.course_trainer is not None
+            and frozen_runtime.get("trainer")
+            != effective_training_contract(loaded.course_trainer)
+        )
+        or not isinstance(manifest.get("runtime"), Mapping)
     ):
         raise supervisor.ProbeError("course runtime provenance is missing")
     return {

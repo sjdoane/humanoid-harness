@@ -16,7 +16,14 @@ from oracle_composition.adapters.gmt.course_task import (
     evaluate_step,
 )
 from oracle_composition.adapters.gmt.io import sha256_file, write_deterministic_npz
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+    training_reward_metadata,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
 )
@@ -123,6 +130,7 @@ def _run_fixture(
     *,
     observe_region: bool = True,
     telemetry: bool = False,
+    scaled: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -146,6 +154,9 @@ def _run_fixture(
         "seed": 7,
         "training_steps": 512,
     }
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    if trainer is not None:
+        raw["trainer"] = trainer.to_dict()
     config_bytes = (json.dumps(raw, sort_keys=True, separators=(",", ":")) + "\n").encode()
     config_sha = hashlib.sha256(config_bytes).hexdigest()
     config = SimpleNamespace(
@@ -156,6 +167,7 @@ def _run_fixture(
         recipe=recipe,
         program=SimpleNamespace(sha256="1" * 64),
         segments={"walk": SimpleNamespace(sha256="2" * 64)},
+        trainer=trainer,
     )
     monkeypatch.setattr(module, "load_run_config", lambda path: config)
     root.mkdir()
@@ -187,8 +199,22 @@ def _run_fixture(
         outputs[name] = _sha(root / name)
     training = {"completed_transitions": 512}
     if telemetry:
-        with TrainingTelemetry(root / TELEMETRY_FILENAME) as writer:
-            writer.observe_step([1.25], [True], [{"metrics": rows[-1]["metrics"]}])
+        telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
+        reward_scale = TRAINING_REWARD_SCALE if scaled else None
+        info = {"metrics": rows[-1]["metrics"]}
+        observed_reward = 1.25
+        if scaled:
+            observed_reward = float(np.float32(64.0 * TRAINING_REWARD_SCALE))
+            info["training_reward"] = {
+                "schema_id": "gmt_g1_training_reward_observation/v1",
+                "raw_total_reward": 64.0,
+                "scaled_optimization_reward": observed_reward,
+                "total_training_reward_scale": TRAINING_REWARD_SCALE,
+            }
+        with TrainingTelemetry(
+            root / telemetry_filename, reward_scale=reward_scale
+        ) as writer:
+            writer.observe_step([observed_reward], [True], [info])
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
             writer.final_update(
                 {
@@ -201,7 +227,9 @@ def _run_fixture(
                 4,
             )
             training["telemetry"] = writer.descriptor(512)
-        outputs[TELEMETRY_FILENAME] = _sha(root / TELEMETRY_FILENAME)
+        outputs[telemetry_filename] = _sha(root / telemetry_filename)
+    if trainer is not None:
+        training["reward_preconditioning"] = training_reward_metadata(trainer)
     manifest = {
         "schema_version": 1,
         "artifact": "gmt_g1_course_development_run",
@@ -214,7 +242,11 @@ def _run_fixture(
             "reward": recipe.sha256,
             "segments": {"walk": "2" * 64},
         },
-        "frozen_runtime": {},
+        "frozen_runtime": (
+            {"trainer": effective_training_contract(trainer)}
+            if trainer is not None
+            else {}
+        ),
         "training": training,
         "zero_residual": summaries["zero_residual"],
         "final_policy": summaries["final_policy"],
@@ -307,6 +339,27 @@ def test_training_summary_reports_no_completed_episodes_and_missing_stats(tmp_pa
     assert "no completed episodes" in diagnosis
     assert "KL=unavailable (missing)" in diagnosis
     assert "attempted PPO epochs including KL-stopped partial epochs=unavailable (missing)" in diagnosis
+
+
+def test_scaled_feedback_names_ppo_input_and_raw_return_units(tmp_path, monkeypatch) -> None:
+    manifest, digest, _ = _run_fixture(
+        tmp_path / "run", monkeypatch, telemetry=True, scaled=True
+    )
+
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=tmp_path / "feedback",
+    )
+
+    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())[
+        "diagnosis"
+    ]
+    assert "PPO-input return means 1/1" in diagnosis
+    assert "raw environment return means 64/64" in diagnosis
+    assert "value loss is in scaled optimization-reward units" in diagnosis
+    assert "not comparable to value loss from raw-reward runs" in diagnosis
 
 
 def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:
