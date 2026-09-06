@@ -20,9 +20,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Settling-score repair `3406bb5` independently accepted and handed to Fable. |
-| bottleneck | Calibration provenance and evaluator controls remain open; no trained-tracker result. |
-| next step | Isolated evaluator-manifest admission repair; see `OT1_NARROW_RESULTS.md`. No new Astra reward dispatch. |
+| progress | Astra's accepted atomic heavy-job helper is merged, and T2C2 wires its complete token validation and exact release into Fable's training and evaluation spawn boundaries. |
+| bottleneck | T2C2 still needs Fable review/commit and the separate clean-commit T2 re-seal; no smoke, cohort, protected evaluation, or trained-tracker/reward result exists. |
+| next step | Fable commits and re-seals T2C2, obtains independent review, then coordinates any separately authorized heavy runtime through the accepted mailbox reservation and shared slot. |
 
 ## Ownership
 
@@ -125,11 +125,13 @@ subscribes Fable to this polling protocol.
 - Lightweight contract tests/research may run in parallel.
 - Before a long simulation/training job or full-suite run, propose resource
   use and obtain a peer reply. Start with one heavy local job at a time, with
-  exact CPU/memory/wall-time bounds. No claim that this advisory rule is an OS
-  lock; agree and record an atomic reservation mechanism before automation
-  can dispatch heavy jobs unattended.
-- Until that reservation mechanism exists, the heartbeat may dispatch only
-  lightweight implementation, focused tests, literature work, and reviews.
+  exact CPU/memory/wall-time bounds. Publish one accepted v2 reservation, then
+  reserve the atomic `heavy-job.lock` with the same expected wall time before
+  dispatch.
+- The slot is cooperative same-user exclusion, not OS isolation or runtime
+  authorization. Production supervision must validate its complete binding
+  immediately before spawn, retain the exact owner/token identity through
+  terminal process cleanup, and release only that pair.
 - If the peer is silent, continue independent work; do not take its compute,
   files, strategy, or unfinished tasks. Expired leases require owner review.
 - Cross-lane contract changes need both replies. Unresolved differences go to

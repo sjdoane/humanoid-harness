@@ -37,6 +37,11 @@ from oracle_composition.harness.evidence import (
     load_e003_execution,
     validate_scientific_receipt,
 )
+from oracle_composition.harness.resource_slot import (
+    ResourceSlotError,
+    release_slot,
+    validate_slot_for_reservation,
+)
 
 from .contracts import (
     REWARD_COMPOSITOR_SHA256,
@@ -634,17 +639,7 @@ def validate_reservation(
         if repository_root is not None
         else Path(__file__).resolve().parents[3]
     )
-    if mailbox_root is None:
-        common = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            cwd=root,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        mailbox = Path(common).resolve(strict=True) / "harness-coordination"
-    else:
-        mailbox = Path(mailbox_root).resolve(strict=True)
+    mailbox = shared_coordination_root(root, supplied=mailbox_root)
 
     def authority_file(record: object, directory: str) -> tuple[Path, dict[str, object], bytes]:
         if type(record) is not dict or set(record) != {"path", "sha256"}:
@@ -775,6 +770,19 @@ def validate_reservation(
     ):
         raise ExperimentContractError("mailbox reservation is stale")
     return dict(reservation)
+
+
+def shared_coordination_root(repository_root: Path, *, supplied: Path | None = None) -> Path:
+    if supplied is not None:
+        return Path(supplied).resolve(strict=True)
+    common = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return (Path(common).resolve(strict=True) / "harness-coordination").resolve(strict=True)
 
 
 def limits_bound_by_reservation(
@@ -1688,6 +1696,83 @@ class SupervisionDependencies:
     free_disk_bytes: Callable[[Path], int] = lambda path: shutil.disk_usage(path).free
     directory_bytes: Callable[[Path], int] = _directory_bytes
     cleanup_worker: Callable[..., None] = cleanup_worker_process
+    validate_heavy_job_slot: Callable[..., Mapping[str, object]] = validate_slot_for_reservation
+    release_heavy_job_slot: Callable[..., Mapping[str, object]] = release_slot
+
+
+class HeavyJobSlotSession:
+    """Retain one validated token identity until all worker cleanup finishes."""
+
+    def __init__(self, dependencies: SupervisionDependencies, *, required: bool) -> None:
+        self._dependencies = dependencies
+        self._required = required
+        self._coordination_root: Path | None = None
+        self._reservation: Mapping[str, object] | None = None
+        self._expected_wall_seconds: int | None = None
+        self._owner: str | None = None
+        self._token_id: str | None = None
+
+    def configure(
+        self,
+        coordination_root: Path,
+        reservation: Mapping[str, object],
+        *,
+        expected_wall_seconds: int,
+    ) -> None:
+        if not self._required or self._coordination_root is not None:
+            raise ExperimentContractError("heavy-job slot session configuration differs")
+        self._coordination_root = coordination_root
+        self._reservation = dict(reservation)
+        self._expected_wall_seconds = expected_wall_seconds
+
+    def validate_before_spawn(self) -> None:
+        if not self._required:
+            return
+        if (
+            self._coordination_root is None
+            or self._reservation is None
+            or self._expected_wall_seconds is None
+        ):
+            raise ExperimentContractError("heavy-job slot session is not configured")
+        try:
+            token = self._dependencies.validate_heavy_job_slot(
+                self._coordination_root,
+                self._reservation,
+                expected_wall_seconds=self._expected_wall_seconds,
+            )
+        except ResourceSlotError as exc:
+            raise ExperimentContractError(f"heavy-job slot refused dispatch: {exc}") from exc
+        owner = token.get("owner") if type(token) is dict else None
+        token_id = token.get("token_id") if type(token) is dict else None
+        if type(owner) is not str or type(token_id) is not str:
+            raise ExperimentContractError("heavy-job slot returned an invalid token identity")
+        if self._owner is None and self._token_id is None:
+            self._owner = owner
+            self._token_id = token_id
+        elif (owner, token_id) != (self._owner, self._token_id):
+            raise ExperimentContractError("heavy-job slot identity changed between workers")
+
+    def release(self) -> None:
+        if self._owner is None or self._token_id is None:
+            return
+        assert self._coordination_root is not None
+        owner, token_id = self._owner, self._token_id
+        try:
+            released = self._dependencies.release_heavy_job_slot(
+                self._coordination_root,
+                owner=owner,
+                token_id=token_id,
+            )
+        except ResourceSlotError as exc:
+            raise ExperimentContractError(f"heavy-job slot cleanup failed: {exc}") from exc
+        if (
+            type(released) is not dict
+            or released.get("owner") != owner
+            or released.get("token_id") != token_id
+        ):
+            raise ExperimentContractError("heavy-job slot cleanup identity differs")
+        self._owner = None
+        self._token_id = None
 
 
 def _failure_receipt(
@@ -1856,6 +1941,7 @@ def _supervise_seed(
     failure_mode: str | None,
     job_output_directory: Path,
     dependencies: SupervisionDependencies,
+    validate_slot_before_spawn: Callable[[], None],
 ) -> SeedOutcome:
     seed_directory.mkdir(mode=0o700)
     request = WorkerRequest(
@@ -1875,6 +1961,7 @@ def _supervise_seed(
         cpu_time_limit_seconds=limits.cpu_time_seconds,
         worker_environment=tuple(minimal_worker_environment(os.environ).items()),
     )
+    validate_slot_before_spawn()
     process, connection = dependencies.spawn_worker(request)
     started = dependencies.clock()
     last_stage = "spawned"
@@ -2267,7 +2354,7 @@ def _not_started_outcome(
     )
 
 
-def supervise_training_job(
+def _supervise_training_job(
     *,
     preflight: TrainingPreflight,
     output_directory: Path,
@@ -2283,7 +2370,10 @@ def supervise_training_job(
     test_n_epochs: int = 10,
     failure_mode: str | None = None,
     canonical_argv: Sequence[str] | None = None,
+    expected_wall_seconds: int | None = None,
     dependencies: SupervisionDependencies | None = None,
+    coordination_root: Path | None = None,
+    slot_session: HeavyJobSlotSession,
 ) -> SupervisionResult:
     """Supervise serial seeds and account for every declared unit on failure."""
 
@@ -2295,6 +2385,8 @@ def supervise_training_job(
         raise ExperimentContractError("supervision resource-limit authority differs")
     if type(selected_dependencies) is not SupervisionDependencies:
         raise ExperimentContractError("supervision dependency authority differs")
+    if type(slot_session) is not HeavyJobSlotSession:
+        raise ExperimentContractError("heavy-job slot session authority differs")
     declared = tuple(seeds)
     if smoke:
         if not test_only and (declared != (SMOKE_SEED,) or transitions != SMOKE_TRANSITIONS):
@@ -2337,6 +2429,14 @@ def supervise_training_job(
     git_value = preflight.source_snapshot.value["git"]
     if not test_only and canonical_argv is None:
         raise ExperimentContractError("production training requires canonical argv authority")
+    coordination_directory = (
+        None
+        if test_only
+        else shared_coordination_root(
+            preflight.repository_root,
+            supplied=coordination_root,
+        )
+    )
     accepted = validate_reservation(
         reservation,
         smoke=smoke,
@@ -2346,9 +2446,25 @@ def supervise_training_job(
         canonical_argv=canonical_argv,
         current_commit=str(git_value["commit"]),
         expected_inputs=expected_reservation_inputs,
+        mailbox_root=coordination_directory,
     )
     if not test_only:
+        if type(expected_wall_seconds) is not int or expected_wall_seconds <= 0:
+            raise ExperimentContractError(
+                "production training requires a positive expected wall time"
+            )
+        if expected_wall_seconds > int(accepted["hard_wall_seconds"]):
+            raise ExperimentContractError(
+                "training expected wall time exceeds the accepted hard deadline"
+            )
         selected_limits = limits_bound_by_reservation(selected_limits, accepted)
+        assert coordination_directory is not None
+        slot_session.configure(
+            coordination_directory,
+            accepted,
+            expected_wall_seconds=expected_wall_seconds,
+        )
+        slot_session.validate_before_spawn()
     verify_sealed_inputs(
         preflight.repository_root,
         preflight.sealed_inputs,
@@ -2432,6 +2548,7 @@ def supervise_training_job(
                 canonical_argv=canonical_argv,
                 current_commit=str(git_value["commit"]),
                 expected_inputs=expected_reservation_inputs,
+                mailbox_root=coordination_directory,
             )
             _assert_no_conflicting_training_process()
         verify_sealed_inputs(
@@ -2451,6 +2568,7 @@ def supervise_training_job(
             failure_mode=failure_mode,
             job_output_directory=output,
             dependencies=selected_dependencies,
+            validate_slot_before_spawn=slot_session.validate_before_spawn,
         )
         outcomes.append(outcome)
         if outcome.status != SupervisorStatus.SUCCEEDED:
@@ -2506,8 +2624,58 @@ def supervise_training_job(
     return SupervisionResult(overall, tuple(outcomes), job_result, checkpoint_index, manifest)
 
 
+def supervise_training_job(
+    *,
+    preflight: TrainingPreflight,
+    output_directory: Path,
+    seeds: Sequence[int],
+    transitions: int,
+    smoke: bool,
+    reservation: Mapping[str, object] | None,
+    limits: ResourceLimits | None = None,
+    runtime_kind: str = "real",
+    test_only: bool = False,
+    test_steps_per_environment: int = 2_048,
+    test_batch_size: int = 512,
+    test_n_epochs: int = 10,
+    failure_mode: str | None = None,
+    canonical_argv: Sequence[str] | None = None,
+    expected_wall_seconds: int | None = None,
+    dependencies: SupervisionDependencies | None = None,
+    coordination_root: Path | None = None,
+) -> SupervisionResult:
+    """Supervise a job while retaining one exact heavy-slot token through cleanup."""
+
+    selected_dependencies = dependencies or SupervisionDependencies()
+    slot_session = HeavyJobSlotSession(selected_dependencies, required=not test_only)
+    try:
+        return _supervise_training_job(
+            preflight=preflight,
+            output_directory=output_directory,
+            seeds=seeds,
+            transitions=transitions,
+            smoke=smoke,
+            reservation=reservation,
+            limits=limits,
+            runtime_kind=runtime_kind,
+            test_only=test_only,
+            test_steps_per_environment=test_steps_per_environment,
+            test_batch_size=test_batch_size,
+            test_n_epochs=test_n_epochs,
+            failure_mode=failure_mode,
+            canonical_argv=canonical_argv,
+            expected_wall_seconds=expected_wall_seconds,
+            dependencies=selected_dependencies,
+            coordination_root=coordination_root,
+            slot_session=slot_session,
+        )
+    finally:
+        slot_session.release()
+
+
 __all__ = [
     "MAX_IPC_FRAME_BYTES",
+    "HeavyJobSlotSession",
     "MalformedFrameError",
     "ResourceLimits",
     "RuntimeSourceSnapshot",
@@ -2521,6 +2689,7 @@ __all__ = [
     "inspect_runtime_sources",
     "limits_bound_by_reservation",
     "minimal_worker_environment",
+    "shared_coordination_root",
     "supervise_training_job",
     "validate_reservation",
     "validate_training_preflight",

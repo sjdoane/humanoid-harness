@@ -1,0 +1,33 @@
+{
+  "call_result": {
+    "byte_count": 4793,
+    "path": "docs/operations/dual-orchestration/F3_INITIAL_CALL_RESULT.md",
+    "sha256": "07cbe7eb7a41ca9372226557eecd003ab31c225a3b82abca2055ca8b4aa0f34f"
+  },
+  "derived_candidate": {
+    "byte_count": 2105,
+    "derivation": "TargetSpeedRewardSpec_from_exact_canonical_recipe_bytes",
+    "path": "experiments/004_t2_reward_study/candidate_target_speed_t2_v1.json",
+    "sha256": "c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123"
+  },
+  "kind": "t2_f3_call_committed_ledger",
+  "raw_run_bytes_committed": false,
+  "retained_call_json": {
+    "model_call_receipt": {
+      "byte_count": 4651,
+      "path": "experiments/004_t2_reward_study/f3_call/t2-model-call-receipt-20260906T150709Z-f0ac77c5-7773-48ac-a32e-80499f5ca161-1a8d0e78de9436d1499b023455c69ea9c94dd9143704d9c88ba34d978e54a40c.json",
+      "sha256": "1a8d0e78de9436d1499b023455c69ea9c94dd9143704d9c88ba34d978e54a40c"
+    },
+    "proposal": {
+      "byte_count": 1606,
+      "path": "experiments/004_t2_reward_study/f3_call/t2-parameter-proposal-20260906T150709Z-f0ac77c5-7773-48ac-a32e-80499f5ca161-060762c7873adb1c4cc3c6d883554cd9272668dd75755b3a45516e47f9ebe07b.json",
+      "sha256": "060762c7873adb1c4cc3c6d883554cd9272668dd75755b3a45516e47f9ebe07b"
+    },
+    "recipe": {
+      "byte_count": 73,
+      "path": "experiments/004_t2_reward_study/f3_call/t2-recipe-20260906T150709Z-f0ac77c5-7773-48ac-a32e-80499f5ca161-078fabc83ff3d572789b268c05ccff5a08050e00d0fd104399e2294d3b91ec28.json",
+      "sha256": "078fabc83ff3d572789b268c05ccff5a08050e00d0fd104399e2294d3b91ec28"
+    }
+  },
+  "schema_version": 1
+}

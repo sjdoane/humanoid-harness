@@ -1,0 +1,9 @@
+2026-09-06T12:47:41Z
+78f6c7b7e243a1aab4372256a0e4891a78c48138
+SKIPPED [1] tests/rewards/test_sandbox.py:630: R2 host fixture required; R1 forbids subprocess reward workers and OS canaries
+SKIPPED [1] tests/rewards/test_sandbox.py:689: R2 host fixture required; R1 forbids subprocess reward workers and OS canaries
+SKIPPED [3] tests/rewards/test_scale_calibration.py:109: R2 host fixture required: dynamic axiom/scale outcomes remain unreviewed
+1923 passed, 16 skipped, 2 warnings in 372.75s (0:06:12)
+All checks passed!
+408 files already formatted
+2026-09-06T12:55:11Z

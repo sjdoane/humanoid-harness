@@ -304,9 +304,7 @@ def validate_protected_step(value: object) -> dict[str, object]:
     for field in ("fallen", "plant_terminated", "plant_truncated"):
         if type(value[field]) is not bool:
             raise ExperimentContractError("protected trace flags must be booleans")
-    action = _vector(value["action"], field="action", width=17)
-    if np.any(action < -0.4) or np.any(action > 0.4):
-        raise ExperimentContractError("protected trace action is out of bounds")
+    _vector(value["action"], field="action", width=17)
     _finite(value["root_x_before_m"], field="root_x_before_m")
     mass_center = value["mass_center_state"]
     if type(mass_center) is not dict or set(mass_center) != {
@@ -452,11 +450,16 @@ def recompute_protected_episode(
     com_speeds = []
     contacts = []
     fall = False
+    action_bounds_ok = True
     first_failure = None
     for expected_step, raw_step in enumerate(steps):
         step = validate_protected_step(dict(raw_step))
         if step["step"] != expected_step:
             raise ExperimentContractError("protected trace steps are not contiguous")
+        action = np.ascontiguousarray(step["action"], dtype="<f4")
+        action_bounds_ok = action_bounds_ok and bool(
+            np.all(action >= np.float32(-0.4)) and np.all(action <= np.float32(0.4))
+        )
         reference = step["reference"]
         errors = evaluator_tracking_errors(step["state"], reference["values"])
         for name in ERROR_NAMES:
@@ -518,7 +521,7 @@ def recompute_protected_episode(
         if record["settle_latency_steps"] is not None
     ]
     result = {
-        "action_bounds_ok": True,
+        "action_bounds_ok": action_bounds_ok,
         "com_forward_speed_m_s": com_speeds,
         "fall": fall,
         "forbidden_contacts": contacts,

@@ -132,6 +132,221 @@
       "ruff": "check clean; format: 362 files formatted, 1 pre-existing Astra packet document would be reformatted (their fix 949f686 pending integration)",
       "started_utc": "2026-09-06T04:06:49Z",
       "tree": "Slice FT2R3 (isolation repairs) before the reward receipt regeneration"
+    },
+    {
+      "commit": "b071fc5",
+      "finished_utc": "2026-09-06T04:38:08Z",
+      "result": "1803 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after); the phase B end-to-end test that failed in the FT2R3 full run passed in this full run (load-sensitive, still open in Astra's re-review)",
+      "ruff": "check clean; format: 380 files formatted, 1 Astra packet document (TASK-F3-initial-protocol.md) would be reformatted",
+      "started_utc": "2026-09-06T04:34:14Z",
+      "tree": "Slice F3PIN (F3 one-call protocol re-pinned to the Fable lane) before the reward receipt regeneration"
+    },
+    {
+      "commit": "3b14d54",
+      "finished_utc": "2026-09-06T05:56:11Z",
+      "result": "1828 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after, in the same commit)",
+      "ruff": "check clean; format: 390 files formatted, 1 Astra packet document (TASK-F3-initial-protocol.md, fixed in Astra's 7f2298f pending integration) would be reformatted",
+      "started_utc": "2026-09-06T05:52:13Z",
+      "tree": "Slice T2A (T2 reward-study artifacts) before the reward receipt regeneration"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "F3PINR1 slice: this record is written before the slice commit; the commit that contains this record is the slice",
+      "finished_utc": "2026-09-06T06:53:34Z",
+      "result": "1 failed, 1847 passed, 16 skipped, 2 warnings in 238.41s (0:03:58); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted integration commit",
+      "ruff": "check clean; format: one Astra packet document pending their 7f2298f integration",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox, all matching artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt; host run has no sandbox failures",
+      "scratch_record_sha256": "f081b83d70ae7b4d5cb000a1872cda16c7da9ed07b46c97d6cbffdf47022f601",
+      "started_utc": "2026-09-06T06:49:35Z",
+      "tree": "Slice F3PINR1 (one-call identity, T2 seal, record repairs)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2AR1 slice: the commit containing this record",
+      "finished_utc": "2026-09-06T08:41:49Z",
+      "result": "1 failed, 1874 passed, 16 skipped, 2 warnings in 330.62s (0:05:30); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt; host run has no sandbox failures",
+      "scratch_record_sha256": "d2627d0235205e921819dc4bfd57c84037b4be229ab3ae658e844e604d6006b1",
+      "started_utc": "2026-09-06T08:34:39Z",
+      "tree": "Slice T2AR1 (T2 evaluator independence, safety endpoint, verified-chain lineage, execution manifest, tests, re-seal after the Astra merge)"
+    },
+    {
+      "commit": "ab7b955",
+      "follow_up_receipt_for": "Slice F3PINR1",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr1.txt",
+      "retained_scratch_record_sha256": "f081b83d70ae7b4d5cb000a1872cda16c7da9ed07b46c97d6cbffdf47022f601"
+    },
+    {
+      "commit": "e50a307",
+      "follow_up_receipt_for": "Slice T2AR1",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar1.txt",
+      "retained_scratch_record_sha256": "d2627d0235205e921819dc4bfd57c84037b4be229ab3ae658e844e604d6006b1"
+    },
+    {
+      "commit": "3b14d54",
+      "follow_up_receipt_for": "Slice T2A",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2a.txt",
+      "retained_scratch_record_sha256": "a8ef2ac3d8007658218a64868a0abeeea60f93907090788d3fc010c645a009cd"
+    },
+    {
+      "commit": "b071fc5",
+      "follow_up_receipt_for": "Slice F3PIN",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pin.txt",
+      "retained_scratch_record_sha256": "c231ee97f6a1fc290ab13460230eb0eaa7b6f4961f4cbcbd6e0923608e2ae566"
+    },
+    {
+      "commit": "c945379",
+      "follow_up_receipt_for": "Slice FT2R3",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_ft2r3.txt",
+      "retained_scratch_record_sha256": "b1ffe99646c3eea1b2b46bb8c6dbb852278e6aadf023f02947af2335fdb8cc0b"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2PAIR slice: the commit containing this record; a follow-up receipt with the exact SHA is appended at the next checkpoint",
+      "finished_utc": "2026-09-06T10:19:34Z",
+      "result": "1 failed, 1906 passed, 16 skipped, 2 warnings in 335.79s (0:05:35); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pair.txt",
+      "retained_scratch_record_sha256": "5211ba6b677819d58fc544b32222eb0b6abc52064cd2553d6607d9c0205d7b7f",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T10:11:51Z",
+      "tree": "Slice T2PAIR (t2_reward_pairing/v1 seam, integrated pairing receipt)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2AR2 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T11:46:01Z",
+      "result": "1 failed, 1917 passed, 16 skipped, 2 warnings in 371.67s (0:06:11); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar2.txt",
+      "retained_scratch_record_sha256": "92df0d9481de2193e4db553c99d1ea83c0db55859c718ad8604c8f88fe5efa8b",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T11:38:13Z",
+      "tree": "Slice T2AR2 (final-ready lineage gate, verified execution seal, re-seal, wording)"
+    },
+    {
+      "commit": "0b4a8a1",
+      "follow_up_receipt_for": "Slice T2PAIR",
+      "note": "binds the exact target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pair.txt",
+      "retained_scratch_record_sha256": "5211ba6b677819d58fc544b32222eb0b6abc52064cd2553d6607d9c0205d7b7f"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2PAIRR1 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T12:32:50Z",
+      "result": "1 failed, 1922 passed, 16 skipped, 2 warnings in 370.64s (0:06:10); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr1.txt",
+      "retained_scratch_record_sha256": "73151835c7eb43ebd09561de8a4fdaec0bd038dbcb744d1a60f88fc2cea35fcf",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T12:24:12Z",
+      "tree": "Slice T2PAIRR1 (pairing review repairs PAIR-01..03, re-seal)"
+    },
+    {
+      "commit": "d780bf9",
+      "follow_up_receipt_for": "Slice T2AR2",
+      "note": "binds the exact target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar2.txt",
+      "retained_scratch_record_sha256": "92df0d9481de2193e4db553c99d1ea83c0db55859c718ad8604c8f88fe5efa8b"
+    },
+    {
+      "commit": "df3c41d5980ac31efb5024798e20e473f36fa17b",
+      "follow_up_receipt_for": "Slice T2PAIRR1",
+      "note": "follow-up receipt written 2026-09-06T12:54Z after review SCI-T2PAIRR1-02",
+      "result": "1 failed, 1922 passed, 16 skipped in 370.64 s (2026-09-06T12:24:12Z to 12:32:50Z); the failure is the expected stale reward no-learning receipt, regenerated in 78f6c7b; a post-regeneration full run is recorded separately",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr1.txt",
+      "retained_scratch_record_sha256": "73151835c7eb43ebd09561de8a4fdaec0bd038dbcb744d1a60f88fc2cea35fcf"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "78f6c7b7e243a1aab4372256a0e4891a78c48138",
+      "note": "full outside-sandbox run after the receipted reward-receipt regeneration; written 2026-09-06T12:55Z",
+      "post_regeneration_full_run": true,
+      "result": "1923 passed, 16 skipped, 2 warnings in 372.75s (0:06:12)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_78f6c7b_post_regeneration.txt",
+      "retained_scratch_record_sha256": "c634912a5fb3c68a697459ef647ab55541f84e01cb5ac7fe12b8c808804a80e6"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "F3PINR2 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T13:41:37Z",
+      "result": "1924 passed, 16 skipped, 2 warnings in 372.73s (0:06:12)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
+      "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T13:33:59Z",
+      "tree": "Slice F3PINR2 (call identity derived from the committed seal; documentation regression)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2PAIRR2 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T14:44:20Z",
+      "result": "1933 passed, 16 skipped, 2 warnings in 474.98s (0:07:54)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr2.txt",
+      "retained_scratch_record_sha256": "5077c852fe733bbf52d7f7f4d712a61cdcc54edfc670a8893cd9035d3d792530",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T14:34:10Z",
+      "tree": "Slice T2PAIRR2 (sink-level pairing regression)"
+    },
+    {
+      "commit": "f9f032e",
+      "follow_up_receipt_for": "Slice F3PINR2",
+      "note": "binds the exact target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
+      "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2C1 slice: the commit containing this record; follow-up receipt with the full SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T16:38:57Z",
+      "result": "1935 passed, 16 skipped, 2 warnings in 384.57s (0:06:24)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c1.txt",
+      "retained_scratch_record_sha256": "9d68164efb5c3fb69b87ae8edb559092b6cba0926755d96d7a14432daa3dbb00",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T16:32:31Z",
+      "tree": "Slice T2C1 (candidate admission and final-ready re-seal)"
+    },
+    {
+      "commit": "d97f8da8a72311e627ba7e51601fb93cb022ae10",
+      "follow_up_receipt_for": "Slice T2PAIRR2",
+      "note": "binds the full target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr2.txt",
+      "retained_scratch_record_sha256": "5077c852fe733bbf52d7f7f4d712a61cdcc54edfc670a8893cd9035d3d792530"
+    },
+    {
+      "commit": "f9f032ea816f6391938fba275168d256b825243e",
+      "follow_up_receipt_for": "Slice F3PINR2 (full SHA, SCI-READBACK-02)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
+      "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2C2 slice: the commit containing this record; follow-up receipt with the full SHA in the re-seal commit",
+      "finished_utc": "2026-09-06T18:04:06Z",
+      "result": "2 failed, 1978 passed, 16 skipped, 2 warnings in 389.78s (0:06:29)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c2.txt",
+      "retained_scratch_record_sha256": "cdcce11915172fe9d52bfd36f4306c16fb68d57d5dc7cff79b73738629df5fb4",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T17:57:36Z",
+      "tree": "Slice T2C2 (descendant-aware execution seal, source snapshot, slot validation in supervision)"
+    },
+    {
+      "commit": "ce18e29",
+      "follow_up_receipt_for": "Slice T2C1",
+      "note": "full SHA: see git; binds the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c1.txt",
+      "retained_scratch_record_sha256": "9d68164efb5c3fb69b87ae8edb559092b6cba0926755d96d7a14432daa3dbb00"
     }
   ],
   "schema_version": 1

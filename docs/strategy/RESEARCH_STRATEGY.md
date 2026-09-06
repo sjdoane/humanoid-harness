@@ -4,7 +4,7 @@
 |---|---|
 | progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |
 | bottleneck | Neither lane has a trained result. Both wait on the combined re-review of FT2R1 to FT2R3, the disposable smoke under a mailbox reservation, and Samuel's authorization for any five-seed cohort. |
-| next step | Fable: re-pin the F3 one-call protocol to the reward lane, lock the T2 reward-study protocol (oracle variant, matched controls, endpoint), and run reward cycle 0 and 1 once compute is authorized. Astra: re-reviews, smoke reservation, next composition packet. |
+| next step | Role change relayed from Samuel on 2026-09-06 (Astra messages `20260906T164045` and `164341`): Astra leads all implementation and bounded local training through a trained, evaluated full-loop demonstration; Fable reviews, critiques, and ideates and launches no further builder. Fable finishes the T2C2 checkpoint (commit, one clean-commit re-seal, handoff of HEAD and findings), then answers Astra's review questions. |
 
 ## Fable's authority
 
@@ -342,6 +342,76 @@ made). The reward knob has never been executed against a trained policy.
 | Route | Data-only formula family first (F2, bounded alpha and beta); generated Python stays behind R2 and R3. |
 | Compute | The disposable smoke and every cohort follow the shared gates: mailbox reservation, one heavy job at a time, Samuel's authorization for cohorts. |
 
+### T2 reward-study protocol `t2_reward_study_expert_hold/v1` (frozen 2026-09-06T04:38Z; execution NO-GO until every TBD hash exists)
+
+Source: design survey `sol-survey-20260906-t2proto`. Frozen by the reward
+lane's authority; the shared-runtime change it needs is proposed to Astra.
+
+| field | frozen value |
+|---|---|
+| Family and authorable factor | Family B; the reward specification only |
+| Task | stock `Humanoid-v5`; expert start; target COM forward speed `3.0 m/s`; `1,000` steps |
+| Oracle | `expert_hold/v1`: hold the expert reference from authentic boundary `0`, no transitions, expert-reference RSI only in both arms; canonical artifact hash TBD. Switch to a `medium_hold/v1` study only as a new preregistered study if an interface check shows the expert reference cannot supply the `1,000`-step reference or if cycle 0 fails baseline viability; never because the effect is small. |
+| Arms | `tracking_only/v1` (`eea2b6a9…`) versus one admitted `target_speed_triangular_affine_t2_adapter/v1` specification (hash TBD after the single F3 call) |
+| Candidate timing | the independent T2 evaluator is frozen first; one initial F3 call; the candidate is admitted and both arm manifests sealed before any baseline measurement is exposed |
+| Common references and initialization | corpus `a3e9a723…`, library `ad57578d…`, `starting_checkpoint_v1.json` `9931750c…`, same E1 actor and value initialization |
+| Training | PPO seeds `121001, 121101, 121201, 121301, 121401`; `1,048,576` transitions per seed; four environments (two composition, two rehearsal, expert reference only); first eight rollouts restricted, then the full actor; final checkpoint only; no retries; a T2-specific training design artifact (hash TBD) replaces the 27-cell multi-behavior design |
+| Pairing | a common arm-invariant `study_pairing_sha256` computed from every common study field and excluding reward, arm label, output path, and timestamps; action RNG, minibatch RNG, RSI order, class, and start, and evaluation streams derive from it; verified identical by seed across arms (shared-runtime change in `phase_b/training.py`, proposed to Astra) |
+| Evaluation | seeds `97001`-`97020`; deterministic actions; a reward-independent T2 evaluator and report (hash TBD) recomputing COM speed and the six tracking errors from direct state; full `1,000`-step traces; calibration receipt `none` for the T2 primary |
+| Primary endpoint | per checkpoint, the mean over the `20` episodes of the per-episode mean absolute per-step COM speed error against `3.0`, all `1,000` steps, no censoring |
+| Arm estimator | five paired PPO-seed differences `d_s = Y_baseline - Y_candidate`; report every pair, mean, median, range, paired 95 percent t interval, and the exact one-sided sign result; the five policies are the units |
+| Task-improvement rule | all five `d_s > 0` and mean reduction `>= 0.25 m/s` (preregistered minimum relevant effect) |
+| Safety | `0/100` candidate episodes with a fall, forbidden contact, invalid action, or incomplete trace; the baseline must be viable first |
+| Tracking | each episode: all six whole-episode RMSE components within the frozen scales; checkpoint `>= 16/20`; arm `>= 4/5`; a candidate that fails while the baseline passes broke tracking |
+| Overall candidate pass | task rule met and safety passed and tracking passed; the tradeoff table reports task, safety, and each tracking component separately with no weighted aggregate |
+| Secondary endpoints | six tracking RMSEs; protected alpha-and-beta-independent task return `sum_t [1 - min(1, |v_t - 3| / 3)]`; fraction of steps in `[2.75, 3.25] m/s`; fall-only first-fall step; fall and contact counts; descriptive stock return; candidate `sum r_task` and `sum r_train` are diagnostics only |
+| Evidence | both cohorts `exploratory_fine_tuning_cycle`; claim ceiling: the candidate met or did not meet the preregistered T2 criterion in this matched five-seed implementation |
+| Cycles | pre-cycle (freeze artifacts, F3 call, admit and seal); cycle 0 baseline cohort (`106 min` expected, `120` hard; reservation, Samuel authorization 1); cycle 1 candidate cohort (new reservation, authorization 2); cycle 2 prepare a revision from the protected feedback dossier under a separately reviewed T2 revision protocol; a revised cohort needs a third reservation and authorization |
+| Risk mitigations | per-step absolute error (not error of the mean); band occupancy and speed quantiles reported; falls and posture gates separate; static velocity-grid values and observed reward-stream distributions recorded; beta contribution reported separately; expert-reference rehearsal, staged unfreeze, final-checkpoint-only selection, step-zero comparator; evaluator frozen and kept out of the LLM prompt; same clean commit and host fingerprint for both arms, sequential runs |
+
+Pre-cycle work: builder packet `T2A` (expert-hold oracle artifact, T2 training
+design, T2 protected evaluator and report fields, study manifest with the
+pairing key seam, negatives), a targeted review of the F3 re-pin, the single
+F3 call, candidate admission and sealing.
+
+## First-principles challenge and the reward lane's position (2026-09-06T08:36Z)
+
+Samuel, through Astra, asked whether explicit closed-loop oracle and reward
+design is needed at all given emergent composability from scale (GEN-1.5 and
+related demonstration-conditioned policies) and why a harness rather than
+in-context learning. Astra's advisory review is in its checkout under
+`docs/strategy/astra/FIRST_PRINCIPLES_20260906.md`. Fable's independent
+position, formed from the transcript anchors and the evidence this project has
+produced:
+
+| question | position |
+|---|---|
+| Necessity | Dropped as a claim. Nothing here shows that scaled or demonstration-conditioned policies cannot compose humanoid behaviors. The claim of record becomes conditional: given a fixed controller family, reference library, MDP, and adaptation budget, does LLM-driven revision of the oracle or the task reward improve held-out task success and recovery over fixed-schedule, handwritten state-aware, and, where an interface exists, prompt or demonstration-conditioned alternatives, at what cost. This is also the collaborator's own frame: the harness automates two design steps a person now does by hand for each task; the measured quantity is design cost and outcome, not a proof against scale. |
+| Harness versus in-context learning | Not a dichotomy. Policy-level in-context learning needs a demonstration-conditioned policy for the embodiment; none exists for stock `Humanoid-v5` on this hardware, and if one is supplied it is a different policy-training block behind the same two inputs, which the harness is designed to be agnostic to. Design-level in-context learning, an LLM revising oracle and reward artifacts from measured feedback, is what the harness is; it should be named that and compared against a prompt-only baseline wherever a compatible interface exists. |
+| Vision | An optional factor. Structured state, contact, and phase metrics first; a visual judge is added only where it supplies evidence the metrics lack, and it is compared against the same pipeline without it. |
+| Custom tracker bootstrapping | The phase B fine-tuning runtime is a stand-in that exists so the loop can run on this machine now. It is not the research contribution. Stop rule, agreed with Astra: one capped mechanism smoke on the existing T1 schedule (at most `196,608` transitions or `45` minutes, non-promotable, under a reservation); if the local runtime cannot demonstrate numeric-reference consumption and trainable tracking within that cap, adopt a supplied or existing compatible tracker for the joint task rather than continuing custom tracker engineering. |
+| Cheapest joint demonstration | Two stages. Stage 1 needs no cross-gait tracking: the reward study T2 on the expert-hold oracle (baseline cohort, one LLM reward hypothesis, candidate cohort), which exercises the reward knob with the lowest risk and gives the first measured adaptation effect. Stage 2, only after the mechanism smoke passes, is Astra's straight-course speed-zone task with both knobs in the four locked arms plus a handwritten state-aware composer, on whichever tracker survives the stop rule. Each stage's cohorts follow the existing gates: reservation, one heavy job, Samuel's authorization. |
+| Claim ceiling | "Under these fixed conditions the revised oracle or reward met or did not meet the preregistered criterion in a matched five-seed implementation, at this cost." No generalization or scale claim in either direction. |
+
+## Role change: Astra system lead, Fable reviewer (2026-09-06T17:58Z)
+
+Samuel, through Astra's mailbox messages `20260906T164045` and `164341`,
+assigned Astra complete leadership of both harness lanes (implementation and
+bounded local training) through a trained, evaluated full-loop demonstration,
+and made Fable the independent reviewer, critic, and ideation partner. Fable
+acknowledged in `20260906T…` (acknowledgment reply), finished only the bounded
+T2C2 checkpoint, and launched no further builder. Samuel can confirm or
+adjust this in the Fable session; until then Fable acts on it. Bounded local
+training is authorized by Samuel to Astra under the existing correctness,
+evaluator, held-out, provenance, and resource-coordination gates; paid
+compute, publication of private data, and safeguard evasion remain excluded.
+
+Fable's standing review duties: source reviews on request (correctness and
+scientific blockers, not protocol expansion), critique of study designs
+against the Lokesh goal ledger, resource-conflict acknowledgment, and joint
+ideation. Fable keeps its identity and writer guards; the mailbox remains the
+channel.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -422,6 +492,10 @@ goal ID.
 | 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT1 scientific review (ACCEPT-WITH-REPAIRS, 4 P1, 1 P2) and the E003R1 robustness review (ACCEPT-WITH-REPAIRS, 4 P1, 3 P2) into repair slice `FT2R1` before any training smoke; clarify the phase B endpoint's independent unit and calibration split; accept Astra's F2 formula interface with an adapter-owned velocity admission certificate. | reviews `sol-review-sci-20260905-ft1`, `sol-review-adv-20260905-e003r1`; Astra proposal `20260905T220539` | FT2R1 negatives pass; no smoke before the reservation | recorded 2026-09-05T23:08Z |
 | 2026-09-06 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT2 reviews (scientific ACCEPT-WITH-REPAIRS, 8 P1, 1 P2; robustness ACCEPT-WITH-REPAIRS, 9 P1) into two repair slices, `FT2R2` (evaluator independence, evaluation lineage, non-scoring endpoint, rollout likelihood audit, report completeness, reservation binding, bounded loaders, cohort authority, the F2 registry entry) and `FT2R3` (sealed-input lineage in the worker, clean-environment and resource isolation, bounded IPC frames, fail-closed RSI evidence, mechanism-level negatives); the disposable smoke waits for both. FT2R1 committed as `5965f0c`. | reviews `sol-review-sci-20260905-ft2`, `sol-review-adv-20260905-ft2`; FT2R1 final | repair negatives pass; a combined re-review before the smoke | recorded 2026-09-06T00:32Z |
 | 2026-09-06 | `LG-03`, `LG-05`, `LG-11`, `LG-15` | Lane swap on Samuel's instruction: Fable takes the reward and feedback lane, Astra the oracle and tracker lane; tracker lane handed over at FT2R3 (`docs/operations/TRACKER_LANE_HANDOFF.md`); reward-lane first milestone defined. | Samuel's instruction to both orchestrators; Astra proposal `20260906T023515`; ADR 0009 | reward cycle 0 and 1 executed on T2 with a matched baseline | recorded 2026-09-06T04:09Z |
+| 2026-09-06 | `LG-03`, `LG-11`, `LG-15` | Freeze the T2 reward-study protocol `t2_reward_study_expert_hold/v1` (expert-hold oracle, paired five-seed arms, reward-independent evaluator, preregistered `0.25 m/s` rule, separate safety and tracking gates); propose the arm-invariant pairing key to Astra as a shared-runtime change. | survey `sol-survey-20260906-t2proto` | every TBD hash exists and the pairing receipt verifies identical streams before cycle 0 | recorded 2026-09-06T04:38Z |
+| 2026-09-06 | `LG-01`, `LG-02`, `LG-03`, `LG-05`, `LG-13` | Answer the first-principles challenge: drop the necessity claim, frame the harness as design-level in-context learning measured as conditional adaptation benefit and cost against fixed-schedule, handwritten, and prompt-conditioned baselines; adopt the tracker stop rule (capped mechanism smoke, then a supplied or existing tracker); stage the joint demonstration after the reward study. | Samuel's challenge via Astra `20260906T073336`; Astra advisory `d47f528`; project evidence (switching failures, authority gap, failed screen) | mechanism smoke result and T2 cycle 0 and 1 | recorded 2026-09-06T08:36Z |
+| 2026-09-06 | `LG-03`, `LG-05`, `LG-15`, `LG-16` | First real LLM reward hypothesis retained under the one-call protocol after an independent APPROVE_DISPATCH: alpha `1.0`, beta `0.0` for the F2 target-speed family on T2; hypothesis only; candidate admission next. | `F3_INITIAL_CALL_RESULT.md`; readback `20260906T144450Z-48272687` | admission seals final-ready; cycle 0 after reservation and authorization | recorded 2026-09-06T15:35Z |
+| 2026-09-06 | all | Role change relayed from Samuel: Astra leads implementation and bounded training; Fable reviews and ideates; Fable stops dispatching after the T2C2 checkpoint. | Astra messages `20260906T164045`, `164341`, `164747`, `171815`, `173107` | Fable's reviews are requested and answered through the mailbox | recorded 2026-09-06T17:58Z |
 
 ## Known strategy inconsistencies
 

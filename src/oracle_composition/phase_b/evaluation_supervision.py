@@ -36,6 +36,11 @@ from .protected_metrics import (
     recompute_protected_episode,
 )
 from .report_v2 import ProtectedEpisodeMetrics
+from .supervision import (
+    HeavyJobSlotSession,
+    SupervisionDependencies,
+    shared_coordination_root,
+)
 
 EVALUATION_SUCCESS_RECEIPT_ID = "humanoid_phase_b_evaluation_success/v1"
 EVALUATION_FAILURE_RECEIPT_ID = "humanoid_phase_b_evaluation_failure/v1"
@@ -584,10 +589,11 @@ def _validate_persisted_traces(
     return tuple(checked_rows)
 
 
-def supervise_policy_evaluation(
+def _supervise_policy_evaluation(
     *,
     request: EvaluationWorkerRequest,
     evaluation_manifest: PublishedArtifact,
+    slot_session: HeavyJobSlotSession,
 ) -> EvaluationSupervisionResult:
     """Run all 160 episodes under one deadline and publish one terminal receipt."""
 
@@ -601,6 +607,7 @@ def supervise_policy_evaluation(
     manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
     manifest_byte_count = len(manifest_bytes)
     output = Path(request.output_directory).resolve(strict=True)
+    slot_session.validate_before_spawn()
     process, connection = _spawn(request)
     started = time.perf_counter()
     deadline = started + float(dependencies.wall_seconds)
@@ -811,6 +818,47 @@ def supervise_policy_evaluation(
         calibration,
         MappingProxyType(comparator),
     )
+
+
+def supervise_policy_evaluation(
+    *,
+    request: EvaluationWorkerRequest,
+    evaluation_manifest: PublishedArtifact,
+    validated_reservation: Mapping[str, object] | None = None,
+    coordination_root: Path | None = None,
+    expected_wall_seconds: int | None = None,
+    slot_dependencies: SupervisionDependencies | None = None,
+    test_only: bool = False,
+) -> EvaluationSupervisionResult:
+    """Supervise evaluation while retaining its exact heavy-slot token through cleanup."""
+
+    selected_dependencies = slot_dependencies or SupervisionDependencies()
+    if type(selected_dependencies) is not SupervisionDependencies:
+        raise ExperimentContractError("evaluation slot dependency authority differs")
+    session = HeavyJobSlotSession(selected_dependencies, required=not test_only)
+    if not test_only:
+        if type(validated_reservation) is not dict:
+            raise ExperimentContractError("evaluation requires a validated mailbox reservation")
+        if type(expected_wall_seconds) is not int or expected_wall_seconds <= 0:
+            raise ExperimentContractError("evaluation expected wall authority differs")
+        root = shared_coordination_root(
+            Path(request.repository_root),
+            supplied=coordination_root,
+        )
+        session.configure(
+            root,
+            validated_reservation,
+            expected_wall_seconds=expected_wall_seconds,
+        )
+        session.validate_before_spawn()
+    try:
+        return _supervise_policy_evaluation(
+            request=request,
+            evaluation_manifest=evaluation_manifest,
+            slot_session=session,
+        )
+    finally:
+        session.release()
 
 
 __all__ = [

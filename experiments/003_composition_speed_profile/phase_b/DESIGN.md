@@ -178,6 +178,7 @@ python -m oracle_composition.harness.cycle_cli train \
   --seeds 121901 \
   --transitions 196608 \
   --reservation /absolute/path/to/accepted_smoke_reservation.json \
+  --expected-wall-seconds 180 \
   --smoke
 ```
 
@@ -195,7 +196,8 @@ python -m oracle_composition.harness.cycle_cli train \
   --output /absolute/fresh/path/phase_b_cohort \
   --seeds 121001,121101,121201,121301,121401 \
   --transitions 1048576 \
-  --reservation /absolute/path/to/accepted_cohort_reservation.json
+  --reservation /absolute/path/to/accepted_cohort_reservation.json \
+  --expected-wall-seconds 6360
 ```
 
 Evaluate one stored final checkpoint and its step-0 comparator:
@@ -209,7 +211,8 @@ python -m oracle_composition.harness.cycle_cli evaluate-policy \
   --checkpoint /absolute/path/to/checkpoint_seed_121001_final.npz \
   --calibration-receipt /absolute/path/to/frozen_task_success_calibration.json \
   --calibration-receipt-sha256 <reviewed-sha256> \
-  --output /absolute/fresh/path/phase_b_utility_121001
+  --output /absolute/fresh/path/phase_b_utility_121001 \
+  --reservation /absolute/path/to/accepted_evaluation_reservation.json
 ```
 
 ## Compute reservation
@@ -242,4 +245,10 @@ before worker spawn. The accepted reservation supplies the enforced deadlines:
 the smoke uses `work=1 seed; 196,608 counted transitions; 4 DummyVecEnv`,
 `expected_wall=3m`, and a hard total and per-seed wall of `20m`, never the
 cohort's `22m` per-seed default. All other fixed resource declarations remain
-unchanged.
+unchanged. Production training also requires the exact positive
+`--expected-wall-seconds` used to reserve the shared token. Training and
+evaluation validate that complete token against the already admitted
+reservation immediately before each worker spawn, retain its owner/token ID
+through process cleanup, and release only that exact pair on success or
+failure. Evaluation's fixed supervisor wall is 1,800 seconds and must be the
+expected wall supplied when its token is reserved.

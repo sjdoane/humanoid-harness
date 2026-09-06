@@ -22,6 +22,7 @@ from oracle_composition.phase_b.contracts import (
     PhaseBOracleProgram,
     RewardRegistry,
     StartingCheckpointContract,
+    T2RewardPairing,
     TargetSpeedRewardSpec,
     TrackingOnlyRewardSpec,
     load_fine_tuning_run_manifest,
@@ -108,6 +109,47 @@ def test_run_manifest_refuses_a_bound_hash_mismatch(tmp_path: Path) -> None:
     path.write_bytes(canonical_json_bytes(raw))
     with pytest.raises(PhaseBContractError, match="reviewed admission seal"):
         load_fine_tuning_run_manifest(path, repository_root=ROOT)
+
+
+def test_t2_pairing_contract_requires_exact_canonical_study_and_arm_bytes() -> None:
+    path = ROOT / "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json"
+    encoded = path.read_bytes()
+    pairing = T2RewardPairing.from_study_manifest_bytes(encoded)
+    assert pairing.study_manifest_sha256 == hashlib.sha256(encoded).hexdigest()
+    with pytest.raises(PhaseBContractError, match="canonical JSON"):
+        T2RewardPairing.from_study_manifest_bytes(encoded + b"\n")
+
+
+@pytest.mark.parametrize(
+    ("field", "alias", "message"),
+    [
+        ("transitions_per_seed", 1_048_576.0, "transition budget must be an integer"),
+        ("retries_or_seed_replacement", 0, "retries flag must be a boolean"),
+    ],
+)
+def test_t2_pairing_contract_refuses_python_equal_candidate_type_aliases(
+    field: str,
+    alias: object,
+    message: str,
+) -> None:
+    value = json.loads(
+        (ROOT / "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json").read_bytes()
+    )
+    baseline_common = {
+        name: item
+        for name, item in value["arms"][0].items()
+        if name not in contracts_module.PAIRING_EXCLUDED_ARM_FIELDS
+    }
+    value["arms"][1]["training"][field] = alias
+    candidate_common = {
+        name: item
+        for name, item in value["arms"][1].items()
+        if name not in contracts_module.PAIRING_EXCLUDED_ARM_FIELDS
+    }
+    assert baseline_common == candidate_common
+    assert canonical_json_bytes(baseline_common) != canonical_json_bytes(candidate_common)
+    with pytest.raises(PhaseBContractError, match=message):
+        T2RewardPairing.from_study_manifest_bytes(canonical_json_bytes(value))
 
 
 def test_run_manifest_rejects_unreviewed_smoke_budget_even_when_json_is_valid() -> None:

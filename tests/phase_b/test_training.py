@@ -68,6 +68,8 @@ def test_frozen_production_plan_has_exact_ppo_budget_and_recipe() -> None:
     assert plan.rollout_count == 128
     assert plan.transitions_per_rollout == 8_192
     assert plan.recipe == PPORecipe()
+    assert plan.pairing_id == "non_paired"
+    assert plan.randomization_sha256 == MANIFEST_SHA256
 
     smoke = TrainingPlan(
         seed=SMOKE_SEED,

@@ -11,6 +11,10 @@ import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.harness.resource_slot import SLOT_FILENAME
+from oracle_composition.harness.resource_slot import (
+    canonical_json_bytes as slot_canonical_json_bytes,
+)
 from oracle_composition.phase_b import supervision as supervision_module
 from oracle_composition.phase_b.isolation import (
     seal_artifact,
@@ -1161,3 +1165,188 @@ def test_invalid_production_reservation_precedes_output_and_worker_spawn(
             ],
         )
     assert not output.exists()
+
+
+def _write_slot_fixture(
+    root: Path,
+    *,
+    output: Path,
+    expired: bool = False,
+    mismatched_command: bool = False,
+) -> dict[str, object]:
+    root.mkdir()
+    accepted_until = datetime.now(UTC) + timedelta(minutes=(-1 if expired else 20))
+    proposal_id = "20260906T000000.000000Z-" + "1" * 32
+    acceptance_id = "20260906T000001.000000Z-" + "2" * 32
+    reservation = {
+        "accepted": True,
+        "acceptance_message": {
+            "path": f"messages/{acceptance_id}.json",
+            "sha256": "3" * 64,
+        },
+        "accepted_until_utc": accepted_until.isoformat(timespec="microseconds").replace(
+            "+00:00", "Z"
+        ),
+        "acknowledgment": {
+            "path": f"acks/{acceptance_id}.json",
+            "sha256": "4" * 64,
+        },
+        "canonical_argv": ["python", "-m", "oracle_composition.harness.cycle_cli", "train"],
+        "commit": "5" * 40,
+        "conflict_check": "no_other_heavy_repository_job",
+        "hard_wall_seconds": 1_200,
+        "inputs": {"runtime_source_snapshot_sha256": "6" * 64},
+        "mode": "smoke",
+        "output": str(output.resolve()),
+        "owner": "phase-b-slot-owner",
+        "proposal_id": proposal_id,
+        "required_authorizer": "fable",
+        "schema_version": 2,
+    }
+    token_argv = (
+        ["different-command"] if mismatched_command else list(reservation["canonical_argv"])
+    )
+    token = {
+        "acceptance_id": acceptance_id,
+        "accepted_until_utc": reservation["accepted_until_utc"],
+        "canonical_argv": token_argv,
+        "commit": reservation["commit"],
+        "expected_wall_seconds": 1_200,
+        "hard_wall_seconds": 1_200,
+        "owner": reservation["owner"],
+        "proposal_id": proposal_id,
+        "reservation_canonical_sha256": hashlib.sha256(
+            slot_canonical_json_bytes(reservation)
+        ).hexdigest(),
+        "schema_version": 1,
+        "token_id": "7" * 32,
+    }
+    (root / SLOT_FILENAME).write_bytes(slot_canonical_json_bytes(token))
+    return reservation
+
+
+@pytest.mark.parametrize(
+    "slot_state", ("missing", "malformed", "expired", "mismatched", "expected_wall")
+)
+def test_production_slot_refuses_before_worker_spawn(
+    tmp_path: Path,
+    preflight: object,
+    monkeypatch: pytest.MonkeyPatch,
+    slot_state: str,
+) -> None:
+    output = tmp_path / "slot-refusal-output"
+    slot_root = tmp_path / "coordination"
+    if slot_state == "missing":
+        slot_root.mkdir()
+        reservation = _write_slot_fixture(
+            tmp_path / "unused-coordination",
+            output=output,
+        )
+    else:
+        reservation = _write_slot_fixture(
+            slot_root,
+            output=output,
+            expired=slot_state == "expired",
+            mismatched_command=slot_state == "mismatched",
+        )
+        if slot_state == "malformed":
+            (slot_root / SLOT_FILENAME).write_bytes(b"{}")
+    spawn_calls = 0
+
+    def forbidden_spawn(_request: object) -> tuple[object, object]:
+        nonlocal spawn_calls
+        spawn_calls += 1
+        raise AssertionError("worker spawn must not be reached")
+
+    monkeypatch.setattr(
+        supervision_module,
+        "validate_reservation",
+        lambda *_args, **_kwargs: reservation,
+    )
+    monkeypatch.setattr(supervision_module, "_assert_no_conflicting_training_process", lambda: None)
+    with pytest.raises(ExperimentContractError, match="heavy-job slot refused dispatch"):
+        supervise_training_job(
+            preflight=preflight,
+            output_directory=output,
+            seeds=(121901,),
+            transitions=196_608,
+            smoke=True,
+            reservation=reservation,
+            runtime_kind="real",
+            canonical_argv=reservation["canonical_argv"],
+            expected_wall_seconds=1_199 if slot_state == "expected_wall" else 1_200,
+            dependencies=_observer_dependencies(forbidden_spawn),
+            coordination_root=slot_root,
+        )
+    assert spawn_calls == 0
+    if slot_state != "missing":
+        assert (slot_root / SLOT_FILENAME).exists()
+
+
+def test_validated_slot_is_released_after_spawn_failure(
+    tmp_path: Path,
+    preflight: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "spawn-failure-output"
+    slot_root = tmp_path / "coordination"
+    reservation = _write_slot_fixture(slot_root, output=output)
+
+    def failing_spawn(_request: object) -> tuple[object, object]:
+        assert (slot_root / SLOT_FILENAME).is_file()
+        raise RuntimeError("controlled spawn failure")
+
+    monkeypatch.setattr(
+        supervision_module,
+        "validate_reservation",
+        lambda *_args, **_kwargs: reservation,
+    )
+    monkeypatch.setattr(supervision_module, "_assert_no_conflicting_training_process", lambda: None)
+    with pytest.raises(RuntimeError, match="controlled spawn failure"):
+        supervise_training_job(
+            preflight=preflight,
+            output_directory=output,
+            seeds=(121901,),
+            transitions=196_608,
+            smoke=True,
+            reservation=reservation,
+            runtime_kind="real",
+            canonical_argv=reservation["canonical_argv"],
+            expected_wall_seconds=1_200,
+            dependencies=_observer_dependencies(failing_spawn),
+            coordination_root=slot_root,
+        )
+    assert not (slot_root / SLOT_FILENAME).exists()
+
+
+def test_validated_slot_is_released_after_normal_supervision_return(
+    tmp_path: Path,
+    preflight: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "normal-return-output"
+    slot_root = tmp_path / "coordination"
+    reservation = _write_slot_fixture(slot_root, output=output)
+    sentinel = object()
+
+    def controlled_core(**kwargs: object) -> object:
+        session = kwargs["slot_session"]
+        session.configure(slot_root, reservation, expected_wall_seconds=1_200)
+        session.validate_before_spawn()
+        return sentinel
+
+    monkeypatch.setattr(supervision_module, "_supervise_training_job", controlled_core)
+    result = supervise_training_job(
+        preflight=preflight,
+        output_directory=output,
+        seeds=(121901,),
+        transitions=196_608,
+        smoke=True,
+        reservation=reservation,
+        runtime_kind="real",
+        canonical_argv=reservation["canonical_argv"],
+        dependencies=_observer_dependencies(lambda _request: None),
+        coordination_root=slot_root,
+    )
+    assert result is sentinel
+    assert not (slot_root / SLOT_FILENAME).exists()

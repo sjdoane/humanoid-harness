@@ -1,0 +1,16 @@
+{
+  "baseline_sha256": "eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f",
+  "evidence_dossier_sha256": "32cdcc548cefedcabee304d75d5d84c8dcbe9e2c2129cee541692380c90f890b",
+  "falsifier": "The hypothesis is falsified if a predetermined independent evaluation shows no improvement in target-speed error, or shows a correctness or safety regression, relative to the declared tracking-only configuration. No such comparison is valid unless the stock-COM adapter first verifies the inclusive [-25,25] m/s gate, COM origin, and 0.015 s cadence, and all required evidence gates are satisfied.",
+  "kind": "t2_initial_parameter_proposal",
+  "parameters": {
+    "alpha": 1.0,
+    "beta": 0.0
+  },
+  "predicted_effect": "If subsequently admitted and evaluated under the frozen comparison, the candidate may increase pressure to hold the target COM forward speed without adding a constant offset. No improvement or successful execution is claimed.",
+  "rationale": "This conservative interior candidate gives the speed-target term unit-scale influence while avoiding a constant return offset. It is an initial unmeasured hypothesis, not the tracking-only baseline. The baseline load and binding are unobserved, and all candidate admission, adapter, manifest, protected-evaluator, measurement, execution, and training evidence remains missing.",
+  "request_payload_sha256": "40e3306985e28296fdc24264e857008cda4367f940e9bf71649f42b5fb4e1274",
+  "schema_version": 3,
+  "status": "hypothesis_only_not_admitted",
+  "t2_contract_sha256": "b5f9cd440b269090a1573fc3a540ce4c86e7ddcd0b70510402210fa55c2bde60"
+}

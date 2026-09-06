@@ -2,9 +2,486 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260906-FT2R3` closes FT2-ADV-02, 03, 04, 07, and 09 plus FT2-SCI-07's mechanism negatives: 103 sealed worker inputs, checkout-local executing-module identity, clean worker spawn, OS CPU and parent process-tree resource controls, bounded exact-schema JSON IPC, fail-closed RSI evidence, and separate primary/cleanup outcomes. Detector-path regressions cover source drift, six malformed-frame classes, resource limits, process-group survival, construction admission, RSI omissions/shortcuts, cohort gates, and the 20-minute smoke deadline. No training ran. |
-| bottleneck | FT2R1 through FT2R3 still need one combined scientific and robustness re-review. OS resource enforcement is best-effort where recorded and has not been measured under a production training load. No calibration receipt, disposable smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
-| next step | Fable reviews and commits FT2R3, then launches the combined scientific and robustness re-reviews. Do not run the smoke before both verdicts; task success remains non-scoring until a disjoint calibration receipt is frozen, and the five-seed cohort still requires Samuel's authorization. |
+| progress | `T2C2` repairs the execution-seal paradox with a clean admission commit, exact source snapshot, and bounded record-only descendant rule; training and evaluation now validate Astra's complete shared heavy-job token at the immediate pre-spawn boundary and release its exact identity after terminal cleanup. |
+| bottleneck | T2C2 is dirty builder output, so the clean-commit v2 re-seal has correctly not run. T2C1's v1 artifacts remain current, and cycle 0 remains **NO-GO** with no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence. |
+| next step | Fable reviews and commits T2C2, runs the protocol's exact re-seal command once at that clean commit, commits only the three regenerated record files as its child, and obtains independent review before proposing runtime. |
+
+T2C2 completion (2026-09-06): launch base
+`8773961167ab797c7f911f704a7555a39f506e82`. The launcher acquired the exact
+write lease as `sol-builder-20260906-t2c2`, model `gpt-5.6-sol`, role `builder`,
+with the declared scope; the builder performed no Git write and did not renew
+or release the launcher's lease.
+
+The v2 T2 execution manifest binds `admission_commit` and a canonical
+`source_snapshot_sha256`. At runtime it accepts the clean admission commit or a
+clean descendant only when the endpoint diff contains admitted record paths
+and all sealed bindings still recompute. Source, tests, lock, model/environment
+asset, payload, dirty-tree, changed-binding, and non-descendant cases refuse.
+`t2_runtime_execution_identity` supplies the paired `admission_commit` and
+`execution_commit_observed` run-receipt fields. The T2C1 JSON artifacts are
+unchanged pending Fable's clean-commit re-seal.
+
+Production training and protected evaluation now require the same fully bound
+heavy-job token as their already validated mailbox reservation. Validation is
+immediately before each worker spawn; the captured owner/token ID is held
+through process cleanup and only that exact pair is released on success or
+failure. Isolated negative tests use tempfile slots and injected spawn seams;
+no real shared token, training, or simulator command was used.
+
+| T2C2 verification | result |
+|---|---|
+| Focused descendant-seal and supervision tests | final-byte run `122 passed in 85.87s` |
+| Full suite with named reward receipt deselected | `1933 passed, 18 skipped, 1 deselected, 44 failed in 367.94s` |
+| Recorded sandbox-ledger comparison | cleared pytest cache contained exactly the recorded `44` nodes; sorted diff was empty |
+| Repository-wide Ruff lint / format and `git diff --check` | passed / all `427` files formatted / passed |
+| Builder wall time | `75m` from lease acquisition through final validation and handoff readback |
+
+See the [T2C2 result](dual-orchestration/T2C2_RESULT.md) and exact re-seal
+command in the [T2 protocol](../../experiments/004_t2_reward_study/PROTOCOL.md).
+This is interface and admission evidence only, not a reward, training,
+simulator, tracking, or humanoid-behavior result.
+
+Fable resume: inspect the execution descendant rule, exact source snapshot,
+runtime receipt identity, both pre-spawn token gates, and exact terminal
+release; commit the complete T2C2 slice; run the documented re-seal once at the
+clean source commit and commit only its three regenerated T2 records; then seek
+independent review. Keep all runtime work withheld.
+
+T2C1 completion (2026-09-06): launch base and verified clean execution HEAD
+`28067291bf43bb315e1702fc66c649310d4a3c97`. The launcher acquired the exact
+write lease as `sol-builder-20260906-t2c1`, model `gpt-5.6-sol`, role `builder`,
+with the declared scope; the builder performed no Git write.
+
+The exact 73-byte recipe `078fabc8…ec28` supplied the parameters to
+`TargetSpeedRewardSpec`; the resulting 2,105-byte candidate is
+`c09e93dc…c123` and reloads through `RewardRegistry`. The committed-call ledger
+contains only the exact proposal, recipe, and model-call receipt JSON and binds
+them plus the candidate to `F3_INITIAL_CALL_RESULT.md`; no raw run bytes were
+copied.
+
+| final-ready identity | exact value |
+|---|---|
+| candidate reward | `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` |
+| execution manifest | 3,585 bytes / `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` |
+| study manifest | 5,999 bytes / `2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5` |
+| pairing key | `ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2` |
+| T2 seal | 1,684 bytes / `89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624` |
+| integrated pairing receipt | unchanged `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` |
+
+The exact T2PAIRR1 predecessor execution/study/seal bytes are retained under
+`experiments/004_t2_reward_study/superseded/`. A well-formed synthetic report
+bound to the current seal passes admission and trace replay; rebinding it to the
+predecessor study fails `study_not_final_ready`. Wrong-HEAD and dirty-tree
+negatives remain passing. Focused reward-study, Phase B, and reward-search
+validation is `445 passed in 236.39s`. The full suite with the named reward-lane
+receipt test deselected is `1888 passed, 18 skipped, 1 deselected, 44 failed in
+371.97s`; the sorted 44-node failure set exactly equals the recorded sandbox
+baseline. Builder wall time was `55m` from lease acquisition through final
+validation and handoff readback. See the [T2C1 result](dual-orchestration/T2C1_RESULT.md).
+
+This is admission and seal evidence only. It establishes no reward effect,
+tracking utility, training outcome, simulator behavior, or humanoid competence.
+
+Fable resume: inspect the exact call ledger, recipe-to-candidate registry round
+trip, final-ready seal set, predecessor refusal, and validation record; commit
+the complete T2C1 slice, then send Astra a cycle-0 resource-reservation proposal
+and obtain Samuel's explicit authorization before any smoke, baseline
+measurement, training, cohort, or evaluation.
+
+T2PAIRR2 completion (2026-09-06): launch base `f9f032e` was clean. The
+builder started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2pairr2`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write.
+
+PAIR-02 now observes the epsilon supplied to `actor.act`; every ordered PPO
+observation, pre-tanh action, old log-probability, advantage, and return array at
+the actual Torch input sink; per-slot composition blocks; all four environment
+reset ledgers and routes; and per-slot RSI assignments. Each exact arm plan
+independently regenerates its expected values. Cross-arm equality remains
+required but cannot accept an identical wrong route.
+
+One parameterized regression applies five independent sink mutations to both
+arms and then checks the disabled pairing seam against each of the five routes
+independently. The identical wrong reset-slot mutation fails exact per-slot
+expectations. Disabled routing retains nonempty actor and PPO captures, so a
+later route cannot pass behind the old empty-action first failure. The existing
+two-arm receipt test is unchanged. Production routing showed no defect and no
+source, receipt, manifest, study, or F3 seal was changed.
+
+| T2PAIRR2 verification | result |
+|---|---|
+| Pairing tests | final readback `15 passed in 1.03s`; 10-case mutation matrix separately `10 passed in 5.20s` |
+| Phase B plus reward-study tests | final-byte run `254 passed in 245.33s` |
+| Full suite, named reward-lane receipt test deselected | final-byte run `1886 passed, 18 skipped, 1 deselected, 44 failed in 428.16s` |
+| Recorded sandbox-ledger comparison | all `44` recorded nodes failed; full-suite and baseline failure sets are exactly equal |
+| Repository-wide Ruff lint / format | passed / all `409` files formatted in the final four-path tree |
+| `git diff --check` / builder wall time | passed / `50m` from lease acquisition through final validation and handoff readback |
+
+The forbidden reward-lane receipt test was not run and its receipt was not
+regenerated. This is regression coverage only. It neither claims nor refutes an
+observed contaminated cohort and establishes no reward or humanoid behavior.
+See the [T2PAIRR2 result](dual-orchestration/T2PAIRR2_RESULT.md).
+
+Fable resume: inspect the test-only sink observers, exact per-arm/per-slot
+expectations, all five independent sink mutations and five route-specific
+disabled-seam checks; commit the four-path slice; send the exact commit to Astra
+for narrow PAIR-02 re-review. Keep candidate calls, smoke, training, protected
+evaluation, and cohorts withheld.
+
+F3PINR2 completion (2026-09-06): launch base `2160684` was clean. The builder
+started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-f3pinr2`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write.
+
+| T2PAIRR1-derived identity | exact value |
+|---|---|
+| study manifest | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| F3 seal | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+| rendered prompt | `4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc` |
+| call ID | `e7f3ca013343a5f82ce6161e1667a52f00f7f4b019c329ecf6fe4820bc60312a` |
+| identity digest | `b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+| launcher scope | `t2-initial-parameter-hypothesis-only;call_identity_sha256=b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+
+The record was regenerated in memory with `prepare_initial_t2_packet` from the
+exact committed inputs: 1,773-byte baseline `eea2b6a9…1c5f` and 1,671-byte seal
+`6ce006bb…5a9d`. The resulting canonical record is 28,461 bytes at
+`b76c73cd…b5220`. No packet was published, no call identity was claimed, and no
+candidate call, simulator, smoke, training, cohort, protected evaluation, or
+behavioral evaluation ran.
+
+| F3PINR2 verification | result |
+|---|---|
+| Document-to-derived-record regression | `1 passed`; stale-table negative included |
+| Focused reward-search and reward-study tests | `239 passed in 135.92s` |
+| Full suite, named reward-lane receipt test deselected | `1877 passed, 18 skipped, 1 deselected, 44 failed in 360.72s` |
+| Sandbox-baseline comparison | observed and recorded failure sets are exactly equal at `44`; no unexpected or missing failures |
+| Repository-wide Ruff lint / format | passed / all `408` files formatted |
+| `git diff --check` | passed |
+| Forbidden call-root audit | no `.orchestration/f3-initial-call-*` path exists |
+| Builder wall time | `37m` from lease acquisition through validation and handoff audit |
+
+Fable resume: review the two six-field identity tables and the derived-record
+regression, commit all five F3PINR2 paths together, then obtain a narrow
+independent readback verdict bound to that exact commit. Keep dispatch withheld
+until that readback and a separate dispatch verdict both exist; at dispatch,
+copy identities only from the newly regenerated and validated `record.json`.
+
+T2PAIRR1 completion (2026-09-06): launch base `487a796` was clean. The
+builder started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2pairr1`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write. Builder wall time was `35m` from lease acquisition through
+the final handoff audit.
+
+PAIR-01 changes exactly one function in `phase_b/contracts.py`:
+
+| function | before | after |
+|---|---|---|
+| `T2RewardPairing.__post_init__` | Compared the Python dictionaries, validated only the baseline projection, and hashed newly serialized baseline data | Validates both arm projections, serializes each to canonical bytes, compares those bytes exactly, and hashes the verified-equal baseline bytes |
+
+The exact `phase_b/contracts.py` file SHA-256 changed from
+`c8b6fd3cb61f0a79a086156f1a3440e64a5dae7395086735c59a886b2ec8448a`
+to `c25d61de985f06ab69945842185fd004be3a623d3c984df11718ca1af53855f1`.
+Actual-constructor regressions prove that `1048576` versus `1048576.0` and
+`false` versus `0` compare equal in Python but have different canonical bytes
+and are refused by the candidate projection's type validation.
+
+PAIR-02 sends two paired fake-runtime arms through `run_ppo_training`,
+`fake_policy_factory`, `fake_environment_factories`, the production action-noise
+and PPO minibatch consumers, and the shared per-slot reset/RSI assignment path.
+The regression captures and compares the consumed action primitives, minibatch
+permutations, all four slots' reset streams, and both rehearsal slots' RSI
+streams while retaining distinct arm execution hashes. Monkeypatching the
+single production routing seam `_paired_routing_enabled` to false makes the
+same bounded check fail, so removal or misrouting of the paired branch is not a
+passing test configuration. These controlled fake environments are interface
+evidence, not simulator or behavior evidence.
+
+PAIR-03 regenerates every source row in the Experiment 004 protocol ledger
+from exact source bytes. A documentation-to-source regression requires the
+complete five-row source set and recomputes every SHA-256. The receipt generator
+now places its controlled candidate copy in the required `final_ready` state
+before validating it; this restores re-seal generation after T2AR2 without
+weakening pending-study admission.
+
+| artifact | T2AR2 identity | T2PAIRR1 identity |
+|---|---|---|
+| pairing receipt, 9,770 bytes | `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` | `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` |
+| pending execution manifest, 3,554 bytes | `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` |
+| evaluator design, 1,808 bytes | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` |
+| pending study manifest, 5,908 bytes | `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| pending study pairing key | `64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7` | `affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19` |
+| F3 seal, 1,671 bytes | `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+
+The pairing receipt bytes **changed** even though its byte count stayed 9,770.
+It binds the repaired contract, training, runtime, and pairing sources and
+retains the T2AR2 study hash `8e81792a…2d10` and pairing key `64529d78…c1e7`
+as predecessor lineage. The evaluator design was regenerated and remained
+byte-identical. The forbidden reward-lane no-learning receipt was not run or
+regenerated and remains 4,150 bytes / `29cb9610…0201`.
+
+| T2PAIRR1 verification | result |
+|---|---|
+| Focused Phase B and reward-study tests | `245 passed in 238.63s` |
+| F3 seal consumer plus updated reward pairing/artifact tests | `121 passed in 8.53s` |
+| Full suite with the named reward-lane receipt test deselected | `1876 passed, 18 skipped, 1 deselected, 44 failed in 358.66s` |
+| Recorded sandbox-ledger comparison | all `44` unique expected nodes failed; observed and recorded sets are exactly equal |
+| Repository-wide Ruff lint | passed |
+| Repository-wide Ruff format check | all `408` files formatted |
+| `git diff --check` | passed at the final audit |
+
+Fable resume: inspect the PAIR-01 constructor delta, the PAIR-02 full-route
+regression and disabling mutation control, the five-row PAIR-03 source ledger,
+the exact receipt/study/seal supersession chain, and the final validation record;
+commit the complete slice, then send its exact commit to Astra for narrow
+re-review. Preserve `withheld_pending_dispatch_verdict`. Do not call for a
+candidate, run a smoke, or run training from this builder result.
+
+T2AR2 completion (2026-09-06): launch base `03a4826` was clean. The builder
+started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2ar2`, model `gpt-5.6-sol`, role `builder`, with the
+declared reward-lane scope. The launcher owns renewal and release; the builder
+performed no Git write.
+
+| artifact | T2AR2 identity |
+|---|---|
+| integrated T2PAIR receipt | 9,770 bytes / `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` |
+| pending execution manifest | 3,554 bytes / `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` |
+| evaluator design | 1,808 bytes / `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` |
+| pending study manifest | 5,908 bytes / `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` |
+| pending study pairing key | `64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7` |
+| F3 seal | 1,671 bytes / `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` |
+
+The T2PAIR receipt is immutable and was not regenerated. It retains
+`source_study_manifest_sha256=4eb3440b…3627` and pairing key `fd91156a…b3e0`
+as predecessor evidence; the T2AR2 study records the receipt SHA and the new
+common-field lineage. The superseded adapter-only receipt
+`6bd6f5ab…540a` is explicitly refused when labeled integrated.
+
+The pending execution manifest records `ed9f1d3` as launch-base provenance;
+the execution commit is verified at admission. Candidate admission uses the
+existing Phase B isolation helper with dirty-tree refusal, requires exact clean
+HEAD equality, registry-resolves the candidate, sets study state `final_ready`,
+and returns regenerated execution/study/seal bytes as one operation. Its final
+seal cannot authorize another initial F3 dispatch.
+
+The report gate requires exact report-to-manifest equality for all eight common
+artifact bindings and both reward bindings, validates the integrated pairing
+receipt, resolves both rewards through the registry, validates the oracle,
+training design, evaluator, starting checkpoint, and actual execution seal, and
+then replays all 200 indexed traces. Candidate, evaluator, execution, oracle,
+training, and pairing cross-link changes each have a negative. A reported
+one-step COM speed changed while the source trace and index remain unchanged is
+also rejected. Action-bound failure is interface-reachable; no production T2
+trace producer has run.
+
+| T2AR2 verification | result |
+|---|---|
+| T2AR2 artifact/report/pairing/F3 contract tests after final hardening | `136 passed in 127.11s` |
+| Full suite with the named reward-lane receipt test deselected | `1871 passed, 18 skipped, 1 deselected, 44 failed in 357.31s` |
+| Recorded sandbox-ledger replay | all `44` unique expected nodes failed in `1.22s`; with full-suite cardinality `44`, the failure sets are equal |
+| Repository-wide Ruff lint | passed |
+| Repository-wide Ruff format check | all `408` files formatted |
+| `git diff --check` | passed |
+| Forbidden reward-lane receipt | not regenerated; integrated receipt remains 9,770 bytes / `e5351c3b…a259` |
+
+Fable resume: independently review this diff and the final verification record,
+commit the complete slice, and preserve `withheld_pending_dispatch_verdict`.
+Do not call for a candidate from this builder result. A future candidate call
+still requires a separate dispatch verdict; smoke and cohorts remain separately
+gated after final admission.
+
+T2PAIR completion (2026-09-06T10:09Z): launch base `7698256` was clean.
+The builder started only after Astra's executable-scope acceptance
+`20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103` and held the
+exact claimed write lease as `sol-builder-20260906-t2pair`, model
+`gpt-5.6-sol`, role `builder`. The accepted packet checksum was
+`515516fc81e925e8d056bb26fab128115733405332cf81d82233bf0789a93d60`.
+
+`T2RewardPairing` reconstructs the pairing key from canonical study-manifest
+bytes plus both canonical embedded arm-manifest byte strings; it refuses a
+missing, stale, mismatched, forged, or digest-only key before a paired
+`TrainingPlan` can exist. The key excludes the reward specification, arm label,
+output path, and timestamps but binds the accepted common fields. Each arm
+retains its complete byte-addressed arm-manifest execution identity and reward
+identity; the common key is never an execution identity. Legacy plans retain
+the prior manifest-hash derivation exactly and are labeled `non_paired`.
+
+Paired action-noise draws are indexed by rollout and environment slot;
+minibatch permutations by update; reset and RSI block, origin, class, and start
+by global episode index independently within each environment slot; and
+evaluation seeds by declared index. Actions, states, returns, and episode
+lengths are not paired. The fake-runtime receipt is 9,770 bytes at SHA-256
+`e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`.
+Its pairing key is `fd91156a…b3e0`; exact arm-manifest identities are
+`cf4d5090…ba2a` and `9692875c…336a`; reward identities are
+`eea2b6a9…1c5f` and `c09e93dc…c123`. All 20 seed-slot rows and all five
+seed-level minibatch, evaluation, and fake-policy rows match across arms.
+
+Focused validation is `75 passed` in `105.25s`. The full suite, explicitly
+deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1860 passed, 18 skipped, 1 deselected, 44 failed` in `313.42s`; the sorted
+44-node failure set exactly equals the recorded sandbox baseline in
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`.
+Repository-wide Ruff lint passes, `ruff format --check .` reports all `404`
+files formatted, and `git diff --check` passes. The reward-study pairing test
+was renamed to `tests/reward_study/test_reward_pairing.py` so pytest can collect
+it beside the new shared-runtime `tests/phase_b/test_pairing.py`. No Git write,
+candidate call, standalone simulator, smoke, training, cohort, or behavioral
+evaluation occurred; fake policy construction was limited to the source-bound
+interface receipt. Builder wall time
+was `84m` from lease acquisition through the final handoff audit.
+
+Fable resume: independently review the fail-closed exact-byte authority,
+per-slot episode indexing, legacy non-paired byte compatibility, receipt, and
+full diff; commit the complete slice; regenerate the now-stale T2A
+execution/study/F3 seals at that committed checkpoint; bind the receipt and send
+the exact commit to Astra for review. Keep T2 NO-GO and do not call for a
+candidate or run training until a separate dispatch verdict exists.
+
+T2AR1 completion (2026-09-06T08:33Z): launch base
+`ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe` was clean. The first action was
+to re-seal T2A after the accepted Astra settling-band merge changed
+`phase_b/evaluation.py` and `report_v2.py`; the final repaired artifacts then
+superseded that intermediate seal. Current immutable identities are execution
+manifest `d675b1ac…b3e`, evaluator design `7ae812d4…f5b3`, matched-arm study
+manifest `4eb3440b…3627`, fake-runtime pairing adapter receipt
+`6bd6f5ab…540a`, and non-model-facing F3 seal `c0edc94a…94ae`.
+
+The protected trace, its digest, episode metrics, and scientific receipt contain
+no stock-reward value. Reward telemetry is emitted only as a separately keyed
+diagnostics artifact; missing, non-finite, and malformed telemetry produce the
+same protected bytes and scientific receipt. Finite raw actions survive long
+enough for the evaluator to accept inclusive float32 bounds at `-0.4` and
+`0.4` and reject an out-of-bounds episode through the safety report. Each trace
+binds verified block, clip, bundle, payload, corpus, library, index, full-row,
+and selected-row identities. Report admission requires an exact 200-trace
+index, re-resolves each input binding, reopens every raw trace, and reproduces
+each episode metric; forged indexes, missing traces, and fabricated metrics are
+rejected.
+
+The `t2_execution_manifest_v1` binds the frozen MDP and Humanoid model, action
+and observation/reference ABI, absent tracker checkpoint and normalizers,
+tracking reward, strict checkpoint loader, trainer, dependency lock, launch
+base commit, and host fingerprint. Both study arms carry the identical binding.
+Baseline and candidate specifications resolve through `RewardRegistry`; the
+canonical candidate remains TBD, while tests exercise a dummy in-bounds
+candidate and reject candidate bytes, digest, and registry-result tampering.
+Additional negatives cover arbitrary pairing-adapter source digests, reference
+lineage, trace replay, protected-metric formulas and clipping, inclusive bands,
+non-zero paired standard error with exact sign result, and the `15/20` versus
+`16/20` and `3/5` versus `4/5` tracking gates.
+
+Focused T2 validation is `131 passed` in `97.72s`. Repository-wide Ruff lint
+passes and `ruff format --check .` reports all `400` files formatted. The full
+suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1828 passed, 18 skipped, 1 deselected, 44 failed` in `321.17s`; the current
+failed-node set contains exactly `44` entries and equals
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt` with no
+set difference. `git diff --check` passes. No Git write, candidate call,
+standalone simulator command, smoke, training, cohort, or behavioral evaluation
+occurred; simulator use was limited to bounded no-learning tests. The forbidden
+`experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`
+receipt was neither tested nor regenerated. Builder wall time was `74m` from
+lease acquisition through release-byte reconciliation and the static audit.
+
+Fable resume: independently review T2AR1, commit the complete slice including
+the ignored T2 pairing-adapter receipt, keep execution and dispatch NO-GO, and
+send SCI-T2A-04 to `T2PAIR`. Do not call for a candidate or run training until
+the registry-resolved candidate, accepted integrated pairing receipt, and a
+separate dispatch verdict all exist.
+
+F3PINR1 completion (2026-09-06T06:48Z): launch base `c969009` was clean.
+The repaired provenance records `builder_launch_base=8d617e3`,
+`target_parent=c0332b1`, and `target=b071fc5`; the complete target path list is
+`README.md`, `docs/operations/dual-orchestration/F3_FABLE_REPIN.md`,
+`docs/operations/dual-orchestration/F3_ONE_CALL_PROTOCOL.md`,
+`src/oracle_composition/reward_search/t2_model_contracts.py`,
+`src/oracle_composition/reward_search/t2_model_protocol.py`, and
+`tests/reward_search/test_t2_model_protocol.py`. `uv.lock` is unchanged at
+SHA-256 `81b92d15dd2da62f27cd770322db78008d5387b530dc71e053f0d56b327f0b40`.
+Fable must integrate future handoff updates in the same commit as their slice.
+
+The new 1,400-byte T2 seal is `8c04f0c2…314eb`; it re-verifies the expert-hold
+oracle, training design, evaluator design, study manifest, recomputed pairing
+key, and tracking-only baseline before prompt rendering. It remains
+non-model-facing and honestly records `pairing_receipt: pending`. The prompt is
+unchanged at 6,011 bytes / `4d1a2976…e2bbc`; derived `call_id` is
+`570ebdc2…54254`, and the canonical call-identity digest is
+`23b45b7b…17cc6`. That digest is carried in the canonical intent, exact launcher
+scope, retained request/result, and call receipt. A second canonical identity
+claim, sibling intent, ingestion without/mismatched intent, second valid run,
+and same-run provider replay are refused with retained receipts. Repository
+state cannot prove the absence of an unrecorded external call.
+
+Focused F3/F1 validation is `136 passed` in `1.27s`; adjacent T2 artifact
+validation is `7 passed` in `3.93s`. Ruff lint and format pass on the three
+changed Python files. The full suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1801 passed, 18 skipped, 1 deselected, 44 failed` in `268.56s`; all 44
+failed node IDs equal the recorded 03A3 sandbox baseline. `git diff --check`
+passes. Changed paths are `README.md`, this handoff,
+`docs/operations/dual-orchestration/{F3_FABLE_REPIN.md,F3_ONE_CALL_PROTOCOL.md}`,
+`experiments/004_t2_reward_study/{PROTOCOL.md,t2_seal_v1.json}`,
+`src/oracle_composition/reward_search/{t2_model_contracts.py,t2_model_protocol.py}`,
+and `tests/reward_search/test_t2_model_protocol.py`. No Git write, candidate
+call, training, or standalone simulator command occurred.
+Builder wall time was `51m` from lease acquisition through release-byte
+verification and the final handoff audit.
+
+Fable resume: independently review F3PINR1, commit all nine paths above in one
+slice commit, and keep dispatch withheld until the pairing receipt and a new
+dispatch verdict both exist. Never infer that no external call occurred from
+repository state alone.
+
+Fable integration note (2026-09-06T05:56Z): T2A is committed in this same commit with the force-added pairing adapter receipt. F3PIN review verdict: ACCEPT_F3_REPIN_STATIC_ONLY, WITHHOLD_DISPATCH; repairs in packet TASK-20260906-F3PINR1 (next writer). The pairing seam (packet TASK-20260906-T2PAIR) launches only after Astra accepts proposal 20260906T055257. A read-only review of T2A runs in parallel. Fable resume: read the F3PINR1 final and the T2A review; commit; if Astra accepted the pairing terms, launch T2PAIR; the single F3 call waits for the T2 seal, the pairing receipt, and a dispatch verdict; cohorts wait for a reservation and Samuel's authorization.
+
+T2A completion (2026-09-06T05:50Z): base/head `077e4e8`; expert-hold oracle
+`489b8259…7010`, T2 training design `84543f08…e67e`, evaluator design
+`d8f54f80…a04b`, matched-arm manifest `7aefaafc…0738`, arm-invariant pairing
+key `4af9c953…2464`, and adapter receipt `01c591c5…1f1` all reload from
+canonical bytes and their source/artifact bindings. The unchanged T1 training
+design remains `1d104a52…c69e`, and `src/oracle_composition/phase_b/training.py`
+is byte-untouched. The evaluator recomputes COM speed and six tracking errors
+from direct state and then-caller-supplied expert rows (superseded by T2AR1's
+verified reference chain); the deterministic report keeps
+reward diagnostics and host/wall telemetry outside protected endpoints, uses
+five final checkpoints as the independent units, and reports incomplete traces
+as safety failures without pooled inference.
+
+Focused T2 validation is `25 passed` in `5.07 s`. Ruff lint and the authorized
+`243`-file source/test format check pass, as does `git diff --check`. The final
+full suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1782 passed, 18 skipped, 1 deselected, 44 failed` in `223.83 s`; the exact
+set of all `44` failed node IDs equals
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. An
+earlier adjacent-only run had one transient fake-supervisor worker crash; its
+isolated rerun and the release-byte full suite both passed, with no repair made.
+The pairing adapter receipt lives at ignored path
+`artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` and must be
+force-added by Fable if retained. No Git write, F3/candidate call, standalone
+simulator run, smoke, training, cohort, or protected behavioral evaluation ran.
+Builder wall time was `64m` through release-byte full-suite reconciliation.
+
+Fable resume: inspect the Experiment 004 protocol, canonical JSONs, protected
+evaluator/report, study equality checks, and pairing negatives; force-add the
+ignored adapter receipt and commit the complete slice. Read the independent
+F3PIN verdict before dispatch. If accepted, perform exactly the authorized
+single initial call, admit the candidate, update and seal both arms, then obtain
+Astra's explicit pairing integration and a production-runtime receipt. Only
+after those gates may Fable propose the disposable smoke or ask Samuel to
+authorize cycle 0.
+
+Fable integration note (2026-09-06T04:40Z): F3PIN committed as `b071fc5`. Reward lane: the T2 protocol is frozen in the strategy (`t2_reward_study_expert_hold/v1`, commit c0332b1); the pairing-key runtime change is proposed to Astra; builder `sol-builder-20260906-t2a` (packet `TASK-20260906-T2A`) builds the study artifacts; a targeted read-only review of F3PIN runs in parallel. Fable resume: read the T2A final and the F3PIN review; commit; if the review accepts, run the single F3 call under the re-pinned protocol (preparation and ingestion by Fable under its lease, candidate worker read-only), admit and seal the candidate, then propose the cycle-0 smoke and cohort reservation and ask Samuel for authorization 1.
+
+F3PIN completion (2026-09-06T04:30Z): base `8d617e3`; expected checkout/branch/import origin are the Fable `main` checkout, preparation/ingestion owner is `fable-f3-prepare`, and the sole candidate owner is `fable-f3-initial`. The 1,773-byte baseline remains `eea2b6a9…1c5f`; FT2R3 did not change it. The deterministic 6,011-byte prompt is `4d1a2976…e2bbc` and states the expert-start T2 task, baseline/F2 identities, alpha/beta-only boundary, and absence of measured feedback without embedding protected payloads or an execution manifest. Focused F3/F1 validation is `117 passed`; Ruff lint, format, and `git diff --check` pass. The full suite excluding `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly` is `1757 passed, 18 skipped, 1 deselected, 44 failed` in `220.39 s`; the 44 failed node IDs exactly match `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. No candidate call, training, standalone simulator, or reward result occurred. See `docs/operations/dual-orchestration/F3_FABLE_REPIN.md`.
+
+Fable resume: inspect the F3PIN diff, exact hashes, Fable expected configuration, deterministic dossier, and duplicate-intent refusal; commit the complete static slice; then freeze the matched T2 reward-study protocol. Do not dispatch the candidate call from this handoff.
 
 Fable integration note (2026-09-06T04:11Z): FT2R3 committed as `c945379`; this closes Fable's tracker-lane work (ADR 0009 lane swap). The oracle and tracker lane, including the combined re-reviews of FT2R1 to FT2R3, the smoke reservation, and the next composition packet, is Astra's from this commit; see docs/operations/TRACKER_LANE_HANDOFF.md. Fable now owns the reward lane: re-pin the F3 one-call protocol (packet TASK-20260906-F3PIN), freeze the T2 reward-study protocol from survey sol-survey-20260906-t2proto, then reward cycle 0 and 1 once compute is authorized.
 

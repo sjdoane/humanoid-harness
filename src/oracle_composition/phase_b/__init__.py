@@ -10,7 +10,9 @@ from .contracts import (
     TrackingOnlyRewardSpec,
     load_fine_tuning_run_manifest,
     load_starting_checkpoint,
+    t2_training_design_contract_value,
     validate_cycle_report,
+    validate_training_design,
 )
 
 __all__ = [
@@ -23,5 +25,7 @@ __all__ = [
     "TrackingOnlyRewardSpec",
     "load_fine_tuning_run_manifest",
     "load_starting_checkpoint",
+    "t2_training_design_contract_value",
     "validate_cycle_report",
+    "validate_training_design",
 ]
