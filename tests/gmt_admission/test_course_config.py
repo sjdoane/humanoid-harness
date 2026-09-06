@@ -12,10 +12,20 @@ from oracle_composition.adapters.gmt import course_config as module
 def admitted_config(tmp_path, monkeypatch):
     from test_composition import motion
 
-    asset = tmp_path / "numeric.npz"
-    asset.write_bytes(b"numeric fixture")
+    weights = tmp_path / "weights.npz"
+    motion_asset = tmp_path / "motion.npz"
+    weights.write_bytes(b"weight fixture")
+    motion_asset.write_bytes(b"motion fixture")
     monkeypatch.setattr(module, "verify_upstream_root", lambda path: None)
-    monkeypatch.setattr(module, "sha256_file", lambda path: module.ACTOR_SHA256)
+    monkeypatch.setattr(
+        module,
+        "sha256_file",
+        lambda path: (
+            module.ACTOR_SHA256
+            if path == weights
+            else module.ADMITTED_CONVERTED_MOTION_SHA256["walk_stand"]
+        ),
+    )
     monkeypatch.setattr(
         module.ReferenceMotion, "from_converted", lambda *args, **kwargs: motion(0.8)
     )
@@ -26,8 +36,13 @@ def admitted_config(tmp_path, monkeypatch):
         "training_steps": 0,
         "assets": {
             "upstream_root": str(tmp_path),
-            "weights": {"path": str(asset), "sha256": module.ACTOR_SHA256},
-            "motions": {"walk_stand": {"path": str(asset), "sha256": module.ACTOR_SHA256}},
+            "weights": {"path": str(weights), "sha256": module.ACTOR_SHA256},
+            "motions": {
+                "walk_stand": {
+                    "path": str(motion_asset),
+                    "sha256": module.ADMITTED_CONVERTED_MOTION_SHA256["walk_stand"],
+                }
+            },
         },
         "segments": {
             "walk": {"motion_name": "walk_stand", "start_seconds": 0.0, "end_seconds": 10.0}
@@ -114,6 +129,15 @@ def test_changed_actor_and_undeclared_unused_motion_fail(admitted_config):
     original["assets"]["motions"]["crouch_walk_stand"] = original["assets"]["motions"]["walk_stand"]
     path.write_text(json.dumps(original))
     with pytest.raises(ValueError):
+        module.load_run_config(path)
+
+
+def test_caller_cannot_self_admit_different_converted_motion(admitted_config):
+    raw, path = admitted_config
+    raw["assets"]["motions"]["walk_stand"]["sha256"] = "a" * 64
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="outside the admitted converted"):
         module.load_run_config(path)
 
 

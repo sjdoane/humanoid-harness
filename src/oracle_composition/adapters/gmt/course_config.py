@@ -21,6 +21,16 @@ from .io import sha256_file
 from .reference_runtime import ReferenceMotion
 
 ACTOR_SHA256 = "bc444fbd56ba4a582d7c6367504f2093ccb081c6956fcee8f30f2e85ced28686"
+ADMITTED_CONVERTED_MOTION_SHA256 = {
+    "airkick_stand": "c619dba5b25730178f92570d9368e95030bc024b8068012dba0f1e04770b6bc8",
+    "basic_walk": "b6ee3143e61b308daebb2a1f07d8b420459a2d19cbde76ecc8f4d42affcdb7b1",
+    "crouchwalk_stand": "a67c364e7d0013c24f43096e194f5d8099b2d1ebcaa3db42767402a0924be964",
+    "dance": "71d8e63d58ff41d433f406a19b15ca836d3f6977b9e73a67d719110af527b25f",
+    "dance_waltz": "5d6b521099f6a5242eda7a5cb5f0dea87f97501cb445501b525c865dd18c16ef",
+    "kick_walk": "b8a7e75a700af7a32d9dd3b51299a771a45bd4c603a7f973ba3d554a03273709",
+    "squat": "6f5707a4a3b86ca8d476ce1c3aee9ca812cb9e4cb76c8f3a0cdaacf57ed9ad6b",
+    "walk_stand": "908ba0e4f6acf1ecf829b0ddb73ed7e649ba6e7ca9fa1a96b43a95e0fdc2e3b0",
+}
 CONFIG_KEYS = {
     "schema_version",
     "mode",
@@ -96,8 +106,12 @@ def load_run_config(path: Path) -> CourseRunConfig:
     for name, asset in motions.items():
         if name not in MOTION_SPECS:
             raise ValueError("motion name is outside the admitted GMT library")
+        if type(asset) is not dict or asset.get("sha256") != ADMITTED_CONVERTED_MOTION_SHA256[name]:
+            raise ValueError("motion bytes are outside the admitted converted GMT library")
         loaded[name] = ReferenceMotion.from_converted(
-            _asset(asset), name=name, expected_sha256=asset["sha256"]
+            _asset(asset),
+            name=name,
+            expected_sha256=ADMITTED_CONVERTED_MOTION_SHA256[name],
         )
     admitted = {}
     for behavior, value in segments.items():
