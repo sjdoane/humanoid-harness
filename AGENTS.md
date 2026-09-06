@@ -14,17 +14,16 @@
 - Start research updates with exactly three rows: **progress**, **bottleneck**,
   and **next step**.
 - The current authority is [`docs/PROJECT_CHARTER.md`](docs/PROJECT_CHARTER.md).
-- Samuel's 2026-09-05 lane-swap instruction supersedes the original split:
-  the Codex Astra session leads oracle composition and tracker integration;
-  Fable leads task-reward generation and its evaluation loop. Each may
-  question and revise its lane's strategy against
-  the Lokesh goal ledger. Shared scientific contracts need an explicit peer
-  agreement recorded before integration.
+- Samuel's 2026-09-06 system-lead instruction supersedes the lane split:
+  Astra owns strategy, implementation, integration, and bounded local training
+  across both oracle and task reward. Fable supplies independent reviews,
+  feedback, and joint ideation; it does not launch an independent builder lane.
+  See `docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`.
 - Read `docs/operations/dual-orchestration/README.md` before dual-lane work.
   Use separate worktrees and one writer per worktree. Existing workers finish
   only their current bounded slice; transfer work at an explicit committed
   checkpoint. Current transfer state: `LANE_SWAP_20260906.md` in that directory.
-- Existing strategy documents describe the earlier single-orchestrator setup;
+- Older strategy and lane documents are historical where ownership conflicts;
   this instruction changes ownership, not scientific goals or evidence gates.
   Do not silently change historical results, frozen comparisons, or model
   identity. Fable's identity checks remain in force.

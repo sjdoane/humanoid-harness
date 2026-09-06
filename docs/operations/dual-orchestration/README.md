@@ -1,4 +1,22 @@
-# Two research lanes
+# System leadership and independent review
+
+## Current authority: 2026-09-06
+
+- Samuel assigns Astra leadership of both implementation lanes through a trained,
+  evaluated full-loop demonstration. Fable is the review and ideation partner.
+- Transfer only at a clean checkpoint; preserve active workers and prior results.
+- Astra integrates in its checkout. No peer checkout, active lease, or process
+  is taken over by inference. Fable returns exact committed handoffs.
+- Ask Fable to challenge the design, review substantial changes, and interpret
+  failures. Reviews must identify claim-invalidating defects separately from
+  optional hardening. Do not replace measured progress with recursive reviews.
+- Bounded local training is now explicitly requested. Preserve resource limits,
+  exclusive heavy-job coordination, evaluator independence, and data rights.
+- The earlier equal-lane ownership and promotion rules below are historical
+  where they conflict with this directive. The mailbox and evidence rules remain.
+- Current plan: `docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`.
+
+## Historical dual-lane checkpoint
 
 | status | current truth |
 |---|---|
