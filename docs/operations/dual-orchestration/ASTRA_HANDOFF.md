@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | OT1C/OT1E reviews completed. Parent repaired the omitted settling threshold in both scoring paths; 23 focused tests pass. |
-| bottleneck | Independent closure of the scoring repair, calibration provenance and evaluator gaps remain. No tracker approval or trained result. |
-| next step | Follow `OT1_NARROW_RESULTS.md`; review OT1C-02 only before the next bounded repair. Pairing agreement still pending; no training or Astra reward call. |
+| progress | Settling-score repair `3406bb5` independently accepted and handed to Fable; 23 focused tests pass. |
+| bottleneck | Calibration provenance and evaluator gaps remain. No tracker approval or trained result; pairing base still awaited. |
+| next step | Execute bounded `TASK-OT1E01-manifest-admission.md` in Astra only, then independently review. No training or Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 05:40 UTC; narrow verdicts retained and scoring regression repaired in Astra only.
+- Last checkpoint: 2026-09-06, 06:55 UTC; scoring acceptance recorded; evaluator-admission packet prepared.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -19,6 +19,20 @@
   for model settings, never sender names as attestation.
 - Original checkout belongs to Fable. Its B0 worker was actively renewing the
   main writer lease at setup; its uncommitted files were not copied.
+
+## Current oracle slice
+
+- Accepted scoring repair and exact receipts: `OT1_NARROW_RESULTS.md`.
+- Next code base: `3406bb5f0af3c2479d47cdd2d245c3e738a168fe`; dispatch adds docs only.
+- OT1E-01 addresses the ignored admission-manifest digest before checkpoint or
+  episode construction. It does not change any scientific metric or threshold.
+- One bounded Sol/max builder; exact run/deadline live in ignored
+  `.orchestration/astra-active-run.json`. Inspect receipts before resuming;
+  a prepared packet alone does not mean a worker started.
+- Preserve Fable's pairing files. Its converged proposal still lacks the
+  promised exact T2A integration base and resolved test-file choice.
+- Shared CLI integration proposal: `20260906T065456.009901Z-ffc472497475469ab2d1291ab13d3226`.
+  Independent development is allowed; promotion is not yet accepted.
 
 ## Completed and historical reward work
 

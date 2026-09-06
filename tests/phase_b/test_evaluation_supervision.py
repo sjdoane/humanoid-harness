@@ -117,11 +117,35 @@ def _run(
 ):
     output = tmp_path.resolve()
     output.mkdir()
+    source = evaluator_source_identity(ROOT)
+    manifest_value = {
+        "checkpoint_lineage": {
+            "bindings": {},
+            "checkpoint_metadata": {"ppo_seed": 11},
+            "checkpoint_sha256": checkpoint[1],
+            "execution_manifest_sha256": "d" * 64,
+            "lineage_id": "humanoid_phase_b_evaluation_lineage/v1",
+        },
+        "evaluation_manifest_schema_id": "humanoid_phase_b_evaluation_manifest/v1",
+        "evaluator_sources": source,
+        "planned_cells": [
+            "hold_expert",
+            "hold_medium",
+            "hold_simple",
+            "fixed_round_trip",
+        ],
+        "planned_episode_count": 160,
+        "planned_evaluation_seeds": list(range(120101, 120121)),
+        "schema_version": 1,
+        "segment_targets_m_s": [3.0, 1.25, 3.0],
+        "step_zero_actor_sha256": (
+            "6ebc2b56be9a5f304b8b584157fd0141d449d75297366213e4976291cb2dcfe0"
+        ),
+    }
     manifest = publish_bytes_without_overwrite(
         output / "evaluation_manifest_v1.json",
-        canonical_json_bytes({"schema_version": 1}),
+        canonical_json_bytes(manifest_value),
     )
-    source = evaluator_source_identity(ROOT)
     request = EvaluationWorkerRequest(
         checkpoint_path=str(checkpoint[0]),
         checkpoint_sha256=checkpoint[1],
@@ -137,6 +161,9 @@ def _run(
         output_directory=str(output),
         evaluator_source_sha256=source["sha256"],
         repository_root=str(ROOT),
+        evaluation_manifest_path=str(manifest.path),
+        evaluation_manifest_sha256=manifest.sha256,
+        evaluation_manifest_byte_count=manifest.byte_count,
     )
     return supervise_policy_evaluation(request=request, evaluation_manifest=manifest)
 

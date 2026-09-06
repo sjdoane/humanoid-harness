@@ -21,11 +21,13 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.experiments.artifact_io import (
     PublishedArtifact,
     publish_bytes_without_overwrite,
+    read_verified_artifact_bytes,
 )
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 
 from .calibration import TaskSuccessCalibration, load_calibration_receipt
 from .evaluation import (
+    EVALUATION_BLOCKS,
     UtilityEvaluationDependencies,
     evaluate_policy_checkpoint,
 )
@@ -37,6 +39,14 @@ from .report_v2 import ProtectedEpisodeMetrics
 
 EVALUATION_SUCCESS_RECEIPT_ID = "humanoid_phase_b_evaluation_success/v1"
 EVALUATION_FAILURE_RECEIPT_ID = "humanoid_phase_b_evaluation_failure/v1"
+EVALUATION_MANIFEST_SCHEMA_ID = "humanoid_phase_b_evaluation_manifest/v1"
+MAX_EVALUATION_MANIFEST_BYTES = 2 * 1024 * 1024
+PLANNED_EVALUATION_CELLS = (
+    "hold_expert",
+    "hold_medium",
+    "hold_simple",
+    "fixed_round_trip",
+)
 PLANNED_EVALUATION_EPISODES = 160
 POLL_SECONDS = 0.05
 MESSAGE_MAX_BYTES = 64 * 1024
@@ -65,6 +75,9 @@ class EvaluationWorkerRequest:
     output_directory: str
     evaluator_source_sha256: str
     repository_root: str
+    evaluation_manifest_path: str
+    evaluation_manifest_sha256: str
+    evaluation_manifest_byte_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +123,171 @@ def _receive(connection: Connection) -> dict[str, object]:
     return value
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _validate_manifest_source(
+    value: object,
+    *,
+    request_sha256: str,
+    expected_source: Mapping[str, object] | None,
+) -> None:
+    if type(value) is not dict or set(value) != {
+        "evaluator_source_id",
+        "modules",
+        "sha256",
+    }:
+        raise ExperimentContractError("evaluation manifest source identity is malformed")
+    modules = value["modules"]
+    if type(modules) is not list or not modules:
+        raise ExperimentContractError("evaluation manifest source modules are malformed")
+    module_names: list[str] = []
+    for record in modules:
+        if type(record) is not dict or set(record) != {
+            "module",
+            "realpath",
+            "repository_relative_path",
+            "sha256",
+        }:
+            raise ExperimentContractError("evaluation manifest source module is malformed")
+        if (
+            type(record["module"]) is not str
+            or type(record["realpath"]) is not str
+            or type(record["repository_relative_path"]) is not str
+            or not _is_sha256(record["sha256"])
+        ):
+            raise ExperimentContractError("evaluation manifest source module fields differ")
+        module_names.append(record["module"])
+    if module_names != sorted(set(module_names)):
+        raise ExperimentContractError("evaluation manifest source modules are not canonical")
+    core = {
+        "evaluator_source_id": "humanoid_phase_b_executed_evaluator_sources/v1",
+        "modules": modules,
+    }
+    source_sha256 = hashlib.sha256(canonical_json_bytes(core)).hexdigest()
+    if (
+        value["evaluator_source_id"] != core["evaluator_source_id"]
+        or value["sha256"] != source_sha256
+        or source_sha256 != request_sha256
+        or (expected_source is not None and value != dict(expected_source))
+    ):
+        raise ExperimentContractError("evaluation manifest source identity differs")
+
+
+def _validate_evaluation_manifest_bytes(
+    request: EvaluationWorkerRequest,
+    encoded: bytes,
+    *,
+    expected_source: Mapping[str, object] | None,
+) -> None:
+    try:
+        value = json.loads(encoded)
+    except (UnicodeError, ValueError) as exc:
+        raise ExperimentContractError("evaluation manifest is not JSON") from exc
+    expected_keys = {
+        "checkpoint_lineage",
+        "evaluation_manifest_schema_id",
+        "evaluator_sources",
+        "planned_cells",
+        "planned_episode_count",
+        "planned_evaluation_seeds",
+        "schema_version",
+        "segment_targets_m_s",
+        "step_zero_actor_sha256",
+    }
+    if type(value) is not dict or set(value) != expected_keys:
+        raise ExperimentContractError("evaluation manifest schema differs")
+    if canonical_json_bytes(value) != encoded:
+        raise ExperimentContractError("evaluation manifest is not canonical JSON")
+    lineage = value["checkpoint_lineage"]
+    if (
+        type(lineage) is not dict
+        or set(lineage)
+        != {
+            "bindings",
+            "checkpoint_metadata",
+            "checkpoint_sha256",
+            "execution_manifest_sha256",
+            "lineage_id",
+        }
+        or type(lineage["bindings"]) is not dict
+        or type(lineage["checkpoint_metadata"]) is not dict
+        or lineage["lineage_id"] != "humanoid_phase_b_evaluation_lineage/v1"
+        or not _is_sha256(request.checkpoint_sha256)
+        or not _is_sha256(lineage["execution_manifest_sha256"])
+        or lineage["checkpoint_sha256"] != request.checkpoint_sha256
+    ):
+        raise ExperimentContractError("evaluation manifest checkpoint selector differs")
+    targets = value["segment_targets_m_s"]
+    if (
+        type(request.segment_targets_m_s) is not tuple
+        or len(request.segment_targets_m_s) != 3
+        or any(
+            type(target) is not float or not math.isfinite(target)
+            for target in request.segment_targets_m_s
+        )
+        or type(targets) is not list
+        or len(targets) != 3
+        or any(type(target) is not float or not math.isfinite(target) for target in targets)
+        or targets != list(request.segment_targets_m_s)
+    ):
+        raise ExperimentContractError("evaluation manifest target selectors differ")
+    if (
+        not _is_sha256(request.step_zero_actor_sha256)
+        or value["step_zero_actor_sha256"] != request.step_zero_actor_sha256
+    ):
+        raise ExperimentContractError("evaluation manifest starting actor selector differs")
+    _validate_manifest_source(
+        value["evaluator_sources"],
+        request_sha256=request.evaluator_source_sha256,
+        expected_source=expected_source,
+    )
+    if (
+        value["evaluation_manifest_schema_id"] != EVALUATION_MANIFEST_SCHEMA_ID
+        or type(value["schema_version"]) is not int
+        or value["schema_version"] != 1
+        or value["planned_cells"] != list(PLANNED_EVALUATION_CELLS)
+        or value["planned_evaluation_seeds"] != list(EVALUATION_BLOCKS)
+        or value["planned_episode_count"] != PLANNED_EVALUATION_EPISODES
+    ):
+        raise ExperimentContractError("evaluation manifest fixed schedule differs")
+
+
+def _read_request_evaluation_manifest(
+    request: EvaluationWorkerRequest,
+    *,
+    expected_source: Mapping[str, object] | None,
+) -> bytes:
+    encoded = read_verified_artifact_bytes(
+        Path(request.evaluation_manifest_path),
+        expected_sha256=request.evaluation_manifest_sha256,
+        expected_size=request.evaluation_manifest_byte_count,
+        max_bytes=MAX_EVALUATION_MANIFEST_BYTES,
+    )
+    _validate_evaluation_manifest_bytes(request, encoded, expected_source=expected_source)
+    return encoded
+
+
+def _verify_parent_manifest_binding(
+    request: EvaluationWorkerRequest,
+    artifact: PublishedArtifact,
+) -> bytes:
+    if (
+        type(request.evaluation_manifest_path) is not str
+        or Path(os.path.abspath(request.evaluation_manifest_path))
+        != Path(os.path.abspath(artifact.path))
+        or request.evaluation_manifest_sha256 != artifact.sha256
+        or request.evaluation_manifest_byte_count != artifact.byte_count
+    ):
+        raise ExperimentContractError("evaluation manifest request binding differs")
+    return _read_request_evaluation_manifest(request, expected_source=None)
+
+
 def _worker(request: EvaluationWorkerRequest, connection: Connection) -> None:
     os.setsid()
     completed = 0
@@ -117,12 +295,17 @@ def _worker(request: EvaluationWorkerRequest, connection: Connection) -> None:
         from .evaluation_lineage import evaluator_source_identity
 
         source = evaluator_source_identity(Path(request.repository_root))
+        manifest_bytes = _read_request_evaluation_manifest(request, expected_source=source)
+        manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+        manifest_byte_count = len(manifest_bytes)
         _send(
             connection,
             {
                 "message_type": "started",
                 "payload": {
                     "evaluator_source_sha256": source["sha256"],
+                    "evaluation_manifest_byte_count": manifest_byte_count,
+                    "evaluation_manifest_sha256": manifest_sha256,
                     "pgid": os.getpgrp(),
                     "pid": os.getpid(),
                     "sid": os.getsid(0),
@@ -133,9 +316,11 @@ def _worker(request: EvaluationWorkerRequest, connection: Connection) -> None:
         if (
             admission.get("message_type") != "admit"
             or admission.get("evaluator_source_sha256") != request.evaluator_source_sha256
+            or admission.get("evaluation_manifest_sha256") != manifest_sha256
+            or admission.get("evaluation_manifest_byte_count") != manifest_byte_count
             or source["sha256"] != request.evaluator_source_sha256
         ):
-            raise ExperimentContractError("evaluation source admission differs")
+            raise ExperimentContractError("evaluation source or manifest admission differs")
         failure_mode = request.dependencies.failure_mode
         if failure_mode == "crash":
             os._exit(19)
@@ -412,6 +597,9 @@ def supervise_policy_evaluation(
         or not 0 < float(dependencies.wall_seconds) <= 24 * 60 * 60
     ):
         raise ExperimentContractError("evaluation wall deadline is invalid")
+    manifest_bytes = _verify_parent_manifest_binding(request, evaluation_manifest)
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    manifest_byte_count = len(manifest_bytes)
     output = Path(request.output_directory).resolve(strict=True)
     process, connection = _spawn(request)
     started = time.perf_counter()
@@ -442,9 +630,11 @@ def supervise_policy_evaluation(
                         or payload.get("pgid") != process.pid
                         or payload.get("sid") != process.pid
                         or payload.get("evaluator_source_sha256") != request.evaluator_source_sha256
+                        or payload.get("evaluation_manifest_sha256") != manifest_sha256
+                        or payload.get("evaluation_manifest_byte_count") != manifest_byte_count
                     ):
                         status = EvaluationStatus.SOURCE_MISMATCH
-                        reason = "evaluation worker source or process group differs"
+                        reason = "evaluation worker source, manifest, or process group differs"
                         break
                     started_seen = True
                     group_validated = True
@@ -452,7 +642,8 @@ def supervise_policy_evaluation(
                         connection,
                         {
                             "evaluator_source_sha256": request.evaluator_source_sha256,
-                            "evaluation_manifest_sha256": evaluation_manifest.sha256,
+                            "evaluation_manifest_byte_count": manifest_byte_count,
+                            "evaluation_manifest_sha256": manifest_sha256,
                             "message_type": "admit",
                         },
                     )
@@ -519,7 +710,7 @@ def supervise_policy_evaluation(
         artifacts = None
     common = {
         "completed_episodes": completed,
-        "evaluation_manifest_sha256": evaluation_manifest.sha256,
+        "evaluation_manifest_sha256": manifest_sha256,
         "planned_episodes": PLANNED_EVALUATION_EPISODES,
         "schema_version": 1,
         "uncompleted_episodes": PLANNED_EVALUATION_EPISODES - completed,
@@ -625,6 +816,8 @@ def supervise_policy_evaluation(
 __all__ = [
     "EVALUATION_FAILURE_RECEIPT_ID",
     "EVALUATION_SUCCESS_RECEIPT_ID",
+    "MAX_EVALUATION_MANIFEST_BYTES",
+    "PLANNED_EVALUATION_CELLS",
     "PLANNED_EVALUATION_EPISODES",
     "EvaluationStatus",
     "EvaluationSupervisionResult",

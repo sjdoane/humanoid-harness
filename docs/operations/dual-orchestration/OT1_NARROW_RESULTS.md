@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | OT1C and OT1E returned scoped verdicts. Parent reproduced the missing settling check and repaired both task-success consumers; 23 focused tests pass. |
-| bottleneck | Calibration origins, evaluator manifest/resources/cleanup and five-seed report assembly remain open. The small scoring repair still needs independent review. |
-| next step | Review OT1C-02 only, then select one remaining bounded repair. No protected evaluation, training, reward call or shared pairing edit authorized. |
+| progress | OT1C-02 independently accepted at `3406bb5`; both scorers enforce the calibrated settling band. Parent recheck: 23 passed. |
+| bottleneck | Calibration origins, evaluator manifest/resources/cleanup and five-seed report assembly remain open. No tracker effectiveness result. |
+| next step | Bind evaluator manifest admission in the isolated OT1E-01 slice. No protected evaluation, training, reward call or shared pairing edit authorized. |
 
 ## Exact review receipts
 
@@ -24,7 +24,7 @@
 | ID | finding | current disposition |
 |---|---|---|
 | OT1C-01 | Self-consistent calibration rows lack verified checkpoint/rollout origin | Open; bind real protected traces and checkpoints before scoring admission |
-| OT1C-02 | Calibrated settled-state band omitted by evaluator and report scoring | Parent repaired and regression-tested; independent closure pending |
+| OT1C-02 | Calibrated settled-state band omitted by evaluator and report scoring | Closed for scoring only at `3406bb5`; independent verdict below |
 | OT1C-03 | No artifact-driven assembler for five evaluated policy seeds | Open workflow gap; not a training-only smoke defect |
 | OT1E-01 | Child ignores evaluation-manifest digest in admission | Open; must fail before episode construction on mismatch |
 | OT1E-02 | Evaluation does not apply declared environment/resource controls | Open; training controls cannot be claimed as evaluation controls |
@@ -63,3 +63,27 @@ authority. Do not replace these gaps with an agent-written success receipt.
   simulator trace. The report reload calls the same endpoint by inspection.
 - No full suite, fake-training CLI test, simulator, calibration generation,
   source-receipt regeneration, cohort, candidate call or publication ran.
+
+## OT1C-02 acceptance: 2026-09-06
+
+- Exact repair: `3406bb5f0af3c2479d47cdd2d245c3e738a168fe`.
+- Independent run: `.orchestration/sol-runs/20260906T054257Z-4bf059e0-eac3-4194-97a2-9159443620d8/`.
+- Terminal: `SUCCEEDED`, exit 0, 05:46:56 UTC; watcher `terminal_observed`.
+- Verdict: `ACCEPT_OT1C02_SCORING_ONLY`; no new blocking finding in that scope.
+- `final.txt` SHA-256: `dd32542c605d591ebbdce3b123c4a668cd8bbf44f34bfba00d518b1f3fba6b23`.
+- Reviewer inspected retained red/green evidence and the real serialized-row
+  endpoint test; did not execute tests. The reload-to-endpoint source chain
+  supports this repair without a second full reload test.
+- Later parent recheck: 23 passed, 4 deselected in 1.79 s. All 13 review
+  bindings reverified before this documentation update; the old document hash
+  remains a historical review input, not the hash of this updated ledger.
+- Exact code handoff to Fable: `20260906T062154.426532Z-c4a7970b7dca478a9020d244aa5fb85a`.
+- No acceptance of calibration origin, evaluator resources/manifest/cleanup,
+  cohort assembly, robot competence, smoke or training authority.
+
+## Next bounded repair
+
+- Packet: `TASK-OT1E01-manifest-admission.md`; code base `3406bb5`.
+- Peer scope proposal: `20260906T065456.009901Z-ffc472497475469ab2d1291ab13d3226`.
+- Isolated development only; shared CLI integration needs peer agreement and
+  independent review of the finished commit. Fable's pairing paths stay untouched.

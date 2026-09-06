@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Narrow tracker reviews completed; omitted settling check repaired and parent-tested. Pairing correction proposed to Fable. |
-| bottleneck | Independent scoring-repair closure, calibration provenance and evaluator controls remain open; no trained-tracker result. |
-| next step | Review the small repair; see `OT1_NARROW_RESULTS.md`. No new Astra reward dispatch. |
+| progress | Settling-score repair `3406bb5` independently accepted and handed to Fable. |
+| bottleneck | Calibration provenance and evaluator controls remain open; no trained-tracker result. |
+| next step | Isolated evaluator-manifest admission repair; see `OT1_NARROW_RESULTS.md`. No new Astra reward dispatch. |
 
 ## Ownership
 
