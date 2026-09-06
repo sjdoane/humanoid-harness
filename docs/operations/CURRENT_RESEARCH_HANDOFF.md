@@ -2,9 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260905-FT2R1` closes FT1-SCI-01 through 05 and ADV-01 through 07 with code and non-vacuous negatives: live-source E1 replay, exact optimizer receipts, certified task inputs, a reviewed Phase B execution seal, executable disjoint calibration, trace-grounded Phase A metrics, strict designer provenance, bounded actor archives, short-circuit sentinels, and normalized numeric bounds. No training ran. |
-| bottleneck | No calibration receipt, disposable smoke, five-seed cohort, protected utility evaluation, or behavioral evidence exists. The implementation remains `interface_check`; it establishes neither causal reference use nor oracle, reward, transition, or humanoid performance. |
-| next step | Fable reviews and commits FT2R1. A disjoint calibration receipt must be collected and frozen before task-success scoring; any later smoke needs its accepted mailbox reservation, and the cohort still needs Samuel's explicit authorization. |
+| progress | `TASK-20260906-FT2R2` closes FT2-SCI-01 through 06, 08, and 09 plus FT2-ADV-01, 05, 06, and 08: evaluator-owned sufficient-trace replay, fail-closed evaluation lineage and bounded supervision, non-scoring uncalibrated endpoints, rollout-time likelihood audits, report-v2 semantic validation, mailbox-bound reservations, bounded loaders, production cohort authority, and the reviewed F2 registry entry. No training ran. |
+| bottleneck | FT2R3 still owns FT2-ADV-02, 03, 04, 07, and 09 plus the mechanism-level negatives: sealed worker inputs/import identity, clean-environment and process-tree resource isolation, bounded training IPC, fail-closed RSI evidence, and primary-versus-cleanup classification. No calibration receipt, smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
+| next step | Fable reviews and commits FT2R2, launches FT2R3, and then runs one combined re-review. Do not run the smoke before both repair slices and re-review; task-success remains non-scoring until a disjoint calibration receipt is frozen. |
+
+Fable integration note (2026-09-06T02:24Z): FT2R2 committed as `2930cd6`. Next writer: `sol-builder-20260906-ft2r3` (packet `TASK-20260906-FT2R3`, isolation and mechanism-level negatives; no training). Then one combined scientific and robustness re-review of FT2R1..FT2R3, then the smoke reservation proposal to Astra; the five-seed cohort needs Samuel's authorization. Fable resume: read the FT2R3 final; commit; launch the two re-reviews; do not run the smoke before the re-review verdicts.
+
+FT2R2 completion (2026-09-06T02:16Z): base/head `87d2e39`; focused Phase B/harness/reward validation is `371 passed, 16 skipped` in `95.63 s`. The full suite is `1653 passed, 18 skipped, 1 deselected, 44 failed` in `273.63 s`; the sorted set of all `44` failed node IDs exactly matches `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. The sole deselection was the forbidden reward-lane receipt test `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`; it was not executed or changed. Ruff lint, the authorized `229`-file source/test format check, `git diff --check`, Phase A byte identity/reproducibility, live E1 `68/68`, and documentation-to-artifact hash checks pass. Repository-wide `ruff format --check .` additionally inspects Markdown and reports only the pre-existing code fence in out-of-scope Astra document `docs/operations/dual-orchestration/TASK-F2-t2-evaluator.md`; `git diff` is empty for that file and blame attributes the flagged lines to `2c94710a`, so this lease did not modify them. No training or training smoke ran; simulator execution was limited to existing bounded no-learning tests.
+
+The F2 entry binds formula `target_speed_triangular_affine_t2_adapter/v1` at `06439388…301`, parser `target_speed_triangular_affine_recipe/v1` at `c60dea03…dccb`, the exact 137-byte bounds at `2c603026…6933`, task-input source `9607f2d5…f0d2`, output `[-10,15]`, the stock-telemetry compositor, flat bounded `alpha`/`beta`, exploratory evidence class, and mandatory FT2R1 task-input admission consumption. Astra's evaluator and parser bytes were not changed. Handoff edits are committed by Fable's integration commit by design; this sentence is the FT2-SCI-09 documentation repair.
+
+Fable resume: inspect the FT2R2 diff and validation, preserve the interface/integrity-only claim, commit the slice, launch FT2R3 for the explicitly deferred isolation findings, and run a combined re-review before any smoke. Do not treat F2 registration, green tests, or the fake runtime as behavioral evidence.
 
 Fable integration note (2026-09-06T00:32Z): FT2R1 committed as `5965f0c`. Astra's F2 evaluator commit `9bbb658` is merged next; then writer `sol-builder-20260906-ft2r2` (packet `TASK-20260906-FT2R2`), then `FT2R3`, then one combined re-review, then the smoke reservation proposal to Astra and Samuel's cohort authorization. No training has run. Fable resume: read the FT2R2 final; commit; launch FT2R3; do not run the smoke before both repairs and the re-review.
 
@@ -49,13 +57,13 @@ reservation and Samuel's authorization.
 
 Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
 
-- Updated: `2026-09-06T00:24Z` (FT2R1 training-admission repair handoff)
+- Updated: `2026-09-06T02:16Z` (FT2R2 scientific-integrity repair handoff)
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `a51ea9e` (clean at FT2R1 launch; no Git writes)
+- Precondition HEAD: `87d2e39` (clean at FT2R2 launch; no Git writes)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260905-ft2r1`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
+- Write lease: `CLAIMED` by `sol-builder-20260906-ft2r2`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
 - Evidence class: `interface_check`; no training or behavioral evidence
-- Builder wall time: `73m` through final lint, format, diff, scope, sealed-input checks, and handoff
+- Builder wall time: `102m` through full-suite baseline reconciliation, final lint, authorized-scope format, diff, seals, and handoff
 
 ## Historical Experiment 003 phase-A handoff
 

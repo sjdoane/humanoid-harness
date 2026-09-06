@@ -116,6 +116,14 @@
       "ruff": "clean, 332 files formatted",
       "started_utc": "2026-09-06T00:26:33Z",
       "tree": "Slice FT2R1 (training-admission repairs) before the reward receipt regeneration"
+    },
+    {
+      "commit": "2930cd6",
+      "finished_utc": "2026-09-06T02:23:44Z",
+      "result": "1699 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "check clean; format: 358 files formatted, 1 pre-existing Astra packet document (TASK-F2-t2-evaluator.md, their commit 2c94710a) would be reformatted, out of Fable scope",
+      "started_utc": "2026-09-06T02:18:25Z",
+      "tree": "Slice FT2R2 (scientific-integrity repairs, F2 registry entry) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1
