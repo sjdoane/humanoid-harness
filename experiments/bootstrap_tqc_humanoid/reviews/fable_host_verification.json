@@ -272,6 +272,18 @@
       "result": "1923 passed, 16 skipped, 2 warnings in 372.75s (0:06:12)",
       "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_78f6c7b_post_regeneration.txt",
       "retained_scratch_record_sha256": "c634912a5fb3c68a697459ef647ab55541f84e01cb5ac7fe12b8c808804a80e6"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "F3PINR2 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T13:41:37Z",
+      "result": "1924 passed, 16 skipped, 2 warnings in 372.73s (0:06:12)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
+      "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T13:33:59Z",
+      "tree": "Slice F3PINR2 (call identity derived from the committed seal; documentation regression)"
     }
   ],
   "schema_version": 1

@@ -2,9 +2,48 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2PAIRR1` closes PAIR-01 through PAIR-03, exercises both paired arms through the production PPO and controlled fake-runtime routes with a disabling mutation control, and re-seals the pending T2 chain. The interface-only focused suite passes. |
-| bottleneck | T2 execution remains **NO-GO**. The canonical candidate is TBD, report admission remains `study_not_final_ready`, and dispatch lacks an independent verdict. No candidate call, smoke, training, cohort, protected evaluation, or behavioral result exists. |
-| next step | Astra performs the narrow T2PAIRR1 delta review. A later accepted candidate still requires registry resolution, exact clean execution-HEAD verification, and one final-ready execution/study/seal regeneration before any runtime decision. |
+| progress | `F3PINR2` derives and pins the six dispatch-facing identities from the committed T2PAIRR1 seal and baseline bytes; a regression compares both protocol documents with a freshly validated record. |
+| bottleneck | T2 execution remains **NO-GO**. F3PINR2 lacks a narrow readback verdict on its exact commit, dispatch lacks its separate verdict, the canonical candidate is TBD, and report admission remains `study_not_final_ready`. |
+| next step | Commit F3PINR2 and obtain narrow independent readback. Any later dispatch must regenerate and validate `record.json`, copy its identities exactly, and stop on a mismatch; candidate admission and runtime remain later gates. |
+
+F3PINR2 completion (2026-09-06): launch base `2160684` was clean. The builder
+started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-f3pinr2`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write.
+
+| T2PAIRR1-derived identity | exact value |
+|---|---|
+| study manifest | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| F3 seal | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+| rendered prompt | `4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc` |
+| call ID | `e7f3ca013343a5f82ce6161e1667a52f00f7f4b019c329ecf6fe4820bc60312a` |
+| identity digest | `b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+| launcher scope | `t2-initial-parameter-hypothesis-only;call_identity_sha256=b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+
+The record was regenerated in memory with `prepare_initial_t2_packet` from the
+exact committed inputs: 1,773-byte baseline `eea2b6a9…1c5f` and 1,671-byte seal
+`6ce006bb…5a9d`. The resulting canonical record is 28,461 bytes at
+`b76c73cd…b5220`. No packet was published, no call identity was claimed, and no
+candidate call, simulator, smoke, training, cohort, protected evaluation, or
+behavioral evaluation ran.
+
+| F3PINR2 verification | result |
+|---|---|
+| Document-to-derived-record regression | `1 passed`; stale-table negative included |
+| Focused reward-search and reward-study tests | `239 passed in 135.92s` |
+| Full suite, named reward-lane receipt test deselected | `1877 passed, 18 skipped, 1 deselected, 44 failed in 360.72s` |
+| Sandbox-baseline comparison | observed and recorded failure sets are exactly equal at `44`; no unexpected or missing failures |
+| Repository-wide Ruff lint / format | passed / all `408` files formatted |
+| `git diff --check` | passed |
+| Forbidden call-root audit | no `.orchestration/f3-initial-call-*` path exists |
+| Builder wall time | `37m` from lease acquisition through validation and handoff audit |
+
+Fable resume: review the two six-field identity tables and the derived-record
+regression, commit all five F3PINR2 paths together, then obtain a narrow
+independent readback verdict bound to that exact commit. Keep dispatch withheld
+until that readback and a separate dispatch verdict both exist; at dispatch,
+copy identities only from the newly regenerated and validated `record.json`.
 
 T2PAIRR1 completion (2026-09-06): launch base `487a796` was clean. The
 builder started only after the launcher acquired the exact write lease as

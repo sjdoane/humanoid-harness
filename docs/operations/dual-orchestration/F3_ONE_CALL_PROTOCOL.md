@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2PAIRR1 re-seals the pending one-call inputs with integrated pairing receipt `1a2b7ece…2348` and repaired production-routing contracts. Preparation verifies the receipt before prompt rendering. |
-| bottleneck | Dispatch remains withheld at `withheld_pending_dispatch_verdict`: the canonical candidate is TBD, T2PAIRR1 needs narrow independent review and commit, and no candidate call or behavioral result exists. |
-| next step | Independently review and commit T2PAIRR1, then obtain a separate dispatch verdict. A future accepted candidate must pass the one-step final admission and clean-HEAD re-seal before report or runtime admission. |
+| progress | F3PINR2 derives the six dispatch-facing identities from the committed T2PAIRR1 seal and baseline bytes and binds this document to that record with a regression. |
+| bottleneck | Dispatch remains withheld at `withheld_pending_dispatch_verdict`: F3PINR2 needs a narrow readback verdict on its exact commit, the separate dispatch verdict is still absent, and no candidate call or behavioral result exists. |
+| next step | Commit F3PINR2 and obtain its narrow readback. At any later dispatch, regenerate and validate `record.json`, copy its identities exactly, and stop on any mismatch before claiming the call identity. |
 
 ## Purpose and strict scope
 
@@ -19,9 +19,10 @@
 
 1. Independent verdict `ACCEPT_F3_STATIC_ONLY` closed the original F3 findings,
    while the Fable re-pin review and T2AR1 review required later repairs.
-   T2PAIRR1 must be independently accepted and committed, and a separate dispatch
-   verdict must exist; any rejection, missing verdict, or different source bytes
-   stops dispatch.
+   T2PAIRR1 is committed, but its combined re-review found the stale dispatch
+   identity repaired by F3PINR2. A narrow readback verdict bound to the exact
+   F3PINR2 commit and a separate dispatch verdict must exist; any rejection,
+   missing verdict, or different source bytes stops dispatch.
 2. The accepted Astra source is merged into `main`; this configuration is bound
    to checkout `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`, branch
    `main`, and import origin
@@ -67,6 +68,26 @@
   the prompt. Changing a valid non-model-facing seal changes the packet/call
   identity but leaves these 6,011 prompt bytes unchanged.
 
+### T2PAIRR1 identities
+
+| field | value |
+|---|---|
+| study manifest | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| F3 seal | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+| rendered prompt | `4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc` |
+| call ID | `e7f3ca013343a5f82ce6161e1667a52f00f7f4b019c329ecf6fe4820bc60312a` |
+| identity digest | `b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+| launcher scope | `t2-initial-parameter-hypothesis-only;call_identity_sha256=b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+
+These values were derived with `prepare_initial_t2_packet` from the exact
+1,773-byte baseline Git blob and committed 1,671-byte T2PAIRR1 seal at launch
+base `2160684`; the derived canonical record is 28,461 bytes at SHA-256
+`b76c73cd1ef027b54760a324a17de61cfd300b53f334c2d8bb6a8c7fde1b5220`.
+F3PINR2 did not publish a packet or claim the call identity. At dispatch time,
+all six values must be copied from the newly regenerated and validated
+`record.json`; this checked table is not authority to reuse stale prose. Any
+record/table mismatch stops before identity publication.
+
 ## Exact preparation and dispatch
 
 - Use a fresh, initially absent local directory:
@@ -82,10 +103,8 @@
   record hashes/counts, exact HEAD, and missing-evidence classification.
 - Protocol identifier is fixed as `f3_initial_t2_one_call/v1`. Derive `call_id`
   as SHA-256 over `protocol_id || NUL || study_manifest_sha256 || NUL ||
-  rendered_prompt_sha256`. The current value is
-  `eeb24a672fd61fbf91d668cd2ca62629decf9f9ed12124f03a27925c01ee4aef`.
-  The canonical call-identity record digest is
-  `1ae0e967207c1dc2a2d9535e98b7ea6782dabccdf6afff6f518bb07242bc892d`.
+  rendered_prompt_sha256`. The committed T2PAIRR1-derived values are pinned in
+  the table above and must match the validated `record.json` at dispatch.
 - Before launch, call only `publish_initial_t2_dispatch_intent` with the exact
   canonical path `.orchestration/f3-initial-call-20260906/dispatch-intent.json`.
   It first claims `call-identity.json` at that call root using atomic
@@ -99,8 +118,8 @@
   An interrupted/uncertain launch must be reconciled from existing receipts;
   it is never permission to launch again.
 - Existing `start-sol-worker` launcher only: `read-only`, owner
-   `fable-f3-initial`, role `candidate`, scope
-  `t2-initial-parameter-hypothesis-only;call_identity_sha256=1ae0e967207c1dc2a2d9535e98b7ea6782dabccdf6afff6f518bb07242bc892d`,
+  `fable-f3-initial`, role `candidate`, scope
+  `t2-initial-parameter-hypothesis-only;call_identity_sha256=b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375`,
   requested `gpt-5.6-sol`, effort `max`. The existing launcher's exact `scope`
   field binds the digest into both retained `request.json` and `result.json`;
   changing or omitting it makes ingestion reject the envelope.

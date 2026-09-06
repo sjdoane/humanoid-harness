@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,26 @@ def _record() -> tuple[bytes, T2InitialPacketRecord]:
     )
     parsed = parse_model_bytes(encoded, T2InitialPacketRecord, max_bytes=131_072)
     return encoded, parsed
+
+
+def _t2pairr1_identity_table(document: str) -> dict[str, str]:
+    marker = "### T2PAIRR1 identities\n"
+    assert document.count(marker) == 1
+    lines = document.split(marker, maxsplit=1)[1].splitlines()
+    header_index = lines.index("| field | value |")
+    assert lines[header_index + 1] == "|---|---|"
+    rows: list[tuple[str, str]] = []
+    for line in lines[header_index + 2 :]:
+        if not line.startswith("|"):
+            break
+        match = re.fullmatch(r"\| ([^|]+) \| `([^`]+)` \|", line)
+        assert match is not None
+        rows.append((match.group(1), match.group(2)))
+    return {field: value for field, value in rows}
+
+
+def _assert_t2pairr1_identity_table(document: str, expected: dict[str, str]) -> None:
+    assert _t2pairr1_identity_table(document) == expected
 
 
 def _proposal(record: T2InitialPacketRecord, **updates: object) -> bytes:
@@ -227,6 +248,55 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     ):
         assert digest.encode() in prompt
     assert record.rendered_prompt_sha256.encode() not in prompt
+
+
+def test_t2pairr1_document_identities_match_the_derived_committed_record() -> None:
+    baseline = (ROOT / BASELINE_GIT_PATH).read_bytes()
+    seal_bytes = T2_SEAL_PATH.read_bytes()
+    record_bytes = prepare_initial_t2_packet(
+        baseline_reward_bytes=baseline,
+        t2_seal_bytes=seal_bytes,
+    )
+    record = parse_model_bytes(record_bytes, T2InitialPacketRecord, max_bytes=131_072)
+    prompt = render_initial_t2_prompt(record_bytes)
+    expected = {
+        "study manifest": record.study_manifest_sha256,
+        "F3 seal": record.t2_seal.sha256,
+        "rendered prompt": hashlib.sha256(prompt).hexdigest(),
+        "call ID": record.call_identity.call_id,
+        "identity digest": record.call_identity_sha256,
+        "launcher scope": record.expected_scope,
+    }
+    document_paths = (
+        (ROOT / "docs/operations/dual-orchestration/F3_ONE_CALL_PROTOCOL.md", True),
+        (ROOT / "docs/operations/dual-orchestration/F3_FABLE_REPIN.md", False),
+    )
+    for path, is_dispatch_protocol in document_paths:
+        document = path.read_text(encoding="utf-8")
+        _assert_t2pairr1_identity_table(document, expected)
+
+        if is_dispatch_protocol:
+            pinned_scopes = re.findall(
+                r"`(t2-initial-parameter-hypothesis-only;call_identity_sha256=[0-9a-f]{64})`",
+                document,
+            )
+            assert pinned_scopes == [record.expected_scope, record.expected_scope]
+            assert (
+                "eeb24a672fd61fbf91d668cd2ca62629decf9f9ed12124f03a27925c01ee4aef" not in document
+            )
+            assert (
+                "1ae0e967207c1dc2a2d9535e98b7ea6782dabccdf6afff6f518bb07242bc892d" not in document
+            )
+
+        pinned_row = f"| call ID | `{expected['call ID']}` |"
+        stale_document = document.replace(
+            pinned_row,
+            f"| call ID | `{'0' * 64}` |",
+            1,
+        )
+        assert stale_document != document
+        with pytest.raises(AssertionError):
+            _assert_t2pairr1_identity_table(stale_document, expected)
 
 
 def test_rendered_prompt_is_deterministic_hash_bound_and_minimal() -> None:

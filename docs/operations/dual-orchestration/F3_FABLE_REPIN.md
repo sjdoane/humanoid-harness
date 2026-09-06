@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2PAIRR1 binds repaired exact-byte validation and production routing into receipt `1a2b7ece…2348`, pending study `a839362a…eecb`, and F3 seal `6ce006bb…5a9d`. |
-| bottleneck | Dispatch remains `withheld_pending_dispatch_verdict`; the canonical candidate is TBD and T2PAIRR1 needs narrow independent review and commit. No candidate call or behavioral result exists. |
-| next step | Astra reviews the T2PAIRR1 delta. Only after acceptance, commit, and a separate dispatch verdict may Fable regenerate a call packet; candidate admission and its clean-HEAD re-seal remain later gates. |
+| progress | F3PINR2 derives the T2PAIRR1 call identity from committed seal and baseline bytes, pins the six dispatch-facing fields below, and adds document-to-record regression coverage. |
+| bottleneck | Dispatch remains `withheld_pending_dispatch_verdict`; F3PINR2 needs a narrow readback verdict on its exact commit and a separate dispatch verdict. No candidate call or behavioral result exists. |
+| next step | Commit F3PINR2 and obtain narrow readback. Any later dispatch must regenerate and validate `record.json`, copy its identities exactly, and stop on a mismatch before claiming the call identity. |
 
 ## Original F3PIN builder boundary
 
@@ -249,12 +249,55 @@ under the one-call preconditions.
 | `git diff --check` | passed |
 | Builder wall time | `51m` from lease acquisition through release-byte verification and handoff audit |
 
+## F3PINR2 identity repair
+
+The builder started from clean `2160684` after the launcher acquired the exact
+write lease as `sol-builder-20260906-f3pinr2`, model `gpt-5.6-sol`, role
+`builder`, with the declared scope. It regenerated the canonical packet record
+in memory with `prepare_initial_t2_packet`; it did not publish under
+`.orchestration/f3-initial-call-*`, claim a call identity, dispatch a candidate,
+or run a simulator, smoke, or training command.
+
+### T2PAIRR1 identities
+
+| field | value |
+|---|---|
+| study manifest | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` |
+| F3 seal | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` |
+| rendered prompt | `4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc` |
+| call ID | `e7f3ca013343a5f82ce6161e1667a52f00f7f4b019c329ecf6fe4820bc60312a` |
+| identity digest | `b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+| launcher scope | `t2-initial-parameter-hypothesis-only;call_identity_sha256=b53841bc8e0dc60fbd3b5710c89e3a903c4acc82a25cc655a164f0671e40b375` |
+
+The 28,461-byte canonical record is SHA-256
+`b76c73cd1ef027b54760a324a17de61cfd300b53f334c2d8bb6a8c7fde1b5220`.
+Its six values above derive from the committed 1,671-byte T2PAIRR1 seal and
+exact 1,773-byte baseline bytes; they are not copied from the superseded T2AR2
+packet. Dispatch requires a narrow independent readback verdict bound to the
+exact commit containing this repair. At dispatch time the operator must
+regenerate and validate `record.json` and copy all six values from that file;
+any difference from this table fails closed before call-identity publication.
+
+| F3PINR2 verification | result |
+|---|---|
+| Document-to-derived-record regression | `1 passed`; includes a stale call-ID table negative for both documents |
+| Focused reward-search and reward-study tests | `239 passed in 135.92s` |
+| Full suite, named reward-lane receipt test deselected | `1877 passed, 18 skipped, 1 deselected, 44 failed in 360.72s` |
+| Sandbox-baseline comparison | all `44` observed failed node IDs exactly equal the `44` recorded nodes; no unexpected or missing failures |
+| Repository-wide Ruff lint | passed |
+| Repository-wide Ruff format check | all `408` files formatted |
+| `git diff --check` | passed |
+| Changed-path audit | exactly `README.md`, `docs/operations/CURRENT_RESEARCH_HANDOFF.md`, both F3 protocol documents, and `tests/reward_search/test_t2_model_protocol.py` |
+| Forbidden call-root audit | no `.orchestration/f3-initial-call-*` path exists |
+| Builder wall time | `37m` from lease acquisition through the validation and handoff audit |
+
 ## Claim ceiling
 
-This slice establishes Fable-local expected configuration, deterministic packet
+F3PINR1 established Fable-local expected configuration, deterministic packet
 content, sealed preconditions, canonical-identity claim/refusal, and ingestion
-replay refusal. It is not a reward result. It establishes no candidate service
-call, model authentication, candidate admission, simulator behavior, policy
-training, protected evaluation, measured feedback, reward improvement, or
-humanoid competence. Repository state cannot prove the absence of an unrecorded
-external call.
+replay refusal. F3PINR2 establishes only current documentation and regression
+binding to the committed T2PAIRR1-derived record. Neither is a reward result.
+They establish no candidate service call, model authentication, candidate
+admission, simulator behavior, policy training, protected evaluation, measured
+feedback, reward improvement, or humanoid competence. Repository state cannot
+prove the absence of an unrecorded external call.
