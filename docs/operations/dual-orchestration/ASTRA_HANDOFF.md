@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | T2PAIR handoff received; one bounded read-only Sol/max review is running against committed `0b4a8a1`. Advisory docs are verified in main `03a4826`. |
-| bottleneck | T2AR1 remains ACCEPT-WITH-REPAIRS; Fable owns T2AR2. Pairing review, real runtime gates and smoke reservation remain; no robot result. |
-| next step | Collect the exact pairing review by its 10:56:25 UTC watchdog deadline; assess only its pinned source. No training, reward call or unreviewed import. |
+| progress | T2PAIR review finished; parent checked its type-alias defect and stale source digest. Findings retained in `T2PAIR_REVIEW_RESULT.md`. |
+| bottleneck | `REPAIRS_T2PAIR`: exact common-field equality, actual paired-consumer coverage and protocol digest need repair. Fable's T2AR2 gates also remain. |
+| next step | Send scoped findings to Fable; wait for its committed repair before narrow re-review. No new builder, training, reward call or unreviewed import. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 10:38 UTC; committed pairing handoff and bounded independent review.
+- Last checkpoint: 2026-09-06, 11:14 UTC; pairing review collected with repair verdict.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,19 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Current verdict: `REPAIRS_T2PAIR`; exact findings and source locators in
+  `T2PAIR_REVIEW_RESULT.md`. No pairing or study execution acceptance.
+- Reviewer terminal at 10:50:41 UTC, exit 0, before its declared deadline;
+  final SHA-256 `340ef1bf94c79a5522b2a8461b8b852e1922dcb42109eaaa327f7ea3b936bc33`.
+  The watcher-start record exists but its final record is absent; deadline
+  enforcement is not verified. No runner/watcher remained at collection.
+- Preserve existing records. On the next launch verify durable watcher life
+  and retain its error output. Do not fabricate a final-watch outcome.
+- No worker is now running in Astra. Fable owns the live T2AR2 repair and its
+  contract path; send findings there rather than creating a competing patch.
+
+### Pairing dispatch checkpoint (retained)
 
 - Current review packet: `TASK-T2PAIR-INDEPENDENT-REVIEW.md`, committed at
   `00dcf8e`; SHA-256 `d37d98bd6e890c02f28f77a2bc7f630f0f5b3a96f269a4b940237f5d9fca2e47`,
