@@ -1,13 +1,16 @@
-# Astra reward-lane handoff
+# Astra orchestration handoff
 
 | status | current truth |
 |---|---|
-| progress | F2 static review accepts the pure evaluator; all 13 hashes match and parent repeated 73 focused passes. Fable accepted the ID/parser interface. |
-| bottleneck | Exact bounds and adapter admission must be bound at promotion; no T2-aware model packet or trained reward cycle exists. |
-| next step | Send the reviewed F2 handoff, then prepare the minimal T2-aware model protocol while Fable owns registry integration. |
+| progress | Samuel reassigned Astra to oracle/reference composition and Fable to task reward. Final F3 review accepted; parent reproduced 112 passes and committed the reward slice for handoff. |
+| bottleneck | Fable confirmed the roles through Samuel's relayed response; FT2R3 remains active and the committed oracle/runtime handoff is pending. No Phase B trained-tracker result or F3 model-candidate call. |
+| next step | Follow `LANE_SWAP_20260906.md`: transfer accepted F3, obtain Fable's clean checkpoint, then advance the oracle composition loop. No new Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 23:11 UTC heartbeat; F2 acceptance collected, snapshot reverified and peer conditional agreement read.
+- Last checkpoint: 2026-09-06 UTC; interactive lane swap and final F3 acceptance.
+- Current lane: oracle/reference composition and tracker integration.
+- Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
+  sequences below are evidence records, not current Astra dispatch authority.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -17,7 +20,7 @@
 - Original checkout belongs to Fable. Its B0 worker was actively renewing the
   main writer lease at setup; its uncommitted files were not copied.
 
-## Immediate work
+## Completed and historical reward work
 
 | task | owner | state | acceptance |
 |---|---|---|---|
@@ -52,6 +55,45 @@
 | F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
 | F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
 | F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
+| F3 T2-aware model protocol | read-only Sol/max planner | finished 23:29:33Z | `F3_PLAN_RESULT.md`; parent corrected deadline and read-failure semantics |
+| F3 initial packet/ingestion | Sol/max builder + Astra | completed 00:13:01Z; parent 79 focused passes | `F3_PARENT_CHECKPOINT.md`; four new files, not accepted |
+| F3 independent verification | Sol/max test-output-only writer | REJECT_F3 at 01:21:49Z; 79 focused tests and seven probes | `F3_REVIEW_FINDINGS.md`; parent reproduced defects, all 18 hashes unchanged |
+| F3 repair and baseline refresh | Sol/max builder + Astra | succeeded 01:56:27Z; parent 112 focused passes | `F3_REPAIR_PARENT_CHECKPOINT.md`; not independently closed |
+| F3 closure and conditional call review | Sol/max test-output-only reviewer | ACCEPT_F3_STATIC_ONLY and APPROVE_F3_ONE_CALL_PROTOCOL at 02:38:18Z | `F3_ACCEPTANCE.md`; zero candidate calls; new owner Fable after transfer |
+
+- `F3_ONE_CALL_PROTOCOL.md` received conditional approval. Samuel's lane swap
+  stops Astra dispatch; Fable must review/adapt ownership and re-pin its
+  integration before any call. No revision, retry, simulator or training.
+- Fable baseline confirmation: `20260906T021853.719294Z-e5ffd026d5ea41c1b039b7219513acc1`.
+  Formatting-only commit for its reported historical F2 fence:
+  `949f686e3ffa2a766fa3ac2b87c1733393fbc833`; original launch bytes retained.
+
+- Review source and negative fixtures are retained; do not overwrite them.
+  `.orchestration/f3-pre-repair-20260906/` holds the four original F3 files
+  under their relative paths; parent verified all four original hashes.
+- Current repair findings and precise review timing correction:
+  `F3_REVIEW_FINDINGS.md`. This is not static acceptance or model-call authority.
+
+- Exact F2 promotion accepted by
+  `20260906T002718.313618Z-cbaf7f3f6326473ab7226e0c183ea53a`.
+  Parent verified committed main `87d2e39c47b6747b505bc2657d505aeda2265b5e`
+  integrates F1/F2. This supersedes pending-promotion notes below.
+- New committed tracking-only baseline: 1,773 bytes, SHA-256
+  `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f`.
+  The old F3 baseline is a historical static fixture only; live calls remain
+  gated on review and an explicit exact-baseline refresh. See parent checkpoint.
+
+- Parent verified baseline `0986d4fc...224d4`, 1,144 bytes, from peer object
+  `a51ea9e`. Its run manifest agrees; `phase_b/DESIGN.md` still names a stale
+  prose hash. No peer file was edited. F3 binds the actual blob, not that table.
+
+- Accepted F2 commit: `9bbb6587c1f9d955e684ffe4e1772e72602e3556`.
+- Reviewed handoff sent:
+  `20260905T231526.597779Z-051fd2dcdda14f949a570a5294b478df`.
+- Exact-bounds/adapter-admission proposal:
+  `20260905T231526.889802Z-539e60b2549f48459fda183b385842df`.
+- F3 must bind the actual tracking-only baseline (+0.0 task reward), not an
+  invented alpha=1,beta=0 parent or an out-of-bounds alpha=0 recipe.
 
 - F2 builder: `20260905T220615Z-651f932a-0627-4e28-a7cb-0719bdf94475`;
   terminal success and lease release verified; watcher observed completion.
@@ -194,7 +236,7 @@
 5. Send Fable a compact progress/dependency message. Keep routine heartbeat
    notifications quiet unless a result, failure, or Samuel's action matters.
 
-## Authorized next sequence
+## Historical sequence — not current dispatch authority
 
 1. A1 builder completes its bounded packet and `A1_RESULT.md`.
 2. Inspect diff and focused checks. Launch the independent read-only

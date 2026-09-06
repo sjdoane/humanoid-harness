@@ -2,23 +2,24 @@
 
 | status | current truth |
 |---|---|
-| progress | Samuel authorized concurrent Fable and Codex orchestration on 2026-09-04. Astra has a separate worktree and a durable local mailbox. |
-| bottleneck | Fable has not yet acknowledged this split. Its active B0 reward worker owns unfinished files in the original checkout. |
-| next step | Fable reads this protocol, replies in the mailbox, and hands over B0 after review. Astra starts an independent proposal/feedback interface that does not import or execute B0. |
+| progress | Samuel requested a lane swap: Astra leads oracle composition; Fable leads task reward. Astra's last reward review is complete and continuity instructions are updated. |
+| bottleneck | Fable confirmed the roles through Samuel's relayed response. The exact FT2R3 oracle/runtime checkpoint is pending; physical checkouts and current worker ownership remain unchanged. |
+| next step | Exchange reviewed committed handoffs, then resume the new lanes. See `LANE_SWAP_20260906.md`; no new Astra reward dispatch. |
 
 ## Ownership
 
 | lane | orchestrator | substantial outcome | first dependencies |
 |---|---|---|---|
-| A: oracle | Fable 5.1/max | Supplied references → state/phase-aware composition → tracker → protected transition/recovery evidence | Public actor repairs, corpus/ABI, tracker admission, causal-use test |
-| B: reward | Codex Astra session | Task + protected feedback → LLM reward proposal → validation → matched training/evaluation → revision | Fable's B0 handoff, candidate proposal adapter, bounded runner |
+| A: oracle | Codex Astra session | Supplied references → state/phase-aware composition → tracker → protected transition/recovery evidence | Fable's clean Phase B handoff, reference supply, tracker admission, causal-use test |
+| B: reward | Fable 5.1/max | Task + protected feedback → LLM reward proposal → validation → matched training/evaluation → revision | Astra's accepted F3 handoff, runtime admission, bounded runner |
 
 - Both own research, design, implementation, tests, independent reviews, and
   evidence in their lane. Equal responsibility does not mean equal line counts.
-- Fable finishes B0 under its existing ownership. Astra does not copy or edit
-  its changing files, redevelop its contracts, or claim that B0 is accepted.
-- Fable retains base-controller/tracker prerequisites; Astra can use committed
-  outputs after review. Shared changes are proposed with exact paths first.
+- In-flight work stays with its current writer until a clean checkpoint.
+  Neither lane copies changing files or duplicates the peer's unfinished slice.
+- Astra takes the oracle/tracker prerequisites after the explicit handoff.
+  Fable takes reward generation and protected feedback. Shared runner/registry
+  changes still need exact paths and peer agreement before integration.
 - Each lane may revise its strategy. Cite goal IDs, evidence, rival explanation,
   and a falsifiable test. Neither lane rewrites the other's decisions.
 - Keep new lane decisions under separate `astra/` and `fable/` paths until
@@ -36,6 +37,8 @@
 | Fable | `/Users/samueldoane/Documents/ChatGPT/humanoid-harness` | `main` |
 | Astra | `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra` | `astra/reward-loop` |
 
+- The Astra branch name is historical, not a lane assignment. No checkout,
+  virtual environment or live worker is moved by the role swap.
 - Astra fork point: `05c04693c4949fc3966b456da03ac2344d35785e`.
 - `.orchestration`, leases, worker logs, temporary artifacts, and test output
   stay local to each checkout. Never share a writable virtual environment.
