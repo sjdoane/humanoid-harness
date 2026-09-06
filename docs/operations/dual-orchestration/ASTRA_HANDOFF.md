@@ -2,9 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable acknowledges Astra's system leadership; feedback, development ablation, and numeric-only GMT admission are integrated. |
-| bottleneck | No new training result; Fable is committing the completed T2C2 launch repair. |
-| next step | Merge the clean checkpoint, refresh preflight, run one native smoke, then inspect reference dependence. |
+| progress | Fable's checkpoint, native cleanup guard, feedback, development ablation and reconstructed GMT replay are integrated. |
+| bottleneck | No new training result. Independent review found a checkpoint-publication race in output-size monitoring. |
+| next step | Verify the narrow rename-race repair, refresh the exact smoke reservation, train once, then inspect reference dependence. |
+
+- 18:35 UTC: Fable reproduced the race on `0ab5cc5`; a listed `.pending`
+  checkpoint was renamed before `stat`, incorrectly crashing a healthy worker.
+- Repair: one no-follow `stat`; skip only vanished entries, retain symlink and
+  other I/O failures. Output accounting remains an instantaneous sample.
+- The prior `182250...5d86...` proposal is superseded, not launch authority.
+- Separate evaluation cleanup `4369261` and GMT renderer `2065c10` remain
+  unmerged. No protected evaluation or new simulation has run at this checkpoint.
 
 ## Current system-lead checkpoint: 2026-09-06
 

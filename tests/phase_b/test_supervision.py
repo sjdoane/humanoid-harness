@@ -39,6 +39,52 @@ ROOT = Path(__file__).resolve().parents[2]
 PHASE_B = ROOT / "experiments/003_composition_speed_profile/phase_b"
 
 
+def test_directory_bytes_tolerates_checkpoint_publication_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pending = tmp_path / ".checkpoint.pending"
+    pending.write_bytes(b"checkpoint")
+    retained = tmp_path / "receipt.json"
+    retained.write_bytes(b"{}")
+    original_stat = Path.stat
+
+    def stat_during_publish(path: Path, *args: object, **kwargs: object) -> object:
+        if path == pending:
+            pending.rename(tmp_path / "checkpoint.npz")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat_during_publish)
+    assert supervision_module._directory_bytes(tmp_path) == 2
+    assert supervision_module._directory_bytes(tmp_path) == 12
+
+
+@pytest.mark.parametrize("dangling", (False, True))
+def test_directory_bytes_still_rejects_symbolic_links(tmp_path: Path, dangling: bool) -> None:
+    target = tmp_path / "target"
+    if not dangling:
+        target.write_bytes(b"checkpoint")
+    (tmp_path / "link").symlink_to(target)
+    with pytest.raises(ExperimentContractError, match="symbolic link"):
+        supervision_module._directory_bytes(tmp_path)
+
+
+def test_directory_bytes_does_not_hide_other_stat_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    denied = tmp_path / "checkpoint.npz"
+    denied.write_bytes(b"checkpoint")
+    original_stat = Path.stat
+
+    def denied_stat(path: Path, *args: object, **kwargs: object) -> object:
+        if path == denied:
+            raise PermissionError("denied")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", denied_stat)
+    with pytest.raises(PermissionError, match="denied"):
+        supervision_module._directory_bytes(tmp_path)
+
+
 @pytest.fixture(scope="module")
 def preflight() -> object:
     return validate_training_preflight(

@@ -1657,9 +1657,14 @@ def _directory_bytes(path: Path) -> int:
         directories[:] = [name for name in directories if not (Path(root) / name).is_symlink()]
         for name in files:
             candidate = Path(root) / name
-            if candidate.is_symlink():
+            try:
+                state = candidate.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                # Checkpoint publication can rename a pending entry after os.walk lists it.
+                continue
+            if stat.S_ISLNK(state.st_mode):
                 raise ExperimentContractError("run output contains a symbolic link")
-            total += candidate.stat().st_size
+            total += state.st_size
     return total
 
 
