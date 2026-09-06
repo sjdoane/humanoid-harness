@@ -1,0 +1,659 @@
+"""Render a verified GMT course trajectory without rerunning policy or dynamics."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import math
+import os
+import platform
+import re
+import stat
+import tempfile
+import zipfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from oracle_composition.harness.contract import decode_json_object, read_json_object
+
+from .checkpoint import verify_upstream_root
+from .contracts import (
+    ACTION_DIM,
+    CONTROL_DT_SECONDS,
+    GMT_UPSTREAM_COMMIT,
+    REFERENCE_FRAME_DIM,
+)
+from .course_task import CourseTaskSpec, TaskFrame
+from .io import GMTAdmissionError, read_verified_bytes, sha256_file, write_json_receipt
+from .replay import _extract_model_abi, validate_model_abi
+
+FRAME_WIDTH = 480
+FRAME_HEIGHT = 360
+OUTPUT_FPS = 20
+MAX_RENDER_FRAMES = 800
+MAX_COURSE_STEPS = 2_000
+
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+_MANIFEST_KEYS = {
+    "schema_version",
+    "artifact",
+    "status",
+    "input_config_sha256",
+    "outputs",
+    "identities",
+    "frozen_runtime",
+    "training",
+    "zero_residual",
+    "final_policy",
+    "runtime",
+    "claims",
+}
+_CONFIG_KEYS = {
+    "schema_version",
+    "mode",
+    "assets",
+    "task",
+    "oracle",
+    "segments",
+    "reward",
+    "seed",
+    "training_steps",
+}
+_REPORT_KEYS = {
+    "objective_evaluation",
+    "training_reward_sum_not_success_metric",
+    "reset",
+    "steps",
+    "residual_rms",
+}
+_ROW_KEYS = {
+    "metrics",
+    "reward",
+    "executed_mode",
+    "executed_behavior",
+    "executed_phase_seconds",
+    "transition",
+    "action_saturation_fraction",
+    "torque_saturation_fraction",
+    "trajectory",
+}
+_METRIC_KEYS = {
+    "task_spec_sha256",
+    "control_step",
+    "progress_m",
+    "lateral_m",
+    "heading_error_signed_rad",
+    "root_height_m",
+    "torso_up",
+    "forward_speed_m_s",
+    "target_speed_m_s",
+    "speed_error_m_s",
+    "posture_band_error_m",
+    "lateral_error_m",
+    "heading_error_rad",
+    "inside_posture_region",
+    "posture_success",
+    "finish_condition_met",
+    "horizon_reached",
+    "episode_success",
+    "fallen",
+    "failure_reasons",
+    "joint_position_rmse_rad",
+    "root_height_abs_error_m",
+    "roll_pitch_rmse_rad",
+}
+_REWARD_KEYS = {
+    "task_spec_sha256",
+    "task_reward_recipe_sha256",
+    "tracking_reward",
+    "task_reward",
+    "total_reward",
+    "speed_component_reward",
+    "posture_component_reward",
+    "lateral_component_reward",
+    "heading_component_reward",
+    "failure_penalty",
+}
+_TRAJECTORY_KEYS = {
+    "qpos",
+    "qvel",
+    "current_reference",
+    "composite_raw_action",
+    "contact_pairs",
+    "geom_body_names",
+}
+_ARRAY_DTYPES = {
+    "qpos": "<f8",
+    "qvel": "<f8",
+    "residual_action": "<f4",
+    "current_reference": "<f4",
+    "composite_raw_action": "<f4",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class CourseRenderInputs:
+    """Hash-verified, cross-linked data required for one recorded-state render."""
+
+    manifest_path: Path
+    manifest_sha256: str
+    manifest: dict[str, object]
+    config_sha256: str
+    task: CourseTaskSpec
+    label: str
+    arrays: dict[str, np.ndarray]
+    rows: tuple[dict[str, object], ...]
+    consumed_outputs: dict[str, str]
+    support_files: dict[str, str]
+    upstream_root: Path
+
+
+@dataclass(frozen=True, slots=True)
+class FrameAnnotation:
+    state_index: int
+    simulation_time_seconds: float
+    root_height_m: float
+    forward_speed_m_s: float
+    progress_m: float
+    executed_mode: str
+
+
+def _exact_object(value: object, keys: set[str], field: str) -> dict[str, object]:
+    if type(value) is not dict or set(value) != keys:
+        raise GMTAdmissionError(f"{field} fields differ from the course-render contract")
+    return value
+
+
+def _digest(value: object, field: str) -> str:
+    if type(value) is not str or _SHA256.fullmatch(value) is None:
+        raise GMTAdmissionError(f"{field} must be one lowercase SHA-256 digest")
+    return value
+
+
+def _finite(value: object, field: str) -> float:
+    if type(value) not in {int, float}:
+        raise GMTAdmissionError(f"{field} must be finite numeric data")
+    result = float(value)
+    if not math.isfinite(result):
+        raise GMTAdmissionError(f"{field} must be finite numeric data")
+    return result
+
+
+def _direct_regular_child(parent: Path, name: str) -> Path:
+    if not name or Path(name).name != name or name in {".", ".."}:
+        raise GMTAdmissionError(f"unsafe course output name: {name!r}")
+    path = parent / name
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise GMTAdmissionError(f"course output is unavailable: {name}") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise GMTAdmissionError(f"course output must be a regular non-linked file: {name}")
+    return path
+
+
+def _read_npz(path: Path, expected_digest: str, steps: int) -> dict[str, np.ndarray]:
+    payload = read_verified_bytes(path, expected_digest, maximum_size=8 * 1024 * 1024)
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+    except zipfile.BadZipFile as exc:
+        raise GMTAdmissionError("course trajectory is not a valid NPZ archive") from exc
+    expected_shapes = {
+        "qpos": (steps + 1, 30),
+        "qvel": (steps + 1, 29),
+        "residual_action": (steps, ACTION_DIM),
+        "current_reference": (steps, REFERENCE_FRAME_DIM),
+        "composite_raw_action": (steps, ACTION_DIM),
+    }
+    arrays: dict[str, np.ndarray] = {}
+    with archive:
+        infos = archive.infolist()
+        expected_members = {f"{name}.npy" for name in expected_shapes}
+        if (
+            len(infos) != len(expected_members)
+            or {item.filename for item in infos} != expected_members
+        ):
+            raise GMTAdmissionError("course trajectory member set differs")
+        if len({item.filename for item in infos}) != len(infos):
+            raise GMTAdmissionError("course trajectory contains duplicate members")
+        for info in infos:
+            if info.compress_type != zipfile.ZIP_STORED or info.file_size > 2 * 1024 * 1024:
+                raise GMTAdmissionError(f"unsafe course trajectory member: {info.filename}")
+            name = info.filename.removesuffix(".npy")
+            member = archive.read(info)
+            stream = io.BytesIO(member)
+            try:
+                array = np.lib.format.read_array(stream, allow_pickle=False, max_header_size=512)
+            except (EOFError, ValueError) as exc:
+                raise GMTAdmissionError(f"invalid numeric course member: {name}") from exc
+            if stream.tell() != len(member):
+                raise GMTAdmissionError(f"trailing bytes in course member: {name}")
+            if (
+                array.shape != expected_shapes[name]
+                or array.dtype.str != _ARRAY_DTYPES[name]
+                or not array.flags.c_contiguous
+                or not np.isfinite(array).all()
+            ):
+                raise GMTAdmissionError(f"course trajectory contract differs for {name}")
+            array.flags.writeable = False
+            arrays[name] = array
+    if np.any(np.abs(arrays["residual_action"]) > 1.0):
+        raise GMTAdmissionError("recorded residual action lies outside [-1, 1]")
+    return arrays
+
+
+def _numeric_vector(value: object, shape: tuple[int, ...], dtype: str, field: str) -> np.ndarray:
+    array = np.asarray(value)
+    if (
+        array.shape != shape
+        or not np.issubdtype(array.dtype, np.number)
+        or not np.isfinite(array).all()
+    ):
+        raise GMTAdmissionError(f"{field} differs from its finite numeric shape contract")
+    return np.ascontiguousarray(array, dtype=dtype)
+
+
+def _read_rows(
+    path: Path,
+    expected_digest: str,
+    *,
+    steps: int,
+    arrays: dict[str, np.ndarray],
+    task_sha256: str,
+) -> tuple[dict[str, object], ...]:
+    payload = read_verified_bytes(path, expected_digest, maximum_size=32 * 1024 * 1024)
+    if not payload.endswith(b"\n"):
+        raise GMTAdmissionError("course frames JSONL must end with one newline")
+    encoded_rows = payload.split(b"\n")[:-1]
+    if len(encoded_rows) != steps or any(not line for line in encoded_rows):
+        raise GMTAdmissionError("course frames row count differs from the trajectory")
+    rows: list[dict[str, object]] = []
+    for index, encoded in enumerate(encoded_rows):
+        row = _exact_object(
+            decode_json_object(encoded, source=f"course frame {index}"), _ROW_KEYS, "course frame"
+        )
+        metrics = _exact_object(row["metrics"], _METRIC_KEYS, "course metrics")
+        _exact_object(row["reward"], _REWARD_KEYS, "course reward")
+        trajectory = _exact_object(row["trajectory"], _TRAJECTORY_KEYS, "course trajectory row")
+        if metrics["task_spec_sha256"] != task_sha256:
+            raise GMTAdmissionError("course frame task identity differs")
+        if type(metrics["control_step"]) is not int or metrics["control_step"] != index + 1:
+            raise GMTAdmissionError("course frame control-step sequence differs")
+        for key in (
+            "progress_m",
+            "root_height_m",
+            "forward_speed_m_s",
+            "executed_phase_seconds",
+            "action_saturation_fraction",
+            "torque_saturation_fraction",
+        ):
+            owner = metrics if key in metrics else row
+            _finite(owner[key], key)
+        if any(
+            type(row[key]) is not str or not row[key]
+            for key in ("executed_mode", "executed_behavior")
+        ):
+            raise GMTAdmissionError("executed mode and behavior must be nonempty strings")
+        if row["transition"] is not None and type(row["transition"]) is not dict:
+            raise GMTAdmissionError("course transition must be null or an object")
+        comparisons = {
+            "qpos": (arrays["qpos"][index + 1], (30,), "<f8"),
+            "qvel": (arrays["qvel"][index + 1], (29,), "<f8"),
+            "current_reference": (
+                arrays["current_reference"][index],
+                (REFERENCE_FRAME_DIM,),
+                "<f4",
+            ),
+            "composite_raw_action": (
+                arrays["composite_raw_action"][index],
+                (ACTION_DIM,),
+                "<f4",
+            ),
+        }
+        for name, (expected, shape, dtype) in comparisons.items():
+            observed = _numeric_vector(trajectory[name], shape, dtype, f"frame {index} {name}")
+            if not np.array_equal(observed, expected):
+                raise GMTAdmissionError(f"course JSONL/NPZ mismatch at frame {index}: {name}")
+        geom_names = trajectory["geom_body_names"]
+        contacts = trajectory["contact_pairs"]
+        if type(geom_names) is not list or any(type(name) is not str for name in geom_names):
+            raise GMTAdmissionError("recorded geometry names differ")
+        if type(contacts) is not list or len(contacts) != 20:
+            raise GMTAdmissionError("recorded contacts must cover all 20 substeps")
+        for substep in contacts:
+            if type(substep) is not list:
+                raise GMTAdmissionError("recorded substep contacts must be lists")
+            for pair in substep:
+                if (
+                    type(pair) is not list
+                    or len(pair) != 2
+                    or any(
+                        type(item) is not int or not 0 <= item < len(geom_names) for item in pair
+                    )
+                ):
+                    raise GMTAdmissionError("recorded contact pair differs")
+        rows.append(row)
+    return tuple(rows)
+
+
+def load_course_render_inputs(
+    *, manifest_path: Path, manifest_sha256: str, upstream_root: Path, label: str
+) -> CourseRenderInputs:
+    """Admit one exact completed course trace without importing MuJoCo or a policy."""
+
+    if label not in {"zero_residual", "final_policy"}:
+        raise GMTAdmissionError("course render label must be zero_residual or final_policy")
+    manifest_path = Path(manifest_path)
+    upstream_root = Path(upstream_root)
+    expected_manifest = _digest(manifest_sha256, "manifest_sha256")
+    manifest, manifest_encoded = read_json_object(manifest_path)
+    observed_manifest = hashlib.sha256(manifest_encoded).hexdigest()
+    if observed_manifest != expected_manifest:
+        raise GMTAdmissionError("course manifest SHA-256 differs")
+    manifest = _exact_object(manifest, _MANIFEST_KEYS, "course manifest")
+    if (
+        manifest["schema_version"] != 1
+        or manifest["artifact"] != "gmt_g1_course_development_run"
+        or manifest["status"] != "completed"
+    ):
+        raise GMTAdmissionError("course manifest identity or completion status differs")
+    claims = manifest["claims"]
+    if type(claims) is not dict or claims.get("development_only") is not True:
+        raise GMTAdmissionError("course renderer accepts development-only artifacts")
+    outputs = manifest["outputs"]
+    if type(outputs) is not dict or not outputs:
+        raise GMTAdmissionError("course manifest outputs must be a nonempty object")
+    for name, digest in outputs.items():
+        if type(name) is not str or Path(name).name != name:
+            raise GMTAdmissionError("course manifest contains an unsafe output name")
+        _digest(digest, f"outputs[{name}]")
+    required_names = {
+        "input_config.json",
+        f"{label}_frames.jsonl",
+        f"{label}_trajectory.npz",
+    }
+    if not required_names.issubset(outputs):
+        raise GMTAdmissionError("selected course render artifacts are absent")
+
+    config_digest = _digest(manifest["input_config_sha256"], "input_config_sha256")
+    if outputs["input_config.json"] != config_digest:
+        raise GMTAdmissionError("course config identities differ in the manifest")
+    parent = manifest_path.parent
+    config_path = _direct_regular_child(parent, "input_config.json")
+    config, config_encoded = read_json_object(config_path)
+    if hashlib.sha256(config_encoded).hexdigest() != config_digest:
+        raise GMTAdmissionError("retained course config SHA-256 differs")
+    config = _exact_object(config, _CONFIG_KEYS, "course config")
+    if config["schema_version"] != 1 or config["mode"] not in {"probe", "train"}:
+        raise GMTAdmissionError("course config identity or mode differs")
+    if label == "final_policy" and config["mode"] != "train":
+        raise GMTAdmissionError("final_policy rendering requires a retained train-mode run")
+    if type(config["assets"]) is not dict or type(config["assets"].get("upstream_root")) is not str:
+        raise GMTAdmissionError("course config upstream-root field differs")
+    if Path(config["assets"]["upstream_root"]).resolve() != upstream_root.resolve():
+        raise GMTAdmissionError("render upstream root differs from the executed course config")
+    try:
+        task = CourseTaskSpec.from_dict(config["task"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GMTAdmissionError("retained course task is invalid") from exc
+    if task.horizon_steps > MAX_COURSE_STEPS:
+        raise GMTAdmissionError("course render exceeds the forty-second development bound")
+    identities = manifest["identities"]
+    if type(identities) is not dict or identities.get("task") != task.sha256:
+        raise GMTAdmissionError("course task identity differs from the manifest")
+
+    report = manifest[label]
+    report = _exact_object(report, _REPORT_KEYS, f"{label} report")
+    steps = report["steps"]
+    if type(steps) is not int or not 1 <= steps <= task.horizon_steps:
+        raise GMTAdmissionError("course report step count is outside the task horizon")
+    _finite(report["residual_rms"], f"{label}.residual_rms")
+    if label == "zero_residual" and report["residual_rms"] != 0.0:
+        raise GMTAdmissionError("zero-residual report must retain exact zero residual RMS")
+
+    trace_name = f"{label}_trajectory.npz"
+    rows_name = f"{label}_frames.jsonl"
+    trace_digest = _digest(outputs[trace_name], trace_name)
+    rows_digest = _digest(outputs[rows_name], rows_name)
+    arrays = _read_npz(_direct_regular_child(parent, trace_name), trace_digest, steps)
+    if label == "zero_residual" and np.any(arrays["residual_action"] != 0):
+        raise GMTAdmissionError("zero-residual trace contains a nonzero residual action")
+    rows = _read_rows(
+        _direct_regular_child(parent, rows_name),
+        rows_digest,
+        steps=steps,
+        arrays=arrays,
+        task_sha256=task.sha256,
+    )
+    support_files = verify_upstream_root(upstream_root)
+    consumed = {
+        "input_config.json": config_digest,
+        rows_name: rows_digest,
+        trace_name: trace_digest,
+    }
+    return CourseRenderInputs(
+        manifest_path=manifest_path,
+        manifest_sha256=expected_manifest,
+        manifest=manifest,
+        config_sha256=config_digest,
+        task=task,
+        label=label,
+        arrays=arrays,
+        rows=rows,
+        consumed_outputs=consumed,
+        support_files=support_files,
+        upstream_root=upstream_root,
+    )
+
+
+def select_frame_indices(state_rows: int) -> np.ndarray:
+    """Select about 20 frames/s while retaining endpoints and at most 800 states."""
+
+    if type(state_rows) is not int or state_rows < 2 or state_rows > MAX_COURSE_STEPS + 1:
+        raise ValueError("state_rows must be an integer in [2, 2001]")
+    duration = (state_rows - 1) * CONTROL_DT_SECONDS
+    desired = min(state_rows, MAX_RENDER_FRAMES, max(2, math.floor(duration * OUTPUT_FPS) + 1))
+    indices = np.rint(np.linspace(0, state_rows - 1, desired)).astype(np.int64)
+    if len(np.unique(indices)) != desired or indices[0] != 0 or indices[-1] != state_rows - 1:
+        raise RuntimeError("frame selection failed to retain unique endpoints")
+    indices.flags.writeable = False
+    return indices
+
+
+def frame_annotation(inputs: CourseRenderInputs, state_index: int) -> FrameAnnotation:
+    """Compute HUD values from retained state only; never trust success labels."""
+
+    qpos, qvel = inputs.arrays["qpos"], inputs.arrays["qvel"]
+    if type(state_index) is not int or not 0 <= state_index < qpos.shape[0]:
+        raise ValueError("state index is outside the retained trajectory")
+    frame = TaskFrame.initialize(qpos[0, :2], qpos[0, 3:7])
+    projection = frame.project(qpos[state_index, :2], qpos[state_index, 3:7])
+    yaw = frame.forward_yaw_rad
+    speed = float(qvel[state_index, 0] * math.cos(yaw) + qvel[state_index, 1] * math.sin(yaw))
+    executed_mode = (
+        "initial" if state_index == 0 else str(inputs.rows[state_index - 1]["executed_mode"])
+    )
+    return FrameAnnotation(
+        state_index,
+        state_index * CONTROL_DT_SECONDS,
+        float(qpos[state_index, 2]),
+        speed,
+        projection.progress_m,
+        executed_mode,
+    )
+
+
+def _publish_gif(images: list[Any], output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.stem}.", suffix=".gif", dir=output.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        images[0].save(
+            temporary,
+            save_all=True,
+            append_images=images[1:],
+            duration=round(1_000 / OUTPUT_FPS),
+            loop=0,
+            optimize=False,
+            disposal=2,
+        )
+        try:
+            os.link(temporary, output)
+        except FileExistsError as exc:
+            raise GMTAdmissionError(f"refusing to overwrite GIF: {output}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def render_course_trace(inputs: CourseRenderInputs, output: Path) -> dict[str, object]:
+    """Render admitted qpos/qvel via mj_forward; this never steps or loads a policy."""
+
+    output = Path(output)
+    if output.suffix.lower() != ".gif":
+        raise ValueError("course visualization output must use the .gif suffix")
+    receipt_path = output.with_suffix(".gif.manifest.json")
+    if output.exists() or receipt_path.exists():
+        raise GMTAdmissionError("refusing to overwrite existing course visualization")
+    support_before = verify_upstream_root(inputs.upstream_root)
+    if support_before != inputs.support_files:
+        raise GMTAdmissionError("upstream model/support identity changed after admission")
+    try:
+        import mujoco
+        import PIL
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as exc:
+        raise RuntimeError("MuJoCo and Pillow are required only for approved rendering") from exc
+
+    model = mujoco.MjModel.from_xml_path(str(inputs.upstream_root / "assets/robots/g1/g1.xml"))
+    validate_model_abi(_extract_model_abi(mujoco, model))
+    support_after = verify_upstream_root(inputs.upstream_root)
+    if support_after != support_before:
+        raise GMTAdmissionError("upstream model/support identity changed during model loading")
+    data = mujoco.MjData(model)
+    renderer = mujoco.Renderer(model, height=FRAME_HEIGHT, width=FRAME_WIDTH)
+    camera = mujoco.MjvCamera()
+    mujoco.mjv_defaultCamera(camera)
+    camera.type = mujoco.mjtCamera.mjCAMERA_FREE
+    camera.distance = 4.0
+    camera.azimuth = 135.0
+    camera.elevation = -15.0
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 14)
+    except OSError:
+        font = ImageFont.load_default()
+    indices = select_frame_indices(inputs.arrays["qpos"].shape[0])
+    images: list[Any] = []
+    try:
+        for state_index in indices:
+            index = int(state_index)
+            data.qpos[:] = inputs.arrays["qpos"][index]
+            data.qvel[:] = inputs.arrays["qvel"][index]
+            data.time = index * CONTROL_DT_SECONDS
+            mujoco.mj_forward(model, data)
+            camera.lookat[:] = data.qpos[:3]
+            renderer.update_scene(data, camera=camera)
+            image = Image.fromarray(renderer.render()).convert("RGB")
+            draw = ImageDraw.Draw(image, "RGBA")
+            draw.rectangle((0, 0, FRAME_WIDTH, 88), fill=(0, 0, 0, 184))
+            annotation = frame_annotation(inputs, index)
+            arm = inputs.label.replace("_", " ")
+            lines = (
+                "GMT course development only",
+                "Recorded states / no policy rerun",
+                f"arm: {arm}   t={annotation.simulation_time_seconds:0.2f}s   "
+                f"mode={annotation.executed_mode}",
+                f"height={annotation.root_height_m:0.3f}m   "
+                f"speed={annotation.forward_speed_m_s:0.3f}m/s   "
+                f"progress={annotation.progress_m:0.3f}m",
+            )
+            for line_index, line in enumerate(lines):
+                draw.text((8, 4 + 20 * line_index), line, fill=(255, 255, 255, 255), font=font)
+            images.append(image)
+    finally:
+        renderer.close()
+    if not images:
+        raise RuntimeError("validated course trace produced no render frames")
+    _publish_gif(images, output)
+    gif_sha256 = sha256_file(output)
+    receipt = {
+        "schema_version": 1,
+        "artifact": "gmt_g1_course_recorded_state_visualization",
+        "status": "completed",
+        "claims": {
+            "development_only": True,
+            "recorded_states": True,
+            "policy_rerun": False,
+            "dynamics_rerun": False,
+            "training_inferred_from_render": False,
+            "task_success_labeled": False,
+        },
+        "inputs": {
+            "course_manifest_path": inputs.manifest_path.name,
+            "course_manifest_sha256": inputs.manifest_sha256,
+            "selected_label": inputs.label,
+            "consumed_outputs": inputs.consumed_outputs,
+            "upstream_commit": GMT_UPSTREAM_COMMIT,
+            "support_files": inputs.support_files,
+        },
+        "render": {
+            "format": "gif",
+            "width": FRAME_WIDTH,
+            "height": FRAME_HEIGHT,
+            "fps": OUTPUT_FPS,
+            "frames": len(images),
+            "retained_state_rows": int(inputs.arrays["qpos"].shape[0]),
+            "state_operation": "mujoco_forward_on_recorded_qpos_qvel",
+            "maximum_frames": MAX_RENDER_FRAMES,
+        },
+        "runtime": {
+            "platform": platform.platform(),
+            "numpy": np.__version__,
+            "mujoco": mujoco.__version__,
+            "pillow": PIL.__version__,
+        },
+        "output": {"path": output.name, "sha256": gif_sha256, "size": output.stat().st_size},
+    }
+    receipt_sha256 = write_json_receipt(receipt_path, receipt)
+    return {
+        "gif_path": str(output),
+        "gif_sha256": gif_sha256,
+        "receipt_path": str(receipt_path),
+        "receipt_sha256": receipt_sha256,
+        "frames": len(images),
+        "label": inputs.label,
+    }
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument("--upstream-root", type=Path, required=True)
+    parser.add_argument("--label", choices=("zero_residual", "final_policy"), required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    return parser
+
+
+def main() -> int:
+    args = _parser().parse_args()
+    inputs = load_course_render_inputs(
+        manifest_path=args.manifest,
+        manifest_sha256=args.manifest_sha256,
+        upstream_root=args.upstream_root,
+        label=args.label,
+    )
+    result = render_course_trace(inputs, args.output)
+    print(json.dumps(result, sort_keys=True, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
