@@ -54,12 +54,13 @@ class FeedbackEvidenceError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ObservedFact:
-    """One validated fact retained for diagnosis, never copied to the proposal prompt."""
+    """One validated fact with an explicit candidate-context visibility boundary."""
 
     name: str
     scope: str
     value: object
     source_sha256: str
+    candidate_visible: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -67,7 +68,11 @@ class ObservedFact:
             "scope": self.scope,
             "source_sha256": self.source_sha256,
             "value": self.value,
-            "visibility": "diagnosis_only_excluded_from_candidate_prompt",
+            "visibility": (
+                "candidate_context_development_only"
+                if self.candidate_visible
+                else "diagnosis_only_excluded_from_candidate_prompt"
+            ),
         }
 
 

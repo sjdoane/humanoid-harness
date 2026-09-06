@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -102,6 +103,29 @@ def _source_lines(bundle: SourceBundle | None) -> list[str]:
     return lines
 
 
+def _development_fact_lines(diagnosis: FeedbackDiagnosis) -> list[str]:
+    facts = tuple(fact for fact in diagnosis.observed_facts if fact.candidate_visible)
+    if not facts:
+        return []
+    lines = ["", "## Validated development measurements", ""]
+    for fact in facts:
+        value = json.dumps(
+            fact.value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        lines.append(f"- {fact.name} [{fact.scope}]: `{value}` (source `{fact.source_sha256}`)")
+    lines.extend(
+        [
+            "",
+            "These are in-sample development measurements, not held-out outcomes, task success, or causal proof.",
+        ]
+    )
+    return lines
+
+
 def _render(
     diagnosis: FeedbackDiagnosis,
     diagnosis_sha256: str,
@@ -167,6 +191,7 @@ def _render(
                 *(f"- {value}" for value in missing_context),
             ]
         )
+        lines.extend(_development_fact_lines(diagnosis))
     lines.extend(["", "## Human steering", ""])
     if held_out_only:
         lines.append("Steering is withheld until independent development evidence is supplied.")
@@ -190,7 +215,8 @@ def _render(
             "",
             "## Output boundary",
             "",
-            "- Protected and held-out result values, seed outcomes, and arm comparisons are deliberately absent.",
+            "- Protected and held-out values, seed outcomes, and their arm comparisons are deliberately absent.",
+            "- Candidate-visible measurements, when present, are labelled in-sample development evidence.",
             "- Preserve every immutable identity and the stated claim ceiling.",
             "- Return at most one data-only candidate on the declared action surface.",
             "- State rationale, predicted effect, and falsifier; cite only supplied source IDs.",

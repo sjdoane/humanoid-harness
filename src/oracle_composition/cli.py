@@ -55,6 +55,27 @@ def _parser() -> argparse.ArgumentParser:
     diagnose.add_argument("--no-research-graph", action="store_true")
     diagnose.add_argument("--output", type=Path, required=True)
 
+    diagnose_development = commands.add_parser(
+        "diagnose-development",
+        help="validate an in-sample reference ablation and prepare bounded feedback",
+    )
+    diagnose_development.add_argument("--repository-root", type=Path, default=Path.cwd())
+    diagnose_development.add_argument("--development-result", type=Path, required=True)
+    diagnose_development.add_argument("--smoke-run", type=Path, required=True)
+    diagnose_development.add_argument("--corpus-root", type=Path, required=True)
+    diagnose_development.add_argument(
+        "--protocol",
+        type=Path,
+        default=Path(
+            "experiments/003_composition_speed_profile/phase_b/"
+            "development_reference_ablation_v1.json"
+        ),
+    )
+    diagnose_development.add_argument("--steering-file", type=Path)
+    diagnose_development.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
+    diagnose_development.add_argument("--no-research-graph", action="store_true")
+    diagnose_development.add_argument("--output", type=Path, required=True)
+
     trace = commands.add_parser("trace", help="validate and inspect a trajectory trace")
     trace_commands = trace.add_subparsers(dest="trace_command", required=True)
     inspect_trace = trace_commands.add_parser(
@@ -174,6 +195,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 steering_file=args.steering_file,
                 database=None if args.no_research_graph else args.database,
                 output=args.output,
+            )
+        elif args.command == "diagnose-development":
+            from .feedback.cli import run_diagnose_development_command
+
+            root = args.repository_root.resolve(strict=True)
+
+            def resolve(path: Path) -> Path:
+                return path if path.is_absolute() else root / path
+
+            result = run_diagnose_development_command(
+                development_result=resolve(args.development_result),
+                smoke_run=resolve(args.smoke_run),
+                corpus_root=resolve(args.corpus_root),
+                protocol=resolve(args.protocol),
+                steering_file=(None if args.steering_file is None else resolve(args.steering_file)),
+                database=None if args.no_research_graph else resolve(args.database),
+                output=resolve(args.output),
             )
         elif args.command == "tracker":
             if args.tracker_command == "probe-reference-use":

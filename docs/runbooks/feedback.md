@@ -58,6 +58,40 @@ The next slice must admit independent development evidence, then manage proposal
 training, replay screening, protected evaluation, and revision. None of those capabilities is
 implemented here.
 
+## Development reference evidence
+
+After the preregistered development ablation succeeds, validate its complete lineage and build a
+candidate-safe brief with an explicit result path:
+
+```bash
+uv run humanoid-harness --json diagnose-development \
+  --repository-root /Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra \
+  --development-result /absolute/path/to/development_result_v1.json \
+  --smoke-run /absolute/path/to/the/source-smoke-run \
+  --corpus-root /Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/artifacts/reference_corpus_v2 \
+  --no-research-graph \
+  --output /tmp/humanoid-feedback-development
+```
+
+The command fails closed unless it can reverify:
+
+- result → manifest → all 16 trace bindings;
+- the exact smoke actor, checkpoint, training facts, and execution manifest;
+- every sealed corpus file and each trace's exact reference identity;
+- phase transfer, reference-window transforms, objective trace hashes, and arm summaries; and
+- matched-state action-row identities and recomputed aggregates.
+
+The brief may include compact numeric development facts. They are labelled in-sample and never
+include protected outcomes or task-success claims. Exact/zero/shuffled/time-shifted comparisons
+test reference-input sensitivity; they do not prove oracle quality, generalization, naturalness,
+or causal task improvement.
+
+Current stop gate: `proposal_ready=false`. The missing link is a reviewed candidate protocol that
+maps this diagnosis to one allowed oracle delta before any model output is accepted. The retained
+matched-action rows omit the two raw action vectors, so their aggregate is re-summarized but each
+row's numeric delta cannot be independently recalculated from the artifact. Policy rows also retain
+only an observation hash, so the actor-input hash cannot be independently recomputed offline.
+
 ## Research provenance
 
 The design takes conceptual—not source-level or runtime—reuse from the old read-only
