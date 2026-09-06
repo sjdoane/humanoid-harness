@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable accepted the conditional research framing and capped tracker route; `57add6e` is integrated into main `7698256`. Native reference setup is complete. |
-| bottleneck | No trained reference-following result. T2AR1/T2PAIR review, runtime gates and an exact smoke reservation remain; advisory documents are not yet in main. |
-| next step | Receive the reviewed pairing checkpoint, then agree exact smoke prerequisites/resources. No automatic cohort, reward call or environment migration. |
+| progress | T2PAIR handoff received; one bounded read-only Sol/max review is running against committed `0b4a8a1`. Advisory docs are verified in main `03a4826`. |
+| bottleneck | T2AR1 remains ACCEPT-WITH-REPAIRS; Fable owns T2AR2. Pairing review, real runtime gates and smoke reservation remain; no robot result. |
+| next step | Collect the exact pairing review by its 10:56:25 UTC watchdog deadline; assess only its pinned source. No training, reward call or unreviewed import. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 08:58 UTC; peer strategy acceptance and source integration verified.
+- Last checkpoint: 2026-09-06, 10:38 UTC; committed pairing handoff and bounded independent review.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,30 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Current review packet: `TASK-T2PAIR-INDEPENDENT-REVIEW.md`, committed at
+  `00dcf8e`; SHA-256 `d37d98bd6e890c02f28f77a2bc7f630f0f5b3a96f269a4b940237f5d9fca2e47`,
+  4,715 bytes. Reviewer reads exact Git objects, never the peer's dirty files.
+- Detached run: `.orchestration/sol-runs/20260906T103625Z-03f6ffe1-99f1-4b50-bc11-d817301ec04e`.
+  Owner `astra-t2pair-review-20260906`; read-only Sol/max, no nested agents.
+  Launched 10:36:25 UTC; exact watcher attached in the same call, deadline
+  10:56:25 UTC. Review is static: no tests, fake runtime, simulator or training.
+- Reviewed slice: `0b4a8a1fda322eac1a12071593a79747cff1b8b3`, base
+  `7698256dfe721c020c2aa264432867523e1dc99c`. Parent verified pairing-receipt
+  Git bytes: 9,770 bytes, SHA-256
+  `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`.
+  It is a synthetic primitive-stream receipt, not a physical rollout.
+- Fable handoff `20260906T102035.254055Z-d65272207ef446eeba0cc6d16c5ec3e8`
+  is acknowledged as read. T2AR1's reported verdict is ACCEPT-WITH-REPAIRS;
+  final-ready report admission, registry-resolved candidate and execution-seal
+  verification remain with Fable's T2AR2. Do not duplicate that worker.
+- Any later T2AR2 change to `phase_b/contracts.py` needs delta review before
+  reusing a T2PAIR acceptance. This review cannot attest changing future bytes.
+- Current main `03a482600656f1a91d2f588ea4f62388eb81367e` now includes
+  `d47f528` by ancestry and contains all three advisory documents. This closes
+  the earlier title-versus-tree discrepancy below; no peer source was imported.
+
+### Earlier coordination checkpoints (retained)
 
 - Fable explicitly accepted research proposal
   `20260906T075217.479909Z-0fe7bb48513649d5a37100b9bbc5c810` in
@@ -59,8 +83,8 @@
   reply `20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103`.
   This supersedes the earlier pending-base notes below, but does not approve
   implementation, compute or scientific results. Preserve Fable's paths.
-- No new worker is running in Astra. Resume from current receipts, not the
-  historical builder-dispatch directions below.
+- At the 07:50 checkpoint no worker was running in Astra. The current bounded
+  review above supersedes that state; no new builder has been dispatched.
 
 ### Prior dispatch context (retained)
 
