@@ -17,7 +17,6 @@ import oracle_composition
 from oracle_composition.contracts.reference_identity_v2 import (
     array_sha256,
     canonical_json_bytes,
-    sha256_file,
 )
 from oracle_composition.development.reference_ablation import (
     CLAIM_CEILING,
@@ -33,6 +32,7 @@ from oracle_composition.development.reference_ablation import (
     prepare_reference_transform,
     prepared_reference_window,
     summarize_matched_action_deltas,
+    validate_development_corpus,
     validate_smoke_export,
 )
 from oracle_composition.envs.reference_corpus import make_reference_corpus_env
@@ -41,6 +41,7 @@ from oracle_composition.experiments.artifact_io import (
     publish_bytes_without_overwrite,
 )
 from oracle_composition.experiments.reference_input_transforms import CONDITION_IDS
+from oracle_composition.phase_b.isolation import validate_executing_modules
 from oracle_composition.phase_b.policy import compose_policy_input
 from oracle_composition.phase_b.protected_metrics import (
     evaluator_mass_center_x_m,
@@ -51,6 +52,7 @@ from oracle_composition.phase_b.protected_metrics import (
     select_evaluator_nearest_phase,
 )
 from oracle_composition.phase_b.reference_runtime import load_v2_reference_clip
+from oracle_composition.phase_b.supervision import RuntimeSourceSnapshot, inspect_runtime_sources
 from oracle_composition.tracking.humanoid_reference import (
     tracking_state,
     tracking_state_with_bounded_reset_orientation,
@@ -63,19 +65,6 @@ RESULT_SCHEMA_ID = "humanoid_phase_b_t1_development_reference_ablation_result/v1
 HORIZON = 1_000
 SWITCHES = {300: "simple", 600: "expert"}
 FOOT_GEOMS = frozenset(("left_foot", "right_foot"))
-SOURCE_PATHS = (
-    "pyproject.toml",
-    "uv.lock",
-    "scripts/phase_b_development_reference_ablation.py",
-    "src/oracle_composition/development/reference_ablation.py",
-    "src/oracle_composition/envs/reference_corpus.py",
-    "src/oracle_composition/experiments/reference_input_transforms.py",
-    "src/oracle_composition/phase_b/persistence.py",
-    "src/oracle_composition/phase_b/policy.py",
-    "src/oracle_composition/phase_b/protected_metrics.py",
-    "src/oracle_composition/phase_b/reference_runtime.py",
-    "src/oracle_composition/tracking/humanoid_reference.py",
-)
 
 
 def _resolve(root: Path, path: Path) -> Path:
@@ -102,17 +91,6 @@ def _artifact_record(artifact: PublishedArtifact) -> dict[str, object]:
     }
 
 
-def _file_record(path: Path, *, logical_path: str | None = None) -> dict[str, object]:
-    candidate = Path(path)
-    if candidate.is_symlink() or not candidate.is_file():
-        raise DevelopmentAblationError("development input is not a regular file")
-    return {
-        "byte_count": candidate.stat().st_size,
-        "path": logical_path if logical_path is not None else str(candidate),
-        "sha256": sha256_file(candidate),
-    }
-
-
 def _assert_checkout_import(repository_root: Path) -> str:
     package_file = Path(oracle_composition.__file__).resolve(strict=True)
     expected_root = (repository_root / "src/oracle_composition").resolve(strict=True)
@@ -121,14 +99,6 @@ def _assert_checkout_import(repository_root: Path) -> str:
             "oracle_composition import does not resolve inside the selected checkout"
         )
     return str(package_file)
-
-
-def _source_identity(repository_root: Path) -> dict[str, dict[str, object]]:
-    records = {}
-    for logical_path in SOURCE_PATHS:
-        path = repository_root / logical_path
-        records[logical_path] = _file_record(path, logical_path=logical_path)
-    return records
 
 
 def _torso_up(quaternion: np.ndarray) -> float:
@@ -423,13 +393,12 @@ def _run_arm(
 
 def _manifest_value(
     *,
-    repository_root: Path,
     package_file: str,
     protocol: DevelopmentProtocol,
     lineage: SmokeExportLineage,
-    corpus_root: Path,
+    corpus_bindings: Mapping[str, Mapping[str, object]],
+    source_snapshot: RuntimeSourceSnapshot,
 ) -> dict[str, object]:
-    index_path = corpus_root / "corpus_index_v2.json"
     return {
         "actor_export": {
             "byte_count": lineage.actor_byte_count,
@@ -439,7 +408,7 @@ def _manifest_value(
         "calibration_inputs": None,
         "claim_ceiling": CLAIM_CEILING,
         "conditions": list(protocol.conditions),
-        "corpus_index": _file_record(index_path),
+        "corpus_bindings": {name: dict(value) for name, value in sorted(corpus_bindings.items())},
         "development_blocks": list(protocol.development_blocks),
         "evidence_class": EVIDENCE_CLASS,
         "held_out_inputs_used": False,
@@ -459,10 +428,13 @@ def _manifest_value(
             "bindings": {name: dict(value) for name, value in lineage.bindings.items()},
             "checkpoint_sha256": lineage.checkpoint_sha256,
             "execution_manifest_sha256": lineage.execution_manifest_sha256,
+            "reference_sha256": lineage.report_inputs["reference_sha256"],
             "run_directory": str(lineage.run_directory),
+            "sealed_input_lineage_sha256": lineage.report_inputs["sealed_input_lineage_sha256"],
             "training_facts_sha256": lineage.training_facts_sha256,
         },
-        "source_files": _source_identity(repository_root),
+        "runtime_source_snapshot": dict(source_snapshot.value),
+        "runtime_source_snapshot_sha256": source_snapshot.sha256,
         "task_success_scoring": False,
     }
 
@@ -475,14 +447,21 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     smoke_run = _resolve(repository_root, args.smoke_run)
     protocol = load_development_protocol(protocol_path)
     lineage = validate_smoke_export(smoke_run)
+    corpus_bindings = validate_development_corpus(
+        corpus_root,
+        lineage=lineage,
+        protocol=protocol,
+    )
+    source_snapshot = inspect_runtime_sources(repository_root)
+    validate_executing_modules(repository_root, source_snapshot.value["source_sha256"])
     output_path = args.output if args.output.is_absolute() else repository_root / args.output
     output = _fresh_output(output_path)
     manifest_value = _manifest_value(
-        repository_root=repository_root,
         package_file=package_file,
         protocol=protocol,
         lineage=lineage,
-        corpus_root=corpus_root,
+        corpus_bindings=corpus_bindings,
+        source_snapshot=source_snapshot,
     )
     manifest = publish_bytes_without_overwrite(
         output / "development_manifest_v1.json",
@@ -526,6 +505,12 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                     for name, value in summarize_matched_action_deltas(matched_rows).items()
                 }
 
+    final_source_snapshot = inspect_runtime_sources(repository_root)
+    if final_source_snapshot.sha256 != source_snapshot.sha256:
+        raise DevelopmentAblationError(
+            "runtime source snapshot changed during development ablation"
+        )
+    validate_executing_modules(repository_root, final_source_snapshot.value["source_sha256"])
     result = {
         "actor_export_sha256": lineage.actor_sha256,
         "arms": arms,
@@ -539,6 +524,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "planned_arm_count": len(protocol.development_blocks) * len(protocol.conditions),
         "promotable": False,
         "result_schema_id": RESULT_SCHEMA_ID,
+        "runtime_source_snapshot_sha256": source_snapshot.sha256,
         "schema_version": 1,
         "status": "succeeded",
         "task_success": None,

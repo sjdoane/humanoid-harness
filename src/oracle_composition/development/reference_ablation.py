@@ -18,6 +18,7 @@ from oracle_composition.contracts.reference_identity_v2 import (
     canonical_json_bytes,
 )
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.experiments.reference_corpus_bundle import load_bundle_manifest
 from oracle_composition.experiments.reference_input_transforms import (
     CONDITION_IDS,
     HORIZON_STEPS,
@@ -26,6 +27,18 @@ from oracle_composition.experiments.reference_input_transforms import (
     SHUFFLE_SEED,
     float64_array_sha256,
     transform_reference_input,
+)
+from oracle_composition.phase_b.isolation import (
+    SealedArtifact,
+    sealed_input_lineage_value,
+    verify_sealed_inputs,
+)
+from oracle_composition.phase_b.persistence import _valid_success_resource_controls
+from oracle_composition.phase_b.report_v2 import SeedReportFacts, validate_training_facts
+from oracle_composition.phase_b.supervision import (
+    _TRAINING_FACT_KEYS,
+    _valid_persistence_receipt,
+    _valid_step_zero_comparator,
 )
 from oracle_composition.phase_b.training import (
     SMOKE_SEED,
@@ -52,6 +65,80 @@ PROTECTED_EVALUATION_BLOCKS: Final = frozenset(range(120101, 120121))
 CALIBRATION_BLOCKS: Final = frozenset(range(120201, 120221))
 MAX_JSON_BYTES: Final = 16 * 1024 * 1024
 EXPECTED_ROLLOUTS: Final = 24
+CORPUS_PREFIX: Final = Path("artifacts/reference_corpus_v2")
+
+_REPORT_INPUT_KEYS: Final = frozenset(
+    {
+        "e1_receipt_sha256",
+        "evaluator_sha256",
+        "execution_manifest_sha256",
+        "library_sha256",
+        "oracle_canonical_sha256",
+        "oracle_file_sha256",
+        "reference_sha256",
+        "reward_compositor_sha256",
+        "reward_file_sha256",
+        "reward_formula_id",
+        "reward_formula_sha256",
+        "reward_schema_id",
+        "sealed_input_lineage_sha256",
+        "starting_expert_identity",
+        "task_sha256",
+        "training_design_sha256",
+    }
+)
+_EXECUTION_MANIFEST_KEYS: Final = frozenset(
+    {
+        "checkpoint_selection",
+        "e003_execution_manifest_sha256",
+        "evidence_class",
+        "execution_manifest_schema_id",
+        "ft1_run_manifest_sha256",
+        "inputs",
+        "prior_scientific_receipt_sha256",
+        "reservation",
+        "reservation_sha256",
+        "resource_control_policy",
+        "resource_limits",
+        "runtime_source_snapshot",
+        "runtime_source_snapshot_sha256",
+        "schema_version",
+        "sealed_input_lineage",
+        "sealed_input_lineage_sha256",
+        "seeds",
+        "smoke",
+        "test_only",
+        "transitions_per_seed",
+    }
+)
+_SUCCESS_RECEIPT_KEYS: Final = frozenset(
+    {
+        "artifacts",
+        "evidence_class",
+        "execution_manifest_sha256",
+        "failure_receipt_present",
+        "outcome",
+        "planned_transitions",
+        "ppo_seed",
+        "promotable",
+        "resource_controls",
+        "schema_version",
+        "smoke",
+        "status",
+        "success_receipt_id",
+        "test_only",
+        "worker_cleanup",
+    }
+)
+_RUNTIME_SOURCE_REQUIRED: Final = frozenset(
+    {
+        "src/oracle_composition/envs/humanoid.py",
+        "src/oracle_composition/phase_b/policy.py",
+        "src/oracle_composition/phase_b/reference_runtime.py",
+        "src/oracle_composition/phase_b/runtime.py",
+        "src/oracle_composition/phase_b/training.py",
+    }
+)
 
 
 class DevelopmentAblationError(ExperimentContractError):
@@ -78,6 +165,8 @@ class SmokeExportLineage:
     checkpoint_sha256: str
     execution_manifest_sha256: str
     training_facts_sha256: str
+    report_inputs: Mapping[str, object]
+    sealed_inputs: Mapping[str, Mapping[str, object]]
     bindings: Mapping[str, Mapping[str, object]]
 
 
@@ -166,6 +255,212 @@ def _verify_bound_file(directory: Path, record: object, *, field: str) -> Path:
     ):
         raise DevelopmentAblationError(f"{field} artifact binding differs")
     return path
+
+
+def _sealed_input_map(value: object) -> Mapping[str, Mapping[str, object]]:
+    lineage = _require_object(value, field="smoke sealed input lineage")
+    artifacts = lineage.get("artifacts")
+    if (
+        set(lineage) != {"artifacts", "lineage_id", "schema_version"}
+        or lineage.get("lineage_id") != "humanoid_phase_b_sealed_input_lineage/v1"
+        or lineage.get("schema_version") != 1
+        or type(artifacts) is not list
+        or not artifacts
+    ):
+        raise DevelopmentAblationError("smoke sealed input lineage is malformed")
+    try:
+        sealed = tuple(
+            SealedArtifact(
+                relative_path=raw["path"],
+                byte_count=raw["byte_count"],
+                sha256=raw["sha256"],
+                roles=tuple(raw["roles"]),
+            )
+            for raw in artifacts
+            if type(raw) is dict and set(raw) == {"byte_count", "path", "roles", "sha256"}
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DevelopmentAblationError("smoke sealed input record is malformed") from exc
+    if len(sealed) != len(artifacts) or sealed_input_lineage_value(sealed) != lineage:
+        raise DevelopmentAblationError("smoke sealed input lineage is not canonical")
+    return MappingProxyType(
+        {artifact.relative_path: MappingProxyType(artifact.to_dict()) for artifact in sealed}
+    )
+
+
+def _validate_runtime_source_snapshot(value: Mapping[str, object]) -> None:
+    if set(value) != {
+        "authority_identities",
+        "device",
+        "git",
+        "platform",
+        "source_sha256",
+        "versions",
+    }:
+        raise DevelopmentAblationError("smoke runtime source snapshot fields differ")
+    git = value.get("git")
+    platform = value.get("platform")
+    versions = value.get("versions")
+    sources = value.get("source_sha256")
+    if (
+        value.get("device") != "cpu"
+        or type(value.get("authority_identities")) is not dict
+        or type(git) is not dict
+        or set(git) != {"clean", "commit"}
+        or git.get("clean") is not True
+        or type(git.get("commit")) is not str
+        or len(git["commit"]) != 40
+        or any(character not in "0123456789abcdef" for character in git["commit"])
+        or type(platform) is not dict
+        or set(platform) != {"machine", "python", "system"}
+        or any(type(item) is not str or not item for item in platform.values())
+        or type(versions) is not dict
+        or set(versions) != {"gymnasium", "mujoco", "numpy", "stable_baselines3", "torch"}
+        or any(type(item) is not str or not item for item in versions.values())
+        or type(sources) is not dict
+        or not set(sources) >= _RUNTIME_SOURCE_REQUIRED
+    ):
+        raise DevelopmentAblationError("smoke runtime source snapshot is malformed")
+    for path, digest in sources.items():
+        if (
+            type(path) is not str
+            or not path
+            or Path(path).is_absolute()
+            or ".." in Path(path).parts
+        ):
+            raise DevelopmentAblationError("smoke runtime source path is malformed")
+        _require_sha256(digest, field=f"smoke runtime source {path}")
+
+
+def _verify_sealed_corpus_file(
+    corpus_root: Path,
+    sealed_inputs: Mapping[str, Mapping[str, object]],
+    relative_path: Path,
+    *,
+    role: str,
+) -> Mapping[str, object]:
+    logical_path = (CORPUS_PREFIX / relative_path).as_posix()
+    record = sealed_inputs.get(logical_path)
+    if record is None or role not in record["roles"]:
+        raise DevelopmentAblationError(f"smoke sealed inputs omit {role}")
+    candidate = corpus_root / relative_path
+    if candidate.is_symlink() or not candidate.is_file():
+        raise DevelopmentAblationError(f"sealed corpus input is unavailable: {relative_path}")
+    encoded = candidate.read_bytes()
+    if (
+        len(encoded) != record["byte_count"]
+        or hashlib.sha256(encoded).hexdigest() != record["sha256"]
+    ):
+        raise DevelopmentAblationError(f"sealed corpus input differs: {relative_path}")
+    return record
+
+
+def validate_development_corpus(
+    corpus_root: Path,
+    *,
+    lineage: SmokeExportLineage,
+    protocol: DevelopmentProtocol,
+) -> Mapping[str, Mapping[str, object]]:
+    """Bind every selected development clip to the smoke's sealed corpus bytes."""
+
+    root = Path(corpus_root).resolve(strict=True)
+    repository_root = root.parent.parent
+    if root != repository_root / CORPUS_PREFIX:
+        raise DevelopmentAblationError("corpus root is not the production artifact location")
+    sealed_artifacts = tuple(
+        SealedArtifact(
+            relative_path=path,
+            byte_count=int(record["byte_count"]),
+            sha256=str(record["sha256"]),
+            roles=tuple(record["roles"]),
+        )
+        for path, record in lineage.sealed_inputs.items()
+    )
+    try:
+        verify_sealed_inputs(
+            repository_root,
+            sealed_artifacts,
+            expected_lineage_sha256=str(lineage.report_inputs["sealed_input_lineage_sha256"]),
+        )
+    except (ExperimentContractError, OSError, ValueError) as exc:
+        raise DevelopmentAblationError(
+            "smoke sealed inputs do not match the corpus checkout"
+        ) from exc
+    validated: dict[str, Mapping[str, object]] = {}
+    manifest_record = _verify_sealed_corpus_file(
+        root,
+        lineage.sealed_inputs,
+        Path("corpus_manifest_v2.json"),
+        role="reference_corpus",
+    )
+    if manifest_record["sha256"] != lineage.report_inputs["reference_sha256"]:
+        raise DevelopmentAblationError("corpus manifest differs from smoke reference authority")
+    validated["corpus_manifest_v2.json"] = manifest_record
+    index_record = _verify_sealed_corpus_file(
+        root,
+        lineage.sealed_inputs,
+        Path("corpus_index_v2.json"),
+        role="reference_corpus.index",
+    )
+    validated["corpus_index_v2.json"] = index_record
+    manifest_raw, _ = _read_canonical_json(
+        root / "corpus_manifest_v2.json", field="reference corpus manifest"
+    )
+    index_raw, _ = _read_canonical_json(
+        root / "corpus_index_v2.json", field="reference corpus index"
+    )
+    manifest = _require_object(manifest_raw, field="reference corpus manifest")
+    index = _require_object(index_raw, field="reference corpus index")
+    manifest_entries = {
+        entry.get("clip_id"): entry
+        for entry in manifest.get("clips_in_reset_order", ())
+        if type(entry) is dict
+    }
+    index_entries = {
+        entry.get("clip_id"): entry for entry in index.get("clips", ()) if type(entry) is dict
+    }
+    for block in protocol.development_blocks:
+        for behavior in ("expert", "simple"):
+            clip_id = f"corpus-{block}-{behavior}"
+            manifest_entry = manifest_entries.get(clip_id)
+            index_entry = index_entries.get(clip_id)
+            bundle_sha = index_entry.get("bundle_manifest_sha256") if index_entry else None
+            if (
+                type(manifest_entry) is not dict
+                or type(index_entry) is not dict
+                or manifest_entry.get("bundle_manifest_sha256") != bundle_sha
+            ):
+                raise DevelopmentAblationError(f"corpus authorities differ for {clip_id}")
+            _require_sha256(bundle_sha, field=f"{clip_id} bundle SHA-256")
+            bundle_relative = Path("clips") / clip_id / f"bundle-{bundle_sha}.json"
+            bundle_record = _verify_sealed_corpus_file(
+                root,
+                lineage.sealed_inputs,
+                bundle_relative,
+                role=f"reference_corpus.bundle.{clip_id}",
+            )
+            validated[bundle_relative.as_posix()] = bundle_record
+            try:
+                bundle = load_bundle_manifest(root / bundle_relative, expected_sha256=bundle_sha)
+            except (OSError, ValueError) as exc:
+                raise DevelopmentAblationError(f"invalid sealed bundle for {clip_id}") from exc
+            core = bundle["core"]
+            nested = [*core["bound_artifacts"], core["payload"], core["rng_state"]["binding"]]
+            for binding in nested:
+                object_path = Path(str(binding["object_path"]))
+                record = _verify_sealed_corpus_file(
+                    root,
+                    lineage.sealed_inputs,
+                    object_path,
+                    role=f"reference_corpus.{clip_id}.{binding['role']}",
+                )
+                if (
+                    record["byte_count"] != binding["byte_count"]
+                    or record["sha256"] != binding["sha256"]
+                ):
+                    raise DevelopmentAblationError(f"bundle and sealed input differ for {clip_id}")
+                validated[object_path.as_posix()] = record
+    return MappingProxyType(dict(sorted(validated.items())))
 
 
 def load_development_protocol(path: Path) -> DevelopmentProtocol:
@@ -282,6 +577,8 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
     )
     manifest = _require_object(manifest_raw, field="smoke execution manifest")
     execution_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    if set(manifest) != _EXECUTION_MANIFEST_KEYS:
+        raise DevelopmentAblationError("execution manifest fields differ from production")
     expected_manifest = {
         "checkpoint_selection": "final_transition_only",
         "evidence_class": "interface_check",
@@ -294,12 +591,68 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
     }
     if any(manifest.get(field) != expected for field, expected in expected_manifest.items()):
         raise DevelopmentAblationError("execution manifest is not the real T1 smoke")
+    inputs = _require_object(manifest.get("inputs"), field="smoke report inputs")
+    if set(inputs) != _REPORT_INPUT_KEYS:
+        raise DevelopmentAblationError("smoke report input identity set differs")
+    for field in _REPORT_INPUT_KEYS - {
+        "reward_formula_id",
+        "reward_schema_id",
+        "starting_expert_identity",
+    }:
+        _require_sha256(inputs.get(field), field=f"smoke {field}")
+    lineage_value = manifest.get("sealed_input_lineage")
+    lineage_sha256 = hashlib.sha256(canonical_json_bytes(lineage_value)).hexdigest()
+    if (
+        manifest.get("sealed_input_lineage_sha256") != lineage_sha256
+        or inputs["sealed_input_lineage_sha256"] != lineage_sha256
+    ):
+        raise DevelopmentAblationError("smoke sealed input lineage digest differs")
+    sealed_inputs = _sealed_input_map(lineage_value)
+    source_snapshot = _require_object(
+        manifest.get("runtime_source_snapshot"), field="smoke runtime source snapshot"
+    )
+    _validate_runtime_source_snapshot(source_snapshot)
+    if (
+        manifest.get("runtime_source_snapshot_sha256")
+        != hashlib.sha256(canonical_json_bytes(source_snapshot)).hexdigest()
+    ):
+        raise DevelopmentAblationError("smoke runtime source snapshot digest differs")
+    reservation = _require_object(manifest.get("reservation"), field="smoke reservation")
+    if (
+        manifest.get("reservation_sha256")
+        != hashlib.sha256(canonical_json_bytes(reservation)).hexdigest()
+    ):
+        raise DevelopmentAblationError("smoke reservation digest differs")
+    expected_control_policy = {
+        "cpu_time": "os_rlimit_when_supported_otherwise_recorded_unsupported",
+        "environment": "spawn_time_explicit_allowlist",
+        "filesystem": "parent_observed_os_best_effort",
+        "process_group_cleanup": "os_session_group_best_effort_with_fail_closed_receipt",
+        "process_tree_rss": "parent_observed_os_best_effort",
+    }
+    if manifest.get("resource_control_policy") != expected_control_policy:
+        raise DevelopmentAblationError("smoke resource control policy differs")
+    for field in (
+        "e003_execution_manifest_sha256",
+        "ft1_run_manifest_sha256",
+        "prior_scientific_receipt_sha256",
+    ):
+        _require_sha256(manifest.get(field), field=f"smoke {field}")
 
     job_raw, job_bytes = _read_canonical_json(root / "job_result_v1.json", field="smoke job result")
     job = _require_object(job_raw, field="smoke job result")
     outcomes = job.get("outcomes")
     if (
-        job.get("job_result_schema_id") != "humanoid_phase_b_job_result/v1"
+        set(job)
+        != {
+            "checkpoint_index",
+            "execution_manifest_sha256",
+            "job_result_schema_id",
+            "outcomes",
+            "schema_version",
+            "status",
+        }
+        or job.get("job_result_schema_id") != "humanoid_phase_b_job_result/v1"
         or job.get("schema_version") != 1
         or job.get("status") != "succeeded"
         or job.get("checkpoint_index") is not None
@@ -309,7 +662,11 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
     ):
         raise DevelopmentAblationError("smoke job result is not a successful noncohort job")
     outcome = _require_object(outcomes[0], field="smoke job outcome")
-    if outcome.get("seed") != SMOKE_SEED or outcome.get("status") != "succeeded":
+    if (
+        set(outcome) != {"receipt", "seed", "status"}
+        or outcome.get("seed") != SMOKE_SEED
+        or outcome.get("status") != "succeeded"
+    ):
         raise DevelopmentAblationError("smoke seed outcome did not succeed")
     success_path = _verify_bound_file(
         seed_directory, outcome.get("receipt"), field="smoke success receipt"
@@ -318,6 +675,8 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
         raise DevelopmentAblationError("smoke success receipt filename differs")
     success_raw, success_bytes = _read_canonical_json(success_path, field="smoke success receipt")
     success = _require_object(success_raw, field="smoke success receipt")
+    if set(success) != _SUCCESS_RECEIPT_KEYS:
+        raise DevelopmentAblationError("smoke success receipt fields differ")
     expected_success = {
         "evidence_class": "interface_check",
         "execution_manifest_sha256": execution_sha256,
@@ -332,7 +691,11 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
         "success_receipt_id": "humanoid_phase_b_seed_success/v2",
         "test_only": False,
     }
-    if any(success.get(field) != expected for field, expected in expected_success.items()):
+    if (
+        any(success.get(field) != expected for field, expected in expected_success.items())
+        or success.get("worker_cleanup") != {"attempted": True, "error": None, "succeeded": True}
+        or not _valid_success_resource_controls(success.get("resource_controls"))
+    ):
         raise DevelopmentAblationError("seed receipt is not the successful real T1 smoke")
     if (seed_directory / "failure_receipt_v2.json").exists():
         raise DevelopmentAblationError("smoke seed has a contradictory failure receipt")
@@ -357,6 +720,8 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
     training_raw, training_bytes = _read_canonical_json(training_path, field="smoke training facts")
     training = _require_object(training_raw, field="smoke training facts")
     training_sha256 = hashlib.sha256(training_bytes).hexdigest()
+    if set(training) != _TRAINING_FACT_KEYS:
+        raise DevelopmentAblationError("smoke training fact fields differ")
     unfreeze_rollouts = training.get("unfreeze_rollouts")
     expected_training = {
         "evidence_class": "interface_check",
@@ -392,6 +757,8 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
         persistence_path, field="smoke persistence receipt"
     )
     persistence = _require_object(persistence_raw, field="smoke persistence receipt")
+    if not _valid_persistence_receipt(persistence):
+        raise DevelopmentAblationError("smoke persistence receipt is not production-shaped")
     expected_persistence = {
         "checkpoint_reload_bitwise_deterministic": True,
         "checkpoint_to_export_bitwise_equivalent": True,
@@ -420,6 +787,25 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
     _verify_bound_file(seed_directory, checkpoint_record, field="smoke final checkpoint")
     if actor_path.name != f"actor_seed_{SMOKE_SEED}_final.npz":
         raise DevelopmentAblationError("smoke strict actor filename differs")
+    step_zero = training.get("step_zero_comparator")
+    if not _valid_step_zero_comparator(step_zero):
+        raise DevelopmentAblationError("smoke step-zero comparator is invalid")
+    try:
+        validate_training_facts(
+            SeedReportFacts(
+                ppo_seed=SMOKE_SEED,
+                checkpoint_sha256=str(checkpoint_record["sha256"]),
+                strict_export_sha256=str(actor_record["sha256"]),
+                training=training,
+                step_zero_comparator=step_zero,
+                execution_manifest_bytes=manifest_bytes,
+                rsi_ledger_bytes=rsi_bytes,
+            )
+        )
+    except ValueError as exc:
+        raise DevelopmentAblationError(
+            "smoke training facts differ from production authority"
+        ) from exc
 
     bindings = {
         "execution_manifest": {
@@ -451,6 +837,8 @@ def validate_smoke_export(run_directory: Path) -> SmokeExportLineage:
         checkpoint_sha256=str(checkpoint_record["sha256"]),
         execution_manifest_sha256=execution_sha256,
         training_facts_sha256=training_sha256,
+        report_inputs=MappingProxyType(inputs),
+        sealed_inputs=sealed_inputs,
         bindings=MappingProxyType(
             {name: MappingProxyType(record) for name, record in bindings.items()}
         ),
