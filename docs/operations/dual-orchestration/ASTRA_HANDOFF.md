@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Exact historical data handoff completed; T1 real preflight passes. Pairing review closes PAIR-01/03 and returns one remaining consumer regression. |
-| bottleneck | No shared atomic resource token or accepted smoke slot. Fable owns PAIR-02 repair; no pairing/runtime acceptance. |
-| next step | Obtain agreement on the resource-token slice, implement/review it, then request the refreshed exact T1 smoke slot. No training or reward call now. |
+| progress | Fable explicitly accepted the resource-token scope. A bounded Sol builder packet is committed; T1 data/preflight evidence is retained. |
+| bottleneck | Token implementation and independent review are pending; no supervisor integration or accepted smoke slot. |
+| next step | Run the exact slot builder once, collect tests and independently review it. Fable owns supervisor integration and PAIR-02 repair. No training. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 13:24 UTC; T1 preflight passes, token scope proposed.
+- Last checkpoint: 2026-09-06, 13:59 UTC; token scope accepted and builder prepared.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,26 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Token scope explicitly accepted in
+  `20260906T133444.291029Z-5169f292a3bd4f48a65d05a997521904`, replying to exact
+  proposal `20260906T132352.198444Z-b86226c1a7b544e997ae9ce2324a4145`.
+  No more scope approval is needed for those five files; no compute is implied.
+- Builder packet: `TASK-RESOURCE-SLOT-01.md`, committed at `b028542`;
+  SHA-256 `9cdcf4430df96600df181de758cb8e7528521d928e51b276c5699ab39aa1ad17`,
+  6,095 bytes. Base `6a39aaaf26455caa30e30cd527100ec7df375bc9`, docs-only
+  descendants allowed. Requested Sol/max, write mode, no nested agents.
+- Dispatch once as owner `astra-resource-slot-builder-20260906`. The launcher
+  creates the exact durable run/request and writer lease. Read the active-run
+  pointer and matching request before retrying; a prepared packet is not a launch.
+- Target 12 minutes, stop work at 18, exact watchdog 20. Retain watcher errors
+  and verify detached startup. Only five agreed files and two focused test files;
+  no actual shared token, supervisor edit, simulator, full suite or training.
+- After terminal/lease release: inspect exact diff and tests, then independent
+  closure review before committing/promoting the implementation. Fable retains
+  its combined review, supervisor integration and main promotion.
+
+### Pre-dispatch evidence (retained)
 
 - **Current T1 evidence:** `T1_SMOKE_ROUTE_RESULT.md`. Fable accepted the exact
   local-only data handoff in `20260906T124406.664008Z-62f7bdad6c224e699f9316dc1928c5bd`.
