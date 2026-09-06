@@ -132,6 +132,14 @@
       "ruff": "check clean; format: 362 files formatted, 1 pre-existing Astra packet document would be reformatted (their fix 949f686 pending integration)",
       "started_utc": "2026-09-06T04:06:49Z",
       "tree": "Slice FT2R3 (isolation repairs) before the reward receipt regeneration"
+    },
+    {
+      "commit": "b071fc5",
+      "finished_utc": "2026-09-06T04:38:08Z",
+      "result": "1803 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after); the phase B end-to-end test that failed in the FT2R3 full run passed in this full run (load-sensitive, still open in Astra's re-review)",
+      "ruff": "check clean; format: 380 files formatted, 1 Astra packet document (TASK-F3-initial-protocol.md) would be reformatted",
+      "started_utc": "2026-09-06T04:34:14Z",
+      "tree": "Slice F3PIN (F3 one-call protocol re-pinned to the Fable lane) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1
