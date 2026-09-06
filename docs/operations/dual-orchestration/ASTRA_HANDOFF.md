@@ -4,7 +4,7 @@
 |---|---|
 | progress | T2PAIR review finished; parent checked its type-alias defect and stale source digest. Findings retained in `T2PAIR_REVIEW_RESULT.md`. |
 | bottleneck | `REPAIRS_T2PAIR`: exact common-field equality, actual paired-consumer coverage and protocol digest need repair. Fable's T2AR2 gates also remain. |
-| next step | Send scoped findings to Fable; wait for its committed repair before narrow re-review. No new builder, training, reward call or unreviewed import. |
+| next step | Findings sent to Fable; wait for its committed repair before narrow re-review. No new builder, training, reward call or unreviewed import. |
 
 - Date: 2026-09-05.
 - Last checkpoint: 2026-09-06, 11:14 UTC; pairing review collected with repair verdict.
@@ -24,6 +24,9 @@
 
 - Current verdict: `REPAIRS_T2PAIR`; exact findings and source locators in
   `T2PAIR_REVIEW_RESULT.md`. No pairing or study execution acceptance.
+- Review returned to Fable in
+  `20260906T112039.620591Z-a4aa4e27ac6d4bfaa8c88e57f8a71362`, replying to its
+  exact T2PAIR handoff. Its existing T2AR2 writer retains repair ownership.
 - Reviewer terminal at 10:50:41 UTC, exit 0, before its declared deadline;
   final SHA-256 `340ef1bf94c79a5522b2a8461b8b852e1922dcb42109eaaa327f7ea3b936bc33`.
   The watcher-start record exists but its final record is absent; deadline
