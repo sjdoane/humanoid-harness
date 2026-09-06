@@ -62,7 +62,8 @@ _DESCRIPTOR_FIELDS = {
     "sb3_n_updates_semantics",
 }
 _ROLLOUT_SEMANTICS = "current_rollout_with_previous_update_then_final_flush"
-_UPDATE_COUNT_SEMANTICS = "completed_ppo_epochs_not_optimizer_minibatches"
+_UPDATE_COUNT_SEMANTICS = "attempted_ppo_epochs_including_kl_stopped_partial_epochs"
+_UNAVAILABLE_REASONS = {"missing", "undefined_nonfinite"}
 
 
 def _float(value: object, name: str) -> float:
@@ -216,10 +217,23 @@ def ppo_update_record(
 ) -> dict[str, object]:
     if type(through) is not int or through < 1:
         raise ValueError("update transition boundary must be positive")
-    metrics = {
-        name: None if key not in logger_values else _float(logger_values[key], key)
-        for name, key in _LOGGER_FIELDS.items()
-    }
+    metrics: dict[str, float | None] = {}
+    unavailable: dict[str, str] = {}
+    for name, key in _LOGGER_FIELDS.items():
+        if key not in logger_values:
+            metrics[name], unavailable[name] = None, "missing"
+            continue
+        value = logger_values[key]
+        array = np.asarray(value)
+        if (
+            name == "explained_variance"
+            and array.shape == ()
+            and np.issubdtype(array.dtype, np.floating)
+            and not np.isfinite(array).item()
+        ):
+            metrics[name], unavailable[name] = None, "undefined_nonfinite"
+            continue
+        metrics[name] = _float(value, key)
     logged = logger_values.get("train/n_updates")
     logged = None if logged is None else _int(logged, "train/n_updates")
     accessible = None if model_n_updates is None else _int(model_n_updates, "model._n_updates")
@@ -228,6 +242,7 @@ def ppo_update_record(
     return {
         "trained_through_transitions": through,
         "metrics": metrics,
+        "metric_unavailable_reasons": unavailable,
         "sb3_n_updates": accessible if accessible is not None else logged,
         "optimizer_minibatch_steps": None,
     }
@@ -341,17 +356,125 @@ def _finite_json(value: object) -> None:
 
 
 def _valid_update(value: object, through: int) -> bool:
+    if (
+        type(value) is not dict
+        or set(value)
+        != {
+            "trained_through_transitions",
+            "metrics",
+            "metric_unavailable_reasons",
+            "sb3_n_updates",
+            "optimizer_minibatch_steps",
+        }
+        or type(value["trained_through_transitions"]) is not int
+        or value["trained_through_transitions"] != through
+        or value["optimizer_minibatch_steps"] is not None
+        or not (
+            value["sb3_n_updates"] is None
+            or (type(value["sb3_n_updates"]) is int and value["sb3_n_updates"] >= 0)
+        )
+        or type(value["metrics"]) is not dict
+        or set(value["metrics"]) != set(_LOGGER_FIELDS)
+        or type(value["metric_unavailable_reasons"]) is not dict
+    ):
+        return False
+    reasons = value["metric_unavailable_reasons"]
+    for name, item in value["metrics"].items():
+        if item is None:
+            if reasons.get(name) not in _UNAVAILABLE_REASONS:
+                return False
+            if reasons[name] == "undefined_nonfinite" and name != "explained_variance":
+                return False
+        elif (
+            type(item) not in {int, float}
+            or not math.isfinite(item)
+            or name in reasons
+        ):
+            return False
+    return set(reasons) == {name for name, item in value["metrics"].items() if item is None}
+
+
+def _valid_nonnegative_count(value: object) -> bool:
+    return type(value) is int and value >= 0
+
+
+def _valid_moments(value: object, expected_count: int) -> bool:
+    if expected_count == 0:
+        return value is None
+    fields = {"count", "minimum", "maximum", "mean", "standard_deviation"}
+    if type(value) is not dict or set(value) != fields:
+        return False
+    numbers = [value[name] for name in fields - {"count"}]
     return (
-        type(value) is dict
-        and set(value)
-        == {"trained_through_transitions", "metrics", "sb3_n_updates", "optimizer_minibatch_steps"}
-        and value["trained_through_transitions"] == through
-        and value["optimizer_minibatch_steps"] is None
-        and (value["sb3_n_updates"] is None or type(value["sb3_n_updates"]) is int)
-        and type(value["metrics"]) is dict
-        and set(value["metrics"]) == set(_LOGGER_FIELDS)
-        and all(item is None or type(item) in {int, float} for item in value["metrics"].values())
+        type(value["count"]) is int
+        and value["count"] == expected_count
+        and all(type(number) in {int, float} and math.isfinite(number) for number in numbers)
+        and value["minimum"] <= value["mean"] <= value["maximum"]
+        and value["standard_deviation"] >= 0
     )
+
+
+def _valid_episode_counts(value: object) -> bool:
+    if type(value) is not dict:
+        return False
+    required = {
+        "completed",
+        "returns",
+        "lengths",
+        "falls",
+        "horizons",
+        "terminal_metrics",
+        "terminal_true",
+    }
+    if set(value) != required or not all(
+        _valid_nonnegative_count(value[name]) for name in ("completed", "falls", "horizons")
+    ):
+        return False
+    completed = value["completed"]
+    if (
+        value["falls"] > completed
+        or value["horizons"] > completed
+        or not _valid_moments(value["returns"], completed)
+        or not _valid_moments(value["lengths"], completed)
+        or type(value["terminal_metrics"]) is not dict
+        or set(value["terminal_metrics"]) != {"control_step", *_METRIC_FLOATS}
+        or not all(
+            _valid_moments(summary, completed)
+            for summary in value["terminal_metrics"].values()
+        )
+    ):
+        return False
+    terminal_true = value["terminal_true"]
+    return (
+        type(terminal_true) is dict
+        and set(terminal_true) == set(_METRIC_BOOLS)
+        and all(
+            _valid_nonnegative_count(count) and count <= completed
+            for count in terminal_true.values()
+        )
+    )
+
+
+def _valid_observation_counts(value: object) -> bool:
+    if type(value) is not dict or set(value) != set(_GROUP_WIDTHS):
+        return False
+    moment_fields = {"count", "minimum", "maximum", "mean", "standard_deviation"}
+    for name, width in _GROUP_WIDTHS.items():
+        summary = value[name]
+        if (
+            type(summary) is not dict
+            or set(summary) != {"observations", "width", *moment_fields}
+            or type(summary["observations"]) is not int
+            or summary["observations"] < 1
+            or type(summary["width"]) is not int
+            or summary["width"] != width
+            or not _valid_moments(
+                {field: summary[field] for field in moment_fields},
+                summary["observations"] * width,
+            )
+        ):
+            return False
+    return True
 
 
 def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> dict[str, object]:
@@ -388,13 +511,14 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
         if (
             set(row) != rollout_keys
             or row["event"] != "rollout_boundary"
+            or type(row["rollout_index"]) is not int
             or row["rollout_index"] != index
+            or type(row["collected_through_transitions"]) is not int
             or row["collected_through_transitions"] != through
             or (index == 1 and row["previous_update"] is not None)
             or (index > 1 and not _valid_update(row["previous_update"], through - ROLLOUT_STEPS))
-            or type(row["episodes"]) is not dict
-            or type(row["observation_groups"]) is not dict
-            or set(row["observation_groups"]) != set(_GROUP_WIDTHS)
+            or not _valid_episode_counts(row["episodes"])
+            or not _valid_observation_counts(row["observation_groups"])
         ):
             raise ValueError("training rollout telemetry fields or sequence differ")
     final = rows[-1]
@@ -409,6 +533,7 @@ def validate_training_telemetry(encoded: bytes, expected_transitions: int) -> di
             "incomplete_episodes",
         }
         or final["event"] != "final_update"
+        or type(final["collected_through_transitions"]) is not int
         or final["collected_through_transitions"] != expected_transitions
         or not _valid_update(final["update"], expected_transitions)
         or type(final["incomplete_episodes"]) is not list
@@ -428,6 +553,11 @@ def validate_training_telemetry_descriptor(
 
     if type(value) is not dict or set(value) != _DESCRIPTOR_FIELDS:
         raise ValueError("training telemetry descriptor fields differ")
+    if any(
+        type(value[name]) is not int or value[name] < 1
+        for name in ("size_bytes", "record_count", "rollout_boundary_count")
+    ):
+        raise ValueError("training telemetry descriptor counts differ")
     counts = validate_training_telemetry(encoded, expected_transitions)
     expected = {
         "schema_version": 1,

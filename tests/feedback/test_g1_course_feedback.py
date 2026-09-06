@@ -188,8 +188,18 @@ def _run_fixture(
     training = {"completed_transitions": 512}
     if telemetry:
         with TrainingTelemetry(root / TELEMETRY_FILENAME) as writer:
+            writer.observe_step([1.25], [True], [{"metrics": rows[-1]["metrics"]}])
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
-            writer.final_update({}, None)
+            writer.final_update(
+                {
+                    "train/approx_kl": 0.01,
+                    "train/clip_fraction": 0.2,
+                    "train/explained_variance": np.nan,
+                    "train/value_loss": 0.4,
+                    "train/n_updates": 4,
+                },
+                4,
+            )
             training["telemetry"] = writer.descriptor(512)
         outputs[TELEMETRY_FILENAME] = _sha(root / TELEMETRY_FILENAME)
     manifest = {
@@ -253,10 +263,14 @@ def test_builds_exact_feedback_and_input_receipt(tmp_path, monkeypatch) -> None:
     assert "Executed reference phase at actual region boundaries" in feedback["diagnosis"]
     assert "Transient substep failures remain producer-recorded evidence" in feedback["diagnosis"]
     assert "not held-out or task-success evidence" in feedback["diagnosis"]
+    assert "Training telemetry:" not in feedback["diagnosis"]
     receipt = json.loads((tmp_path / "feedback/feedback_receipt_v1.json").read_text())
     assert receipt["inputs"]["source_manifest_sha256"] == digest
     assert receipt["inputs"]["label"] == "final_policy"
     assert receipt["output"]["sha256"] == result["feedback"]["sha256"]
+    assert result["feedback"]["sha256"] == (
+        "a0be2faf3b05be313c120ede02bcd9dadaba2c9258600a99fa8eb2f94c9f22c7"
+    )
 
 
 def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:
@@ -271,7 +285,28 @@ def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatc
         output=tmp_path / "feedback",
     )
 
-    assert (tmp_path / "feedback/feedback_v1.json").is_file()
+    feedback = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())
+    diagnosis = feedback["diagnosis"]
+    assert "Training telemetry: 1 completed episodes" in diagnosis
+    assert "episode-return means 1.25/1.25" in diagnosis
+    assert "KL=0.01" in diagnosis and "clip fraction=0.2" in diagnosis
+    assert "explained variance=unavailable (undefined_nonfinite)" in diagnosis
+    assert "value loss=0.4" in diagnosis
+    assert "KL-stopped partial epochs=4" in diagnosis
+    assert "do not establish convergence or a causal mechanism" in diagnosis
+
+
+def test_training_summary_reports_no_completed_episodes_and_missing_stats(tmp_path) -> None:
+    path = tmp_path / TELEMETRY_FILENAME
+    with TrainingTelemetry(path) as writer:
+        writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
+        writer.final_update({}, None)
+
+    diagnosis = module._training_telemetry_diagnosis(path.read_bytes())
+
+    assert "no completed episodes" in diagnosis
+    assert "KL=unavailable (missing)" in diagnosis
+    assert "attempted PPO epochs including KL-stopped partial epochs=unavailable (missing)" in diagnosis
 
 
 def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:

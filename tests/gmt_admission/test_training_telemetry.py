@@ -92,6 +92,9 @@ def test_rollouts_bind_previous_update_then_flush_final_update(tmp_path) -> None
     assert rows[2]["update"]["trained_through_transitions"] == 1024
     assert rows[2]["update"]["sb3_n_updates"] == 8
     assert rows[2]["update"]["optimizer_minibatch_steps"] is None
+    assert descriptor["sb3_n_updates_semantics"] == (
+        "attempted_ppo_epochs_including_kl_stopped_partial_epochs"
+    )
     assert descriptor["record_count"] == 3
     assert validate_training_telemetry(path.read_bytes(), 1024)["rollout_boundary_count"] == 2
 
@@ -102,6 +105,22 @@ def test_missing_logger_statistics_are_explicitly_null() -> None:
     assert record["sb3_n_updates"] is None
     assert record["optimizer_minibatch_steps"] is None
     assert set(record["metrics"].values()) == {None}
+    assert set(record["metric_unavailable_reasons"].values()) == {"missing"}
+
+
+def test_undefined_explained_variance_is_null_but_other_stats_remain_strict() -> None:
+    record = ppo_update_record(
+        512,
+        {"train/explained_variance": np.nan, "train/approx_kl": 0.01},
+        4,
+    )
+
+    assert record["metrics"]["explained_variance"] is None
+    assert record["metric_unavailable_reasons"]["explained_variance"] == (
+        "undefined_nonfinite"
+    )
+    assert record["metrics"]["approx_kl"] == 0.01
+    assert "approx_kl" not in record["metric_unavailable_reasons"]
 
 
 def test_nonfinite_measurements_fail_closed() -> None:
@@ -111,6 +130,8 @@ def test_nonfinite_measurements_fail_closed() -> None:
         observation_group_moments(observations)
     with pytest.raises(ValueError, match="finite numeric"):
         ppo_update_record(512, {"train/approx_kl": np.inf}, 4)
+    with pytest.raises(ValueError, match="finite numeric"):
+        ppo_update_record(512, {"train/value_loss": np.nan}, 4)
     accumulator = EpisodeAccumulator()
     with pytest.raises(ValueError, match="reward, done, or info"):
         accumulator.observe([np.nan], [False], [_info(1)])
@@ -135,7 +156,7 @@ def test_episode_summary_spans_rollout_boundaries_and_records_termination() -> N
 
 @pytest.mark.parametrize(
     "mutation",
-    ["hash", "size", "count", "semantics", "extra"],
+    ["hash", "size", "count", "boolean_count", "semantics", "extra"],
 )
 def test_descriptor_must_exactly_bind_retained_bytes(tmp_path, mutation: str) -> None:
     path = tmp_path / TELEMETRY_FILENAME
@@ -150,6 +171,8 @@ def test_descriptor_must_exactly_bind_retained_bytes(tmp_path, mutation: str) ->
         descriptor["size_bytes"] += 1
     elif mutation == "count":
         descriptor["record_count"] += 1
+    elif mutation == "boolean_count":
+        descriptor["rollout_boundary_count"] = True
     elif mutation == "semantics":
         descriptor["sb3_n_updates_semantics"] = "optimizer_minibatches"
     else:
@@ -157,3 +180,39 @@ def test_descriptor_must_exactly_bind_retained_bytes(tmp_path, mutation: str) ->
 
     with pytest.raises(ValueError, match="descriptor"):
         validate_training_telemetry_descriptor(descriptor, path.read_bytes(), 512)
+
+
+@pytest.mark.parametrize("field,value", [("sb3_n_updates", True), ("sb3_n_updates", -1)])
+def test_validator_rejects_boolean_or_negative_update_counts(
+    tmp_path, field: str, value: object
+) -> None:
+    path = tmp_path / TELEMETRY_FILENAME
+    with TrainingTelemetry(path) as telemetry:
+        telemetry.rollout_boundary(512, _observations(), {}, None)
+        telemetry.final_update({}, None)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    rows[-1]["update"][field] = value
+    encoded = b"".join(
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        for row in rows
+    )
+
+    with pytest.raises(ValueError, match="final-update"):
+        validate_training_telemetry(encoded, 512)
+
+
+@pytest.mark.parametrize("value", [True, -1])
+def test_validator_rejects_boolean_or_negative_episode_counts(tmp_path, value: object) -> None:
+    path = tmp_path / TELEMETRY_FILENAME
+    with TrainingTelemetry(path) as telemetry:
+        telemetry.rollout_boundary(512, _observations(), {}, None)
+        telemetry.final_update({}, None)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    rows[0]["episodes"]["falls"] = value
+    encoded = b"".join(
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        for row in rows
+    )
+
+    with pytest.raises(ValueError, match="rollout telemetry"):
+        validate_training_telemetry(encoded, 512)

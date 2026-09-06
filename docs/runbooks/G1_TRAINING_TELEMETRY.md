@@ -17,9 +17,11 @@ Each 512-transition rollout record contains:
 - complete episode return and length, fall/horizon counts, and terminal task metrics;
 - the **previous** PPO update's available logger values. The first record therefore uses `null`.
 
-A final record flushes the PPO update through the full transition budget. `sb3_n_updates` is
-Stable-Baselines3's completed PPO-epoch counter; it is not labeled as optimizer minibatch steps.
-Unavailable logger values remain `null`. Non-finite values fail the run.
+A final record flushes the PPO update through the full transition budget. `sb3_n_updates` counts
+attempted PPO epochs, including an epoch that stopped partway through because of the KL limit; it
+is not labeled as optimizer minibatch steps. Unavailable logger values remain `null` with a
+`missing` reason. Undefined non-finite explained variance is `null` with reason
+`undefined_nonfinite`; other non-finite optimization statistics fail the run.
 
 The run manifest binds the telemetry path, SHA-256, byte size, record counts, and boundary
 semantics under `training.telemetry`. The output ledger must contain the matching filename and

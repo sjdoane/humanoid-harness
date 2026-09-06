@@ -366,6 +366,50 @@ def _diagnosis(
     return diagnosis
 
 
+def _training_telemetry_diagnosis(encoded: bytes) -> str:
+    rows = [
+        decode_json_object(line, source="G1 training telemetry row")
+        for line in encoded.splitlines()
+    ]
+    rollout_rows = rows[:-1]
+    completed = [row for row in rollout_rows if row["episodes"]["completed"]]
+    total_completed = sum(row["episodes"]["completed"] for row in rollout_rows)
+    if completed:
+        first_return = completed[0]["episodes"]["returns"]["mean"]
+        last_return = completed[-1]["episodes"]["returns"]["mean"]
+        episode_text = (
+            f"{total_completed} completed episodes; first/last available rollout "
+            f"episode-return means {first_return:.6g}/{last_return:.6g}"
+        )
+    else:
+        episode_text = "no completed episodes"
+    update = rows[-1]["update"]
+    metrics = update["metrics"]
+    reasons = update["metric_unavailable_reasons"]
+
+    def metric(name: str, label: str) -> str:
+        value = metrics[name]
+        return (
+            f"{label}={value:.6g}"
+            if value is not None
+            else f"{label}=unavailable ({reasons[name]})"
+        )
+
+    attempted = update["sb3_n_updates"]
+    attempted_text = (
+        str(attempted) if attempted is not None else "unavailable (missing)"
+    )
+    return (
+        f"Training telemetry: {episode_text}. Final update through "
+        f"{update['trained_through_transitions']} transitions: "
+        f"{metric('approx_kl', 'KL')}; {metric('clip_fraction', 'clip fraction')}; "
+        f"{metric('explained_variance', 'explained variance')}; "
+        f"{metric('value_loss', 'value loss')}; attempted PPO epochs including "
+        f"KL-stopped partial epochs={attempted_text}. Descriptive only; these values do "
+        "not establish convergence or a causal mechanism."
+    )
+
+
 def build_g1_course_feedback(
     *,
     manifest_path: Path,
@@ -478,19 +522,24 @@ def build_g1_course_feedback(
     evaluation = {name: objective[name] for name in _EVALUATION_FIELDS}
     if evaluation["episode_success"] is not None:
         raise ValueError("development feedback cannot promote episode success")
+    diagnosis = _diagnosis(
+        label=label,
+        frames=frames,
+        trajectory=trajectory,
+        objective=objective,
+        posture_low=config.task.posture_band_low_m,
+        posture_high=config.task.posture_band_high_m,
+    )
+    if telemetry_encoded is not None:
+        diagnosis = f"{diagnosis}\n{_training_telemetry_diagnosis(telemetry_encoded)}"
+        if len(diagnosis) > MAX_DIAGNOSIS_CHARACTERS:
+            raise ValueError("course feedback diagnosis exceeds its contract")
     feedback = {
         "evidence_class": COURSE_FEEDBACK_EVIDENCE_CLASS,
         "protected_evaluation": False,
         "source_manifest_sha256": manifest_sha256,
         "evaluation": evaluation,
-        "diagnosis": _diagnosis(
-            label=label,
-            frames=frames,
-            trajectory=trajectory,
-            objective=objective,
-            posture_low=config.task.posture_band_low_m,
-            posture_high=config.task.posture_band_high_m,
-        ),
+        "diagnosis": diagnosis,
     }
     destination = Path(output)
     destination.mkdir(mode=0o700, parents=True, exist_ok=False)
