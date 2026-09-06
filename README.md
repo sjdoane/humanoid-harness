@@ -1,129 +1,104 @@
 # Humanoid Harness
 
-An auditable research harness for generating and testing state-aware reference
-oracles and executable task rewards around a fixed policy-training system.
+An LLM-guided research harness with two design knobs: reference composition
+and task reward. Training and objective evaluation remain separate from authoring.
 
 ```text
-task + references + r0
-          |
-          v
-  LLM design harness <------ literature graph
-          ^   |              human steering
-          |   | O_k, r_k
-          |   v
-  diagnosis   fixed training adapter ----> policy
-          ^                              |
-          +------ protected evaluator <--+
+INPUT: task + admitted references + verified development evidence
+                              |
+                  LLM proposes oracle OR task reward
+                              |
+                    data-only candidate admission
+                              |
+state -> oracle -> reference window -> frozen base actor + learned residual
+  ^                                                              |
+  +------------------------- fixed G1 plant <---------------------+
+                              |
+                 OUTPUT: recorded states + task metrics
+                              |
+             independent evaluator -> feedback -> next LLM proposal
+
+TRAINING: fixed tracking reward + authored task reward -> PPO -> residual
+FROZEN: scene/reset, observations/actions, base weights, trainer/budget,
+        tracking reward, evaluator, and final-checkpoint selection
 ```
 
-| Evidence class | Current state |
+## Current state
+
+| Boundary | Evidence |
 |---|---|
-| **research target** | Autonomous, steerable iteration over reference oracle `O_k` and task reward `r_k` |
-| **implemented capability** | Immutable oracle/reference contracts, deterministic state-machine runtime, observation-preserving corpus capture with per-step plain-runtime receipts, full-integration replay bundles with predecessor-transition cache reconstruction, E3 fork checks, Gymnasium adapter, protected mechanical metrics, canonical trace contract, research index, unified CLI, and read-only status UI |
-| **measured evidence** | Run v2: `108/108` named three-actor corpus clips and `20/20` expert screen clips passed separate-process full-clip replay and per-step plain-runtime comparison. The corpus qualified `28/36` E3 blocks; the expert failed the predeclared screen because only `19/20` resets stayed healthy and upright, although velocity and displacement gates passed. No stable-tracking, formal causal-use, E4, E5, oracle-improvement, reward-improvement, naturalness, robustness, or cross-MDP result |
-| **Experiment 003 phase A** | Closed after cycles 0-2 on seeds `97001`-`97020`; every determinism replay matched `20/20`. None of the three tested step-300 running-speed handovers survived; alternative phases, timings, and state-conditioned handovers remain untested. The cycle-2 designer held `expert` throughout: `0/20` falls and median speed MAE `2.0742 m/s`, exactly matching `single_fast` while omitting the slow third. The frozen v1 reports and traces now have deterministic v2 scientific receipts, separate telemetry, complete source identities, and a sealed E003 execution manifest. See the [phase-A protocol and result](experiments/003_composition_speed_profile/PROTOCOL.md), [cycle-2 report](experiments/003_composition_speed_profile/cycles/cycle_2/report_2.md), and [cycle record](experiments/003_composition_speed_profile/cycles/cycle_2/cycle_record.md). This is `exploratory_oracle_cycle`; controller switching stood in for tracker following and supports no oracle-quality or tracker claim. Phase B keeps T1 and uses a tracker-following fine-tuning runtime warm-started at the expert. |
-| **Experiment 003 phase B / T2C2 supervision** | Training admission still binds the 68-fixture E1 receipt and 103-file sealed worker-input lineage. T2C2 additionally requires Astra's complete Git-common-directory heavy-job token immediately before every production training or evaluation worker spawn, retains the exact owner/token identity through process cleanup, and releases only that pair. Tempfile/injected negatives exercise refusal and cleanup without a real slot or run. See the [Phase B design and commands](experiments/003_composition_speed_profile/phase_b/DESIGN.md) and [T2C2 result](docs/operations/dual-orchestration/T2C2_RESULT.md). This remains `interface_check`: no calibration run, disposable smoke, cohort, protected utility evaluation, or behavioral evaluation ran. |
-| **Reward lane / F3 retained call** | The one approved initial hypothesis call completed and its exact proposal, 73-byte trusted recipe, and model-call receipt are retained under the [T2 F3 call ledger](experiments/004_t2_reward_study/f3_call/ledger_v1.json). T2C1 derives the canonical candidate from those recipe bytes and closes further initial dispatch. The call and local expected-model metadata are not served-model attestation. No baseline measurement, simulator command, training, protected evaluation, reward effect, or behavioral result exists. |
-| **Experiment 004 / T2 reward-study pre-cycle** | T2C2 replaces the impossible forever-equal-HEAD rule with a clean `admission_commit`, exact sealed-source snapshot, and bounded record-only descendant validation; runtime receipt identity includes both admission and observed execution commits. The [expert-hold protocol](experiments/004_t2_reward_study/PROTOCOL.md) retains the T2C1 v1 execution/study/seal files byte-for-byte until Fable commits this slice and performs the documented clean-commit re-seal. See the [T2C2 result](docs/operations/dual-orchestration/T2C2_RESULT.md). These are artifact and interface checks only. Cycle 0, smoke, training, and any baseline measurement remain `NO-GO` pending re-seal review, resource reservation, and Samuel's explicit authorization. |
+| Research target | Steerable, evidence-driven iteration over reference-oracle logic and task reward |
+| Active implementation | GMT/G1 through Gymnasium; state-triggered motion selection; bounded residual PPO; separate tracking/task rewards; recorded-state feedback; immutable candidate admission |
+| Measured development result | Walk → crouch → walk survives 20 seconds after training in three of three seeds with the initial task reward; tracking-only training survives one of three. No full posture-course gate pass. |
+| Real revision loop | Retained LLM reward and oracle proposals were admitted, trained, evaluated, and rejected when their fixed criteria failed. Negative outcomes are not task success. |
+| Limits | One flat-ground course and fixed start. Within-clip playback still uses a local clock. No held-out generalization, obstacle clearance, locomanipulation, or foolproof-system claim. |
+
+See the [measured results and replay receipts](docs/strategy/astra/G1_LEARNING_RESULTS_20260906.md)
+and [current handoff](docs/operations/dual-orchestration/ASTRA_HANDOFF.md).
+The blue region in the G1 replay is a posture constraint, **not a physical obstacle**.
 
 ## Quick start
 
-Requires Python 3.12 or 3.13 and `uv`.
+Python 3.12–3.13 and `uv`:
 
 ```bash
 uv sync --locked --extra sources --extra gym --extra train --extra dev
 uv run humanoid-harness doctor
 uv run humanoid-harness research build
 uv run humanoid-harness research query "phase recovery"
-uv run humanoid-harness trace inspect PATH/TO/trace.json
-uv run humanoid-harness ui
+uv run humanoid-harness g1 --help
 ```
 
-The UI opens a local, read-only view. It does not grade a run or keep a second
-copy of research state. On loopback only, it can display the falling local
-exploration and the reviewed Experiment 002A report. Missing, tampered,
-unlisted, or symlinked artifacts fail closed. Neither view establishes stable
-tracking or oracle quality.
+- Motion/controller downloads are not bundled. Use the
+  [GMT admission and baseline record](docs/strategy/astra/GMT_BASELINE_20260906.md);
+  do not execute downloaded pickle, TorchScript, or upstream Python.
+- `g1 feedback` verifies a pinned run and recomputes boundary metrics before
+  producing proposal-safe feedback.
+- Training uses the exact-source, resource-bounded launcher documented in the
+  [G1 pilot](docs/strategy/astra/G1_COURSE_PILOT_20260906.md).
+- `humanoid-harness ui` starts the older read-only evidence UI. It does not yet
+  display the G1 learning results; use the linked report and recorded replay.
 
-## Research orchestration
+## Research ownership
 
-Two orchestrators share the research: Astra leads reference composition and
-tracker integration; Fable 5.1 leads task-reward generation and feedback-driven
-revision. Both delegate bounded implementation and independent reviews to
-GPT-5.6 Sol workers. See the [lane handoff](docs/operations/dual-orchestration/LANE_SWAP_20260906.md)
-for transfer status; existing workers are not moved between checkouts.
+- Astra leads strategy, implementation, integration, and bounded local training.
+- Fable supplies independent reviews, feedback, and ideas; no parallel build lane.
+- Sol workers receive small, isolated implementation or review tasks.
+- Model requests and sender labels are not served-model attestation.
+- [Operating authority](docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md) ·
+  [coordination protocol](docs/operations/dual-orchestration/README.md)
 
-```bash
-claude auth login
-./scripts/orchestration-doctor
-./scripts/start-fable-orchestrator
-```
+## Test and experiment boundaries
 
-The launcher asks before its single no-tool identity request because
-noninteractive Fable calls can draw usage credits without an in-app consent
-dialog. Do not run the doctor's optional `--live` mode first unless you intend
-to authorize a separate probe.
-
-Read the [current handoff](docs/operations/CURRENT_RESEARCH_HANDOFF.md),
-[orchestration guide](docs/operations/MULTI_AGENT_ORCHESTRATION.md), and
-[strategy ledger](docs/strategy/RESEARCH_STRATEGY.md). This path does not
-authorize the real 1M-step attempt or change the evidence boundary.
-
-## First development adapter
-
-| Component | Current choice | Role |
-|---|---|---|
-| Robot/MDP | Gymnasium `Humanoid-v5` | Public integration substrate |
-| Stable-motion bootstrap | TQC | Resource probe first; never an oracle result |
-| Tracker-family screen | Frozen-TQC residual PPO, expanded TQC, direct PPO + RSI | Development selection before tracker admission |
-| First study | Static tracker-admission prerequisite | Establish static feasibility; causal reference use is a distinct next study |
-| Final adapter | Lab-supplied controller/training system | Separate future experiment family |
-
-The immediately falling Humanoid seen in the current smoke evidence is an
-interface check. It is not a trained-policy or oracle demonstration.
-
-## Source data boundary
-
-| Source | Local use | Current ceiling |
-|---|---|---|
-| Farama `Humanoid-v5` TQC expert, medium, and simple actors | Hash-pinned source bytes projected to strict NPZ; `108` corpus and `20` expert screen trajectories retained locally with per-step plain-runtime receipts | Qualifying E3 fork corpus (`28/36` blocks) only; exact expert failed the predeclared screen (`19/20` healthy and upright), so no tracker or broader behavior claim |
-| Minari `mujoco/humanoid/expert-v0` | Exact commit, file sizes, and SHA-256 values are registered; episode 0 projects data-only into the 45D reference ABI | Tier K only; root x/y is absent and dataset redistribution rights are unresolved |
-| DeepMimic `humanoid3d` motions | Exact MIT-licensed source files are audited in the research tree | Format/source evidence only; retargeting and Tier-D certification remain undone |
-
-The registered Minari importer rejects any file, source-record, HDF5 storage,
-shape, or environment drift before reading episode arrays. It never loads an
-external checkpoint or grants training admission.
+- [Test matrix](docs/operations/TEST_MATRIX_20260906.md): focused G1 checks and
+  whole-repository failures are reported separately. The full suite is not green.
+- Native `Humanoid-v5` is a separate, earlier experiment family, not a matched
+  control for G1. Its source, failures, and sealed historical results remain:
+  [Experiment 003](experiments/003_composition_speed_profile/PROTOCOL.md),
+  [Experiment 004](experiments/004_t2_reward_study/PROTOCOL.md).
+- An accepted artifact, successful launch, or video is not a successful task.
+- Never change evaluator thresholds, tracking, or the MDP to rescue a candidate.
+- Development evidence may guide revision. Protected evaluation may not.
+- PRAXIST is optional orchestration, not a source of scientific truth.
 
 ## Repository map
 
 ```text
-docs/                 charter, architecture, boundaries, protocols, decisions
-research/             literature corpus, source records, and provenance
 src/oracle_composition/
-  contracts/          immutable artifact and ABI validation
-  runtime/            deterministic oracle execution
-  envs/               policy-training adapters
-  tracking/           reference state and tracking-reward candidate
-  evaluation/         structural evidence admission
-  experiments/        frozen runner and protected evaluator
-  research/           deterministic research index and retrieval
-  sources/            bounded data-only source audits and projections
-  traces/             bounded synchronized trajectory contract
-  ui/                 read-only local evidence surface
-tests/                 contract, negative, integration, and UI tests
-experiments/           declared protocols; run outputs remain untracked
-praxist/               optional outer-loop orchestration notes
+  adapters/gmt/   G1 plant, composition, residual training, rewards, replay
+  feedback/       trace verification and development diagnosis
+  harness/        contracts, execution, evaluation, resource coordination
+  research/       literature index and retrieval
+  sources/        data-only source admission
+  ui/             older read-only evidence surface
+docs/             contracts, strategy, runbooks, measured results
+experiments/      earlier frozen study definitions and receipts
+tests/            positive, negative, and integration checks
 ```
 
-## Evidence boundary
+[Project charter](docs/PROJECT_CHARTER.md) ·
+[Scientific boundary](docs/SCIENTIFIC_BOUNDARY.md) ·
+[Research-source review](docs/ENGINEERING_TOOL_REVIEW.md)
 
-- A passing test proves software behavior, not humanoid competence.
-- The agent may change only the factor declared by a study.
-- Generated artifacts never compute their own success metric.
-- Every claim must retain exact artifact, runtime, seed, and evaluator lineage.
-- PRAXIST may orchestrate experiments; it does not own scientific truth.
-
-Read the [project charter](docs/PROJECT_CHARTER.md), [system architecture](docs/SYSTEM_ARCHITECTURE.md), [scientific boundary](docs/SCIENTIFIC_BOUNDARY.md), and [engineering tool review](docs/ENGINEERING_TOOL_REVIEW.md) before extending the system.
-
-The repository is currently private and no project license has been selected.
-Imported research records retain source-level attribution and provenance.
+No project license has been selected. Imported sources retain their own
+attribution and restrictions; local admission does not grant redistribution rights.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import hashlib
 import importlib.util
 import json
@@ -111,8 +112,19 @@ def _manifest(path: Path, digest: str, arrays: dict[str, np.ndarray]) -> dict[st
     }
 
 
-def test_trace_validation_is_data_only_and_checks_clocks(tmp_path: Path) -> None:
-    assert "mujoco" not in sys.modules
+def test_trace_validation_is_data_only_and_checks_clocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Other tests may already have loaded MuJoCo; this operation must not import it.
+    original_import = builtins.__import__
+    before = "mujoco" in sys.modules
+
+    def reject_simulator_import(name, *args, **kwargs):
+        if name == "mujoco" or name.startswith("mujoco."):
+            raise AssertionError("data-only trace validation imported MuJoCo")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", reject_simulator_import)
     arrays = _trace_arrays()
     path = tmp_path / "trace.npz"
     digest = write_deterministic_npz(path, arrays)
@@ -127,7 +139,7 @@ def test_trace_validation_is_data_only_and_checks_clocks(tmp_path: Path) -> None
 
     assert abi == _abi()
     np.testing.assert_array_equal(loaded["sim_qpos"], arrays["sim_qpos"])
-    assert "mujoco" not in sys.modules
+    assert ("mujoco" in sys.modules) is before
     arrays["control_time"][0] = 0.01
     bad_path = tmp_path / "bad_trace.npz"
     bad_digest = write_deterministic_npz(bad_path, arrays)

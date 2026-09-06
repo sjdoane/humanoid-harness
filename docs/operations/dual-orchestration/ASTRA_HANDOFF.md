@@ -2,17 +2,19 @@
 
 | status | current truth |
 |---|---|
-| progress | 13 G1 training runs completed. Three-seed controls show a useful composed-oracle/task-reward interaction; an LLM reward revision was trained and rejected. Recorded task-overlay GIF and verified feedback CLI exist. |
+| progress | 14 G1 training runs completed. Three-seed controls and two rejected LLM revisions are retained. Recorded task-overlay GIF and verified feedback CLI exist. |
 | bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Admit and test the earlier-entry oracle O3 with retained reward r1. Keep native Humanoid-v5 as a separate optional lane. |
+| next step | Integrate data-only revision and training diagnostics; reproduce O2r1 and test heading-only r3. Keep native Humanoid-v5 separate. |
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
-- All 13 training runs used source `004592f`; later changes add reporting only.
+- First 13 training runs used `004592f`; O3 used reporting-only descendant `1b501d6`.
 - Integrated task-overlay renderer `b609bf6`, feedback builder `6d30af1`, raw
   boundary verification `a8f7431`. Parent: 200 focused + 9 CLI tests pass.
-- O3 authoring is pending at this checkpoint; refresh `.orchestration/astra-active-run.json`
-  and the mailbox before launching. No live heavy job at 21:41 UTC.
+- O3 is rejected: trained rollout falls at 6.96 s; its five preregistered predictions fail.
+- Heading-only r3 is authored/admitted, not yet trained. Refresh `.orchestration/astra-active-run.json`
+  and the mailbox before launching. No live heavy job at 22:10 UTC.
+- Whole-suite failures remain; see `../TEST_MATRIX_20260906.md`. Focused G1 checks pass.
 - Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
 - Everything below is historical context, not current dispatch authority.
 

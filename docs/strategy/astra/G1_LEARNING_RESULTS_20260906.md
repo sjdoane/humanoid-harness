@@ -2,9 +2,9 @@
 
 | status | evidence |
 |---|---|
-| progress | 13 bounded training runs completed; reference and reward revisions were proposed, admitted, trained and evaluated. |
+| progress | 14 bounded training runs completed; reference and reward revisions were proposed, admitted, trained and evaluated. |
 | bottleneck | No policy passes the full posture-course gate. Depth and heading remain unresolved. |
-| next step | Test earlier state-triggered crouch entry with reward r1; retain the failed reward revision as evidence. |
+| next step | Retain O2/r1; test a heading-only reward revision and add training diagnostics before a longer-budget comparison. |
 
 ## Architecture actually used
 
@@ -81,6 +81,7 @@ robot state → oracle → future reference window → frozen GMT base actor
 | O2: entry window + terminal hold | 20 s, both switches, no fall; still misses task gates | keep development oracle |
 | O2b: state-ready exit guard | cannot satisfy exit; falls after 5.46 s | reject |
 | r2: LLM raises speed weight 1.0 → 1.5 | mean speed improves, but consistency/posture/drift worsen | reject; retain r1 |
+| O3: LLM advances entry guard 0.65 → 0.30 m | trained posture compliance rises to 72.7%, but falls at 6.96 s | reject; retain O2 |
 
 - O1 replay under runtime v2 is byte-identical to its v1 trajectory and frames.
   The O1/O2 comparison is not explained by an unintended default-runtime change.
@@ -92,6 +93,18 @@ robot state → oracle → future reference window → frozen GMT base actor
   It does not demonstrate task success.
 
 ## Diagnosis and guardrails
+
+- O3 execution source: `1b501d6`; 32,768 transitions, seed `20260906`.
+  Control/training code is unchanged from `004592f`; only reporting tools differ.
+- O3's five preregistered trained predictions fail: entry phase `1.240 < 1.25 s`,
+  reference compliance `49/55 = 0.891 < 0.90`, robot compliance `0.727 < 0.75`,
+  fall/exit mismatch, and speed/roll-pitch failures. No near-miss is a pass.
+- O3's zero-residual 80.4% posture compliance is a separate descriptive result;
+  that rollout also falls, at 5.36 s. It cannot substitute for trained predictions.
+- O3 manifest: `dc692f286485523031be94a23f06ff5b2b6dccc66a5aba0515d3e8cb6ea29f17`.
+  Verified feedback: `1a9a120bcb9ec2b3b3e6897993f928ec0bed1f748b8a74ec674840691cdcdc14`.
+- The 32,768-step pilots do not establish convergence: optimizer/return curves
+  were not retained. Add measurement-only telemetry before a larger-budget family.
 
 - O2r1, seed 20260906: reference posture is compliant in `46/65` actual-region
   samples; robot posture in `38/65`. Timing accounts for much of the mismatch.

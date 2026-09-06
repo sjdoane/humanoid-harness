@@ -10,7 +10,7 @@ from oracle_composition.adapters.gmt import course_config as module
 
 @pytest.fixture
 def admitted_config(tmp_path, monkeypatch):
-    from test_composition import motion
+    from tests.gmt_admission.test_composition import motion
 
     weights = tmp_path / "weights.npz"
     motion_asset = tmp_path / "motion.npz"
