@@ -92,7 +92,10 @@ def _plan(tmp_path: Path, workload: str = "course", mode: str = "probe") -> tupl
                 "sha256": loaded.sha256,
                 "size": config_path.stat().st_size,
             },
-            "repository_sources": {"source.py": "b" * 64},
+            "repository_sources": {
+                "file_count": 1,
+                "canonical_tree_sha256": "b" * 64,
+            },
             "venv": {"path": str(config.venv_python)},
             "gmt_assets": loaded.assets,
         },
@@ -105,7 +108,11 @@ def _plan(tmp_path: Path, workload: str = "course", mode: str = "probe") -> tupl
 
 def _summary(*, residual_rms: float) -> dict[str, object]:
     return {
-        "objective_evaluation": {"status": "measured"},
+        "objective_evaluation": {
+            "status": "measured",
+            "frame_count": 50,
+            "task_sha256": "1" * 64,
+        },
         "training_reward_sum_not_success_metric": 1.5,
         "reset": {"seed": 7},
         "steps": 50,
@@ -316,14 +323,20 @@ def test_nondefault_limits_are_part_of_the_accepted_reservation(tmp_path: Path) 
     plan, _ = _plan(tmp_path)
     accepted = plan.accepted_fields()
     assert accepted["inputs"]["process_supervision"]["limits"] == plan.limits.as_dict()
-    reservation = {
-        **accepted,
-        "accepted": True,
-        "accepted_until_utc": "2099-01-01T00:00:00Z",
-        "schema_version": 2,
-    }
+    reservation = copy.deepcopy(
+        {
+            **accepted,
+            "accepted": True,
+            "accepted_until_utc": "2099-01-01T00:00:00Z",
+            "schema_version": 2,
+        }
+    )
     DEVELOPMENT.supervisor.validate_reservation_binding(plan, reservation)
     reservation["inputs"]["process_supervision"]["limits"]["wall_seconds"] = 121
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="exact GMT probe plan"):
+        DEVELOPMENT.supervisor.validate_reservation_binding(plan, reservation)
+    reservation = copy.deepcopy({**reservation, **plan.accepted_fields()})
+    reservation["inputs"]["repository_sources"]["canonical_tree_sha256"] = "0" * 64
     with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="exact GMT probe plan"):
         DEVELOPMENT.supervisor.validate_reservation_binding(plan, reservation)
 
@@ -364,3 +377,22 @@ def test_repository_source_set_binds_all_tracked_oracle_python(
         *DEVELOPMENT.LAUNCHER_SOURCES,
         "uv.lock",
     }
+
+
+def test_compact_source_tree_binding_is_order_stable_and_name_sensitive() -> None:
+    baseline = {"a.py": "1" * 64, "nested/b.py": "2" * 64}
+    reordered = {"nested/b.py": "2" * 64, "a.py": "1" * 64}
+    changed = {**baseline, "a.py": "3" * 64}
+    renamed = {"renamed.py": "1" * 64, "nested/b.py": "2" * 64}
+    added = {**baseline, "c.py": "4" * 64}
+
+    identity = DEVELOPMENT._source_tree_binding(baseline)
+    assert identity == DEVELOPMENT._source_tree_binding(reordered)
+    assert identity["file_count"] == 2
+    assert identity["canonical_tree_sha256"] != DEVELOPMENT._source_tree_binding(changed)[
+        "canonical_tree_sha256"
+    ]
+    assert identity["canonical_tree_sha256"] != DEVELOPMENT._source_tree_binding(renamed)[
+        "canonical_tree_sha256"
+    ]
+    assert DEVELOPMENT._source_tree_binding(added)["file_count"] == 3

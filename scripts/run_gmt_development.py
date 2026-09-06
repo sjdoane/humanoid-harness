@@ -210,6 +210,17 @@ def _repository_sources(root: Path) -> tuple[Path, str, dict[str, str]]:
     return root, commit, identities
 
 
+def _source_tree_binding(source_files: Mapping[str, str]) -> dict[str, object]:
+    """Compactly bind the complete path-to-digest ledger without omitting names."""
+
+    return {
+        "file_count": len(source_files),
+        "canonical_tree_sha256": hashlib.sha256(
+            canonical_json_bytes(dict(source_files))
+        ).hexdigest(),
+    }
+
+
 def _load_parity(path: Path) -> _LoadedWorkload:
     _, payload, raw = _load_json_config(path)
     if set(raw) != PARITY_CONFIG_FIELDS:
@@ -427,7 +438,7 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
             "sha256": loaded.sha256,
             "size": config_path.stat().st_size,
         },
-        "repository_sources": source_files,
+        "repository_sources": _source_tree_binding(source_files),
         "venv": venv,
         "gmt_assets": loaded.assets,
     }
@@ -663,6 +674,7 @@ def _validate_course_summary(
     *,
     label: str,
     horizon_steps: int,
+    task_sha256: str,
     zero_residual: bool,
 ) -> None:
     expected = {
@@ -677,6 +689,7 @@ def _validate_course_summary(
     steps = value["steps"]
     residual_rms = value["residual_rms"]
     reward_sum = value["training_reward_sum_not_success_metric"]
+    objective = value["objective_evaluation"]
     if (
         type(steps) is not int
         or not 1 <= steps <= horizon_steps
@@ -685,7 +698,9 @@ def _validate_course_summary(
         or type(reward_sum) not in {int, float}
         or not -float("inf") < reward_sum < float("inf")
         or (zero_residual and residual_rms != 0)
-        or not isinstance(value["objective_evaluation"], Mapping)
+        or not isinstance(objective, Mapping)
+        or objective.get("frame_count") != steps
+        or objective.get("task_sha256") != task_sha256
         or not isinstance(value["reset"], Mapping)
     ):
         raise supervisor.ProbeError(f"course {label} summary is malformed")
@@ -785,10 +800,14 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         raise supervisor.ProbeError("admitted course task binding is malformed")
     horizon_steps = task["horizon_steps"]
     assert isinstance(horizon_steps, int)
+    if not isinstance(loaded.course_identities, Mapping):
+        raise supervisor.ProbeError("course semantic identity binding is missing")
+    task_sha256 = _sha256(loaded.course_identities.get("task"), field="course task")
     _validate_course_summary(
         manifest.get("zero_residual"),
         label="zero-residual",
         horizon_steps=horizon_steps,
+        task_sha256=task_sha256,
         zero_residual=True,
     )
     if mode == "probe":
@@ -799,6 +818,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             manifest.get("final_policy"),
             label="final-policy",
             horizon_steps=horizon_steps,
+            task_sha256=task_sha256,
             zero_residual=False,
         )
     training_steps = raw.get("training_steps")
