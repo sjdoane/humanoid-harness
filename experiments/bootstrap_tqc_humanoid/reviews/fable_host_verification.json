@@ -127,9 +127,9 @@
     },
     {
       "commit": "c945379",
-      "finished_utc": "see scratch record",
-      "result": "full suite passed except the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit); exact counts in the integration commit message",
-      "ruff": "check clean",
+      "finished_utc": "2026-09-06T04:10:28Z",
+      "result": "1729 passed, 16 skipped, 2 failed: the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after), and tests/phase_b/test_cli_report_persistence.py::test_cli_fake_runtime_end_to_end_writes_deterministic_report_v2, which failed inside the full outside-sandbox run but passed alone on the same host (24 s); the builder's in-sandbox full run showed only the 44 baseline failures. Open finding handed to the tracker lane (Astra): load- or order-sensitive, to be diagnosed in the FT2R1-FT2R3 re-review.",
+      "ruff": "check clean; format: 362 files formatted, 1 pre-existing Astra packet document would be reformatted (their fix 949f686 pending integration)",
       "started_utc": "2026-09-06T04:06:49Z",
       "tree": "Slice FT2R3 (isolation repairs) before the reward receipt regeneration"
     }
