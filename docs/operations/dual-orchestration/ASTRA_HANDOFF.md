@@ -2,9 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable's checkpoint, native cleanup guard, feedback, development ablation and reconstructed GMT replay are integrated. |
-| bottleneck | No new training result. Independent review found a checkpoint-publication race in output-size monitoring. |
-| next step | Verify the narrow rename-race repair, refresh the exact smoke reservation, train once, then inspect reference dependence. |
+| progress | A real native T1 worker returned a verified likelihood failure; cleanup and slot release succeeded. GMT replay and renderer are integrated. |
+| bottleneck | No trained checkpoint. The native likelihood audit suffers float32 cancellation near saturated actions. |
+| next step | Compare the supplied GMT baseline and review a numerical correction before choosing another native attempt. |
+
+- Current attempt record: `../../strategy/astra/T1_ATTEMPT_20260906.md`.
+- Native terminal: 27.44 s, `likelihood_failure`; no automatic training retry.
+- Renderer: integrated from `2065c10`; 29 GMT tests pass. No replay/render yet.
+- Fable independently verified the four terminal hashes and reproduced the
+  numerical mechanism. Actual offending sample is missing, not reconstructed.
 
 - 18:35 UTC: Fable reproduced the race on `0ab5cc5`; a listed `.pending`
   checkpoint was renamed before `stat`, incorrectly crashing a healthy worker.
