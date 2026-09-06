@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Independent F3 review completed with 79 focused passes; parent reproduced seven negative probes and retained exact originals. |
-| bottleneck | Three confirmed contract defects block acceptance; expected-model metadata and the superseded baseline also need repair. No candidate call or training. |
-| next step | Collect the bounded four-file repair/baseline-refresh worker, verify its regressions and exact hashes, then independently close the findings. |
+| progress | F3 repair finished; parent reproduced 112 focused passes and verified exact baseline/dependency/archive identities. Peer-requested Markdown formatting repaired separately. |
+| bottleneck | Independent F3 closure and one-call protocol approval remain pending. No initial model hypothesis, runtime or training result. |
+| next step | Collect targeted independent code/protocol verdicts; only after both pass, commit the reviewed F3 slice and prepare the single bounded call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 01:42 UTC heartbeat; F3 review collected, findings reproduced and bounded repair/baseline-refresh packet prepared.
+- Last checkpoint: 2026-09-06, 02:18 UTC heartbeat; F3 repair parent verification complete and targeted closure/one-call protocol review prepared.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -55,7 +55,15 @@
 | F3 T2-aware model protocol | read-only Sol/max planner | finished 23:29:33Z | `F3_PLAN_RESULT.md`; parent corrected deadline and read-failure semantics |
 | F3 initial packet/ingestion | Sol/max builder + Astra | completed 00:13:01Z; parent 79 focused passes | `F3_PARENT_CHECKPOINT.md`; four new files, not accepted |
 | F3 independent verification | Sol/max test-output-only writer | REJECT_F3 at 01:21:49Z; 79 focused tests and seven probes | `F3_REVIEW_FINDINGS.md`; parent reproduced defects, all 18 hashes unchanged |
-| F3 repair and baseline refresh | Sol/max builder | dispatch/collect exact active pointer | `TASK-F3-repair-refresh.md`; four files only, no candidate call |
+| F3 repair and baseline refresh | Sol/max builder + Astra | succeeded 01:56:27Z; parent 112 focused passes | `F3_REPAIR_PARENT_CHECKPOINT.md`; not independently closed |
+| F3 closure and conditional call review | Sol/max test-output-only reviewer | dispatch/collect exact active pointer | `TASK-F3-closure-review.md`; separate code/protocol verdicts required |
+
+- `F3_ONE_CALL_PROTOCOL.md` is a proposal, not current call authority. It permits
+  at most one initial hypothesis after explicit independent code and protocol
+  approval; no revision, retry, simulator, runtime or training.
+- Fable baseline confirmation: `20260906T021853.719294Z-e5ffd026d5ea41c1b039b7219513acc1`.
+  Formatting-only commit for its reported historical F2 fence:
+  `949f686e3ffa2a766fa3ac2b87c1733393fbc833`; original launch bytes retained.
 
 - Review source and negative fixtures are retained; do not overwrite them.
   `.orchestration/f3-pre-repair-20260906/` holds the four original F3 files
