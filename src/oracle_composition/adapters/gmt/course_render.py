@@ -12,6 +12,7 @@ import platform
 import re
 import stat
 import tempfile
+import textwrap
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,7 @@ FRAME_HEIGHT = 360
 OUTPUT_FPS = 20
 MAX_RENDER_FRAMES = 800
 MAX_COURSE_STEPS = 2_000
+GROUND_OVERLAY_HALF_WIDTH_M = 2.0
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MANIFEST_KEYS = {
@@ -161,6 +163,23 @@ class FrameAnnotation:
     forward_speed_m_s: float
     progress_m: float
     executed_mode: str
+    target_speed_m_s: float
+    posture_region_active: bool
+    posture_band_low_m: float
+    posture_band_high_m: float
+    recorded_failure_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CourseGroundOverlay:
+    """Display-only initial-heading geometry; it has no simulator collision state."""
+
+    region_center_xyz: tuple[float, float, float]
+    region_half_size_xyz: tuple[float, float, float]
+    rotation_matrix: tuple[float, ...]
+    entry_line: tuple[tuple[float, float, float], tuple[float, float, float]]
+    exit_line: tuple[tuple[float, float, float], tuple[float, float, float]]
+    finish_line: tuple[tuple[float, float, float], tuple[float, float, float]]
 
 
 def _exact_object(value: object, keys: set[str], field: str) -> dict[str, object]:
@@ -301,6 +320,11 @@ def _read_rows(
             raise GMTAdmissionError("executed mode and behavior must be nonempty strings")
         if row["transition"] is not None and type(row["transition"]) is not dict:
             raise GMTAdmissionError("course transition must be null or an object")
+        failure_reasons = metrics["failure_reasons"]
+        if type(failure_reasons) is not list or any(
+            type(reason) is not str or not reason for reason in failure_reasons
+        ):
+            raise GMTAdmissionError("recorded failure reasons must be a list of nonempty strings")
         comparisons = {
             "qpos": (arrays["qpos"][index + 1], (30,), "<f8"),
             "qvel": (arrays["qvel"][index + 1], (29,), "<f8"),
@@ -465,6 +489,58 @@ def select_frame_indices(state_rows: int) -> np.ndarray:
     return indices
 
 
+def course_ground_overlay(task: CourseTaskSpec, initial_qpos: object) -> CourseGroundOverlay:
+    """Place display-only course markers in the retained initial-heading frame."""
+
+    qpos = np.asarray(initial_qpos)
+    if (
+        qpos.shape != (30,)
+        or not np.issubdtype(qpos.dtype, np.floating)
+        or not np.isfinite(qpos).all()
+    ):
+        raise ValueError("initial_qpos must contain 30 finite floating-point values")
+    frame = TaskFrame.initialize(qpos[:2], qpos[3:7])
+    yaw = frame.forward_yaw_rad
+    forward = np.asarray([math.cos(yaw), math.sin(yaw)], dtype=np.float64)
+    lateral = np.asarray([-forward[1], forward[0]], dtype=np.float64)
+    origin = np.asarray(frame.origin_xy, dtype=np.float64)
+
+    def point(progress: float, lateral_offset: float, height: float) -> tuple[float, float, float]:
+        xy = origin + progress * forward + lateral_offset * lateral
+        return (float(xy[0]), float(xy[1]), height)
+
+    def line(progress: float) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        return (
+            point(progress, -GROUND_OVERLAY_HALF_WIDTH_M, 0.008),
+            point(progress, GROUND_OVERLAY_HALF_WIDTH_M, 0.008),
+        )
+
+    midpoint = (task.region_entry_distance_m + task.region_exit_distance_m) / 2
+    rotation = (
+        float(forward[0]),
+        float(lateral[0]),
+        0.0,
+        float(forward[1]),
+        float(lateral[1]),
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+    )
+    return CourseGroundOverlay(
+        region_center_xyz=point(midpoint, 0.0, 0.003),
+        region_half_size_xyz=(
+            (task.region_exit_distance_m - task.region_entry_distance_m) / 2,
+            GROUND_OVERLAY_HALF_WIDTH_M,
+            0.002,
+        ),
+        rotation_matrix=rotation,
+        entry_line=line(task.region_entry_distance_m),
+        exit_line=line(task.region_exit_distance_m),
+        finish_line=line(task.finish_distance_m),
+    )
+
+
 def frame_annotation(inputs: CourseRenderInputs, state_index: int) -> FrameAnnotation:
     """Compute HUD values from retained state only; never trust success labels."""
 
@@ -475,8 +551,19 @@ def frame_annotation(inputs: CourseRenderInputs, state_index: int) -> FrameAnnot
     projection = frame.project(qpos[state_index, :2], qpos[state_index, 3:7])
     yaw = frame.forward_yaw_rad
     speed = float(qvel[state_index, 0] * math.cos(yaw) + qvel[state_index, 1] * math.sin(yaw))
-    executed_mode = (
-        "initial" if state_index == 0 else str(inputs.rows[state_index - 1]["executed_mode"])
+    if state_index == 0:
+        executed_mode, failures = "initial", ()
+    else:
+        row = inputs.rows[state_index - 1]
+        executed_mode = str(row["executed_mode"])
+        failures = tuple(row["metrics"]["failure_reasons"])
+    active = (
+        inputs.task.region_entry_distance_m
+        <= projection.progress_m
+        < inputs.task.region_exit_distance_m
+    )
+    target_speed = (
+        inputs.task.target_speed_inside_m_s if active else inputs.task.target_speed_outside_m_s
     )
     return FrameAnnotation(
         state_index,
@@ -485,7 +572,75 @@ def frame_annotation(inputs: CourseRenderInputs, state_index: int) -> FrameAnnot
         speed,
         projection.progress_m,
         executed_mode,
+        target_speed,
+        active,
+        inputs.task.posture_band_low_m,
+        inputs.task.posture_band_high_m,
+        failures,
     )
+
+
+def hud_lines(inputs: CourseRenderInputs, annotation: FrameAnnotation) -> tuple[str, ...]:
+    """Return compact direct labels; color is never the only task-region cue."""
+
+    task = inputs.task
+    active = "ACTIVE" if annotation.posture_region_active else "inactive"
+    failures = ", ".join(annotation.recorded_failure_reasons) or "none"
+    lines = [
+        "DEVELOPMENT ONLY - flat-ground posture task",
+        f"Blue cue=[{task.region_entry_distance_m:0.2f},{task.region_exit_distance_m:0.2f})m; "
+        f"orange line=finish {task.finish_distance_m:0.2f}m",
+        "Visual markers only - NOT physical obstacles",
+        f"Recorded states; no policy/dynamics rerun | arm={inputs.label.replace('_', ' ')}",
+        f"t={annotation.simulation_time_seconds:0.2f}s | mode={annotation.executed_mode} | "
+        f"progress={annotation.progress_m:0.3f}m",
+        f"speed current={annotation.forward_speed_m_s:0.3f} | "
+        f"target={annotation.target_speed_m_s:0.3f} m/s",
+        f"root current={annotation.root_height_m:0.3f}m | target band="
+        f"[{annotation.posture_band_low_m:0.3f},{annotation.posture_band_high_m:0.3f}]m "
+        f"({active})",
+    ]
+    lines.extend(textwrap.wrap(f"recorded failures: {failures}", width=68))
+    return tuple(lines)
+
+
+def _add_course_overlay(mujoco: Any, scene: Any, overlay: CourseGroundOverlay) -> None:
+    """Append four non-physical visualization geoms after scene construction."""
+
+    if scene.ngeom + 4 > scene.maxgeom:
+        raise RuntimeError("MuJoCo render scene has no capacity for course overlays")
+    region = scene.geoms[scene.ngeom]
+    mujoco.mjv_initGeom(
+        region,
+        int(mujoco.mjtGeom.mjGEOM_BOX),
+        np.asarray(overlay.region_half_size_xyz, dtype=np.float64),
+        np.asarray(overlay.region_center_xyz, dtype=np.float64),
+        np.asarray(overlay.rotation_matrix, dtype=np.float64),
+        np.asarray([0.0, 0.45, 0.70, 0.18], dtype=np.float32),
+    )
+    scene.ngeom += 1
+    for endpoints, width, color in (
+        (overlay.entry_line, 3.0, [0.0, 0.45, 0.70, 1.0]),
+        (overlay.exit_line, 3.0, [0.0, 0.45, 0.70, 1.0]),
+        (overlay.finish_line, 6.0, [0.90, 0.45, 0.0, 1.0]),
+    ):
+        geom = scene.geoms[scene.ngeom]
+        mujoco.mjv_initGeom(
+            geom,
+            int(mujoco.mjtGeom.mjGEOM_LINE),
+            np.zeros(3, dtype=np.float64),
+            np.zeros(3, dtype=np.float64),
+            np.eye(3, dtype=np.float64).reshape(-1),
+            np.asarray(color, dtype=np.float32),
+        )
+        mujoco.mjv_connector(
+            geom,
+            int(mujoco.mjtGeom.mjGEOM_LINE),
+            width,
+            np.asarray(endpoints[0], dtype=np.float64),
+            np.asarray(endpoints[1], dtype=np.float64),
+        )
+        scene.ngeom += 1
 
 
 def _publish_gif(images: list[Any], output: Path) -> None:
@@ -546,10 +701,11 @@ def render_course_trace(inputs: CourseRenderInputs, output: Path) -> dict[str, o
     camera.azimuth = 135.0
     camera.elevation = -15.0
     try:
-        font = ImageFont.truetype("DejaVuSans.ttf", 14)
+        font = ImageFont.truetype("DejaVuSans.ttf", 12)
     except OSError:
         font = ImageFont.load_default()
     indices = select_frame_indices(inputs.arrays["qpos"].shape[0])
+    overlay = course_ground_overlay(inputs.task, inputs.arrays["qpos"][0])
     images: list[Any] = []
     try:
         for state_index in indices:
@@ -560,22 +716,15 @@ def render_course_trace(inputs: CourseRenderInputs, output: Path) -> dict[str, o
             mujoco.mj_forward(model, data)
             camera.lookat[:] = data.qpos[:3]
             renderer.update_scene(data, camera=camera)
+            _add_course_overlay(mujoco, renderer.scene, overlay)
             image = Image.fromarray(renderer.render()).convert("RGB")
             draw = ImageDraw.Draw(image, "RGBA")
-            draw.rectangle((0, 0, FRAME_WIDTH, 88), fill=(0, 0, 0, 184))
             annotation = frame_annotation(inputs, index)
-            arm = inputs.label.replace("_", " ")
-            lines = (
-                "GMT course development only",
-                "Recorded states / no policy rerun",
-                f"arm: {arm}   t={annotation.simulation_time_seconds:0.2f}s   "
-                f"mode={annotation.executed_mode}",
-                f"height={annotation.root_height_m:0.3f}m   "
-                f"speed={annotation.forward_speed_m_s:0.3f}m/s   "
-                f"progress={annotation.progress_m:0.3f}m",
-            )
+            lines = hud_lines(inputs, annotation)
+            panel_height = 7 + 17 * len(lines)
+            draw.rectangle((0, 0, FRAME_WIDTH, panel_height), fill=(0, 0, 0, 200))
             for line_index, line in enumerate(lines):
-                draw.text((8, 4 + 20 * line_index), line, fill=(255, 255, 255, 255), font=font)
+                draw.text((8, 3 + 17 * line_index), line, fill=(255, 255, 255, 255), font=font)
             images.append(image)
     finally:
         renderer.close()
@@ -594,6 +743,8 @@ def render_course_trace(inputs: CourseRenderInputs, output: Path) -> dict[str, o
             "dynamics_rerun": False,
             "training_inferred_from_render": False,
             "task_success_labeled": False,
+            "physical_obstacle_scene": False,
+            "display_only_course_markers": True,
         },
         "inputs": {
             "course_manifest_path": inputs.manifest_path.name,
@@ -612,6 +763,17 @@ def render_course_trace(inputs: CourseRenderInputs, output: Path) -> dict[str, o
             "retained_state_rows": int(inputs.arrays["qpos"].shape[0]),
             "state_operation": "mujoco_forward_on_recorded_qpos_qvel",
             "maximum_frames": MAX_RENDER_FRAMES,
+            "course_overlay": {
+                "coordinate_frame": "retained_initial_root_heading",
+                "posture_region_progress_interval_m": [
+                    inputs.task.region_entry_distance_m,
+                    inputs.task.region_exit_distance_m,
+                ],
+                "posture_region_exit_exclusive": True,
+                "finish_progress_m": inputs.task.finish_distance_m,
+                "display_half_width_m_not_a_task_lateral_boundary": GROUND_OVERLAY_HALF_WIDTH_M,
+                "collision_or_dynamics_effect": False,
+            },
         },
         "runtime": {
             "platform": platform.platform(),

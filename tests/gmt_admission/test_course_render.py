@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -10,8 +11,11 @@ import pytest
 
 from oracle_composition.adapters.gmt import course_render
 from oracle_composition.adapters.gmt.course_render import (
+    GROUND_OVERLAY_HALF_WIDTH_M,
     MAX_RENDER_FRAMES,
+    course_ground_overlay,
     frame_annotation,
+    hud_lines,
     load_course_render_inputs,
     select_frame_indices,
 )
@@ -27,7 +31,7 @@ def _task(steps: int) -> CourseTaskSpec:
     return CourseTaskSpec(
         region_entry_distance_m=1.0,
         region_exit_distance_m=2.0,
-        finish_distance_m=3.0,
+        finish_distance_m=3.5,
         target_speed_outside_m_s=1.0,
         target_speed_inside_m_s=0.5,
         posture_band_low_m=0.45,
@@ -292,3 +296,81 @@ def test_frame_selection_is_bounded_deterministic_and_keeps_endpoints() -> None:
 
     short = select_frame_indices(2)
     np.testing.assert_array_equal(short, [0, 1])
+
+
+def test_course_overlay_uses_initial_heading_and_exact_task_distances() -> None:
+    qpos = np.zeros(30, dtype="<f8")
+    qpos[:2] = (10.0, -4.0)
+    qpos[3:7] = (2**-0.5, 0.0, 0.0, 2**-0.5)  # 90-degree yaw, wxyz.
+    overlay = course_ground_overlay(_task(10), qpos)
+
+    np.testing.assert_allclose(overlay.region_center_xyz, (10.0, -2.5, 0.003), atol=1e-12)
+    assert overlay.region_half_size_xyz == (0.5, GROUND_OVERLAY_HALF_WIDTH_M, 0.002)
+    np.testing.assert_allclose(overlay.entry_line[0], (12.0, -3.0, 0.008), atol=1e-12)
+    np.testing.assert_allclose(overlay.entry_line[1], (8.0, -3.0, 0.008), atol=1e-12)
+    np.testing.assert_allclose(overlay.exit_line[0][1], -2.0, atol=1e-12)
+    np.testing.assert_allclose(overlay.finish_line[0][1], -0.5, atol=1e-12)
+
+
+def test_hud_directly_labels_targets_failures_and_nonphysical_markers(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(tmp_path)
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="zero_residual",
+    )
+    annotation = replace(
+        frame_annotation(admitted, 2),
+        progress_m=1.5,
+        posture_region_active=True,
+        target_speed_m_s=0.5,
+        recorded_failure_reasons=("non_foot_ground_contact",),
+    )
+    text = "\n".join(hud_lines(admitted, annotation))
+
+    assert "Blue cue=[1.00,2.00)m" in text
+    assert "orange line=finish 3.50m" in text
+    assert "NOT physical obstacles" in text
+    assert "speed current=1.000 | target=0.500 m/s" in text
+    assert "target band=[0.450,0.850]m (ACTIVE)" in text
+    assert "recorded failures: non_foot_ground_contact" in text
+    assert "no policy/dynamics rerun" in text
+
+
+def test_render_overlay_adds_display_geoms_only() -> None:
+    class _GeomType:
+        mjGEOM_BOX = 6
+        mjGEOM_LINE = 100
+
+    class _FakeMujoco:
+        mjtGeom = _GeomType
+
+        def __init__(self) -> None:
+            self.initialized: list[tuple[object, int]] = []
+            self.connected: list[tuple[object, int, float]] = []
+
+        def mjv_initGeom(self, geom, geom_type, _size, _pos, _mat, _rgba) -> None:
+            self.initialized.append((geom, geom_type))
+
+        def mjv_connector(self, geom, geom_type, width, _start, _end) -> None:
+            self.connected.append((geom, geom_type, width))
+
+    class _Scene:
+        def __init__(self) -> None:
+            self.ngeom = 0
+            self.maxgeom = 4
+            self.geoms = [object() for _ in range(4)]
+
+    qpos = np.zeros(30, dtype="<f8")
+    qpos[3] = 1.0
+    fake_mujoco, scene = _FakeMujoco(), _Scene()
+    course_render._add_course_overlay(
+        fake_mujoco,
+        scene,
+        course_ground_overlay(_task(10), qpos),
+    )
+
+    assert scene.ngeom == 4
+    assert [geom_type for _, geom_type in fake_mujoco.initialized] == [6, 100, 100, 100]
+    assert [width for _, _, width in fake_mujoco.connected] == [3.0, 3.0, 6.0]
