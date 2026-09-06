@@ -148,6 +148,17 @@
       "ruff": "check clean; format: 390 files formatted, 1 Astra packet document (TASK-F3-initial-protocol.md, fixed in Astra's 7f2298f pending integration) would be reformatted",
       "started_utc": "2026-09-06T05:52:13Z",
       "tree": "Slice T2A (T2 reward-study artifacts) before the reward receipt regeneration"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "F3PINR1 slice: this record is written before the slice commit; the commit that contains this record is the slice",
+      "finished_utc": "2026-09-06T06:53:34Z",
+      "result": "1 failed, 1847 passed, 16 skipped, 2 warnings in 238.41s (0:03:58); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted integration commit",
+      "ruff": "check clean; format: one Astra packet document pending their 7f2298f integration",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox, all matching artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt; host run has no sandbox failures",
+      "scratch_record_sha256": "f081b83d70ae7b4d5cb000a1872cda16c7da9ed07b46c97d6cbffdf47022f601",
+      "started_utc": "2026-09-06T06:49:35Z",
+      "tree": "Slice F3PINR1 (one-call identity, T2 seal, record repairs)"
     }
   ],
   "schema_version": 1

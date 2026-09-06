@@ -2,9 +2,52 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260906-T2A` freezes the canonical expert-hold oracle, expert-only T2 training design, source-bound direct-state evaluator/report, matched-arm study manifest, and source-bound uncalled pairing adapter. The 25 focused tests pass; the release-byte full suite adds no failure beyond the recorded sandbox baseline. |
-| bottleneck | T2 execution remains **NO-GO**. The candidate reward SHA-256 and Astra-accepted integrated trainer pairing receipt are both TBD; the local adapter receipt is an interface check and does not show that `phase_b/training.py` consumes the pairing key. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
-| next step | Fable reviews and commits T2A (force-add the intentionally ignored pairing receipt), then—only if the separate F3PIN review accepts—runs the one initial F3 call and admits/seals the candidate. Astra must explicitly accept and integrate the shared trainer seam before any smoke or cohort proposal; every cohort still needs its own reservation and Samuel authorization. |
+| progress | F3PINR1 repairs the Fable F3 protocol with one canonical call identity, intent-required/replay-safe ingestion, and a non-model-facing seal over the committed T2A artifacts; 136 focused tests pass and the 6,011-byte prompt is unchanged. |
+| bottleneck | Dispatch and T2 execution remain **NO-GO**. The seal records `pairing_receipt: pending`; F3PINR1 needs independent acceptance, and the candidate reward SHA-256 is TBD. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
+| next step | Fable reviews and commits this complete repair and handoff together, then obtains Astra's accepted integrated pairing receipt and a separate dispatch verdict. Cohorts still require reservation and Samuel authorization. |
+
+F3PINR1 completion (2026-09-06T06:48Z): launch base `c969009` was clean.
+The repaired provenance records `builder_launch_base=8d617e3`,
+`target_parent=c0332b1`, and `target=b071fc5`; the complete target path list is
+`README.md`, `docs/operations/dual-orchestration/F3_FABLE_REPIN.md`,
+`docs/operations/dual-orchestration/F3_ONE_CALL_PROTOCOL.md`,
+`src/oracle_composition/reward_search/t2_model_contracts.py`,
+`src/oracle_composition/reward_search/t2_model_protocol.py`, and
+`tests/reward_search/test_t2_model_protocol.py`. `uv.lock` is unchanged at
+SHA-256 `81b92d15dd2da62f27cd770322db78008d5387b530dc71e053f0d56b327f0b40`.
+Fable must integrate future handoff updates in the same commit as their slice.
+
+The new 1,400-byte T2 seal is `8c04f0c2…314eb`; it re-verifies the expert-hold
+oracle, training design, evaluator design, study manifest, recomputed pairing
+key, and tracking-only baseline before prompt rendering. It remains
+non-model-facing and honestly records `pairing_receipt: pending`. The prompt is
+unchanged at 6,011 bytes / `4d1a2976…e2bbc`; derived `call_id` is
+`570ebdc2…54254`, and the canonical call-identity digest is
+`23b45b7b…17cc6`. That digest is carried in the canonical intent, exact launcher
+scope, retained request/result, and call receipt. A second canonical identity
+claim, sibling intent, ingestion without/mismatched intent, second valid run,
+and same-run provider replay are refused with retained receipts. Repository
+state cannot prove the absence of an unrecorded external call.
+
+Focused F3/F1 validation is `136 passed` in `1.27s`; adjacent T2 artifact
+validation is `7 passed` in `3.93s`. Ruff lint and format pass on the three
+changed Python files. The full suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1801 passed, 18 skipped, 1 deselected, 44 failed` in `268.56s`; all 44
+failed node IDs equal the recorded 03A3 sandbox baseline. `git diff --check`
+passes. Changed paths are `README.md`, this handoff,
+`docs/operations/dual-orchestration/{F3_FABLE_REPIN.md,F3_ONE_CALL_PROTOCOL.md}`,
+`experiments/004_t2_reward_study/{PROTOCOL.md,t2_seal_v1.json}`,
+`src/oracle_composition/reward_search/{t2_model_contracts.py,t2_model_protocol.py}`,
+and `tests/reward_search/test_t2_model_protocol.py`. No Git write, candidate
+call, training, or standalone simulator command occurred.
+Builder wall time was `51m` from lease acquisition through release-byte
+verification and the final handoff audit.
+
+Fable resume: independently review F3PINR1, commit all nine paths above in one
+slice commit, and keep dispatch withheld until the pairing receipt and a new
+dispatch verdict both exist. Never infer that no external call occurred from
+repository state alone.
 
 Fable integration note (2026-09-06T05:56Z): T2A is committed in this same commit with the force-added pairing adapter receipt. F3PIN review verdict: ACCEPT_F3_REPIN_STATIC_ONLY, WITHHOLD_DISPATCH; repairs in packet TASK-20260906-F3PINR1 (next writer). The pairing seam (packet TASK-20260906-T2PAIR) launches only after Astra accepts proposal 20260906T055257. A read-only review of T2A runs in parallel. Fable resume: read the F3PINR1 final and the T2A review; commit; if Astra accepted the pairing terms, launch T2PAIR; the single F3 call waits for the T2 seal, the pairing receipt, and a dispatch verdict; cohorts wait for a reservation and Samuel's authorization.
 

@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | The accepted initial-only protocol is re-pinned to Fable's reward lane in `main`; its one-call, zero-retry semantics are unchanged. |
-| bottleneck | No F3 candidate call, candidate admission, protected evaluation, training, or reward result exists. |
-| next step | Review and commit the re-pin, then freeze the separate T2 reward-study protocol. Do not dispatch the candidate call from the re-pin slice. |
+| progress | F3PINR1 adds one canonical call identity, intent-bound ingestion, replay refusal, and a verified non-model-facing T2 seal while preserving the exact 6,011-byte prompt. |
+| bottleneck | Dispatch remains withheld: the seal records `pairing_receipt: pending`, F3PINR1 still needs independent review, and no candidate call or behavioral result exists. |
+| next step | Independently review this static repair and obtain the accepted integrated pairing receipt before any separate dispatch verdict. Do not dispatch from this slice. |
 
 ## Purpose and strict scope
 
@@ -17,10 +17,10 @@
 
 ## Preconditions
 
-1. Independent verdict `ACCEPT_F3_STATIC_ONLY` closed F3-01 through F3-04 and
-   the exact-baseline refresh. Separate verdict `APPROVE_F3_ONE_CALL_PROTOCOL`
-   approved the one-call semantics. The Fable re-pin must be reviewed and
-   committed before use. Any rejection or missing verdict stops dispatch.
+1. Independent verdict `ACCEPT_F3_STATIC_ONLY` closed the original F3 findings.
+   The Fable re-pin review returned `ACCEPT-WITH-REPAIRS` and
+   `WITHHOLD_DISPATCH`. F3PINR1 must be independently accepted and committed;
+   any rejection, missing verdict, or different source bytes stops dispatch.
 2. The accepted Astra source is merged into `main`; this configuration is bound
    to checkout `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`, branch
    `main`, and import origin
@@ -32,7 +32,16 @@
    SHA-256 `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f`.
    It is byte-identical to the accepted binding at `87d2e39c47b6747b505bc2657d505aeda2265b5e`;
    FT2R3 did not change it. It remains declared configuration, not observed load.
-4. The preparation and ingestion lease configuration is owner
+4. Preparation receives and verifies the exact 1,400-byte
+   `experiments/004_t2_reward_study/t2_seal_v1.json`, SHA-256
+   `8c04f0c2bc9222f9918829f1e5d922c948583ea03da0eb0174a03e2dfcb314eb`,
+   before it renders the prompt. The non-model-facing seal binds the expert-hold
+   oracle, T2 training design, evaluator design, study manifest, tracking-only
+   baseline, and arm-invariant pairing key. Every bound file is re-read and
+   hash/count checked; the pairing key is recomputed from equal common arm
+   fields. The current seal truth is `pairing_receipt: pending` and
+   `withheld_pending_pairing_receipt`. Therefore dispatch remains prohibited.
+5. The preparation and ingestion lease configuration is owner
    `fable-f3-prepare`, role `builder`, scope
    `t2-initial-packet-preparation-and-ingestion-only`. Own checkout only; no
    other local writer, heavy resource, or new shared scientific interface.
@@ -50,6 +59,10 @@
   `4d1a29765d929472e2f2a346294f98ac08c0e35d3e18c147e761e46678fe2bbc`.
   It excludes simulator internals, corpus payload bytes, and a phase-B execution
   manifest.
+- The seal SHA-256, evaluator-design SHA-256/content, study-manifest
+  SHA-256/content, pairing key, and execution-manifest content are not placed in
+  the prompt. Changing a valid non-model-facing seal changes the packet/call
+  identity but leaves these 6,011 prompt bytes unchanged.
 
 ## Exact preparation and dispatch
 
@@ -57,21 +70,37 @@
   `.orchestration/f3-initial-call-20260906/`. Never erase/reuse an existing one;
   inspect its saved state on resume instead of starting another call.
 - Read the immutable baseline Git blob as bytes and verify SHA-256/count.
-  Use only reviewed `prepare_initial_t2_packet`, `render_initial_t2_prompt`
-  and `publish_initial_t2_packet`; retain `record.json` and `task-packet.md`.
+  Read `t2_seal_v1.json` as bytes. Use only reviewed
+  `prepare_initial_t2_packet`, passing both exact byte strings, then
+  `render_initial_t2_prompt` and `publish_initial_t2_packet`; retain
+  `record.json` and `task-packet.md`.
   No prefix, suffix or handwritten prompt substitution is permitted.
 - Retain a preparation record with baseline, reviewed source, final prompt and
   record hashes/counts, exact HEAD, and missing-evidence classification.
-- Before launch, call only `publish_initial_t2_dispatch_intent` to write the
-  fixed `dispatch-intent.json`: maximum initial calls 1, attempts remaining 0,
-  zero revision calls, zero retries, the 1,200-second deadline, and expected
-  checkout/preparation/candidate configuration. The no-overwrite publisher
-  refuses a second record at that path.
+- Protocol identifier is fixed as `f3_initial_t2_one_call/v1`. Derive `call_id`
+  as SHA-256 over `protocol_id || NUL || study_manifest_sha256 || NUL ||
+  rendered_prompt_sha256`. The current value is
+  `570ebdc2f117e80b02b269b480045a34df57ed63fb9becb4620a5c6be5b54254`.
+  The canonical call-identity record digest is
+  `23b45b7b0d5e5abc01a21a48d89828e1b85dd83cb41c473ab495b44683f17cc6`.
+- Before launch, call only `publish_initial_t2_dispatch_intent` with the exact
+  canonical path `.orchestration/f3-initial-call-20260906/dispatch-intent.json`.
+  It first claims `call-identity.json` at that call root using atomic
+  no-overwrite publication, then publishes the intent with the call identity
+  digest, T2 seal and study-manifest bindings, maximum initial calls 1,
+  attempts remaining 0, zero revisions/retries, and the 1,200-second deadline.
+  A sibling intent path, conflicting/pre-existing identity, or pre-existing
+  canonical intent is refused with a retained protocol-refusal receipt.
+  A second claim of the canonical call identity is refused; repository state
+  cannot prove the absence of an unrecorded external call.
   An interrupted/uncertain launch must be reconciled from existing receipts;
   it is never permission to launch again.
 - Existing `start-sol-worker` launcher only: `read-only`, owner
-  `fable-f3-initial`, role `candidate`, scope
-  `t2-initial-parameter-hypothesis-only`, requested `gpt-5.6-sol`, effort `max`.
+   `fable-f3-initial`, role `candidate`, scope
+  `t2-initial-parameter-hypothesis-only;call_identity_sha256=23b45b7b0d5e5abc01a21a48d89828e1b85dd83cb41c473ab495b44683f17cc6`,
+  requested `gpt-5.6-sol`, effort `max`. The existing launcher's exact `scope`
+  field binds the digest into both retained `request.json` and `result.json`;
+  changing or omitting it makes ingestion reject the envelope.
   Use the exact published prompt SHA-256/count as launcher arguments.
 - Attach the existing read-only exact-run watchdog in the same tool call as
   launch. Deadline: immutable request creation + 1,200 seconds. Preserve the
@@ -88,10 +117,17 @@
 
 - On ordinary success or failure, wait for the exact terminal receipt. Inspect
   source hashes and confirm no other local writer before parent ingestion.
-- Call only reviewed `ingest_initial_t2_sol_run` with retained record bytes,
-  the exact run directory and a fresh `records` output beneath the call root.
+- Call only reviewed `ingest_initial_t2_sol_run` with retained record bytes and
+  the exact run directory. Output is fixed at the canonical call root's
+  `records/` directory; the caller cannot select a sibling output or intent.
   Retain request, packet, result, final response and an acceptance/rejection
   receipt as the implementation permits; missing bytes stay explicitly missing.
+- Ingestion requires the exact canonical call-identity and dispatch-intent
+  bytes. It atomically claims `ingestion-claim.json` before envelope/proposal
+  validation. Missing or mismatched intent, a second valid run, or a replay of
+  the same provider result is rejected with retained raw artifacts and a call
+  receipt. Any first run—including malformed or failed output—consumes the
+  ingestion claim; zero retry remains the rule.
 - Accept only the fixed read-only envelope, exact prompt, bounded successful
   terminal, and valid response echoes/parameters. A parse or transport failure
   is a retained negative outcome; no repaired response or retry is authorized.

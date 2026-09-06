@@ -5,13 +5,21 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import json
 import math
+from pathlib import PurePosixPath
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-T2_MODEL_SCHEMA_VERSION = 3
+T2_MODEL_SCHEMA_VERSION = 4
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
+
+F3_CALL_PROTOCOL_ID = "f3_initial_t2_one_call/v1"
+T2_SEAL_ARTIFACT_ID = "experiments/004_t2_reward_study/t2_seal_v1.json"
+CALL_IDENTITY_FILENAME = "call-identity.json"
+DISPATCH_INTENT_FILENAME = "dispatch-intent.json"
+INGESTION_CLAIM_FILENAME = "ingestion-claim.json"
 
 RUN_ARTIFACT_NAMES = ("request.json", "task-packet.md", "result.json", "final.txt")
 MISSING_EVIDENCE = (
@@ -40,9 +48,142 @@ EXPECTED_METADATA_SEMANTICS = "expected_configuration_not_served_model_attestati
 PINNED_BASELINE_SHA256 = "eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"
 PINNED_BASELINE_BYTE_COUNT = 1_773
 
+_CALL_IDENTITY_SCOPE_MARKER = ";call_identity_sha256="
+_T2_SEALED_PATHS = {
+    "expert_hold_oracle": "experiments/004_t2_reward_study/oracle_expert_hold_v1.json",
+    "training_design": "experiments/004_t2_reward_study/training_design_t2_v1.json",
+    "evaluator_design": "experiments/004_t2_reward_study/evaluator_design_t2_v1.json",
+    "study_manifest": ("experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json"),
+    "tracking_only_baseline": (
+        "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json"
+    ),
+}
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def derive_t2_call_id(*, study_manifest_sha256: str, rendered_prompt_sha256: str) -> str:
+    """Derive the protocol call ID from three unambiguous, versioned fields."""
+
+    if not _is_sha256(study_manifest_sha256) or not _is_sha256(rendered_prompt_sha256):
+        raise ValueError("call-ID inputs must be lowercase SHA-256 values")
+    material = (
+        F3_CALL_PROTOCOL_ID.encode("ascii")
+        + b"\x00"
+        + study_manifest_sha256.encode("ascii")
+        + b"\x00"
+        + rendered_prompt_sha256.encode("ascii")
+    )
+    return hashlib.sha256(material).hexdigest()
+
+
+def expected_candidate_scope(call_identity_sha256: str) -> str:
+    if not _is_sha256(call_identity_sha256):
+        raise ValueError("call identity must be a lowercase SHA-256")
+    return EXPECTED_CANDIDATE_SCOPE + _CALL_IDENTITY_SCOPE_MARKER + call_identity_sha256
+
+
+def _canonical_model_sha256(model: BaseModel) -> str:
+    encoded = (
+        json.dumps(
+            model.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
 
 class T2StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
+
+
+class T2SealedArtifact(T2StrictModel):
+    path: str = Field(min_length=1, max_length=512)
+    sha256: str = Field(pattern=SHA256_PATTERN)
+    byte_count: int = Field(ge=1, le=262_144)
+
+    @field_validator("path", mode="before")
+    @classmethod
+    def validate_canonical_path(cls, value: object) -> str:
+        if type(value) is not str:
+            raise ValueError("sealed artifact path must be exact text")
+        parsed = PurePosixPath(value)
+        if (
+            parsed.is_absolute()
+            or str(parsed) != value
+            or any(part in {"", ".", ".."} for part in parsed.parts)
+            or "\\" in value
+            or "\x00" in value
+        ):
+            raise ValueError("sealed artifact path must be canonical and repository-relative")
+        return value
+
+
+class T2PreDispatchSeal(T2StrictModel):
+    schema_version: Literal[1]
+    kind: Literal["t2_pre_dispatch_seal"]
+    seal_id: Literal["f3_t2_pre_dispatch_seal/v1"]
+    study_id: Literal["t2_reward_study_expert_hold/v1"]
+    expert_hold_oracle: T2SealedArtifact
+    training_design: T2SealedArtifact
+    evaluator_design: T2SealedArtifact
+    study_manifest: T2SealedArtifact
+    tracking_only_baseline: T2SealedArtifact
+    study_pairing_sha256: str = Field(pattern=SHA256_PATTERN)
+    pairing_receipt: Literal["pending"]
+    dispatch_state: Literal["withheld_pending_pairing_receipt"]
+
+    @model_validator(mode="after")
+    def validate_frozen_paths(self) -> T2PreDispatchSeal:
+        artifacts = {
+            "expert_hold_oracle": self.expert_hold_oracle,
+            "training_design": self.training_design,
+            "evaluator_design": self.evaluator_design,
+            "study_manifest": self.study_manifest,
+            "tracking_only_baseline": self.tracking_only_baseline,
+        }
+        if any(type(value) is not T2SealedArtifact for value in artifacts.values()):
+            raise ValueError("T2 seal artifacts must use the exact sealed-artifact type")
+        if any(value.path != _T2_SEALED_PATHS[key] for key, value in artifacts.items()):
+            raise ValueError("T2 seal artifact path differs from the frozen protocol")
+        if len({value.path for value in artifacts.values()}) != len(artifacts):
+            raise ValueError("T2 seal artifact paths must be unique")
+        if (
+            self.tracking_only_baseline.sha256 != PINNED_BASELINE_SHA256
+            or self.tracking_only_baseline.byte_count != PINNED_BASELINE_BYTE_COUNT
+        ):
+            raise ValueError("T2 seal baseline differs from the pinned tracking-only artifact")
+        return self
+
+
+class T2CallIdentity(T2StrictModel):
+    schema_version: Literal[1]
+    kind: Literal["t2_initial_call_identity"]
+    protocol_id: Literal["f3_initial_t2_one_call/v1"]
+    study_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
+    rendered_prompt_sha256: str = Field(pattern=SHA256_PATTERN)
+    t2_seal_sha256: str = Field(pattern=SHA256_PATTERN)
+    call_id: str = Field(pattern=SHA256_PATTERN)
+
+    @model_validator(mode="after")
+    def validate_call_id(self) -> T2CallIdentity:
+        expected = derive_t2_call_id(
+            study_manifest_sha256=self.study_manifest_sha256,
+            rendered_prompt_sha256=self.rendered_prompt_sha256,
+        )
+        if self.call_id != expected:
+            raise ValueError("call_id differs from the fixed F3 derivation")
+        return self
 
 
 class T2FableExpectedConfiguration(T2StrictModel):
@@ -59,8 +200,20 @@ class T2FableExpectedConfiguration(T2StrictModel):
     expected_runner_kind: Literal["screen"]
     expected_owner: Literal["fable-f3-initial"]
     expected_role: Literal["candidate"]
-    expected_scope: Literal["t2-initial-parameter-hypothesis-only"]
+    expected_scope: str = Field(min_length=1, max_length=2_048)
     metadata_semantics: Literal["expected_configuration_not_served_model_attestation"]
+
+    @field_validator("expected_scope", mode="before")
+    @classmethod
+    def validate_call_bound_scope(cls, value: object) -> str:
+        if type(value) is not str or not value.startswith(
+            EXPECTED_CANDIDATE_SCOPE + _CALL_IDENTITY_SCOPE_MARKER
+        ):
+            raise ValueError("candidate scope lacks the call-identity binding")
+        digest = value.removeprefix(EXPECTED_CANDIDATE_SCOPE + _CALL_IDENTITY_SCOPE_MARKER)
+        if not _is_sha256(digest):
+            raise ValueError("candidate scope has an invalid call-identity binding")
+        return value
 
 
 class T2RetainedArtifact(T2StrictModel):
@@ -213,12 +366,16 @@ class T2InitialRequest(T2StrictModel):
 
 
 class T2InitialPacketRecord(T2FableExpectedConfiguration):
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     kind: Literal["t2_initial_parameter_packet_record"]
     baseline: T2RetainedArtifact
+    t2_seal: T2RetainedArtifact
     contracts: T2ContractBundle
     evidence_dossier: T2InitialEvidenceDossier
     semantic_request: T2InitialRequest
+    call_identity: T2CallIdentity
+    call_identity_sha256: str = Field(pattern=SHA256_PATTERN)
+    study_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
     request_payload_sha256: str = Field(pattern=SHA256_PATTERN)
     baseline_sha256: str = Field(pattern=SHA256_PATTERN)
     t2_contract_sha256: str = Field(pattern=SHA256_PATTERN)
@@ -226,10 +383,28 @@ class T2InitialPacketRecord(T2FableExpectedConfiguration):
     rendered_prompt_sha256: str = Field(pattern=SHA256_PATTERN)
     rendered_prompt_byte_count: int = Field(ge=1, le=131_072)
 
+    @model_validator(mode="after")
+    def validate_non_model_facing_bindings(self) -> T2InitialPacketRecord:
+        if self.t2_seal.artifact_id != T2_SEAL_ARTIFACT_ID:
+            raise ValueError("packet T2 seal identity differs")
+        if (
+            self.call_identity.t2_seal_sha256 != self.t2_seal.sha256
+            or self.call_identity.study_manifest_sha256 != self.study_manifest_sha256
+            or self.call_identity.rendered_prompt_sha256 != self.rendered_prompt_sha256
+            or self.call_identity_sha256 != _canonical_model_sha256(self.call_identity)
+            or self.expected_scope != expected_candidate_scope(self.call_identity_sha256)
+        ):
+            raise ValueError("packet call-identity binding differs")
+        return self
+
 
 class T2InitialDispatchIntent(T2FableExpectedConfiguration):
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     kind: Literal["t2_initial_dispatch_intent"]
+    call_id: str = Field(pattern=SHA256_PATTERN)
+    call_identity_sha256: str = Field(pattern=SHA256_PATTERN)
+    t2_seal_sha256: str = Field(pattern=SHA256_PATTERN)
+    study_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
     maximum_initial_calls: Literal[1]
     attempts_remaining_after_intent: Literal[0]
     revision_calls_authorized: Literal[0]
@@ -244,6 +419,15 @@ class T2InitialDispatchIntent(T2FableExpectedConfiguration):
     request_payload_sha256: str = Field(pattern=SHA256_PATTERN)
     t2_contract_sha256: str = Field(pattern=SHA256_PATTERN)
     evidence_dossier_sha256: str = Field(pattern=SHA256_PATTERN)
+
+    @model_validator(mode="after")
+    def validate_call_binding(self) -> T2InitialDispatchIntent:
+        if self.call_id != derive_t2_call_id(
+            study_manifest_sha256=self.study_manifest_sha256,
+            rendered_prompt_sha256=self.rendered_prompt_sha256,
+        ) or self.expected_scope != expected_candidate_scope(self.call_identity_sha256):
+            raise ValueError("dispatch intent call-identity binding differs")
+        return self
 
 
 class T2ParameterValues(T2StrictModel):
@@ -314,13 +498,51 @@ class T2RunArtifactBinding(T2StrictModel):
         return self
 
 
+class T2IngestionClaim(T2StrictModel):
+    schema_version: Literal[1]
+    kind: Literal["t2_initial_ingestion_claim"]
+    call_id: str = Field(pattern=SHA256_PATTERN)
+    call_identity_sha256: str = Field(pattern=SHA256_PATTERN)
+    dispatch_intent_sha256: str = Field(pattern=SHA256_PATTERN)
+    run_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+    run_artifacts_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class T2ProtocolRefusalReceipt(T2StrictModel):
+    schema_version: Literal[1]
+    kind: Literal["t2_initial_protocol_refusal_receipt"]
+    stage: Literal["call_identity_claim", "dispatch_intent"]
+    reason_code: Literal[
+        "canonical_call_identity_already_claimed",
+        "canonical_call_identity_conflict",
+        "noncanonical_dispatch_intent_path",
+        "canonical_dispatch_intent_already_exists",
+    ]
+    call_id: str = Field(pattern=SHA256_PATTERN)
+    call_identity_sha256: str = Field(pattern=SHA256_PATTERN)
+    attempted_path_class: Literal["canonical", "noncanonical"]
+    canonical_identity_path: Literal["call-identity.json"]
+    canonical_dispatch_intent_path: Literal["dispatch-intent.json"]
+    repository_claim: Literal[
+        "canonical_call_identity_claim_refused_external_call_absence_not_proven"
+    ]
+
+
 class T2ModelCallReceipt(T2FableExpectedConfiguration):
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     kind: Literal["t2_initial_model_call_receipt"]
     source_class: Literal["local_detached_sol_retained_run_v1"]
     disposition: Literal["parameter_proposal_format_accepted", "parameter_proposal_rejected"]
     run_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     run_artifacts: list[T2RunArtifactBinding] = Field(min_length=4, max_length=4)
+    call_id: str = Field(pattern=SHA256_PATTERN)
+    call_identity_sha256: str = Field(pattern=SHA256_PATTERN)
+    t2_seal_sha256: str = Field(pattern=SHA256_PATTERN)
+    study_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
+    dispatch_intent_consistency: Literal["verified", "missing", "mismatched"]
+    dispatch_intent_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
+    ingestion_claim_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
+    replay_refusal: bool
     original_packet_sha256: str = Field(pattern=SHA256_PATTERN)
     original_packet_byte_count: int = Field(ge=1, le=131_072)
     record_sha256: str = Field(pattern=SHA256_PATTERN)
@@ -372,10 +594,39 @@ class T2ModelCallReceipt(T2FableExpectedConfiguration):
             self.result_thread_id is not None and bool(self.result_thread_id.strip())
         ):
             raise ValueError("only a verified local envelope carries a terminal thread ID")
+        if self.call_id != derive_t2_call_id(
+            study_manifest_sha256=self.study_manifest_sha256,
+            rendered_prompt_sha256=self.original_packet_sha256,
+        ) or self.expected_scope != expected_candidate_scope(self.call_identity_sha256):
+            raise ValueError("call receipt call-identity binding differs")
+        if self.dispatch_intent_consistency == "missing" and (
+            self.dispatch_intent_sha256 is not None
+        ):
+            raise ValueError("dispatch-intent state and digest differ")
+        if self.dispatch_intent_consistency == "verified" and (self.dispatch_intent_sha256 is None):
+            raise ValueError("dispatch-intent state and digest differ")
+        if self.ingestion_claim_sha256 is not None and (
+            self.dispatch_intent_consistency != "verified"
+        ):
+            raise ValueError("only a verified dispatch intent can carry an ingestion claim")
+        if accepted and (
+            self.dispatch_intent_consistency != "verified"
+            or self.ingestion_claim_sha256 is None
+            or self.replay_refusal
+        ):
+            raise ValueError("format acceptance requires the first canonical ingestion claim")
+        if self.replay_refusal and (
+            accepted
+            or self.dispatch_intent_consistency != "verified"
+            or self.ingestion_claim_sha256 is None
+        ):
+            raise ValueError("replay refusal requires the existing canonical ingestion claim")
         return self
 
 
 __all__ = [
+    "CALL_IDENTITY_FILENAME",
+    "DISPATCH_INTENT_FILENAME",
     "EXPECTED_BRANCH",
     "EXPECTED_CANDIDATE_OWNER",
     "EXPECTED_CANDIDATE_ROLE",
@@ -389,12 +640,17 @@ __all__ = [
     "EXPECTED_PREPARATION_SCOPE",
     "EXPECTED_REASONING_EFFORT",
     "EXPECTED_RUNNER_KIND",
+    "F3_CALL_PROTOCOL_ID",
+    "INGESTION_CLAIM_FILENAME",
     "MISSING_EVIDENCE",
     "PINNED_BASELINE_BYTE_COUNT",
     "PINNED_BASELINE_SHA256",
     "RUN_ARTIFACT_NAMES",
+    "T2_SEAL_ARTIFACT_ID",
+    "T2CallIdentity",
     "T2ContractBundle",
     "T2FableExpectedConfiguration",
+    "T2IngestionClaim",
     "T2InitialDispatchIntent",
     "T2InitialEvidenceDossier",
     "T2InitialPacketRecord",
@@ -402,6 +658,11 @@ __all__ = [
     "T2ModelCallReceipt",
     "T2ParameterProposal",
     "T2ParameterValues",
+    "T2PreDispatchSeal",
+    "T2ProtocolRefusalReceipt",
     "T2RetainedArtifact",
     "T2RunArtifactBinding",
+    "T2SealedArtifact",
+    "derive_t2_call_id",
+    "expected_candidate_scope",
 ]

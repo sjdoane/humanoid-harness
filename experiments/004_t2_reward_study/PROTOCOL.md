@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2A freezes the expert-hold oracle, expert-only training design, reward-independent evaluator/report contract, matched-arm manifest, and uncalled pairing adapter. No candidate call, training, smoke, cohort, or behavioral evaluation ran. |
-| bottleneck | Execution remains **NO-GO**: the candidate reward SHA-256 and an integrated `phase_b/training.py` pairing receipt are TBD. The adapter receipt does not show that the production trainer consumes the pairing key. |
-| next step | Fable obtains the F3 review result, runs the authorized single candidate call only if accepted, admits and seals the candidate, and asks Astra to accept/integrate the shared trainer seam before any smoke or cohort proposal. |
+| progress | T2A freezes the expert-hold oracle, expert-only training design, reward-independent evaluator/report contract, matched-arm manifest, and uncalled pairing adapter; F3PINR1 adds the non-model-facing pre-dispatch seal. No candidate call, training, smoke, cohort, or behavioral evaluation ran. |
+| bottleneck | Execution remains **NO-GO**: `t2_seal_v1.json` records `pairing_receipt: pending`; the candidate reward SHA-256 and an integrated `phase_b/training.py` pairing receipt are TBD. The adapter receipt does not show that the production trainer consumes the pairing key. |
+| next step | Finish independent review of F3PINR1 and obtain Astra's accepted integrated pairing receipt. Only a later explicit dispatch verdict may permit the one canonical F3 call; smoke and cohorts remain separately gated. |
 
 ## Frozen artifact ledger
 
@@ -14,6 +14,7 @@
 | `training_design_t2_v1.json` | 1,815 | `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e` | exact T2 Phase B design contract |
 | `evaluator_design_t2_v1.json` | 1,602 | `d8f54f80051e4e3e58a540fc1414e9a971c9e299d903c2a00162bfebaa64a04b` | evaluator/report/protected-core source-bound design |
 | `t2_reward_study_expert_hold_v1.json` | 5,474 | `7aefaafcef6d319dfd991b6a16eccc5f5578651d6ac8ebb3573358cc307f0738` | common fields duplicated and equality-checked across arm slots |
+| `t2_seal_v1.json` | 1,400 | `8c04f0c2bc9222f9918829f1e5d922c948583ea03da0eb0174a03e2dfcb314eb` | non-model-facing hash ledger; pairing receipt explicitly `pending`, dispatch withheld |
 | `artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` | 1,736 | `01c591c566554c386fbfa38cdfc1019579e20af4a3c9a3e72dca958b09fed1f1` | fake-runtime adapter receipt; ignored local artifact, not trainer execution |
 | `reward_study/pairing.py` | source | `ca90cd0451d3b413900c4de84a10cfea445a7159251f8639f548f1c64ae00943` | arm-invariant adapter source bound into both study arms and its receipt |
 | `reward_study/t2_evaluator.py` | source | `880cd6980ba37eb6079d6bc97a5f0c6c8e9c9ff051e2439eaf1dbf8fe7d7ddb2` | protected direct-state computation |
@@ -27,6 +28,12 @@ It excludes only reward, arm label, output path, and timestamps. Changing the
 common target from `3.0` to `3.1 m/s` changes the key to
 `b683db801ec50d46a70110f9202cd6784d4dda51a87f7d44734dc55fa753b577`
 and changes the derived fake-runtime stream receipt.
+
+F3 preparation must verify the exact seal bytes plus every sealed file before
+rendering the model prompt. The seal and its evaluator/study-manifest contents
+are retained outside the 6,011-byte prompt. Because the integrated pairing
+receipt is still TBD, this seal is a verified preparation input, not dispatch
+authority.
 
 ## Frozen protocol `t2_reward_study_expert_hold/v1`
 
