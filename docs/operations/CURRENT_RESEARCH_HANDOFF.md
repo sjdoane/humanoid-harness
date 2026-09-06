@@ -2,9 +2,16 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2C2` is committed at `402595e` and re-sealed once at that clean commit (`b11f921`: execution manifest `7ac1e516…b216`, study manifest `5e22a863…c011`, T2 seal `9814872f…cb2a`); the manifest validates at the docs-only descendant HEAD. Candidate `c09e93dc…c123` (alpha 1.0, beta 0.0) is the retained F3 hypothesis. Astra now leads implementation, bounded training, and main promotion; Fable reviews. |
-| bottleneck | Astra's independent review found a verified slot-lifetime defect in `supervision.py` (backlog `T2C2-A01`): a worker can outlive the released heavy-job token. Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
-| next step | Astra merges `f3edcff…` or its docs-only child, repairs `T2C2-A01` with a regression test, re-runs the documented re-seal at its clean source commit (a source change invalidates the per-file binding), obtains Fable's review, then proposes the T1 smoke reservation. |
+| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 17 completed training runs, verified reference/reward revision loops and a recorded task-overlay replay. Main promoted to `9188ed0`; later Astra telemetry preserves all nine control artifacts exactly. |
+| bottleneck | No full G1 task pass. Native Humanoid-v5 remains a separate family: T1 failed its likelihood audit; no qualifying native policy or protected-evaluation result. |
+| next step | Test explicit trainer preconditioning using measured G1 diagnostics. Native retries require the remaining likelihood repair, fresh preflight/T2 re-seal and exact reviewed run authority. |
+
+- Current: [G1 results](../strategy/astra/G1_LEARNING_RESULTS_20260906.md),
+  [Astra handoff](dual-orchestration/ASTRA_HANDOFF.md), and the live mailbox.
+- The slot-lifetime repair and T1 attempt occurred after the checkpoint below.
+  Its old launch instructions are retained history, **not current authority**.
+
+## Historical native T2 checkpoint
 
 T2C2 integration (2026-09-06, Fable): slice committed as
 `402595e9ee5ed253ccb7eb19f19ed53e0d876b6e`; the documented re-seal ran once at

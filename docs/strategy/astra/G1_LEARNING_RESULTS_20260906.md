@@ -2,9 +2,9 @@
 
 | status | evidence |
 |---|---|
-| progress | 14 bounded training runs completed; reference and reward revisions were proposed, admitted, trained and evaluated. |
+| progress | 17 bounded training runs completed (557,056 transitions); oracle/reward revisions and two exact reproduction controls are retained. |
 | bottleneck | No policy passes the full posture-course gate. Depth and heading remain unresolved. |
-| next step | Retain O2/r1; test a heading-only reward revision and add training diagnostics before a longer-budget comparison. |
+| next step | Retain O2/r1; test explicitly versioned training-reward scaling before increasing the learning budget. |
 
 ## Architecture actually used
 
@@ -82,6 +82,7 @@ robot state → oracle → future reference window → frozen GMT base actor
 | O2b: state-ready exit guard | cannot satisfy exit; falls after 5.46 s | reject |
 | r2: LLM raises speed weight 1.0 → 1.5 | mean speed improves, but consistency/posture/drift worsen | reject; retain r1 |
 | O3: LLM advances entry guard 0.65 → 0.30 m | trained posture compliance rises to 72.7%, but falls at 6.96 s | reject; retain O2 |
+| r3: LLM raises heading weight 0.5 → 3.0 | lateral drift grows from 2.97 to 8.34 m; heading predictions and speed-MAE guard fail | reject; retain r1 |
 
 - O1 replay under runtime v2 is byte-identical to its v1 trajectory and frames.
   The O1/O2 comparison is not explained by an unintended default-runtime change.
@@ -103,8 +104,44 @@ robot state → oracle → future reference window → frozen GMT base actor
   that rollout also falls, at 5.36 s. It cannot substitute for trained predictions.
 - O3 manifest: `dc692f286485523031be94a23f06ff5b2b6dccc66a5aba0515d3e8cb6ea29f17`.
   Verified feedback: `1a9a120bcb9ec2b3b3e6897993f928ec0bed1f748b8a74ec674840691cdcdc14`.
-- The 32,768-step pilots do not establish convergence: optimizer/return curves
-  were not retained. Add measurement-only telemetry before a larger-budget family.
+- The original 32,768-step pilots did not retain optimizer curves. A later
+  measurement-only reproduction records them without changing policy behavior.
+
+## Trainer diagnosis, not a successful policy
+
+- Source `9188ed0`: O2r1 compatibility control reproduces all nine original
+  artifacts byte-for-byte. Optional reward v2 is disabled; reporting/revision
+  changes do not explain r3's outcome.
+- r3: 32,768 transitions, seed `20260906`, no fall over 20 s, both switches.
+  Heading absolute mean `0.942` versus `0.506 rad`; lateral max `8.342` versus
+  `2.970 m`; speed MAE `0.424` versus `0.307 m/s`; compliance `56.2%` versus `58.5%`.
+  Its actual candidate came from `g1 revise`, with exact LLM input/output lineage.
+- Source `0923a5a`: telemetry control again reproduces all nine original outputs
+  byte-for-byte, including both policies and complete recorded trajectories.
+  It adds 65 telemetry records; 45 training episodes and 18 falls are unchanged.
+- Across 64 updates: explained variance ranges `-0.0110…0.0219` (last `0.00000745`);
+  value loss starts `4895.65` and ends `4884.77`; mean KL `0.0281`; mean clipping
+  fraction `0.186`. Attempted epochs: 149 of 256 nominal. These include epochs
+  stopped partway through; completed epochs/minibatches were not counted.
+- This supports testing training conditioning. It does not identify critic
+  dominance: actor/critic networks are separate, and pre-clip gradient norms
+  were not measured. Global gradient clipping can couple the two branches.
+- Opt-in scaling is a **trainer experiment**, not an oracle/reward improvement.
+  Keep task semantics, relative reward weights and evaluator thresholds fixed;
+  compare matched budgets and do not compare value-loss magnitudes across units.
+- Practical basis: [SB3 RL guidance](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html)
+  recommends checking preprocessing and sample budget for custom environments.
+
+| retained artifact | SHA-256 |
+|---|---|
+| r3 run manifest | `71c6b970455f28444d0459c1d387682aa09476a55a6d184b271437f20d01af23` |
+| r3 revision receipt | `a46ea453febfcc9e7de34f6f093f3b79d05c48d875e4872a1845ec7f8081bb3d` |
+| telemetry-control manifest | `3b4d391af582fb1772a45055d79530b8719ab843e722f1f80f0a10b15273001c` |
+| training telemetry | `a4c12a940d14f00558b7e9f74ab0c2306b70f477c21d0768a8c26ccf1911dcb3` |
+| telemetry-aware feedback | `c2e72807443aeec67f8e2b024b71b5f7f965fa66d3713a8a50a91fb9dbda3b4c` |
+
+- Parent verification at `0923a5a`: **266 focused tests pass**, including actual
+  PPO on a numeric fixture. Ruff passes. Whole-repository failures remain separate.
 
 - O2r1, seed 20260906: reference posture is compliant in `46/65` actual-region
   samples; robot posture in `38/65`. Timing accounts for much of the mismatch.

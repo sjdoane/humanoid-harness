@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | 14 G1 training runs completed. Three-seed controls and two rejected LLM revisions are retained. Recorded task-overlay GIF and verified feedback CLI exist. |
+| progress | 17 G1 training runs completed. Three-seed controls, three rejected LLM revisions, exact code/telemetry reproduction, recorded replay and feedback/revision CLI exist. |
 | bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Integrate data-only revision and training diagnostics; reproduce O2r1 and test heading-only r3. Keep native Humanoid-v5 separate. |
+| next step | Test an opt-in training-reward scale with matched O2r1 controls. Keep native Humanoid-v5 and longer-budget comparisons separate. |
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
@@ -12,8 +12,14 @@
 - Integrated task-overlay renderer `b609bf6`, feedback builder `6d30af1`, raw
   boundary verification `a8f7431`. Parent: 200 focused + 9 CLI tests pass.
 - O3 is rejected: trained rollout falls at 6.96 s; its five preregistered predictions fail.
-- Heading-only r3 is authored/admitted, not yet trained. Refresh `.orchestration/astra-active-run.json`
-  and the mailbox before launching. No live heavy job at 22:10 UTC.
+- Heading-only r3 trained and was rejected: lateral drift 8.34 versus 2.97 m;
+  speed MAE 0.424 versus 0.307 m/s. No full task pass.
+- Main fast-forwarded to `9188ed0`; no push. Astra telemetry source `0923a5a`:
+  all nine O2r1 output artifacts byte-identical, 266 focused tests pass.
+- Telemetry: near-zero explained variance throughout 64 updates; 149 attempted
+  epochs, not completed epochs. Opt-in scaling is being implemented separately.
+- Refresh `.orchestration/astra-active-run.json` and the mailbox before launching.
+  No live heavy job at 22:41 UTC; one separate-worktree trainer builder is active.
 - Whole-suite failures remain; see `../TEST_MATRIX_20260906.md`. Focused G1 checks pass.
 - Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
 - Everything below is historical context, not current dispatch authority.
