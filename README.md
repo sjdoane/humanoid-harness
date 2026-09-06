@@ -44,9 +44,11 @@ tracking or oracle quality.
 
 ## Research orchestration
 
-The optional orchestration path keeps research strategy with a verified Fable
-5.1 session and delegates bounded implementation and independent reviews to
-GPT-5.6 Sol workers.
+Two orchestrators share the research: Astra leads reference composition and
+tracker integration; Fable 5.1 leads task-reward generation and feedback-driven
+revision. Both delegate bounded implementation and independent reviews to
+GPT-5.6 Sol workers. See the [lane handoff](docs/operations/dual-orchestration/LANE_SWAP_20260906.md)
+for transfer status; existing workers are not moved between checkouts.
 
 ```bash
 claude auth login

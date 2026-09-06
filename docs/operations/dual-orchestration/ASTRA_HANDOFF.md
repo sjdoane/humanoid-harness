@@ -1,13 +1,16 @@
-# Astra reward-lane handoff
+# Astra orchestration handoff
 
 | status | current truth |
 |---|---|
-| progress | F3 repair finished; parent reproduced 112 focused passes and verified exact baseline/dependency/archive identities. Peer-requested Markdown formatting repaired separately. |
-| bottleneck | Independent F3 closure and one-call protocol approval remain pending. No initial model hypothesis, runtime or training result. |
-| next step | Collect targeted independent code/protocol verdicts; only after both pass, commit the reviewed F3 slice and prepare the single bounded call. |
+| progress | Samuel reassigned Astra to oracle/reference composition and Fable to task reward. Final F3 review accepted; parent reproduced 112 passes and committed the reward slice for handoff. |
+| bottleneck | Peer acknowledgment and exact oracle/runtime handoff are pending. No Phase B trained-tracker result or F3 model-candidate call. |
+| next step | Follow `LANE_SWAP_20260906.md`: transfer accepted F3, obtain Fable's clean checkpoint, then advance the oracle composition loop. No new Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 02:18 UTC heartbeat; F3 repair parent verification complete and targeted closure/one-call protocol review prepared.
+- Last checkpoint: 2026-09-06 UTC; interactive lane swap and final F3 acceptance.
+- Current lane: oracle/reference composition and tracker integration.
+- Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
+  sequences below are evidence records, not current Astra dispatch authority.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -17,7 +20,7 @@
 - Original checkout belongs to Fable. Its B0 worker was actively renewing the
   main writer lease at setup; its uncommitted files were not copied.
 
-## Immediate work
+## Completed and historical reward work
 
 | task | owner | state | acceptance |
 |---|---|---|---|
@@ -56,11 +59,11 @@
 | F3 initial packet/ingestion | Sol/max builder + Astra | completed 00:13:01Z; parent 79 focused passes | `F3_PARENT_CHECKPOINT.md`; four new files, not accepted |
 | F3 independent verification | Sol/max test-output-only writer | REJECT_F3 at 01:21:49Z; 79 focused tests and seven probes | `F3_REVIEW_FINDINGS.md`; parent reproduced defects, all 18 hashes unchanged |
 | F3 repair and baseline refresh | Sol/max builder + Astra | succeeded 01:56:27Z; parent 112 focused passes | `F3_REPAIR_PARENT_CHECKPOINT.md`; not independently closed |
-| F3 closure and conditional call review | Sol/max test-output-only reviewer | dispatch/collect exact active pointer | `TASK-F3-closure-review.md`; separate code/protocol verdicts required |
+| F3 closure and conditional call review | Sol/max test-output-only reviewer | ACCEPT_F3_STATIC_ONLY and APPROVE_F3_ONE_CALL_PROTOCOL at 02:38:18Z | `F3_ACCEPTANCE.md`; zero candidate calls; new owner Fable after transfer |
 
-- `F3_ONE_CALL_PROTOCOL.md` is a proposal, not current call authority. It permits
-  at most one initial hypothesis after explicit independent code and protocol
-  approval; no revision, retry, simulator, runtime or training.
+- `F3_ONE_CALL_PROTOCOL.md` received conditional approval. Samuel's lane swap
+  stops Astra dispatch; Fable must review/adapt ownership and re-pin its
+  integration before any call. No revision, retry, simulator or training.
 - Fable baseline confirmation: `20260906T021853.719294Z-e5ffd026d5ea41c1b039b7219513acc1`.
   Formatting-only commit for its reported historical F2 fence:
   `949f686e3ffa2a766fa3ac2b87c1733393fbc833`; original launch bytes retained.
@@ -233,7 +236,7 @@
 5. Send Fable a compact progress/dependency message. Keep routine heartbeat
    notifications quiet unless a result, failure, or Samuel's action matters.
 
-## Authorized next sequence
+## Historical sequence — not current dispatch authority
 
 1. A1 builder completes its bounded packet and `A1_RESULT.md`.
 2. Inspect diff and focused checks. Launch the independent read-only
