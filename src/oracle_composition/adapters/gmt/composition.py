@@ -15,7 +15,7 @@ from oracle_composition.harness.contract import OracleMachine, OracleProgram
 from .contracts import CONTROL_DT_SECONDS, REFERENCE_OFFSETS
 from .reference_runtime import ReferenceMotion
 
-COMPOSITION_RUNTIME_ID = "gmt_state_triggered_native_segment_nearest_pose/v1"
+COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_and_boundary/v2"
 # Pose matching is a transfer heuristic, not the independent task evaluator.
 POSE_SCALES = np.asarray([0.15, 0.35, 0.35] + [0.35] * 23, dtype=np.float64)
 POSE_COLUMNS = [0, 1, 2, *range(7, 30)]
@@ -27,6 +27,8 @@ class ReferenceSegment:
     parent_sha256: str
     start_seconds: float
     end_seconds: float
+    entry_phase_end_seconds: float | None = None
+    boundary: str = "wrap_within_segment"
 
     def __post_init__(self) -> None:
         if (
@@ -37,6 +39,14 @@ class ReferenceSegment:
             or self.duration < CONTROL_DT_SECONDS
         ):
             raise ValueError("reference segment bounds or parent identity differ")
+        if self.boundary not in {"wrap_within_segment", "hold_last_pose_zero_velocity"}:
+            raise ValueError("segment boundary must declare wrap or stationary terminal hold")
+        if self.entry_phase_end_seconds is not None and (
+            type(self.entry_phase_end_seconds) is not float
+            or not np.isfinite(self.entry_phase_end_seconds)
+            or not 0.0 <= self.entry_phase_end_seconds < self.duration
+        ):
+            raise ValueError("entry phase must lie within the segment")
 
     @property
     def duration(self) -> float:
@@ -44,20 +54,30 @@ class ReferenceSegment:
 
     @property
     def identity(self) -> dict[str, object]:
-        return {
+        result = {
             "parent_motion_sha256": self.parent_sha256,
             "start_seconds": self.start_seconds,
             "end_seconds": self.end_seconds,
             "cadence": "unchanged_native_fps",
-            "boundary": "wrap_within_segment",
+            "boundary": self.boundary,
             "certification": "kinematic_candidate_not_dynamics_certified",
         }
+        if self.entry_phase_end_seconds is not None:
+            result["entry_phase_end_seconds"] = self.entry_phase_end_seconds
+        return result
 
     @property
     def sha256(self) -> str:
         return hashlib.sha256(canonical_json_bytes(self.identity)).hexdigest()
 
     def features(self, phase_seconds: torch.Tensor) -> torch.Tensor:
+        if self.boundary == "hold_last_pose_zero_velocity":
+            # The endpoint is exclusive; do not wrap a full parent at its duration.
+            last = float(np.nextafter(np.float32(self.end_seconds), np.float32(-np.inf)))
+            times = torch.clamp(self.start_seconds + phase_seconds, self.start_seconds, last)
+            features = self.motion.features(times)
+            features[phase_seconds >= self.duration, 3:7] = 0.0
+            return features
         if self.start_seconds == 0 and self.end_seconds == float(self.motion.duration):
             # Preserve the original full-clip interpolation's exact arithmetic.
             return self.motion.features(phase_seconds)
@@ -69,10 +89,17 @@ class ReferenceSegment:
         if pose.shape != (26,) or not np.isfinite(pose).all():
             raise ValueError("phase transfer requires finite height, roll/pitch and 23 joints")
         times = torch.arange(0, self.duration, 1.0 / float(self.motion.fps))
+        if self.entry_phase_end_seconds is not None:
+            times = times[times <= self.entry_phase_end_seconds]
         candidates = self.features(times).numpy()[:, POSE_COLUMNS].astype(np.float64)
         scores = np.mean(((candidates - pose) / POSE_SCALES) ** 2, axis=1)
         selected = int(np.argmin(scores))
         return float(times[selected]), float(scores[selected])
+
+    def reported_phase(self, phase: torch.Tensor) -> float:
+        if self.boundary == "hold_last_pose_zero_velocity":
+            return float(phase.clamp(0, self.duration))
+        return float(phase.remainder(self.duration))
 
 
 @dataclass(frozen=True)
@@ -152,8 +179,8 @@ class ComposedReference:
             decision.behavior,
             current,
             window,
-            float(phase.remainder(segment.duration)),
-            float(phase.remainder(segment.duration)) / segment.duration,
+            segment.reported_phase(phase),
+            segment.reported_phase(phase) / segment.duration,
             segment.sha256,
             transition,
         )

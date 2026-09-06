@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 
 from oracle_composition.adapters.gmt.composition import ComposedReference, ReferenceSegment
 from oracle_composition.adapters.gmt.reference_runtime import ReferenceMotion
@@ -110,3 +111,33 @@ def test_repeated_or_skipped_decisions_and_invalid_segments_fail():
     assert ReferenceSegment(motion(0.8), "a" * 64, 0.0, 5.0).sha256 != (
         ReferenceSegment(motion(0.8), "a" * 64, 0.0, 10.0).sha256
     )
+
+
+def test_entry_phase_window_excludes_better_matching_terminal_pose():
+    source = motion(0.8)
+    source.root_position[:, 2] = torch.linspace(0.4, 0.8, source.frame_count)
+    unrestricted = ReferenceSegment(source, "a" * 64, 0.0, 10.0)
+    restricted = ReferenceSegment(source, "a" * 64, 0.0, 10.0, 0.5)
+    pose = np.array([0.8] + [0.0] * 25)
+    assert unrestricted.nearest_phase(pose)[0] > 9.0
+    assert 0 <= restricted.nearest_phase(pose)[0] <= 0.5
+    assert restricted.sha256 != unrestricted.sha256
+
+
+def test_terminal_hold_preserves_last_pose_and_zeroes_velocity_without_wrap():
+    source = motion(0.8)
+    source.root_position[:, 2] = torch.linspace(0.4, 0.8, source.frame_count)
+    source.root_velocity[:] = 1.0
+    segment = ReferenceSegment(source, "a" * 64, 0.0, 10.0, boundary="hold_last_pose_zero_velocity")
+    features = segment.features(torch.tensor([9.9, 10.0, 20.0]))
+    assert features[1, 0] > 0.79
+    np.testing.assert_array_equal(features[1].numpy(), features[2].numpy())
+    np.testing.assert_array_equal(features[1:, 3:7].numpy(), np.zeros((2, 4)))
+    assert segment.reported_phase(torch.tensor(20.0)) == 10.0
+
+
+def test_invalid_entry_or_boundary_rejected():
+    with pytest.raises(ValueError, match="entry phase"):
+        ReferenceSegment(motion(0.8), "a" * 64, 0.0, 10.0, 10.0)
+    with pytest.raises(ValueError, match="boundary"):
+        ReferenceSegment(motion(0.8), "a" * 64, 0.0, 10.0, boundary="guess")

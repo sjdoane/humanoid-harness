@@ -101,14 +101,23 @@ def load_run_config(path: Path) -> CourseRunConfig:
         )
     admitted = {}
     for behavior, value in segments.items():
-        segment = _keys(value, {"motion_name", "start_seconds", "end_seconds"}, "segment")
+        required = {"motion_name", "start_seconds", "end_seconds"}
+        optional = {"entry_phase_end_seconds", "boundary"}
+        if type(value) is not dict or not required <= set(value) <= required | optional:
+            raise ValueError("segment fields differ")
+        segment = value
         if segment["motion_name"] not in loaded:
             raise ValueError("segment refers to an unadmitted motion")
         if any(type(segment[key]) is not float for key in ("start_seconds", "end_seconds")):
             raise ValueError("segment bounds must be floats")
         name = segment["motion_name"]
         admitted[behavior] = ReferenceSegment(
-            loaded[name], motions[name]["sha256"], segment["start_seconds"], segment["end_seconds"]
+            loaded[name],
+            motions[name]["sha256"],
+            segment["start_seconds"],
+            segment["end_seconds"],
+            entry_phase_end_seconds=segment.get("entry_phase_end_seconds"),
+            boundary=segment.get("boundary", "wrap_within_segment"),
         )
     if {segment["motion_name"] for segment in segments.values()} != set(motions):
         raise ValueError("unused assets must not masquerade as consumed references")
