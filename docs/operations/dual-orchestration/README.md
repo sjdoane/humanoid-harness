@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Fable formally accepted the swap and F3 handoff. FT2R3 finished; Astra owns both combined tracker reviews and Fable owns reward/feedback. |
-| bottleneck | Tracker source is imported for review; one host-suite CLI failure remains unexplained. No trained-tracker result. |
-| next step | Astra dispatches both OT1 reviews against the imported snapshot. See `TRACKER_IMPORT_20260906.md`; no new Astra reward dispatch. |
+| progress | Lane swap complete; tracker source imported. OT1 reviews timed out without verdicts; pairing correction proposed to Fable. |
+| bottleneck | Tracker acceptance, calibration/scoring and evaluator authority remain open; no trained-tracker result. |
+| next step | Narrow OT1C/OT1E follow-up; see `OT1_REVIEW_CHECKPOINT.md`. No new Astra reward dispatch. |
 
 ## Ownership
 
