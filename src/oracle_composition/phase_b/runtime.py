@@ -45,6 +45,7 @@ from oracle_composition.tracking.humanoid_reference import (
 )
 
 from .contracts import RewardRegistry, load_phase_b_oracle
+from .isolation import SealedArtifact, verify_one_sealed_input, verify_sealed_inputs
 from .policy import (
     ACTION_WIDTH,
     OBSERVATION_WIDTH,
@@ -82,6 +83,33 @@ class RealRuntimeConfig:
     starting_actor_path: Path
     starting_actor_sha256: str
     value_seed: int
+    sealed_inputs: tuple[SealedArtifact, ...] = ()
+    sealed_input_lineage_sha256: str = ""
+
+
+def _verify_runtime_input(config: RealRuntimeConfig, path: Path) -> None:
+    verify_one_sealed_input(config.repository_root, config.sealed_inputs, path)
+
+
+def _verify_clip_lineage(config: RealRuntimeConfig, *, block: int, behavior: str) -> None:
+    corpus_root = config.repository_root / "artifacts/reference_corpus_v2"
+    index_path = corpus_root / "corpus_index_v2.json"
+    _verify_runtime_input(config, index_path)
+    index = _canonical_object(index_path)
+    clip_id = f"corpus-{block}-{behavior}"
+    matches = [entry for entry in index.get("clips", ()) if entry.get("clip_id") == clip_id]
+    if len(matches) != 1:
+        raise ExperimentContractError(f"sealed corpus index omits {clip_id}")
+    bundle_sha256 = matches[0].get("bundle_manifest_sha256")
+    if type(bundle_sha256) is not str:
+        raise ExperimentContractError("sealed corpus bundle digest is malformed")
+    bundle_path = corpus_root / "clips" / clip_id / f"bundle-{bundle_sha256}.json"
+    _verify_runtime_input(config, bundle_path)
+    manifest = load_bundle_manifest(bundle_path, expected_sha256=bundle_sha256)
+    core = manifest["core"]
+    bindings = [*core["bound_artifacts"], core["payload"], core["rng_state"]["binding"]]
+    for binding in bindings:
+        _verify_runtime_input(config, corpus_root / str(binding["object_path"]))
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,25 +193,69 @@ def _rng_state_sha256(physical: object) -> str:
     return sha256_json(state)
 
 
+@dataclass(frozen=True, slots=True)
+class RSIRestoreDependencies:
+    set_integration_state: Callable[[object, np.ndarray], None]
+    restore_wrapper: Callable[[object, int, np.ndarray], None]
+    restore_rng: Callable[[object, Mapping[str, object]], None]
+    step: Callable[[object, np.ndarray], tuple[object, float, bool, bool, object]]
+    capture_wrapper: Callable[[object], tuple[int, np.ndarray]]
+    integration_state: Callable[[object, int], np.ndarray]
+    rng_state_sha256: Callable[[object], str]
+    counted_transition_total: Callable[[object], int | None]
+
+
+def _default_rsi_restore_dependencies() -> RSIRestoreDependencies:
+    def set_integration_state(environment: object, state: np.ndarray) -> None:
+        import mujoco
+
+        physical = environment.unwrapped
+        mujoco.mj_setState(
+            physical.model,
+            physical.data,
+            state,
+            mujoco.mjtState.mjSTATE_INTEGRATION,
+        )
+
+    return RSIRestoreDependencies(
+        set_integration_state=set_integration_state,
+        restore_wrapper=restore_wrapper_state,
+        restore_rng=lambda environment, state: restore_rng_state(
+            environment.unwrapped, dict(state)
+        ),
+        step=lambda environment, action: environment.step(action),
+        capture_wrapper=capture_wrapper_state,
+        integration_state=_integration_state,
+        rng_state_sha256=lambda environment: _rng_state_sha256(environment.unwrapped),
+        counted_transition_total=lambda environment: getattr(
+            environment, "counted_transitions", None
+        ),
+    )
+
+
 def restore_predecessor_rsi(
     *,
     environment: object,
     material: _RSIMaterial,
     start_boundary: int,
     counted_transitions: int,
+    dependencies: RSIRestoreDependencies | None = None,
 ) -> tuple[np.ndarray, RSIRestorationReceipt]:
     """Restore at ``s-1``, execute once, and verify the authentic boundary ``s``."""
 
     arrays = material.arrays
+    selected = dependencies or _default_rsi_restore_dependencies()
     if type(start_boundary) is not int or not 0 <= start_boundary <= 488:
         raise ValueError("RSI start boundary lies outside [0,488]")
     raw_observation, _info = environment.reset(seed=material.block)
     if start_boundary == 0:
         observation = np.ascontiguousarray(raw_observation, dtype="<f8")
-        elapsed, flags = capture_wrapper_state(environment)
+        elapsed, flags = selected.capture_wrapper(environment)
         physical = environment.unwrapped
-        integration = _integration_state(environment, arrays["boundary_integration_state"].shape[1])
-        rng_sha256 = _rng_state_sha256(physical)
+        integration = selected.integration_state(
+            environment, arrays["boundary_integration_state"].shape[1]
+        )
+        rng_sha256 = selected.rng_state_sha256(environment)
         if (
             observation.tobytes(order="C") != arrays["boundary_observation"][0].tobytes(order="C")
             or integration.tobytes(order="C")
@@ -195,7 +267,10 @@ def restore_predecessor_rsi(
             != arrays["boundary_root_xy"][0].tobytes(order="C")
             or rng_sha256 != bytes(arrays["boundary_rng_state_sha256"][0]).decode("ascii")
         ):
-            raise ValueError("boundary-zero certified reset differs")
+            raise PhaseBTrainingError(
+                TrainingFailureStatus.COUNTER_DRIFT,
+                "boundary-zero certified reset differs",
+            )
         receipt = RSIRestorationReceipt(
             start_boundary=0,
             predecessor_boundary=None,
@@ -211,29 +286,35 @@ def restore_predecessor_rsi(
         validate_rsi_restoration_receipt(receipt)
         return observation, receipt
 
-    import mujoco
-
     predecessor = start_boundary - 1
     physical = environment.unwrapped
-    mujoco.mj_setState(
-        physical.model,
-        physical.data,
+    selected.set_integration_state(
+        environment,
         arrays["boundary_integration_state"][predecessor],
-        mujoco.mjtState.mjSTATE_INTEGRATION,
     )
-    restore_wrapper_state(
+    selected.restore_wrapper(
         environment,
         int(arrays["boundary_wrapper_elapsed"][predecessor]),
         arrays["boundary_wrapper_flags"][predecessor],
     )
-    restore_rng_state(physical, dict(material.rng_state))
-    observation, _discarded_reward, terminated, truncated, _discarded_info = environment.step(
-        arrays["transition_physical_action"][predecessor].copy()
+    selected.restore_rng(environment, material.rng_state)
+    counter_before = selected.counted_transition_total(environment)
+    observation, _discarded_reward, terminated, truncated, _discarded_info = selected.step(
+        environment,
+        arrays["transition_physical_action"][predecessor].copy(),
     )
+    counter_after = selected.counted_transition_total(environment)
+    if counter_before is not None and counter_after != counter_before:
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "RSI predecessor reconstruction was counted as training",
+        )
     observation = np.ascontiguousarray(observation, dtype="<f8")
-    elapsed, flags = capture_wrapper_state(environment)
-    integration = _integration_state(environment, arrays["boundary_integration_state"].shape[1])
-    rng_sha256 = _rng_state_sha256(physical)
+    elapsed, flags = selected.capture_wrapper(environment)
+    integration = selected.integration_state(
+        environment, arrays["boundary_integration_state"].shape[1]
+    )
+    rng_sha256 = selected.rng_state_sha256(environment)
     expected_flags = arrays["boundary_result_flags"][start_boundary]
     if (
         observation.tobytes(order="C")
@@ -249,7 +330,10 @@ def restore_predecessor_rsi(
         != arrays["boundary_root_xy"][start_boundary].tobytes(order="C")
         or rng_sha256 != bytes(arrays["boundary_rng_state_sha256"][start_boundary]).decode("ascii")
     ):
-        raise ValueError("predecessor RSI reconstruction differs from certified boundary")
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "predecessor RSI reconstruction differs from certified boundary",
+        )
     receipt = RSIRestorationReceipt(
         start_boundary=start_boundary,
         predecessor_boundary=predecessor,
@@ -352,6 +436,36 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         self.plan = plan
         self.assignments = assignments
         self.config = config
+        _verify_runtime_input(config, config.oracle_path)
+        self.oracle, oracle_sha256 = load_phase_b_oracle(
+            config.oracle_path,
+            available_behaviors=BEHAVIORS,
+        )
+        _verify_runtime_input(config, config.reward_path)
+        self.reward_spec, reward_sha256 = RewardRegistry().load(config.reward_path)
+        _verify_runtime_input(config, config.experiment / "library_manifest_v1.json")
+        _verify_runtime_input(config, config.experiment / "task_spec_v1.json")
+        self.library, self.task = load_frozen_inputs(config.experiment)
+        expected = {item.relative_path: item for item in config.sealed_inputs}
+        oracle_relative = config.oracle_path.relative_to(config.repository_root).as_posix()
+        reward_relative = config.reward_path.relative_to(config.repository_root).as_posix()
+        if (
+            oracle_sha256 != expected[oracle_relative].sha256
+            or reward_sha256 != expected[reward_relative].sha256
+            or self.library.raw_sha256
+            != expected[
+                (config.experiment / "library_manifest_v1.json")
+                .relative_to(config.repository_root)
+                .as_posix()
+            ].sha256
+            or self.task.raw_sha256
+            != expected[
+                (config.experiment / "task_spec_v1.json")
+                .relative_to(config.repository_root)
+                .as_posix()
+            ].sha256
+        ):
+            raise ExperimentContractError("runtime input identity differs from parent seal")
         self.base = make_reference_corpus_env()
         self.action_space = gym.spaces.Box(
             low=np.full(ACTION_WIDTH, -0.4, dtype="<f4"),
@@ -365,15 +479,10 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
             dtype=np.float32,
         )
         self.abi = validate_humanoid_actuator_abi(self.base)
-        self.oracle, _oracle_sha256 = load_phase_b_oracle(
-            config.oracle_path,
-            available_behaviors=BEHAVIORS,
-        )
-        self.reward_spec, _reward_sha256 = RewardRegistry().load(config.reward_path)
-        self.library, self.task = load_frozen_inputs(config.experiment)
         self.corpus_root = config.repository_root / "artifacts/reference_corpus_v2"
         self.counted_transitions = 0
         self.rsi_ledger: list[dict[str, object]] = []
+        self.rsi_reset_count = 0
         self._frame: object | None = None
         self._runtime: ComposedReferenceRuntime | None = None
         self._assignment: RSIAssignment | None = None
@@ -388,6 +497,8 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         return self.base.unwrapped
 
     def _load_references(self, block: int) -> dict[str, np.ndarray]:
+        for behavior in BEHAVIORS:
+            _verify_clip_lineage(self.config, block=block, behavior=behavior)
         return {
             behavior: load_v2_reference_clip(
                 self.corpus_root,
@@ -463,6 +574,12 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
             return policy_observation, {"block": block, "stream": self.stream}
 
         assignment = self.assignments.rehearsal(self.environment_index)
+        self.rsi_reset_count += 1
+        _verify_clip_lineage(
+            self.config,
+            block=assignment.block,
+            behavior=assignment.origin_behavior,
+        )
         material = _load_rsi_material(
             self.corpus_root,
             block=assignment.block,
@@ -608,7 +725,16 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         self._episode = 0
         self._step = 0
         self.counted_transitions = 0
-        self.rsi_ledger: list[dict[str, object]] = []
+        self._rsi_ledger: list[dict[str, object]] = []
+        self.rsi_reset_count = 0
+
+    @property
+    def rsi_ledger(self) -> list[dict[str, object]] | None:
+        if self.failure_mode == "rsi_get_attr_failure" and self.environment_index == 2:
+            raise AttributeError("controlled missing RSI ledger API")
+        if self.failure_mode == "rsi_none" and self.environment_index == 2:
+            return None
+        return self._rsi_ledger
 
     def _observation(self) -> np.ndarray:
         state = np.linspace(-0.2, 0.2, OBSERVATION_WIDTH, dtype="<f4")
@@ -631,6 +757,7 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         del seed, options
         self._step = 0
         if self.stream == "rehearsal":
+            self.rsi_reset_count += 1
             assignment = self.scheduler.assignment(
                 global_episode_index=self.rehearsal_counter.take(),
                 environment_index=self.environment_index,
@@ -650,15 +777,20 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
                 rng_state_sha256="3" * 64,
             )
             validate_rsi_restoration_receipt(receipt)
-            self.rsi_ledger.append(
-                {
-                    **assignment.to_dict(),
-                    "environment_index": self.environment_index,
-                    "hidden_target_sha256": "4" * 64,
-                    "policy_window_sha256": "5" * 64,
-                    "predecessor_receipt": receipt.to_dict(),
-                }
-            )
+            if self.failure_mode != "rsi_empty" and not (
+                self.failure_mode == "rsi_omitted_reset"
+                and self.environment_index == 2
+                and self.rsi_reset_count == 1
+            ):
+                self._rsi_ledger.append(
+                    {
+                        **assignment.to_dict(),
+                        "environment_index": self.environment_index,
+                        "hidden_target_sha256": "4" * 64,
+                        "policy_window_sha256": "5" * 64,
+                        "predecessor_receipt": receipt.to_dict(),
+                    }
+                )
         self._episode += 1
         return self._observation(), {"stream": self.stream}
 
@@ -668,7 +800,10 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         action_value = np.ascontiguousarray(action, dtype="<f4")
         target = np.float32(0.05 * (self.environment_index + 1))
         r_track = float(1.0 - np.mean(np.square(action_value - target), dtype=np.float64))
-        if self.failure_mode == "non_finite" and self.counted_transitions == 2:
+        if (
+            self.failure_mode in {"non_finite", "non_finite_close_failure"}
+            and self.counted_transitions == 2
+        ):
             r_track = float("nan")
         r_task = 0.0
         r_train = r_track + r_task
@@ -699,6 +834,8 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         )
 
     def close(self) -> None:
+        if self.failure_mode == "non_finite_close_failure":
+            raise RuntimeError("controlled vector environment close failure")
         return None
 
 
@@ -737,6 +874,7 @@ def fake_policy_factory(plan: TrainingPlan) -> FullAuthorityPolicy:
 
 def real_policy_factory(config: RealRuntimeConfig) -> Callable[[TrainingPlan], FullAuthorityPolicy]:
     def build(_plan: TrainingPlan) -> FullAuthorityPolicy:
+        _verify_runtime_input(config, config.starting_actor_path)
         loaded = load_full_authority_actor(
             config.starting_actor_path,
             expected_sha256=config.starting_actor_sha256,
@@ -752,11 +890,21 @@ def worker_step_zero_e1_audit(
     repository_root: Path,
     receipt_path: Path,
     expected_receipt_sha256: str,
+    sealed_inputs: tuple[SealedArtifact, ...] | None = None,
+    sealed_input_lineage_sha256: str | None = None,
 ) -> dict[str, object]:
     """Re-run the worker action path on the unchanged FT1 fixture authority."""
 
     from .receipts import _input_batch
 
+    if (sealed_inputs is None) != (sealed_input_lineage_sha256 is None):
+        raise ExperimentContractError("worker E1 seal declaration is incomplete")
+    if sealed_inputs is not None and sealed_input_lineage_sha256 is not None:
+        verify_sealed_inputs(
+            repository_root,
+            sealed_inputs,
+            expected_lineage_sha256=sealed_input_lineage_sha256,
+        )
     receipt_file = Path(receipt_path)
     if sha256_file(receipt_file) != expected_receipt_sha256:
         raise ExperimentContractError("worker E1 receipt identity differs")
@@ -839,6 +987,7 @@ def real_environment_factories(
 
 __all__ = [
     "FakePhaseBTrainingEnv",
+    "RSIRestoreDependencies",
     "RealPhaseBTrainingEnv",
     "RealRuntimeConfig",
     "fake_environment_factories",

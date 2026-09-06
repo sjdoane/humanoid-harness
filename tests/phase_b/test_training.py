@@ -2,18 +2,23 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType, SimpleNamespace
 
 import numpy as np
 import pytest
 
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.phase_b import runtime as runtime_module
 from oracle_composition.phase_b import training as training_module
 from oracle_composition.phase_b.policy import FullAuthorityPolicy, load_full_authority_actor
 from oracle_composition.phase_b.runtime import (
+    RSIRestoreDependencies,
     fake_environment_factories,
     fake_policy_factory,
+    restore_predecessor_rsi,
     worker_step_zero_e1_audit,
 )
+from oracle_composition.phase_b.supervision import validate_training_preflight
 from oracle_composition.phase_b.training import (
     COHORT_SEEDS,
     FULL_TRANSITIONS_PER_SEED,
@@ -246,7 +251,127 @@ def test_rsi_shortcuts_are_refused(receipt: RSIRestorationReceipt, match: str) -
         validate_rsi_restoration_receipt(receipt)
 
 
+class _FakeRSIEnvironment:
+    def __init__(self, arrays: dict[str, np.ndarray]) -> None:
+        self.arrays = arrays
+        self.boundary = 0
+        self.elapsed = 0
+        self.counted_transitions = 12
+        self.data = SimpleNamespace(time=0.0, qpos=np.zeros(2, dtype="<f8"))
+        self.unwrapped = self
+
+    def reset(self, *, seed: int) -> tuple[np.ndarray, dict[str, object]]:
+        del seed
+        self.boundary = 0
+        self.elapsed = 0
+        self.data.time = 0.0
+        return self.arrays["boundary_observation"][0].copy(), {}
+
+
+def _rsi_mechanism_fixture(
+    mutation: str,
+) -> tuple[_FakeRSIEnvironment, object, RSIRestoreDependencies]:
+    count = 10
+    arrays = {
+        "boundary_integration_state": np.arange(count, dtype="<f8")[:, None],
+        "boundary_observation": np.arange(count * 2, dtype="<f8").reshape(count, 2),
+        "boundary_result_flags": np.zeros((count, 2), dtype=np.bool_),
+        "boundary_rng_state_sha256": np.asarray([b"3" * 64] * count, dtype="S64"),
+        "boundary_root_xy": np.zeros((count, 2), dtype="<f8"),
+        "boundary_simulation_time": np.arange(count, dtype="<f8"),
+        "boundary_wrapper_elapsed": np.arange(count, dtype="<i8"),
+        "boundary_wrapper_flags": np.zeros((count, 2), dtype=np.bool_),
+        "transition_physical_action": np.zeros((count, 1), dtype="<f8"),
+    }
+    environment = _FakeRSIEnvironment(arrays)
+    material = runtime_module._RSIMaterial(
+        block=120001,
+        behavior="expert",
+        bundle_sha256="a" * 64,
+        arrays=MappingProxyType(arrays),
+        rng_state=MappingProxyType({}),
+    )
+
+    def set_state(selected: _FakeRSIEnvironment, state: np.ndarray) -> None:
+        selected.boundary = 8 if mutation == "direct_restore" else int(state[0])
+        selected.data.time = float(selected.boundary)
+
+    def restore_wrapper(
+        selected: _FakeRSIEnvironment,
+        elapsed: int,
+        flags: np.ndarray,
+    ) -> None:
+        del flags
+        selected.elapsed = 0 if mutation == "elapsed_reset" else elapsed
+
+    def step(
+        selected: _FakeRSIEnvironment,
+        action: np.ndarray,
+    ) -> tuple[object, float, bool, bool, object]:
+        del action
+        selected.boundary += 1
+        selected.elapsed += 1
+        selected.data.time = float(selected.boundary)
+        if mutation == "counted_predecessor":
+            selected.counted_transitions += 1
+        return (
+            selected.arrays["boundary_observation"][selected.boundary].copy(),
+            0.0,
+            False,
+            False,
+            {},
+        )
+
+    dependencies = RSIRestoreDependencies(
+        set_integration_state=set_state,
+        restore_wrapper=restore_wrapper,
+        restore_rng=lambda _environment, _state: None,
+        step=step,
+        capture_wrapper=lambda selected: (
+            selected.elapsed,
+            selected.arrays["boundary_wrapper_flags"][selected.boundary].copy(),
+        ),
+        integration_state=lambda selected, _width: selected.arrays["boundary_integration_state"][
+            selected.boundary
+        ].copy(),
+        rng_state_sha256=lambda _environment: "3" * 64,
+        counted_transition_total=lambda selected: selected.counted_transitions,
+    )
+    return environment, material, dependencies
+
+
+@pytest.mark.parametrize(
+    ("mutation", "match"),
+    (
+        ("direct_restore", "reconstruction differs"),
+        ("counted_predecessor", "counted as training"),
+        ("elapsed_reset", "reconstruction differs"),
+    ),
+)
+def test_restore_predecessor_rsi_rejects_production_shortcut_mechanisms(
+    mutation: str,
+    match: str,
+) -> None:
+    environment, material, dependencies = _rsi_mechanism_fixture(mutation)
+    with pytest.raises(PhaseBTrainingError, match=match) as error:
+        restore_predecessor_rsi(
+            environment=environment,
+            material=material,
+            start_boundary=8,
+            counted_transitions=12,
+            dependencies=dependencies,
+        )
+    assert error.value.status is training_module.TrainingFailureStatus.COUNTER_DRIFT
+
+
 def test_real_expert_step_zero_uses_the_worker_action_path_on_ft1_fixtures() -> None:
+    preflight = validate_training_preflight(
+        repository_root=ROOT,
+        experiment=ROOT / "experiments/003_composition_speed_profile",
+        oracle_path=PHASE_B / "oracle_cycle_1_reference_v1.json",
+        reward_path=PHASE_B / "tracking_only_v1.json",
+        allow_dirty=True,
+    )
     actor = load_full_authority_actor(
         ROOT / "artifacts/experiments_003/phase_b/step_0_full_authority_actor_v1.npz",
         expected_sha256=("6ebc2b56be9a5f304b8b584157fd0141d449d75297366213e4976291cb2dcfe0"),
@@ -258,6 +383,8 @@ def test_real_expert_step_zero_uses_the_worker_action_path_on_ft1_fixtures() -> 
         expected_receipt_sha256=(
             "5754db8e8afdc7f05f8a67ab3fb6a69ae453968a6c14e9f1dca545d688834bc9"
         ),
+        sealed_inputs=preflight.sealed_inputs,
+        sealed_input_lineage_sha256=preflight.sealed_input_lineage_sha256,
     )
     assert audit == {
         "action_sha256": "5a70c79209d0830ef63d8d5cef59c53f6bf49f7b9c60cadf6de4e9e0b1ceb568",

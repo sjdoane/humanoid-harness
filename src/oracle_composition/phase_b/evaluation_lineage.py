@@ -14,6 +14,7 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 
 from .contracts import COHORT_TRANSITIONS, FINAL_CHECKPOINT_RULE
+from .isolation import sealed_input_lineage_value
 from .persistence import (
     MAX_ACTOR_EXPORT_BYTES,
     MAX_CHECKPOINT_BYTES,
@@ -24,6 +25,13 @@ from .training import COHORT_SEEDS
 
 MAX_LINEAGE_JSON_BYTES = 2 * 1024 * 1024
 EVALUATION_LINEAGE_ID = "humanoid_phase_b_evaluation_lineage/v1"
+RESOURCE_CONTROL_POLICY = {
+    "cpu_time": "os_rlimit_when_supported_otherwise_recorded_unsupported",
+    "environment": "spawn_time_explicit_allowlist",
+    "filesystem": "parent_observed_os_best_effort",
+    "process_group_cleanup": "os_session_group_best_effort_with_fail_closed_receipt",
+    "process_tree_rss": "parent_observed_os_best_effort",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +67,89 @@ def _sha(value: object, field: str) -> str:
     ):
         raise ExperimentContractError(f"evaluation lineage {field} is not a SHA-256")
     return value
+
+
+def _looks_like_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _valid_success_resource_controls(value: object) -> bool:
+    if type(value) is not dict or set(value) != {
+        "cpu_time",
+        "environment",
+        "executed_modules",
+        "filesystem",
+        "process_group_cleanup",
+        "process_tree_rss",
+    }:
+        return False
+    cpu = value["cpu_time"]
+    environment = value["environment"]
+    modules = value["executed_modules"]
+    cleanup = value["process_group_cleanup"]
+    rss = value["process_tree_rss"]
+    if type(cpu) is not dict or cpu.get("resource") != "RLIMIT_CPU":
+        return False
+    if cpu.get("enforcement") == "os_enforced":
+        if (
+            set(cpu) != {"enforcement", "hard_limit_seconds", "limit_seconds", "resource"}
+            or type(cpu["hard_limit_seconds"]) is not int
+            or type(cpu["limit_seconds"]) is not int
+            or not 0 < cpu["limit_seconds"] <= cpu["hard_limit_seconds"]
+        ):
+            return False
+    elif cpu.get("enforcement") == "unsupported":
+        keys = {"enforcement", "limit_seconds", "resource"}
+        if "error" in cpu:
+            keys.add("error")
+        if (
+            set(cpu) != keys
+            or type(cpu["limit_seconds"]) is not int
+            or cpu["limit_seconds"] <= 0
+            or ("error" in cpu and type(cpu["error"]) is not str)
+        ):
+            return False
+    else:
+        return False
+    environment_keys = environment.get("keys") if type(environment) is dict else None
+    removed = environment.get("runtime_added_keys_removed") if type(environment) is dict else None
+    return (
+        type(environment) is dict
+        and set(environment)
+        == {
+            "allowlist_enforced",
+            "environment_sha256",
+            "keys",
+            "runtime_added_keys_removed",
+            "unexpected_keys",
+        }
+        and environment.get("allowlist_enforced") is True
+        and environment.get("unexpected_keys") == []
+        and _looks_like_sha256(environment.get("environment_sha256"))
+        and type(environment_keys) is list
+        and type(removed) is list
+        and all(type(item) is str for item in (*environment_keys, *removed))
+        and environment_keys == sorted(set(environment_keys))
+        and removed == sorted(set(removed))
+        and type(modules) is dict
+        and set(modules) == {"enforcement", "final_sha256", "start_sha256"}
+        and modules.get("enforcement") == "checkout_realpath_and_recorded_digest_verified"
+        and _looks_like_sha256(modules.get("start_sha256"))
+        and _looks_like_sha256(modules.get("final_sha256"))
+        and value["filesystem"] == {"enforcement": "parent_observed_os_best_effort"}
+        and type(cleanup) is dict
+        and set(cleanup) == {"enforcement", "succeeded"}
+        and cleanup.get("enforcement") == "os_session_group_best_effort"
+        and cleanup.get("succeeded") is True
+        and type(rss) is dict
+        and set(rss) == {"enforcement"}
+        and rss.get("enforcement")
+        in {"parent_observed_os_best_effort", "unsupported_in_current_os_sandbox"}
+    )
 
 
 def _canonical_file(
@@ -178,8 +269,11 @@ def _validate_execution_manifest(
         "reservation",
         "reservation_sha256",
         "resource_limits",
+        "resource_control_policy",
         "runtime_source_snapshot",
         "runtime_source_snapshot_sha256",
+        "sealed_input_lineage",
+        "sealed_input_lineage_sha256",
         "schema_version",
         "seeds",
         "smoke",
@@ -200,8 +294,8 @@ def _validate_execution_manifest(
     }
     if (
         set(manifest) != required
-        or manifest.get("execution_manifest_schema_id") != "humanoid_phase_b_execution_manifest/v2"
-        or manifest.get("schema_version") != 2
+        or manifest.get("execution_manifest_schema_id") != "humanoid_phase_b_execution_manifest/v3"
+        or manifest.get("schema_version") != 3
         or manifest.get("checkpoint_selection") != FINAL_CHECKPOINT_RULE
         or manifest.get("evidence_class") != "exploratory_fine_tuning_cycle"
         or manifest.get("seeds") != list(COHORT_SEEDS)
@@ -210,6 +304,9 @@ def _validate_execution_manifest(
         or manifest.get("test_only") is not False
         or manifest.get("inputs") != dict(preflight.report_inputs)
         or manifest.get("runtime_source_snapshot") != dict(preflight.source_snapshot.value)
+        or manifest.get("sealed_input_lineage")
+        != sealed_input_lineage_value(preflight.sealed_inputs)
+        or manifest.get("sealed_input_lineage_sha256") != preflight.sealed_input_lineage_sha256
         or any(manifest.get(field) != expected for field, expected in expected_current.items())
         or type(reservation) is not dict
         or reservation.get("accepted") is not True
@@ -223,6 +320,7 @@ def _validate_execution_manifest(
         or set(limits)
         != {
             "cohort_wall_seconds",
+            "cpu_time_seconds",
             "free_disk_bytes",
             "job_wall_seconds",
             "output_bytes",
@@ -235,6 +333,7 @@ def _validate_execution_manifest(
         or any(type(value) not in {int, float} or value <= 0 for value in limits.values())
         or float(limits["job_wall_seconds"]) > 7_200.0
         or float(limits["cohort_wall_seconds"]) > float(limits["job_wall_seconds"])
+        or manifest.get("resource_control_policy") != RESOURCE_CONTROL_POLICY
     ):
         raise ExperimentContractError(
             "checkpoint execution manifest differs from current preflight"
@@ -304,7 +403,7 @@ def _validate_indexed_cohort(
             "checkpoint": f"{seed_relative}/checkpoint_seed_{expected_seed}_final.npz",
             "persistence_receipt": f"{seed_relative}/persistence_seed_{expected_seed}_v1.json",
             "strict_export": f"{seed_relative}/actor_seed_{expected_seed}_final.npz",
-            "success_receipt": f"{seed_relative}/success_receipt_v1.json",
+            "success_receipt": f"{seed_relative}/success_receipt_v2.json",
             "training_facts": f"{seed_relative}/training_facts_v1.json",
             "rsi_ledger": f"{seed_relative}/rsi_ledger_v1.json",
         }
@@ -441,20 +540,25 @@ def _validate_indexed_cohort(
                 "planned_transitions",
                 "ppo_seed",
                 "promotable",
+                "resource_controls",
                 "schema_version",
                 "smoke",
                 "status",
                 "success_receipt_id",
                 "test_only",
+                "worker_cleanup",
             }
-            or success.get("success_receipt_id") != "humanoid_phase_b_seed_success/v1"
-            or success.get("schema_version") != 1
+            or success.get("success_receipt_id") != "humanoid_phase_b_seed_success/v2"
+            or success.get("schema_version") != 2
             or success.get("outcome") != "success"
             or success.get("status") != "succeeded"
             or success.get("failure_receipt_present") is not False
             or any(success.get(name) != value for name, value in success_production.items())
             or success.get("execution_manifest_sha256") != execution_sha256
             or artifacts != expected_artifacts
+            or not _valid_success_resource_controls(success.get("resource_controls"))
+            or success.get("worker_cleanup")
+            != {"attempted": True, "error": None, "succeeded": True}
         ):
             raise ExperimentContractError("indexed seed success authority differs")
         outcome_receipt = outcome_by_seed[expected_seed]["receipt"]
@@ -503,8 +607,8 @@ def validate_evaluation_lineage(
     paths = {
         "persistence_receipt": seed_directory / f"persistence_seed_{seed}_v1.json",
         "training_facts": seed_directory / "training_facts_v1.json",
-        "success_receipt": seed_directory / "success_receipt_v1.json",
-        "execution_manifest": cohort_directory / "execution_manifest_v2.json",
+        "success_receipt": seed_directory / "success_receipt_v2.json",
+        "execution_manifest": cohort_directory / "execution_manifest_v3.json",
         "job_result": cohort_directory / "job_result_v1.json",
         "checkpoint_index": cohort_directory / "checkpoint_index_v1.json",
     }
@@ -573,7 +677,26 @@ def validate_evaluation_lineage(
     success = values["success_receipt"]
     success_binding = _binding(paths["success_receipt"], encodings["success_receipt"])
     if (
-        success.get("success_receipt_id") != "humanoid_phase_b_seed_success/v1"
+        set(success)
+        != {
+            "artifacts",
+            "evidence_class",
+            "execution_manifest_sha256",
+            "failure_receipt_present",
+            "outcome",
+            "planned_transitions",
+            "ppo_seed",
+            "promotable",
+            "resource_controls",
+            "schema_version",
+            "smoke",
+            "status",
+            "success_receipt_id",
+            "test_only",
+            "worker_cleanup",
+        }
+        or success.get("success_receipt_id") != "humanoid_phase_b_seed_success/v2"
+        or success.get("schema_version") != 2
         or success.get("outcome") != "success"
         or success.get("status") != "succeeded"
         or success.get("ppo_seed") != seed
@@ -582,6 +705,8 @@ def validate_evaluation_lineage(
         or success.get("smoke") is not False
         or success.get("test_only") is not False
         or success.get("execution_manifest_sha256") != execution_sha256
+        or not _valid_success_resource_controls(success.get("resource_controls"))
+        or success.get("worker_cleanup") != {"attempted": True, "error": None, "succeeded": True}
     ):
         raise ExperimentContractError("seed success receipt is missing production authority")
     artifacts = success.get("artifacts")

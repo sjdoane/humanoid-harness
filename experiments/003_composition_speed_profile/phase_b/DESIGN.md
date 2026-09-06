@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | FT2R2 closes the FT2 scientific-integrity findings: evaluator-owned trace replay, full evaluation lineage and supervision, non-scoring uncalibrated endpoints, rollout-time likelihood audit, complete report-v2 semantics, mailbox-bound reservations, bounded loaders, production-only cohort authority, and the reviewed F2 registry entry. No training ran. |
-| bottleneck | FT2R3 still owns runtime isolation, bounded training IPC, RSI-ledger fail-closed behavior, and mechanism-level resource and cleanup negatives. No calibration receipt, disposable smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
-| next step | Fable reviews and commits FT2R2, then runs FT2R3 and the combined re-review. Do not run the smoke before both repair slices and re-review; calibration remains required for scoring task success. |
+| progress | FT2R3 closes the remaining FT2 isolation findings with sealed worker inputs and modules, a clean worker environment, bounded exact-schema IPC, parent-observed resource gates, fail-closed RSI evidence, and detector-path mechanism negatives. No training ran. |
+| bottleneck | FT2R1 through FT2R3 still need one combined scientific and robustness re-review. Production-load resource behavior, calibration, smoke, cohort, protected utility, and humanoid behavior remain unmeasured. |
+| next step | Fable reviews and commits FT2R3, then launches the combined re-reviews. Do not run the smoke before both verdicts; calibration remains required for scoring task success. |
 
 ## Frozen artifacts
 
@@ -84,7 +84,7 @@ or reward candidate ran.
 |---|---|
 | Worker | CPU PPO with the frozen recipe, tanh-corrected likelihood, four `DummyVecEnv` environments, exact final-transition counting, eight-rollout reference-column/value-only stage, and full-actor unfreeze thereafter |
 | Streams | Environment indices `0,1` are composition and `2,3` are rehearsal, giving exact `50/50` counted transitions; the shared SHA-ranked RSI scheduler covers the 27 block-origin cells and executes uncounted predecessor restoration |
-| Supervision | Source/runtime inspection, FT1 and E003R1 manifest bindings, authoritative mailbox acceptance plus acknowledgment, exact canonical argv, reservation-derived deadlines, two-phase construction ACK, serial seeds, wall/RSS/disk/output/throughput gates, process-group cleanup, and one immutable success or failure receipt per seed |
+| Supervision | Source/runtime inspection, FT1 and E003R1 manifest bindings, authoritative mailbox acceptance plus acknowledgment, exact canonical argv, reservation-derived deadlines, two-phase construction ACK, serial seeds, sealed inputs and executed modules, bounded JSON IPC, clean worker environment, CPU/wall/process-tree-RSS/disk/aggregate-output/throughput gates, process-group cleanup, and one immutable success or failure receipt per seed |
 | Persistence | One final full checkpoint and strict actor export per successful seed; fixed member sets and order, manual NPY-v1 schema checks before allocation, per-member and total expansion caps, no-overwrite publication, frozen-fixture bitwise inference, checkpoint/export equivalence, and a production-only five-seed cohort index |
 | Report v2 | Deterministic scientific receipt chained to E003R1; manifest- and RSI-byte-bound training-facts validation; explicit missing evidence; side-by-side trained and step-zero summaries; reload-time summary recomputation; separate host/wall/resource telemetry |
 | CLI | `train` performs complete preflight before construction; `evaluate-policy` first validates all five cohort chains and executed evaluator sources, then runs the three hold cells and fixed round trip for a stored checkpoint and the step-0 actor under bounded worker supervision |
@@ -142,13 +142,29 @@ Handoff edits are committed in Fable's integration commits by design. FT2R2
 therefore changes the handoff record but makes no code change for FT2-SCI-09
 beyond documenting that integration boundary.
 
+## FT2R3 isolation boundary
+
+| finding | implemented repair |
+|---|---|
+| FT2-ADV-02 | Execution manifest v3 carries expected byte count and SHA-256 for 102 checkout-local inputs: oracle, reward, task, library, evaluator, training design, reference-corpus authorities and all 27 scheduled bundles, plus starting-checkpoint authorities. The worker verifies the full lineage before both construction admissions, at each real artifact use, before persistence, and after persistence. Every loaded `oracle_composition` module must resolve beneath the declared checkout and match the recorded source digest. |
+| FT2-ADV-03 | Spawn uses an explicit environment allowlist and fixed single-thread variables. The worker applies `RLIMIT_CPU` where supported and records `unsupported` otherwise. The parent observes the worker process tree rather than trusting child RSS, monitors free disk and total job output, and derives CPU, seed, cohort, and job limits from the accepted hard deadline. Filesystem, process-tree, and process-group controls remain explicitly OS-best-effort. |
+| FT2-ADV-04 | Parent and worker exchange canonical JSON with an exact frame and payload schema through a 4 MiB `send_bytes`/`recv_bytes` bound. Keys, JSON types, nesting, container and string sizes, artifact filenames, numeric finiteness, and completion bindings are checked before use. Malformed input has its own status and cannot reach construction or persistence. |
+| FT2-ADV-07 | RSI evidence requires the ledger and reset-count APIs for all four environments, an entry for every rehearsal reset in environments 2 and 3, no entries elsewhere, contiguous global indices, and exact scheduler assignments. Missing, `None`, omitted, empty, or cell-drifted evidence is `counter_drift` before persistence. |
+| FT2-ADV-09, FT2-SCI-07 | Training retains a primary exception when environment close also fails and records both outcomes. Injected clock, process, channel, RSS, disk, and output observers cross the real detectors. Production RSI shortcut negatives call `restore_predecessor_rsi`; cohort negatives exercise `3/5`, missing-checkpoint, and hidden-aggregate failures. |
+
+The execution manifest is `humanoid_phase_b_execution_manifest/v3`; per-seed
+success and failure receipts are v2. Success receipts retain the control
+outcomes and the start/final executed-module identity digests. These are
+software isolation and interface records, not evidence that production macOS
+containment, throughput, memory use, training, or humanoid behavior succeeded.
+
 The fake runtime exercises the real worker process, supervisor, persistence,
 report writer, and CLI. It is controlled software evidence, not simulator or
 policy-performance evidence. The real checks are limited to the FT1 200-step
 step-0 path and one certified predecessor reconstruction followed by one
 counted step.
 
-## Commands (documented, not executed by FT2R2)
+## Commands (documented, not executed by FT2R3)
 
 Disposable interface-check smoke:
 

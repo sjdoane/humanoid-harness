@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import multiprocessing
 import os
 import platform
@@ -13,9 +14,10 @@ import shutil
 import signal
 import stat
 import subprocess
+import threading
 import time
-from collections.abc import Mapping, Sequence
-from contextlib import suppress
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -29,6 +31,7 @@ from oracle_composition.experiments.artifact_io import (
     publish_bytes_without_overwrite,
 )
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.experiments.reference_corpus_bundle import load_bundle_manifest
 from oracle_composition.harness.evidence import (
     current_authority_identities,
     load_e003_execution,
@@ -41,6 +44,14 @@ from .contracts import (
     RewardRegistry,
     load_fine_tuning_run_manifest,
     load_phase_b_oracle,
+)
+from .isolation import (
+    SealedArtifact,
+    seal_artifact,
+    sealed_input_lineage_sha256,
+    sealed_input_lineage_value,
+    validate_executing_modules,
+    verify_sealed_inputs,
 )
 from .persistence import (
     PersistenceResult,
@@ -59,10 +70,12 @@ from .runtime import (
     worker_step_zero_e1_audit,
 )
 from .training import (
+    BEHAVIORS,
     COHORT_SEEDS,
     FULL_TRANSITIONS_PER_SEED,
     SMOKE_SEED,
     SMOKE_TRANSITIONS,
+    TRAINING_BLOCKS,
     PhaseBTrainingError,
     TrainingFailureStatus,
     TrainingPlan,
@@ -70,17 +83,31 @@ from .training import (
 )
 
 SUPERVISOR_ID = "humanoid_phase_b_training_supervisor/v2"
-EXECUTION_MANIFEST_SCHEMA_ID = "humanoid_phase_b_execution_manifest/v2"
-SEED_SUCCESS_RECEIPT_ID = "humanoid_phase_b_seed_success/v1"
-SEED_FAILURE_RECEIPT_ID = "humanoid_phase_b_seed_failure/v1"
+EXECUTION_MANIFEST_SCHEMA_ID = "humanoid_phase_b_execution_manifest/v3"
+SEED_SUCCESS_RECEIPT_ID = "humanoid_phase_b_seed_success/v2"
+SEED_FAILURE_RECEIPT_ID = "humanoid_phase_b_seed_failure/v2"
 JOB_RESULT_SCHEMA_ID = "humanoid_phase_b_job_result/v1"
 WORKER_ACK_TIMEOUT_SECONDS = 30.0
 POLL_SECONDS = 0.05
 TERMINATION_GRACE_SECONDS = 2.0
 KILL_GRACE_SECONDS = 2.0
+MAX_IPC_FRAME_BYTES = 4 * 1024**2
+IPC_FRAME_SCHEMA_ID = "humanoid_phase_b_bounded_ipc_frame/v1"
 MAILBOX_MESSAGE_ID = re.compile(r"^\d{8}T\d{6}\.\d{6}Z-[0-9a-f]{32}$")
 MAILBOX_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$")
 MAILBOX_AGENTS = frozenset(("astra", "fable"))
+WORKER_ENV_ALLOWLIST = frozenset(
+    ("LANG", "LC_ALL", "PATH", "SSL_CERT_DIR", "SSL_CERT_FILE", "TMPDIR")
+)
+WORKER_ENV_FIXED = {
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "PYTHONHASHSEED": "0",
+    "VECLIB_MAXIMUM_THREADS": "1",
+}
+_SPAWN_ENVIRONMENT_LOCK = threading.Lock()
 
 
 class SupervisorStatus(StrEnum):
@@ -96,6 +123,7 @@ class SupervisorStatus(StrEnum):
     SOURCE_MUTATION = "source_mutation"
     RESOURCE_BREACH = "resource_breach"
     CLEANUP_FAILURE = "cleanup_failure"
+    MALFORMED_FRAME = "malformed_frame"
     NOT_STARTED = "not_started_due_to_cohort_failure"
 
 
@@ -113,6 +141,7 @@ class ResourceLimits:
     per_seed_wall_seconds: float = 22.0 * 60.0
     cohort_wall_seconds: float = 95.0 * 60.0
     job_wall_seconds: float = 120.0 * 60.0
+    cpu_time_seconds: float = 22.0 * 60.0
     rss_bytes: int = 8 * 1024**3
     free_disk_bytes: int = 20 * 1024**3
     output_bytes: int = 8 * 1024**3
@@ -148,6 +177,8 @@ class TrainingPreflight:
     e003_execution_manifest_sha256: str
     prior_scientific_receipt_sha256: str
     source_snapshot: RuntimeSourceSnapshot
+    sealed_inputs: tuple[SealedArtifact, ...]
+    sealed_input_lineage_sha256: str
     report_inputs: Mapping[str, object]
     runtime_config: RealRuntimeConfig
 
@@ -160,11 +191,15 @@ class WorkerRequest:
     execution_manifest_sha256: str
     e1_receipt_sha256: str
     source_snapshot_sha256: str
+    sealed_inputs: tuple[SealedArtifact, ...]
+    sealed_input_lineage_sha256: str
     repository_root: str
     runtime_kind: str
     runtime_config: RealRuntimeConfig | None
     failure_mode: str | None
     rss_limit_bytes: int
+    cpu_time_limit_seconds: float
+    worker_environment: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +222,14 @@ class SupervisionResult:
 
 
 class _ReportedResourceBreach(RuntimeError):
+    pass
+
+
+class MalformedFrameError(ExperimentContractError):
+    pass
+
+
+class SourceMutationError(ExperimentContractError):
     pass
 
 
@@ -286,6 +329,132 @@ def _binding(path: Path) -> dict[str, object]:
     }
 
 
+def _sealed_training_inputs(
+    *,
+    repository_root: Path,
+    template_manifest: FineTuningRunManifest,
+) -> tuple[SealedArtifact, ...]:
+    """Enumerate every file the real worker may consume for the frozen run."""
+
+    root = Path(repository_root).resolve(strict=True)
+    records: dict[str, dict[str, object]] = {}
+
+    def add(
+        path: Path,
+        *,
+        role: str,
+        expected: Mapping[str, object] | None = None,
+    ) -> None:
+        expected_size = None if expected is None else expected.get("byte_count")
+        expected_sha = None if expected is None else expected.get("sha256")
+        if expected_size is not None and type(expected_size) is not int:
+            raise ExperimentContractError(f"{role} byte-count authority is malformed")
+        if expected_sha is not None and type(expected_sha) is not str:
+            raise ExperimentContractError(f"{role} digest authority is malformed")
+        artifact = seal_artifact(
+            root,
+            path,
+            roles=(role,),
+            expected_byte_count=expected_size,
+            expected_sha256=expected_sha,
+        )
+        existing = records.get(artifact.relative_path)
+        if existing is None:
+            records[artifact.relative_path] = artifact.to_dict()
+            return
+        if existing["byte_count"] != artifact.byte_count or existing["sha256"] != artifact.sha256:
+            raise ExperimentContractError("one sealed path has contradictory identities")
+        existing["roles"] = sorted({*existing["roles"], role})
+
+    manifest = template_manifest.value
+    for name in (
+        "evaluator",
+        "library",
+        "oracle",
+        "reference_corpus",
+        "reward",
+        "starting_checkpoint",
+        "task",
+        "training_design",
+    ):
+        binding = manifest[name]
+        add(root / str(binding["path"]), role=name, expected=binding)
+
+    starting_path = root / str(manifest["starting_checkpoint"]["path"])
+    starting = json.loads(starting_path.read_bytes())
+    for name in ("e1_receipt", "source_expert", "strict_actor_export"):
+        binding = starting.get(name)
+        if type(binding) is not dict:
+            raise ExperimentContractError(f"starting checkpoint {name} binding is malformed")
+        add(root / str(binding["path"]), role=f"starting_checkpoint.{name}", expected=binding)
+
+    e1_receipt_path = root / str(starting["e1_receipt"]["path"])
+    e1_receipt = json.loads(e1_receipt_path.read_bytes())
+    fixture_batch = e1_receipt.get("fixture_batch")
+    if (
+        type(fixture_batch) is not dict
+        or type(fixture_batch.get("synthetic_design_path")) is not str
+    ):
+        raise ExperimentContractError("E1 synthetic-design binding is malformed")
+    add(
+        root / fixture_batch["synthetic_design_path"],
+        role="starting_checkpoint.e1_synthetic_design",
+    )
+
+    corpus_root = root / "artifacts/reference_corpus_v2"
+    corpus_manifest_path = root / str(manifest["reference_corpus"]["path"])
+    corpus_manifest = json.loads(corpus_manifest_path.read_bytes())
+    index_path = corpus_root / "corpus_index_v2.json"
+    add(index_path, role="reference_corpus.index")
+    index = json.loads(index_path.read_bytes())
+    if canonical_json_bytes(index) != index_path.read_bytes():
+        raise ExperimentContractError("reference-corpus index is not canonical")
+    manifest_entries = {
+        entry.get("clip_id"): entry for entry in corpus_manifest.get("clips_in_reset_order", ())
+    }
+    index_entries = {entry.get("clip_id"): entry for entry in index.get("clips", ())}
+    for block in TRAINING_BLOCKS:
+        for behavior in BEHAVIORS:
+            clip_id = f"corpus-{block}-{behavior}"
+            manifest_entry = manifest_entries.get(clip_id)
+            index_entry = index_entries.get(clip_id)
+            if (
+                type(manifest_entry) is not dict
+                or type(index_entry) is not dict
+                or manifest_entry.get("bundle_manifest_sha256")
+                != index_entry.get("bundle_manifest_sha256")
+            ):
+                raise ExperimentContractError(f"reference-corpus authorities differ for {clip_id}")
+            bundle_sha = index_entry.get("bundle_manifest_sha256")
+            if type(bundle_sha) is not str:
+                raise ExperimentContractError("reference-corpus bundle digest is malformed")
+            bundle_path = corpus_root / "clips" / clip_id / f"bundle-{bundle_sha}.json"
+            bundle_binding = {
+                "byte_count": bundle_path.stat().st_size,
+                "sha256": bundle_sha,
+            }
+            add(bundle_path, role=f"reference_corpus.bundle.{clip_id}", expected=bundle_binding)
+            bundle = load_bundle_manifest(bundle_path, expected_sha256=bundle_sha)
+            core = bundle["core"]
+            nested = [*core["bound_artifacts"], core["payload"], core["rng_state"]["binding"]]
+            for nested_binding in nested:
+                add(
+                    corpus_root / str(nested_binding["object_path"]),
+                    role=f"reference_corpus.{clip_id}.{nested_binding['role']}",
+                    expected=nested_binding,
+                )
+
+    return tuple(
+        SealedArtifact(
+            relative_path=path,
+            byte_count=int(value["byte_count"]),
+            sha256=str(value["sha256"]),
+            roles=tuple(value["roles"]),
+        )
+        for path, value in sorted(records.items())
+    )
+
+
 def validate_training_preflight(
     *,
     repository_root: Path,
@@ -325,6 +494,7 @@ def validate_training_preflight(
     ):
         raise ExperimentContractError("CLI oracle or reward differs from the FT1 run manifest")
     source_snapshot = inspect_runtime_sources(root, allow_dirty=allow_dirty)
+    validate_executing_modules(root, source_snapshot.value["source_sha256"])
     starting_binding = template.value["starting_checkpoint"]
     starting_path = root / str(starting_binding["path"])
     starting = json.loads(starting_path.read_bytes())
@@ -351,6 +521,12 @@ def validate_training_preflight(
         "task_sha256": input_bindings["task"]["sha256"],
         "training_design_sha256": input_bindings["training_design"]["sha256"],
     }
+    sealed_inputs = _sealed_training_inputs(
+        repository_root=root,
+        template_manifest=template,
+    )
+    lineage_sha256 = sealed_input_lineage_sha256(sealed_inputs)
+    report_inputs["sealed_input_lineage_sha256"] = lineage_sha256
     runtime_config = RealRuntimeConfig(
         repository_root=root,
         experiment=experiment_path,
@@ -359,6 +535,8 @@ def validate_training_preflight(
         starting_actor_path=root / actor_binding["path"],
         starting_actor_sha256=actor_binding["sha256"],
         value_seed=int(starting["value_initialization_seed"]),
+        sealed_inputs=sealed_inputs,
+        sealed_input_lineage_sha256=lineage_sha256,
     )
     return TrainingPreflight(
         repository_root=root,
@@ -370,6 +548,8 @@ def validate_training_preflight(
         e003_execution_manifest_sha256=sealed.manifest_sha256,
         prior_scientific_receipt_sha256=prior.sha256,
         source_snapshot=source_snapshot,
+        sealed_inputs=sealed_inputs,
+        sealed_input_lineage_sha256=lineage_sha256,
         report_inputs=MappingProxyType(report_inputs),
         runtime_config=runtime_config,
     )
@@ -612,6 +792,7 @@ def limits_bound_by_reservation(
         per_seed_wall_seconds=min(limits.per_seed_wall_seconds, deadline),
         cohort_wall_seconds=min(limits.cohort_wall_seconds, deadline),
         job_wall_seconds=min(limits.job_wall_seconds, deadline),
+        cpu_time_seconds=min(limits.cpu_time_seconds, deadline),
     )
 
 
@@ -662,13 +843,22 @@ def _execution_manifest_value(
         "execution_manifest_schema_id": EXECUTION_MANIFEST_SCHEMA_ID,
         "ft1_run_manifest_sha256": preflight.template_manifest_sha256,
         "inputs": dict(preflight.report_inputs),
+        "sealed_input_lineage": sealed_input_lineage_value(preflight.sealed_inputs),
+        "sealed_input_lineage_sha256": preflight.sealed_input_lineage_sha256,
         "prior_scientific_receipt_sha256": preflight.prior_scientific_receipt_sha256,
         "reservation": dict(reservation),
         "reservation_sha256": hashlib.sha256(canonical_json_bytes(dict(reservation))).hexdigest(),
         "resource_limits": limits.to_dict(),
+        "resource_control_policy": {
+            "cpu_time": "os_rlimit_when_supported_otherwise_recorded_unsupported",
+            "environment": "spawn_time_explicit_allowlist",
+            "filesystem": "parent_observed_os_best_effort",
+            "process_group_cleanup": "os_session_group_best_effort_with_fail_closed_receipt",
+            "process_tree_rss": "parent_observed_os_best_effort",
+        },
         "runtime_source_snapshot": dict(preflight.source_snapshot.value),
         "runtime_source_snapshot_sha256": preflight.source_snapshot.sha256,
-        "schema_version": 2,
+        "schema_version": 3,
         "seeds": list(seeds),
         "smoke": smoke,
         "test_only": test_only,
@@ -676,8 +866,435 @@ def _execution_manifest_value(
     }
 
 
-def _send(connection: Connection, message_type: str, payload: Mapping[str, object]) -> None:
-    connection.send({"message_type": message_type, "payload": dict(payload)})
+_FRAME_PAYLOAD_KEYS = {
+    "admit_execution": frozenset(("manifest", "manifest_sha256")),
+    "begin_construction": frozenset(("manifest_sha256",)),
+    "completed": frozenset(
+        (
+            "executed_module_identity_sha256",
+            "persistence",
+            "rsi_ledger",
+            "step_zero_comparator",
+            "training_facts",
+            "training_facts_value",
+            "worker_cleanup",
+            "worker_peak_rss_bytes",
+        )
+    ),
+    "execution_acknowledged": frozenset(
+        (
+            "executed_module_identity_sha256",
+            "manifest_sha256",
+            "model_or_environment_constructed",
+            "sealed_input_lineage_sha256",
+            "source_snapshot_sha256",
+        )
+    ),
+    "failed": frozenset(("reason", "status", "worker_cleanup")),
+    "progress": frozenset(
+        ("observed_transitions", "rollout_count", "stream_counts", "worker_peak_rss_bytes")
+    ),
+    "resource_breach": frozenset(("reason",)),
+    "source_mutation": frozenset(("reason",)),
+    "worker_started": frozenset(
+        (
+            "cpu_time_control",
+            "environment_control",
+            "executed_module_identity_sha256",
+            "pgid",
+            "pid",
+            "sealed_input_lineage_sha256",
+            "sid",
+            "source_snapshot_sha256",
+        )
+    ),
+}
+
+_ARTIFACT_RECORD_KEYS = frozenset(("byte_count", "filename", "sha256"))
+_PERSISTENCE_RECEIPT_KEYS = frozenset(
+    (
+        "checkpoint",
+        "checkpoint_reload_bitwise_deterministic",
+        "checkpoint_to_export_bitwise_equivalent",
+        "evidence_class",
+        "execution_manifest_sha256",
+        "final_transition_only",
+        "fixture_action_sha256",
+        "persistence_receipt_id",
+        "planned_transitions",
+        "ppo_seed",
+        "promotable",
+        "schema_version",
+        "smoke",
+        "strict_export",
+        "test_only",
+        "training_facts_sha256",
+        "transitions",
+    )
+)
+_TRAINING_FACT_KEYS = frozenset(
+    (
+        "device",
+        "evidence_class",
+        "execution_manifest_sha256",
+        "likelihood_audit",
+        "losses",
+        "normalization",
+        "observed_transitions",
+        "optimizer_initialization",
+        "optimizer_updates",
+        "planned_transitions",
+        "ppo_recipe",
+        "ppo_recipe_id",
+        "ppo_seed",
+        "promotable",
+        "reward_totals",
+        "rng_substreams",
+        "rollouts",
+        "rsi_ledger_sha256",
+        "smoke",
+        "step_zero_comparator",
+        "stream_counts",
+        "thread_counts",
+        "time_limit_bootstrap_count",
+        "training_worker_id",
+        "unfreeze_receipt_sha256",
+        "unfreeze_rollouts",
+    )
+)
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _valid_artifact_record(value: object) -> bool:
+    if type(value) is not dict or set(value) != _ARTIFACT_RECORD_KEYS:
+        return False
+    filename = value["filename"]
+    return (
+        type(value["byte_count"]) is int
+        and value["byte_count"] > 0
+        and type(filename) is str
+        and filename not in {"", ".", ".."}
+        and Path(filename).name == filename
+        and _is_sha256(value["sha256"])
+    )
+
+
+def _valid_environment_control(value: object) -> bool:
+    if type(value) is not dict or set(value) != {
+        "allowlist_enforced",
+        "environment_sha256",
+        "keys",
+        "runtime_added_keys_removed",
+        "unexpected_keys",
+    }:
+        return False
+    keys = value["keys"]
+    removed = value["runtime_added_keys_removed"]
+    return (
+        value["allowlist_enforced"] is True
+        and _is_sha256(value["environment_sha256"])
+        and type(keys) is list
+        and type(removed) is list
+        and all(type(item) is str for item in (*keys, *removed))
+        and keys == sorted(set(keys))
+        and removed == sorted(set(removed))
+        and value["unexpected_keys"] == []
+    )
+
+
+def _valid_cpu_time_control(value: object) -> bool:
+    if type(value) is not dict or value.get("resource") != "RLIMIT_CPU":
+        return False
+    enforcement = value.get("enforcement")
+    if enforcement == "os_enforced":
+        return (
+            set(value) == {"enforcement", "hard_limit_seconds", "limit_seconds", "resource"}
+            and type(value["limit_seconds"]) is int
+            and type(value["hard_limit_seconds"]) is int
+            and 0 < value["limit_seconds"] <= value["hard_limit_seconds"]
+        )
+    if enforcement == "unsupported":
+        expected = {"enforcement", "limit_seconds", "resource"}
+        if "error" in value:
+            expected.add("error")
+        return (
+            set(value) == expected
+            and type(value["limit_seconds"]) is int
+            and value["limit_seconds"] > 0
+            and ("error" not in value or type(value["error"]) is str)
+        )
+    return False
+
+
+def _valid_step_zero_comparator(value: object) -> bool:
+    if type(value) is not dict or value.get("bitwise_equal") is not True:
+        return False
+    if set(value) == {"bitwise_equal", "evidence_class", "worker_path"}:
+        return all(
+            type(value[name]) is str and value[name] for name in ("evidence_class", "worker_path")
+        )
+    if set(value) == {
+        "action_sha256",
+        "bitwise_equal",
+        "e1_receipt_sha256",
+        "fixture_count",
+        "reported_beside_checkpoint",
+        "worker_path",
+    }:
+        return (
+            _is_sha256(value["action_sha256"])
+            and _is_sha256(value["e1_receipt_sha256"])
+            and type(value["fixture_count"]) is int
+            and value["fixture_count"] > 0
+            and value["reported_beside_checkpoint"] is True
+            and type(value["worker_path"]) is str
+            and bool(value["worker_path"])
+        )
+    return False
+
+
+def _valid_persistence_receipt(value: object) -> bool:
+    if type(value) is not dict or set(value) != _PERSISTENCE_RECEIPT_KEYS:
+        return False
+    return (
+        _valid_artifact_record(value["checkpoint"])
+        and _valid_artifact_record(value["strict_export"])
+        and value["checkpoint_reload_bitwise_deterministic"] is True
+        and value["checkpoint_to_export_bitwise_equivalent"] is True
+        and type(value["evidence_class"]) is str
+        and _is_sha256(value["execution_manifest_sha256"])
+        and value["final_transition_only"] is True
+        and _is_sha256(value["fixture_action_sha256"])
+        and value["persistence_receipt_id"] == "humanoid_phase_b_final_persistence/v1"
+        and type(value["planned_transitions"]) is int
+        and value["planned_transitions"] > 0
+        and type(value["ppo_seed"]) is int
+        and value["ppo_seed"] > 0
+        and type(value["promotable"]) is bool
+        and value["schema_version"] == 1
+        and type(value["smoke"]) is bool
+        and type(value["test_only"]) is bool
+        and _is_sha256(value["training_facts_sha256"])
+        and value["transitions"] == value["planned_transitions"]
+    )
+
+
+def _valid_completed_payload(payload: Mapping[str, object]) -> bool:
+    persistence = payload["persistence"]
+    training = payload["training_facts_value"]
+    if (
+        not _is_sha256(payload["executed_module_identity_sha256"])
+        or payload["worker_cleanup"] != {"attempted": True, "error": None, "succeeded": True}
+        or type(persistence) is not dict
+        or set(persistence) != {"checkpoint", "receipt", "receipt_value", "strict_export"}
+        or not all(
+            _valid_artifact_record(persistence[name])
+            for name in ("checkpoint", "receipt", "strict_export")
+        )
+        or not _valid_persistence_receipt(persistence["receipt_value"])
+        or not _valid_artifact_record(payload["rsi_ledger"])
+        or not _valid_artifact_record(payload["training_facts"])
+        or not _valid_step_zero_comparator(payload["step_zero_comparator"])
+        or type(training) is not dict
+        or set(training) != _TRAINING_FACT_KEYS
+        or training.get("step_zero_comparator") != payload["step_zero_comparator"]
+    ):
+        return False
+    integer_fields = (
+        "observed_transitions",
+        "optimizer_updates",
+        "planned_transitions",
+        "ppo_seed",
+        "rollouts",
+        "time_limit_bootstrap_count",
+    )
+    return (
+        all(type(training[name]) is int and training[name] >= 0 for name in integer_fields)
+        and training["observed_transitions"] == training["planned_transitions"]
+        and type(training["promotable"]) is bool
+        and type(training["smoke"]) is bool
+        and _is_sha256(training["execution_manifest_sha256"])
+        and _is_sha256(training["rsi_ledger_sha256"])
+        and _is_sha256(training["unfreeze_receipt_sha256"])
+    )
+
+
+def _validate_json_value(value: object, *, depth: int = 0) -> None:
+    if depth > 16:
+        raise MalformedFrameError("IPC frame nesting exceeds the schema bound")
+    if value is None or type(value) in {bool, str}:
+        if type(value) is str and len(value.encode("utf-8")) > 128 * 1024:
+            raise MalformedFrameError("IPC frame string exceeds the schema bound")
+        return
+    if type(value) is int:
+        if not -(2**63) <= value < 2**64:
+            raise MalformedFrameError("IPC frame integer exceeds the schema bound")
+        return
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise MalformedFrameError("IPC frame contains a non-finite number")
+        return
+    if type(value) is list:
+        if len(value) > 65_536:
+            raise MalformedFrameError("IPC frame list exceeds the schema bound")
+        for item in value:
+            _validate_json_value(item, depth=depth + 1)
+        return
+    if type(value) is dict:
+        if len(value) > 4_096 or any(
+            type(key) is not str or len(key.encode("utf-8")) > 1_024 for key in value
+        ):
+            raise MalformedFrameError("IPC frame mapping exceeds the schema bound")
+        for item in value.values():
+            _validate_json_value(item, depth=depth + 1)
+        return
+    raise MalformedFrameError("IPC frame contains a non-JSON value")
+
+
+def _validate_frame_payload(message_type: str, payload: object) -> dict[str, object]:
+    required = _FRAME_PAYLOAD_KEYS.get(message_type)
+    if required is None or type(payload) is not dict or set(payload) != required:
+        raise MalformedFrameError("IPC frame type or exact payload schema differs")
+    _validate_json_value(payload)
+    if message_type == "admit_execution" and (
+        type(payload["manifest"]) is not dict
+        or type(payload["manifest_sha256"]) is not str
+        or hashlib.sha256(canonical_json_bytes(payload["manifest"])).hexdigest()
+        != payload["manifest_sha256"]
+    ):
+        raise MalformedFrameError("IPC execution-admission payload is malformed")
+    if message_type == "begin_construction" and not _is_sha256(payload["manifest_sha256"]):
+        raise MalformedFrameError("IPC construction-admission payload is malformed")
+    if message_type in {"worker_started", "execution_acknowledged"}:
+        sha_fields = {
+            "executed_module_identity_sha256",
+            "sealed_input_lineage_sha256",
+            "source_snapshot_sha256",
+        }
+        if any(
+            type(payload[field]) is not str
+            or len(payload[field]) != 64
+            or any(character not in "0123456789abcdef" for character in payload[field])
+            for field in sha_fields
+        ):
+            raise MalformedFrameError("IPC worker identity payload is malformed")
+    if message_type == "worker_started" and (
+        any(
+            type(payload[field]) is not int or payload[field] <= 0
+            for field in ("pgid", "pid", "sid")
+        )
+        or not _valid_cpu_time_control(payload["cpu_time_control"])
+        or not _valid_environment_control(payload["environment_control"])
+    ):
+        raise MalformedFrameError("IPC worker-start payload is malformed")
+    if message_type == "execution_acknowledged" and (
+        not _is_sha256(payload["manifest_sha256"])
+        or payload["model_or_environment_constructed"] is not False
+    ):
+        raise MalformedFrameError("IPC execution acknowledgment is malformed")
+    if message_type in {"resource_breach", "source_mutation"} and (
+        type(payload["reason"]) is not str or not payload["reason"]
+    ):
+        raise MalformedFrameError("IPC failure reason is malformed")
+    if message_type == "failed" and (
+        type(payload["reason"]) is not str
+        or not payload["reason"]
+        or payload["status"]
+        not in {
+            status.value
+            for status in SupervisorStatus
+            if status not in {SupervisorStatus.SUCCEEDED, SupervisorStatus.NOT_STARTED}
+        }
+        or not _valid_worker_cleanup(payload["worker_cleanup"])
+    ):
+        raise MalformedFrameError("IPC worker-failure payload is malformed")
+    if message_type == "progress":
+        streams = payload["stream_counts"]
+        if (
+            type(payload["observed_transitions"]) is not int
+            or type(payload["rollout_count"]) is not int
+            or type(payload["worker_peak_rss_bytes"]) is not int
+            or type(streams) is not dict
+            or set(streams) != {"composition", "rehearsal"}
+            or any(type(value) is not int or value < 0 for value in streams.values())
+        ):
+            raise MalformedFrameError("IPC progress payload is malformed")
+    if message_type == "completed" and (
+        not _valid_completed_payload(payload)
+        or type(payload["worker_peak_rss_bytes"]) is not int
+        or payload["worker_peak_rss_bytes"] <= 0
+        or not _valid_worker_cleanup(payload["worker_cleanup"])
+    ):
+        raise MalformedFrameError("IPC completion payload is malformed")
+    return dict(payload)
+
+
+def _valid_worker_cleanup(value: object) -> bool:
+    return (
+        type(value) is dict
+        and set(value) == {"attempted", "error", "succeeded"}
+        and type(value["attempted"]) is bool
+        and type(value["succeeded"]) is bool
+        and (value["error"] is None or type(value["error"]) is str)
+        and (value["succeeded"] is (value["error"] is None))
+    )
+
+
+def _frame_bytes(message_type: str, payload: Mapping[str, object]) -> bytes:
+    validated = _validate_frame_payload(message_type, dict(payload))
+    encoded = canonical_json_bytes(
+        {
+            "frame_schema_id": IPC_FRAME_SCHEMA_ID,
+            "message_type": message_type,
+            "payload": validated,
+            "schema_version": 1,
+        }
+    )
+    if not encoded or len(encoded) > MAX_IPC_FRAME_BYTES:
+        raise MalformedFrameError("IPC frame exceeds the byte bound")
+    return encoded
+
+
+def _decode_frame(encoded: bytes) -> tuple[str, dict[str, object]]:
+    if type(encoded) is not bytes or not encoded or len(encoded) > MAX_IPC_FRAME_BYTES:
+        raise MalformedFrameError("IPC frame is empty or exceeds the byte bound")
+    try:
+        value = json.loads(encoded.decode("utf-8", errors="strict"))
+    except (UnicodeError, ValueError) as exc:
+        raise MalformedFrameError("IPC frame is truncated or invalid JSON") from exc
+    _validate_json_value(value)
+    if (
+        type(value) is not dict
+        or set(value) != {"frame_schema_id", "message_type", "payload", "schema_version"}
+        or value.get("frame_schema_id") != IPC_FRAME_SCHEMA_ID
+        or value.get("schema_version") != 1
+        or type(value.get("message_type")) is not str
+        or canonical_json_bytes(value) != encoded
+    ):
+        raise MalformedFrameError("IPC frame envelope or canonical encoding differs")
+    message_type = value["message_type"]
+    return message_type, _validate_frame_payload(message_type, value["payload"])
+
+
+def _send_frame(connection: Connection, message_type: str, payload: Mapping[str, object]) -> None:
+    connection.send_bytes(_frame_bytes(message_type, payload))
+
+
+def _receive_frame(connection: Connection) -> tuple[str, dict[str, object]]:
+    try:
+        encoded = connection.recv_bytes(MAX_IPC_FRAME_BYTES)
+    except EOFError:
+        raise
+    except OSError as exc:
+        raise MalformedFrameError("IPC frame is truncated or exceeds the byte bound") from exc
+    return _decode_frame(encoded)
 
 
 def _artifact_record(artifact: PublishedArtifact) -> dict[str, object]:
@@ -686,6 +1303,130 @@ def _artifact_record(artifact: PublishedArtifact) -> dict[str, object]:
         "filename": artifact.path.name,
         "sha256": artifact.sha256,
     }
+
+
+def minimal_worker_environment(source: Mapping[str, str]) -> dict[str, str]:
+    """Return the explicit spawn-time environment allowlist plus fixed thread controls."""
+
+    selected = {
+        name: value
+        for name, value in source.items()
+        if name in WORKER_ENV_ALLOWLIST and type(value) is str
+    }
+    selected.update(WORKER_ENV_FIXED)
+    return dict(sorted(selected.items()))
+
+
+@contextmanager
+def _spawn_environment(environment: Mapping[str, str]) -> Iterator[None]:
+    with _SPAWN_ENVIRONMENT_LOCK:
+        original = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(environment)
+        try:
+            yield
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
+
+def _apply_cpu_time_limit(seconds: float) -> dict[str, object]:
+    requested = max(1, math.ceil(seconds))
+    if not hasattr(resource, "RLIMIT_CPU"):
+        return {
+            "enforcement": "unsupported",
+            "limit_seconds": requested,
+            "resource": "RLIMIT_CPU",
+        }
+    try:
+        _old_soft, old_hard = resource.getrlimit(resource.RLIMIT_CPU)
+        hard = requested + 1
+        if old_hard != resource.RLIM_INFINITY:
+            hard = min(hard, int(old_hard))
+        soft = min(requested, hard)
+        resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
+    except (OSError, ValueError) as exc:
+        return {
+            "enforcement": "unsupported",
+            "error": f"{type(exc).__name__}: {exc}"[:500],
+            "limit_seconds": requested,
+            "resource": "RLIMIT_CPU",
+        }
+    return {
+        "enforcement": "os_enforced",
+        "hard_limit_seconds": hard,
+        "limit_seconds": soft,
+        "resource": "RLIMIT_CPU",
+    }
+
+
+def _environment_control(request: WorkerRequest) -> dict[str, object]:
+    expected = dict(request.worker_environment)
+    initial = dict(os.environ)
+    removed = sorted(set(initial) - set(expected))
+    for name in removed:
+        os.environ.pop(name, None)
+    observed = dict(os.environ)
+    if observed != expected:
+        missing = sorted(set(expected) - set(observed))
+        changed = sorted(
+            name for name in set(expected) & set(observed) if expected[name] != observed[name]
+        )
+        raise ExperimentContractError(
+            f"worker environment differs from the allowlist (missing={missing}, changed={changed})"
+        )
+    return {
+        "allowlist_enforced": True,
+        "environment_sha256": hashlib.sha256(canonical_json_bytes(observed)).hexdigest(),
+        "keys": sorted(observed),
+        "runtime_added_keys_removed": removed,
+        "unexpected_keys": [],
+    }
+
+
+def _worker_authorities(request: WorkerRequest) -> tuple[RuntimeSourceSnapshot, dict[str, object]]:
+    root = Path(request.repository_root)
+    try:
+        verify_sealed_inputs(
+            root,
+            request.sealed_inputs,
+            expected_lineage_sha256=request.sealed_input_lineage_sha256,
+        )
+        snapshot = inspect_runtime_sources(root, allow_dirty=request.plan.test_only)
+        if snapshot.sha256 != request.source_snapshot_sha256:
+            raise ExperimentContractError("worker source snapshot differs from parent preflight")
+        modules = validate_executing_modules(root, snapshot.value["source_sha256"])
+    except ExperimentContractError as exc:
+        raise SourceMutationError(str(exc)) from exc
+    return snapshot, modules
+
+
+def _process_tree_rss_bytes(root_pid: int) -> int | None:
+    """Observe aggregate RSS for the worker and its descendants from the parent."""
+
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,ppid=,rss="],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    rows: dict[int, tuple[int, int]] = {}
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[0].isdigit() and fields[1].isdigit() and fields[2].isdigit():
+            rows[int(fields[0])] = (int(fields[1]), int(fields[2]))
+    members = {root_pid}
+    changed = True
+    while changed:
+        changed = False
+        for pid, (parent_pid, _rss_kib) in rows.items():
+            if pid not in members and parent_pid in members:
+                members.add(pid)
+                changed = True
+    return sum(rows.get(pid, (0, 0))[1] for pid in members) * 1024
 
 
 def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
@@ -705,12 +1446,6 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
             TrainingFailureStatus.ACTION_BOUND_VIOLATION,
             "controlled action-bound violation",
         )
-    if request.failure_mode == "resource_breach":
-        _send(connection, "resource_breach", {"reason": "controlled resource breach"})
-        return
-    if request.failure_mode == "source_mutation":
-        _send(connection, "source_mutation", {"reason": "controlled source mutation"})
-        return
     if request.runtime_kind == "fake":
         policy_factory = fake_policy_factory
         step_zero_audit = None
@@ -730,6 +1465,8 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
                     / "phase_b/receipts/e1_full_authority_warm_start_v1.json"
                 ),
                 expected_receipt_sha256=request.e1_receipt_sha256,
+                sealed_inputs=request.sealed_inputs,
+                sealed_input_lineage_sha256=request.sealed_input_lineage_sha256,
             )
 
         environment_factories = real_environment_factories(
@@ -741,9 +1478,9 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
 
     def progress(value: Mapping[str, object]) -> None:
         rss = _self_peak_rss_bytes()
-        _send(connection, "progress", {**dict(value), "worker_peak_rss_bytes": rss})
+        _send_frame(connection, "progress", {**dict(value), "worker_peak_rss_bytes": rss})
         if rss > request.rss_limit_bytes:
-            _send(connection, "resource_breach", {"reason": "worker RSS limit exceeded"})
+            _send_frame(connection, "resource_breach", {"reason": "worker RSS limit exceeded"})
             raise _ReportedResourceBreach("worker RSS limit exceeded")
 
     result = run_ppo_training(
@@ -753,9 +1490,7 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
         progress_callback=progress,
         step_zero_audit=step_zero_audit,
     )
-    if request.failure_mode == "source_mutation_after_training":
-        _send(connection, "source_mutation", {"reason": "controlled source mutation"})
-        return
+    _worker_authorities(request)
     output = Path(request.output_directory)
     training_facts = publish_bytes_without_overwrite(
         output / "training_facts_v1.json",
@@ -766,14 +1501,9 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
         canonical_json_bytes([dict(value) for value in result.rsi_ledger]),
     )
     persistence = publish_final_persistence(output_directory=output, result=result, plan=plan)
-    after = inspect_runtime_sources(
-        Path(request.repository_root),
-        allow_dirty=plan.test_only,
-    )
-    if after.sha256 != request.source_snapshot_sha256:
-        _send(connection, "source_mutation", {"reason": "source snapshot changed"})
-        return
+    _after, final_modules = _worker_authorities(request)
     payload = {
+        "executed_module_identity_sha256": final_modules["sha256"],
         "persistence": {
             "checkpoint": _artifact_record(persistence.checkpoint),
             "receipt": _artifact_record(persistence.receipt),
@@ -784,74 +1514,105 @@ def _worker_execute(connection: Connection, request: WorkerRequest) -> None:
         "step_zero_comparator": dict(result.scientific_facts["step_zero_comparator"]),
         "training_facts": _artifact_record(training_facts),
         "training_facts_value": dict(result.scientific_facts),
+        "worker_cleanup": dict(result.worker_cleanup),
         "worker_peak_rss_bytes": _self_peak_rss_bytes(),
     }
-    _send(connection, "completed", payload)
+    _send_frame(connection, "completed", payload)
 
 
 def _worker_session_entry(connection: Connection, request: WorkerRequest) -> None:
     os.setsid()
+    worker_cleanup = {"attempted": False, "error": None, "succeeded": True}
     try:
-        snapshot = inspect_runtime_sources(
-            Path(request.repository_root),
-            allow_dirty=request.plan.test_only,
-        )
-        _send(
+        environment_control = _environment_control(request)
+        cpu_time_control = _apply_cpu_time_limit(request.cpu_time_limit_seconds)
+        snapshot, modules = _worker_authorities(request)
+        _send_frame(
             connection,
             "worker_started",
             {
+                "cpu_time_control": cpu_time_control,
+                "environment_control": environment_control,
+                "executed_module_identity_sha256": modules["sha256"],
                 "pgid": os.getpgrp(),
                 "pid": os.getpid(),
+                "sealed_input_lineage_sha256": request.sealed_input_lineage_sha256,
                 "sid": os.getsid(0),
                 "source_snapshot_sha256": snapshot.sha256,
             },
         )
         if not connection.poll(WORKER_ACK_TIMEOUT_SECONDS):
             raise ExperimentContractError("worker did not receive execution admission")
-        message = connection.recv()
+        message_type, message = _receive_frame(connection)
+        manifest = json.loads(request.execution_manifest_bytes)
         if (
-            type(message) is not dict
-            or message.get("message_type") != "admit_execution"
+            message_type != "admit_execution"
             or message.get("manifest_sha256") != request.execution_manifest_sha256
-            or message.get("manifest_bytes") != request.execution_manifest_bytes
+            or message.get("manifest") != manifest
+            or canonical_json_bytes(message["manifest"]) != request.execution_manifest_bytes
             or hashlib.sha256(request.execution_manifest_bytes).hexdigest()
             != request.execution_manifest_sha256
         ):
             raise ExperimentContractError("worker execution admission differs")
         # This acknowledgement is the last operation before model/environment construction.
-        _send(
+        snapshot, modules = _worker_authorities(request)
+        _send_frame(
             connection,
             "execution_acknowledged",
             {
+                "executed_module_identity_sha256": modules["sha256"],
                 "manifest_sha256": request.execution_manifest_sha256,
                 "model_or_environment_constructed": False,
+                "sealed_input_lineage_sha256": request.sealed_input_lineage_sha256,
                 "source_snapshot_sha256": snapshot.sha256,
             },
         )
         if not connection.poll(WORKER_ACK_TIMEOUT_SECONDS):
             raise ExperimentContractError("worker did not receive post-ACK construction admission")
-        construction = connection.recv()
+        construction_type, construction = _receive_frame(connection)
         if (
-            type(construction) is not dict
-            or construction.get("message_type") != "begin_construction"
+            construction_type != "begin_construction"
             or construction.get("manifest_sha256") != request.execution_manifest_sha256
         ):
             raise ExperimentContractError("post-ACK construction admission differs")
+        _worker_authorities(request)
         _worker_execute(connection, request)
     except _ReportedResourceBreach:
         pass
     except PhaseBTrainingError as exc:
-        _send(
+        worker_cleanup = {
+            "attempted": True,
+            "error": exc.cleanup_error,
+            "succeeded": exc.cleanup_error is None,
+        }
+        _send_frame(
             connection,
             "failed",
-            {"reason": str(exc), "status": _TRAINING_TO_SUPERVISOR[exc.status].value},
+            {
+                "reason": str(exc),
+                "status": _TRAINING_TO_SUPERVISOR[exc.status].value,
+                "worker_cleanup": worker_cleanup,
+            },
         )
     except BaseException as exc:
         with suppress(BrokenPipeError, EOFError, OSError):
-            _send(
+            status = (
+                SupervisorStatus.MALFORMED_FRAME.value
+                if isinstance(exc, MalformedFrameError)
+                else SupervisorStatus.SOURCE_MUTATION.value
+                if isinstance(exc, SourceMutationError)
+                else SupervisorStatus.PRECONDITION_FAILURE.value
+                if isinstance(exc, ExperimentContractError)
+                else SupervisorStatus.CRASH.value
+            )
+            _send_frame(
                 connection,
                 "failed",
-                {"reason": f"{type(exc).__name__}: {exc}", "status": "crash"},
+                {
+                    "reason": f"{type(exc).__name__}: {exc}",
+                    "status": status,
+                    "worker_cleanup": worker_cleanup,
+                },
             )
         raise
     finally:
@@ -862,7 +1623,8 @@ def _spawn_worker(request: WorkerRequest) -> tuple[multiprocessing.Process, Conn
     context = multiprocessing.get_context("spawn")
     parent, child = context.Pipe(duplex=True)
     process = context.Process(target=_worker_session_entry, args=(child, request), daemon=False)
-    process.start()
+    with _spawn_environment(dict(request.worker_environment)):
+        process.start()
     child.close()
     return process, parent
 
@@ -916,6 +1678,18 @@ def cleanup_worker_process(process: multiprocessing.Process, *, group_validated:
     process.join(timeout=0.0)
 
 
+@dataclass(frozen=True, slots=True)
+class SupervisionDependencies:
+    """Injectable observers used to test real supervisor detectors without resources."""
+
+    clock: Callable[[], float] = time.perf_counter
+    spawn_worker: Callable[[WorkerRequest], tuple[object, object]] = _spawn_worker
+    process_tree_rss_bytes: Callable[[int], int | None] = _process_tree_rss_bytes
+    free_disk_bytes: Callable[[Path], int] = lambda path: shutil.disk_usage(path).free
+    directory_bytes: Callable[[Path], int] = _directory_bytes
+    cleanup_worker: Callable[..., None] = cleanup_worker_process
+
+
 def _failure_receipt(
     *,
     directory: Path,
@@ -924,9 +1698,22 @@ def _failure_receipt(
     reason: str,
     last_stage: str,
     cleanup_succeeded: bool,
+    worker_cleanup: Mapping[str, object] | None = None,
+    supervisor_cleanup_error: str | None = None,
+    resource_controls: Mapping[str, object] | None = None,
 ) -> tuple[PublishedArtifact, dict[str, object]]:
+    primary_reason = reason[:1000]
     value = {
         "cleanup_succeeded": cleanup_succeeded,
+        "cleanup_outcome": {
+            "supervisor_process_group": {
+                "error": supervisor_cleanup_error,
+                "succeeded": cleanup_succeeded,
+            },
+            "worker_environment": dict(
+                worker_cleanup or {"attempted": False, "error": None, "succeeded": True}
+            ),
+        },
         "evidence_class": plan.evidence_class,
         "execution_manifest_sha256": plan.manifest_sha256,
         "failure_receipt_id": SEED_FAILURE_RECEIPT_ID,
@@ -934,14 +1721,16 @@ def _failure_receipt(
         "outcome": "failure",
         "planned_transitions": plan.transitions,
         "ppo_seed": plan.seed,
-        "reason": reason[:1000],
-        "schema_version": 1,
+        "primary_failure": {"reason": primary_reason, "status": status.value},
+        "reason": primary_reason,
+        "resource_controls": dict(resource_controls or {}),
+        "schema_version": 2,
         "smoke": plan.smoke,
         "status": status.value,
         "success_receipt_present": False,
     }
     artifact = publish_bytes_without_overwrite(
-        directory / "failure_receipt_v1.json",
+        directory / "failure_receipt_v2.json",
         canonical_json_bytes(value),
     )
     return artifact, value
@@ -952,6 +1741,7 @@ def _success_receipt(
     directory: Path,
     plan: TrainingPlan,
     payload: Mapping[str, object],
+    resource_controls: Mapping[str, object],
 ) -> tuple[PublishedArtifact, dict[str, object]]:
     value = {
         "artifacts": {
@@ -966,14 +1756,16 @@ def _success_receipt(
         "planned_transitions": plan.transitions,
         "ppo_seed": plan.seed,
         "promotable": plan.promotable,
-        "schema_version": 1,
+        "resource_controls": dict(resource_controls),
+        "schema_version": 2,
         "smoke": plan.smoke,
         "status": SupervisorStatus.SUCCEEDED.value,
         "success_receipt_id": SEED_SUCCESS_RECEIPT_ID,
         "test_only": plan.test_only,
+        "worker_cleanup": dict(payload["worker_cleanup"]),
     }
     artifact = publish_bytes_without_overwrite(
-        directory / "success_receipt_v1.json",
+        directory / "success_receipt_v2.json",
         canonical_json_bytes(value),
     )
     return artifact, value
@@ -1062,6 +1854,8 @@ def _supervise_seed(
     cohort_job_deadline: float,
     runtime_kind: str,
     failure_mode: str | None,
+    job_output_directory: Path,
+    dependencies: SupervisionDependencies,
 ) -> SeedOutcome:
     seed_directory.mkdir(mode=0o700)
     request = WorkerRequest(
@@ -1071,14 +1865,18 @@ def _supervise_seed(
         execution_manifest_sha256=execution_manifest_sha256,
         e1_receipt_sha256=str(preflight.report_inputs["e1_receipt_sha256"]),
         source_snapshot_sha256=preflight.source_snapshot.sha256,
+        sealed_inputs=preflight.sealed_inputs,
+        sealed_input_lineage_sha256=preflight.sealed_input_lineage_sha256,
         repository_root=str(preflight.repository_root),
         runtime_kind=runtime_kind,
         runtime_config=preflight.runtime_config if runtime_kind == "real" else None,
         failure_mode=failure_mode,
         rss_limit_bytes=limits.rss_bytes,
+        cpu_time_limit_seconds=limits.cpu_time_seconds,
+        worker_environment=tuple(minimal_worker_environment(os.environ).items()),
     )
-    process, connection = _spawn_worker(request)
-    started = time.perf_counter()
+    process, connection = dependencies.spawn_worker(request)
+    started = dependencies.clock()
     last_stage = "spawned"
     group_validated = False
     terminal_payload: Mapping[str, object] | None = None
@@ -1088,18 +1886,35 @@ def _supervise_seed(
     progress_anchor_time = started
     last_progress_steps = 0
     peak_rss = 0
-    minimum_free_disk_bytes = shutil.disk_usage(seed_directory).free
-    maximum_output_bytes = _directory_bytes(seed_directory)
+    child_reported_peak_rss = 0
+    minimum_free_disk_bytes = dependencies.free_disk_bytes(job_output_directory)
+    maximum_output_bytes = dependencies.directory_bytes(seed_directory)
+    maximum_job_output_bytes = dependencies.directory_bytes(job_output_directory)
     throughput_windows: list[dict[str, object]] = []
+    resource_controls: dict[str, object] = {
+        "cpu_time": {"enforcement": "not_observed"},
+        "environment": {"allowlist_enforced": False},
+        "executed_modules": {"enforcement": "not_observed"},
+        "filesystem": {"enforcement": "parent_observed_os_best_effort"},
+        "process_group_cleanup": {"enforcement": "pending"},
+        "process_tree_rss": {"enforcement": "parent_observed_os_best_effort"},
+    }
+    worker_cleanup: Mapping[str, object] = {
+        "attempted": False,
+        "error": None,
+        "succeeded": True,
+    }
+    supervisor_cleanup_error: str | None = None
+    acknowledged_module_identity_sha256: str | None = None
     try:
         while True:
-            now = time.perf_counter()
+            now = dependencies.clock()
             elapsed = now - started
-            if elapsed > limits.per_seed_wall_seconds:
+            if elapsed >= limits.per_seed_wall_seconds:
                 terminal_status = SupervisorStatus.TIMEOUT
                 reason = "per-seed wall limit exceeded"
                 break
-            if now > cohort_job_deadline:
+            if now >= cohort_job_deadline:
                 terminal_status = SupervisorStatus.TIMEOUT
                 reason = "cohort or job wall limit exceeded"
                 break
@@ -1109,43 +1924,69 @@ def _supervise_seed(
                 terminal_status = SupervisorStatus.TIMEOUT
                 reason = "worker acknowledgement wall limit exceeded"
                 break
-            free_disk_bytes = shutil.disk_usage(seed_directory).free
-            output_bytes = _directory_bytes(seed_directory)
+            free_disk_bytes = dependencies.free_disk_bytes(job_output_directory)
+            output_bytes = dependencies.directory_bytes(seed_directory)
+            job_output_bytes = dependencies.directory_bytes(job_output_directory)
             minimum_free_disk_bytes = min(minimum_free_disk_bytes, free_disk_bytes)
             maximum_output_bytes = max(maximum_output_bytes, output_bytes)
+            maximum_job_output_bytes = max(maximum_job_output_bytes, job_output_bytes)
             if free_disk_bytes < limits.free_disk_bytes:
                 terminal_status = SupervisorStatus.RESOURCE_BREACH
                 reason = "free disk fell below the hard minimum"
                 break
-            if output_bytes > limits.output_bytes:
+            if job_output_bytes > limits.output_bytes:
                 terminal_status = SupervisorStatus.RESOURCE_BREACH
-                reason = "worker output exceeded the hard cap"
+                reason = "aggregate job output exceeded the hard cap"
                 break
-            if connection.poll(POLL_SECONDS):
-                message = connection.recv()
-                if type(message) is not dict or type(message.get("payload")) is not dict:
-                    terminal_status = SupervisorStatus.CRASH
-                    reason = "worker sent a malformed message"
+            pid = process.pid
+            if type(pid) is int and pid > 0:
+                observed_rss = dependencies.process_tree_rss_bytes(pid)
+                if observed_rss is None:
+                    resource_controls["process_tree_rss"] = {
+                        "enforcement": "unsupported_in_current_os_sandbox"
+                    }
+                elif type(observed_rss) is not int or observed_rss < 0:
+                    terminal_status = SupervisorStatus.RESOURCE_BREACH
+                    reason = "parent process-tree RSS observation is invalid"
                     break
-                message_type = message.get("message_type")
-                payload = message["payload"]
+                else:
+                    peak_rss = max(peak_rss, observed_rss)
+                if observed_rss is not None and observed_rss > limits.rss_bytes:
+                    terminal_status = SupervisorStatus.RESOURCE_BREACH
+                    reason = "parent-observed process-tree RSS limit exceeded"
+                    break
+            if connection.poll(POLL_SECONDS):
+                message_type, payload = _receive_frame(connection)
                 if message_type == "worker_started":
                     if (
                         payload.get("pid") != process.pid
                         or payload.get("pgid") != process.pid
                         or payload.get("sid") != process.pid
                         or payload.get("source_snapshot_sha256") != preflight.source_snapshot.sha256
+                        or payload.get("sealed_input_lineage_sha256")
+                        != preflight.sealed_input_lineage_sha256
+                        or type(payload.get("executed_module_identity_sha256")) is not str
                     ):
                         terminal_status = SupervisorStatus.PRECONDITION_FAILURE
                         reason = "worker start or source identity differs"
                         break
+                    resource_controls["cpu_time"] = payload["cpu_time_control"]
+                    resource_controls["environment"] = payload["environment_control"]
+                    acknowledged_module_identity_sha256 = str(
+                        payload["executed_module_identity_sha256"]
+                    )
+                    resource_controls["executed_modules"] = {
+                        "enforcement": "checkout_realpath_and_recorded_digest_verified",
+                        "start_sha256": acknowledged_module_identity_sha256,
+                    }
                     group_validated = True
-                    connection.send(
+                    _send_frame(
+                        connection,
+                        "admit_execution",
                         {
-                            "message_type": "admit_execution",
-                            "manifest_bytes": execution_manifest_bytes,
+                            "manifest": json.loads(execution_manifest_bytes),
                             "manifest_sha256": execution_manifest_sha256,
-                        }
+                        },
                     )
                     last_stage = "worker_started"
                 elif message_type == "execution_acknowledged":
@@ -1153,15 +1994,19 @@ def _supervise_seed(
                         last_stage != "worker_started"
                         or payload.get("manifest_sha256") != execution_manifest_sha256
                         or payload.get("model_or_environment_constructed") is not False
+                        or payload.get("source_snapshot_sha256") != preflight.source_snapshot.sha256
+                        or payload.get("sealed_input_lineage_sha256")
+                        != preflight.sealed_input_lineage_sha256
+                        or payload.get("executed_module_identity_sha256")
+                        != acknowledged_module_identity_sha256
                     ):
                         terminal_status = SupervisorStatus.PRECONDITION_FAILURE
                         reason = "worker acknowledgement differs"
                         break
-                    connection.send(
-                        {
-                            "message_type": "begin_construction",
-                            "manifest_sha256": execution_manifest_sha256,
-                        }
+                    _send_frame(
+                        connection,
+                        "begin_construction",
+                        {"manifest_sha256": execution_manifest_sha256},
                     )
                     last_stage = "execution_acknowledged"
                 elif message_type == "progress":
@@ -1180,12 +2025,8 @@ def _supervise_seed(
                         terminal_status = SupervisorStatus.RESOURCE_BREACH
                         reason = "worker RSS sample is missing or invalid"
                         break
-                    peak_rss = max(peak_rss, rss)
-                    if rss > limits.rss_bytes:
-                        terminal_status = SupervisorStatus.RESOURCE_BREACH
-                        reason = "worker RSS limit exceeded"
-                        break
-                    now = time.perf_counter()
+                    child_reported_peak_rss = max(child_reported_peak_rss, rss)
+                    now = dependencies.clock()
                     if (
                         steps > limits.throughput_warmup_transitions
                         and steps % limits.throughput_window_transitions == 0
@@ -1215,11 +2056,15 @@ def _supervise_seed(
                         reason = "worker completed before acknowledgement"
                     else:
                         rss = payload.get("worker_peak_rss_bytes")
-                        if type(rss) is not int or rss <= 0 or rss > limits.rss_bytes:
+                        if type(rss) is not int or rss <= 0:
                             terminal_status = SupervisorStatus.RESOURCE_BREACH
-                            reason = "final worker RSS sample breached its contract"
+                            reason = "final worker RSS sample is invalid"
                             break
-                        peak_rss = max(peak_rss, rss)
+                        child_reported_peak_rss = max(child_reported_peak_rss, rss)
+                        resource_controls["executed_modules"]["final_sha256"] = payload[
+                            "executed_module_identity_sha256"
+                        ]
+                        worker_cleanup = payload["worker_cleanup"]
                         terminal_payload = payload
                         last_stage = "completed"
                     break
@@ -1237,48 +2082,84 @@ def _supervise_seed(
                     except ValueError:
                         terminal_status = SupervisorStatus.CRASH
                     reason = str(payload.get("reason", "worker failed"))
+                    worker_cleanup = payload["worker_cleanup"]
                     break
                 else:
                     terminal_status = SupervisorStatus.CRASH
                     reason = "worker message type is unknown"
                     break
             elif not process.is_alive():
-                terminal_status = SupervisorStatus.CRASH
-                reason = f"worker exited with code {process.exitcode} before completion"
+                cpu_signal = getattr(signal, "SIGXCPU", None)
+                if cpu_signal is not None and process.exitcode == -int(cpu_signal):
+                    terminal_status = SupervisorStatus.RESOURCE_BREACH
+                    reason = "worker exceeded the OS CPU-time limit"
+                else:
+                    terminal_status = SupervisorStatus.CRASH
+                    reason = f"worker exited with code {process.exitcode} before completion"
                 break
+    except MalformedFrameError as exc:
+        terminal_status = SupervisorStatus.MALFORMED_FRAME
+        reason = f"malformed worker frame: {exc}"
     except (EOFError, OSError, ExperimentContractError) as exc:
         terminal_status = SupervisorStatus.CRASH
         reason = f"supervisor channel/resource failure: {exc}"
     cleanup_succeeded = True
     try:
-        cleanup_worker_process(process, group_validated=group_validated)
-        if failure_mode == "cleanup_failure":
-            raise ExperimentContractError("controlled cleanup failure")
+        dependencies.cleanup_worker(process, group_validated=group_validated)
+        resource_controls["process_group_cleanup"] = {
+            "enforcement": "os_session_group_best_effort",
+            "succeeded": True,
+        }
     except BaseException as exc:
         cleanup_succeeded = False
         terminal_payload = None
-        terminal_status = SupervisorStatus.CLEANUP_FAILURE
-        reason = f"worker cleanup failed: {exc}"
+        supervisor_cleanup_error = f"{type(exc).__name__}: {exc}"[:1000]
+        resource_controls["process_group_cleanup"] = {
+            "enforcement": "os_session_group_best_effort",
+            "error": supervisor_cleanup_error,
+            "succeeded": False,
+        }
+        if terminal_status is None:
+            terminal_status = SupervisorStatus.CLEANUP_FAILURE
+            reason = f"worker cleanup failed: {exc}"
     finally:
         connection.close()
-    final_free_disk_bytes = shutil.disk_usage(seed_directory).free
-    final_output_bytes = _directory_bytes(seed_directory)
+    if terminal_payload is not None:
+        try:
+            verify_sealed_inputs(
+                preflight.repository_root,
+                preflight.sealed_inputs,
+                expected_lineage_sha256=preflight.sealed_input_lineage_sha256,
+            )
+        except ExperimentContractError as exc:
+            terminal_payload = None
+            terminal_status = SupervisorStatus.SOURCE_MUTATION
+            reason = f"post-worker sealed input verification failed: {exc}"
+    final_free_disk_bytes = dependencies.free_disk_bytes(job_output_directory)
+    final_output_bytes = dependencies.directory_bytes(seed_directory)
+    final_job_output_bytes = dependencies.directory_bytes(job_output_directory)
     minimum_free_disk_bytes = min(minimum_free_disk_bytes, final_free_disk_bytes)
     maximum_output_bytes = max(maximum_output_bytes, final_output_bytes)
+    maximum_job_output_bytes = max(maximum_job_output_bytes, final_job_output_bytes)
     if terminal_payload is not None and (
-        final_output_bytes > limits.output_bytes or final_free_disk_bytes < limits.free_disk_bytes
+        final_job_output_bytes > limits.output_bytes
+        or final_free_disk_bytes < limits.free_disk_bytes
     ):
         terminal_payload = None
         terminal_status = SupervisorStatus.RESOURCE_BREACH
         reason = "post-worker disk or output resource gate was breached"
     telemetry_value = {
+        "child_reported_peak_rss_bytes": child_reported_peak_rss,
         "cleanup_succeeded": cleanup_succeeded,
         "last_acknowledged_stage": last_stage,
         "maximum_output_bytes": maximum_output_bytes,
+        "maximum_job_output_bytes": maximum_job_output_bytes,
         "minimum_free_disk_bytes": minimum_free_disk_bytes,
         "peak_rss_bytes": peak_rss,
         "resource_limits": limits.to_dict(),
-        "seed_wall_seconds": time.perf_counter() - started,
+        "resource_controls": resource_controls,
+        "seed_wall_seconds": dependencies.clock() - started,
+        "supervisor_cleanup_error": supervisor_cleanup_error,
         "status": (
             SupervisorStatus.SUCCEEDED.value
             if terminal_payload is not None
@@ -1289,7 +2170,7 @@ def _supervise_seed(
     telemetry_bytes = canonical_json_bytes(telemetry_value)
     if (
         terminal_payload is not None
-        and final_output_bytes + len(telemetry_bytes) > limits.output_bytes
+        and final_job_output_bytes + len(telemetry_bytes) > limits.output_bytes
     ):
         terminal_payload = None
         terminal_status = SupervisorStatus.RESOURCE_BREACH
@@ -1309,6 +2190,9 @@ def _supervise_seed(
             reason=reason or "worker produced no completion",
             last_stage=last_stage,
             cleanup_succeeded=cleanup_succeeded,
+            worker_cleanup=worker_cleanup,
+            supervisor_cleanup_error=supervisor_cleanup_error,
+            resource_controls=resource_controls,
         )
         return SeedOutcome(plan.seed, status, receipt, MappingProxyType(value), None, None)
     try:
@@ -1325,6 +2209,9 @@ def _supervise_seed(
             reason=f"worker persistence validation failed: {exc}",
             last_stage=last_stage,
             cleanup_succeeded=cleanup_succeeded,
+            worker_cleanup=worker_cleanup,
+            supervisor_cleanup_error=supervisor_cleanup_error,
+            resource_controls=resource_controls,
         )
         return SeedOutcome(
             plan.seed,
@@ -1338,6 +2225,7 @@ def _supervise_seed(
         directory=seed_directory,
         plan=plan,
         payload=terminal_payload,
+        resource_controls=resource_controls,
     )
     facts = SeedReportFacts(
         ppo_seed=plan.seed,
@@ -1395,14 +2283,18 @@ def supervise_training_job(
     test_n_epochs: int = 10,
     failure_mode: str | None = None,
     canonical_argv: Sequence[str] | None = None,
+    dependencies: SupervisionDependencies | None = None,
 ) -> SupervisionResult:
     """Supervise serial seeds and account for every declared unit on failure."""
 
     if type(preflight) is not TrainingPreflight:
         raise ExperimentContractError("supervision requires validated preflight authority")
     selected_limits = limits or ResourceLimits()
+    selected_dependencies = dependencies or SupervisionDependencies()
     if type(selected_limits) is not ResourceLimits:
         raise ExperimentContractError("supervision resource-limit authority differs")
+    if type(selected_dependencies) is not SupervisionDependencies:
+        raise ExperimentContractError("supervision dependency authority differs")
     declared = tuple(seeds)
     if smoke:
         if not test_only and (declared != (SMOKE_SEED,) or transitions != SMOKE_TRANSITIONS):
@@ -1457,7 +2349,16 @@ def supervise_training_job(
     )
     if not test_only:
         selected_limits = limits_bound_by_reservation(selected_limits, accepted)
-    if shutil.disk_usage(output_path.parent).free < selected_limits.free_disk_bytes:
+    verify_sealed_inputs(
+        preflight.repository_root,
+        preflight.sealed_inputs,
+        expected_lineage_sha256=preflight.sealed_input_lineage_sha256,
+    )
+    validate_executing_modules(
+        preflight.repository_root,
+        preflight.source_snapshot.value["source_sha256"],
+    )
+    if selected_dependencies.free_disk_bytes(output_path.parent) < selected_limits.free_disk_bytes:
         raise ExperimentContractError("free disk is below the 20 GiB preflight gate")
     output = _fresh_output(output_path)
     manifest_value = _execution_manifest_value(
@@ -1471,9 +2372,9 @@ def supervise_training_job(
     )
     manifest_bytes = canonical_json_bytes(manifest_value)
     manifest = publish_bytes_without_overwrite(
-        output / "execution_manifest_v2.json", manifest_bytes
+        output / "execution_manifest_v3.json", manifest_bytes
     )
-    started = time.perf_counter()
+    started = selected_dependencies.clock()
     cohort_job_deadline = started + min(
         selected_limits.cohort_wall_seconds,
         selected_limits.job_wall_seconds,
@@ -1503,7 +2404,7 @@ def supervise_training_job(
                 )
             )
             continue
-        if time.perf_counter() > cohort_job_deadline:
+        if selected_dependencies.clock() >= cohort_job_deadline:
             failed_seed = seed
             directory = output / f"seed_{seed}"
             directory.mkdir(mode=0o700)
@@ -1533,6 +2434,11 @@ def supervise_training_job(
                 expected_inputs=expected_reservation_inputs,
             )
             _assert_no_conflicting_training_process()
+        verify_sealed_inputs(
+            preflight.repository_root,
+            preflight.sealed_inputs,
+            expected_lineage_sha256=preflight.sealed_input_lineage_sha256,
+        )
         outcome = _supervise_seed(
             plan=plan,
             seed_directory=output / f"seed_{seed}",
@@ -1543,6 +2449,8 @@ def supervise_training_job(
             cohort_job_deadline=cohort_job_deadline,
             runtime_kind=runtime_kind,
             failure_mode=failure_mode,
+            job_output_directory=output,
+            dependencies=selected_dependencies,
         )
         outcomes.append(outcome)
         if outcome.status != SupervisorStatus.SUCCEEDED:
@@ -1572,9 +2480,17 @@ def supervise_training_job(
         "schema_version": 1,
         "status": overall.value,
     }
+    job_bytes = canonical_json_bytes(job_value)
+    if (
+        selected_dependencies.directory_bytes(output) + len(job_bytes)
+        > selected_limits.output_bytes
+    ):
+        overall = SupervisorStatus.RESOURCE_BREACH
+        job_value["status"] = overall.value
+        job_bytes = canonical_json_bytes(job_value)
     job_result = publish_bytes_without_overwrite(
         output / "job_result_v1.json",
-        canonical_json_bytes(job_value),
+        job_bytes,
     )
     checkpoint_index = (
         publish_checkpoint_index(
@@ -1591,15 +2507,20 @@ def supervise_training_job(
 
 
 __all__ = [
+    "MAX_IPC_FRAME_BYTES",
+    "MalformedFrameError",
     "ResourceLimits",
     "RuntimeSourceSnapshot",
     "SeedOutcome",
+    "SourceMutationError",
+    "SupervisionDependencies",
     "SupervisionResult",
     "SupervisorStatus",
     "TrainingPreflight",
     "cleanup_worker_process",
     "inspect_runtime_sources",
     "limits_bound_by_reservation",
+    "minimal_worker_environment",
     "supervise_training_job",
     "validate_reservation",
     "validate_training_preflight",

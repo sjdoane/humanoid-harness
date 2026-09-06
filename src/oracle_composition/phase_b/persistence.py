@@ -55,6 +55,88 @@ MAX_CHECKPOINT_MEMBER_BYTES = 4 * 1024 * 1024
 MAX_CHECKPOINT_EXPANDED_BYTES = 32 * 1024 * 1024
 MAX_CHECKPOINT_MEMBERS = 59
 
+
+def _valid_success_resource_controls(value: object) -> bool:
+    if type(value) is not dict or set(value) != {
+        "cpu_time",
+        "environment",
+        "executed_modules",
+        "filesystem",
+        "process_group_cleanup",
+        "process_tree_rss",
+    }:
+        return False
+    modules = value["executed_modules"]
+    cpu = value["cpu_time"]
+    environment = value["environment"]
+    cleanup = value["process_group_cleanup"]
+    rss = value["process_tree_rss"]
+
+    def sha256(candidate: object) -> bool:
+        return (
+            type(candidate) is str
+            and len(candidate) == 64
+            and all(character in "0123456789abcdef" for character in candidate)
+        )
+
+    cpu_keys = {"enforcement", "limit_seconds", "resource"}
+    if type(cpu) is dict and cpu.get("enforcement") == "os_enforced":
+        cpu_keys.add("hard_limit_seconds")
+    elif type(cpu) is dict and cpu.get("enforcement") == "unsupported" and "error" in cpu:
+        cpu_keys.add("error")
+    environment_keys = environment.get("keys") if type(environment) is dict else None
+    removed = environment.get("runtime_added_keys_removed") if type(environment) is dict else None
+    return (
+        type(cpu) is dict
+        and set(cpu) == cpu_keys
+        and cpu.get("enforcement") in {"os_enforced", "unsupported"}
+        and cpu.get("resource") == "RLIMIT_CPU"
+        and type(cpu.get("limit_seconds")) is int
+        and cpu["limit_seconds"] > 0
+        and (
+            cpu.get("enforcement") != "unsupported"
+            or "error" not in cpu
+            or type(cpu["error"]) is str
+        )
+        and (
+            cpu.get("enforcement") != "os_enforced"
+            or (
+                type(cpu.get("hard_limit_seconds")) is int
+                and cpu["hard_limit_seconds"] >= cpu["limit_seconds"]
+            )
+        )
+        and type(environment) is dict
+        and set(environment)
+        == {
+            "allowlist_enforced",
+            "environment_sha256",
+            "keys",
+            "runtime_added_keys_removed",
+            "unexpected_keys",
+        }
+        and environment.get("allowlist_enforced") is True
+        and environment.get("unexpected_keys") == []
+        and sha256(environment.get("environment_sha256"))
+        and type(environment_keys) is list
+        and type(removed) is list
+        and all(type(item) is str for item in (*environment_keys, *removed))
+        and environment_keys == sorted(set(environment_keys))
+        and removed == sorted(set(removed))
+        and type(modules) is dict
+        and set(modules) == {"enforcement", "final_sha256", "start_sha256"}
+        and modules.get("enforcement") == "checkout_realpath_and_recorded_digest_verified"
+        and sha256(modules.get("start_sha256"))
+        and sha256(modules.get("final_sha256"))
+        and value["filesystem"] == {"enforcement": "parent_observed_os_best_effort"}
+        and type(cleanup) is dict
+        and cleanup == {"enforcement": "os_session_group_best_effort", "succeeded": True}
+        and type(rss) is dict
+        and set(rss) == {"enforcement"}
+        and rss.get("enforcement")
+        in {"parent_observed_os_best_effort", "unsupported_in_current_os_sandbox"}
+    )
+
+
 _STRICT_EXPORT_SCHEMA: Mapping[str, tuple[tuple[int, ...], np.dtype[object]]] = {
     "latent_pi.0.weight": ((HIDDEN_WIDTH, POLICY_INPUT_WIDTH), np.dtype("<f4")),
     "latent_pi.0.bias": ((HIDDEN_WIDTH,), np.dtype("<f4")),
@@ -890,6 +972,8 @@ def publish_checkpoint_index(
             type(seed) is not int
             or seed in success_by_seed
             or canonical_json_bytes(success) != payload
+            or success.get("success_receipt_id") != "humanoid_phase_b_seed_success/v2"
+            or success.get("schema_version") != 2
             or success.get("outcome") != "success"
             or success.get("status") != "succeeded"
             or success.get("evidence_class") != "exploratory_fine_tuning_cycle"
@@ -898,6 +982,9 @@ def publish_checkpoint_index(
             or success.get("smoke") is not False
             or success.get("test_only") is not False
             or success.get("execution_manifest_sha256") != execution_manifest.sha256
+            or not _valid_success_resource_controls(success.get("resource_controls"))
+            or success.get("worker_cleanup")
+            != {"attempted": True, "error": None, "succeeded": True}
         ):
             raise ExperimentContractError("checkpoint success receipt lacks cohort authority")
         job_binding = {

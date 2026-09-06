@@ -318,7 +318,7 @@ def test_checkpoint_index_refuses_five_test_only_sixteen_transition_entries(
     with pytest.raises(ExperimentContractError, match="success and job authority"):
         publish_checkpoint_index(output_directory=output, entries=entries)
     execution_manifest = publish_bytes_without_overwrite(
-        output / "execution_manifest_v2.json",
+        output / "execution_manifest_v3.json",
         canonical_json_bytes(
             {
                 "checkpoint_selection": "final_transition_only",
@@ -333,18 +333,51 @@ def test_checkpoint_index_refuses_five_test_only_sixteen_transition_entries(
     for seed in COHORT_SEEDS:
         successes.append(
             publish_bytes_without_overwrite(
-                output / f"seed_{seed}/success_receipt_v1.json",
+                output / f"seed_{seed}/success_receipt_v2.json",
                 canonical_json_bytes(
                     {
                         "evidence_class": "exploratory_fine_tuning_cycle",
                         "execution_manifest_sha256": execution_manifest.sha256,
+                        "failure_receipt_present": False,
                         "outcome": "success",
                         "planned_transitions": 1_048_576,
                         "ppo_seed": seed,
                         "promotable": True,
+                        "resource_controls": {
+                            "cpu_time": {
+                                "enforcement": "unsupported",
+                                "limit_seconds": 1_200,
+                                "resource": "RLIMIT_CPU",
+                            },
+                            "environment": {
+                                "allowlist_enforced": True,
+                                "environment_sha256": "d" * 64,
+                                "keys": [],
+                                "runtime_added_keys_removed": [],
+                                "unexpected_keys": [],
+                            },
+                            "executed_modules": {
+                                "enforcement": ("checkout_realpath_and_recorded_digest_verified"),
+                                "final_sha256": "f" * 64,
+                                "start_sha256": "e" * 64,
+                            },
+                            "filesystem": {"enforcement": "parent_observed_os_best_effort"},
+                            "process_group_cleanup": {
+                                "enforcement": "os_session_group_best_effort",
+                                "succeeded": True,
+                            },
+                            "process_tree_rss": {"enforcement": "parent_observed_os_best_effort"},
+                        },
+                        "schema_version": 2,
                         "smoke": False,
                         "status": "succeeded",
+                        "success_receipt_id": "humanoid_phase_b_seed_success/v2",
                         "test_only": False,
+                        "worker_cleanup": {
+                            "attempted": True,
+                            "error": None,
+                            "succeeded": True,
+                        },
                     }
                 ),
             )
@@ -370,6 +403,20 @@ def test_checkpoint_index_refuses_five_test_only_sixteen_transition_entries(
             }
         ),
     )
+    hidden_failure = json.loads(job_result.path.read_bytes())
+    hidden_failure["outcomes"][2]["status"] = "counter_drift"
+    hidden_job_result = publish_bytes_without_overwrite(
+        output / "job_result_hidden_failure_v1.json",
+        canonical_json_bytes(hidden_failure),
+    )
+    with pytest.raises(ExperimentContractError, match="omits a cohort success"):
+        publish_checkpoint_index(
+            output_directory=output,
+            entries=entries,
+            success_receipts=successes,
+            execution_manifest=execution_manifest,
+            job_result=hidden_job_result,
+        )
     with pytest.raises(ExperimentContractError, match="smoke or test-only"):
         publish_checkpoint_index(
             output_directory=output,
@@ -518,6 +565,34 @@ def test_utility_cell_and_family_rules_use_fixed_denominators() -> None:
         "fixed_denominator_without_replacement": True,
         "minimum_pass_count": 16,
     }
+
+
+def test_utility_family_rejects_three_of_five_and_a_missing_checkpoint() -> None:
+    checkpoints = [_seed_facts(seed) for seed in COHORT_SEEDS]
+    episodes = []
+    for checkpoint_index, checkpoint in enumerate(checkpoints):
+        for cell in ("hold_expert", "hold_medium", "hold_simple", "fixed_round_trip"):
+            for evaluation_index, evaluation_seed in enumerate(range(120101, 120121)):
+                episodes.append(
+                    _episode(
+                        policy_seed=checkpoint.ppo_seed,
+                        evaluation_seed=evaluation_seed,
+                        cell=cell,
+                        checkpoint_sha256=checkpoint.checkpoint_sha256,
+                        passed=not (checkpoint_index >= 3 and evaluation_index >= 15),
+                    )
+                )
+    three_of_five = utility_gate(checkpoints=checkpoints, episodes=episodes)
+    assert three_of_five["passed_checkpoint_count"] == 3
+    assert three_of_five["family_passed"] is False
+
+    missing = utility_gate(
+        checkpoints=checkpoints[:-1],
+        episodes=[episode for episode in episodes if episode.policy_seed != COHORT_SEEDS[-1]],
+    )
+    assert missing["required_checkpoint_count"] == 5
+    assert len(missing["checkpoint_results"]) == 4
+    assert missing["family_passed"] is False
 
 
 def test_task_success_endpoint_uses_per_checkpoint_exact_interval_and_paired_effect(

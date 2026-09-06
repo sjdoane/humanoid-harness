@@ -69,9 +69,16 @@ class TrainingFailureStatus(StrEnum):
 class PhaseBTrainingError(RuntimeError):
     """A fail-closed worker error with a stable supervisor status."""
 
-    def __init__(self, status: TrainingFailureStatus, message: str) -> None:
+    def __init__(
+        self,
+        status: TrainingFailureStatus,
+        message: str,
+        *,
+        cleanup_error: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
+        self.cleanup_error = cleanup_error
 
 
 @dataclass(frozen=True, slots=True)
@@ -588,6 +595,7 @@ class TrainingResult:
     scientific_facts: Mapping[str, object]
     rsi_ledger: tuple[Mapping[str, object], ...]
     progress_windows: tuple[Mapping[str, object], ...]
+    worker_cleanup: Mapping[str, object]
 
 
 def _policy_input(observations: np.ndarray) -> object:
@@ -1037,15 +1045,44 @@ def audit_rollout_likelihood(rollout: _Rollout, *, rollout_index: int) -> Likeli
     )
 
 
-def _runtime_rsi_ledger(vector_environment: object) -> tuple[Mapping[str, object], ...]:
+def _runtime_rsi_ledger(
+    vector_environment: object,
+    *,
+    plan: TrainingPlan,
+) -> tuple[Mapping[str, object], ...]:
     try:
         values = vector_environment.get_attr("rsi_ledger")
-    except (AttributeError, IndexError, TypeError, ValueError):
-        return ()
+        reset_counts = vector_environment.get_attr("rsi_reset_count")
+    except Exception as exc:
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            f"RSI ledger API is unavailable: {exc}",
+        ) from exc
+    if (
+        type(values) is not list
+        or type(reset_counts) is not list
+        or len(values) != plan.n_envs
+        or len(reset_counts) != plan.n_envs
+    ):
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "RSI ledger vector accounting is malformed",
+        )
     entries: list[Mapping[str, object]] = []
-    for value in values:
-        if value is None:
-            continue
+    for environment_index, (value, reset_count) in enumerate(
+        zip(values, reset_counts, strict=True)
+    ):
+        if value is None or type(value) is not list or type(reset_count) is not int:
+            raise PhaseBTrainingError(
+                TrainingFailureStatus.COUNTER_DRIFT,
+                "RSI ledger or reset count is missing",
+            )
+        expected_count = reset_count if environment_index in {2, 3} else 0
+        if reset_count != expected_count or len(value) != expected_count:
+            raise PhaseBTrainingError(
+                TrainingFailureStatus.COUNTER_DRIFT,
+                "RSI ledger does not account for every rehearsal reset",
+            )
         for entry in value:
             if type(entry) is not dict:
                 raise PhaseBTrainingError(
@@ -1053,20 +1090,39 @@ def _runtime_rsi_ledger(vector_environment: object) -> tuple[Mapping[str, object
                     "RSI ledger entry is malformed",
                 )
             entries.append(MappingProxyType(dict(entry)))
+    if not entries or {item.get("environment_index") for item in entries} != {2, 3}:
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "RSI evidence requires entries from both rehearsal environments",
+        )
     entries.sort(
         key=lambda item: (
             int(item.get("global_episode_index", -1)),
             int(item.get("environment_index", -1)),
         )
     )
-    if entries:
-        indices = [item.get("global_episode_index") for item in entries]
-        if indices != list(range(len(entries))) or any(
-            item.get("environment_index") not in {2, 3} for item in entries
-        ):
+    indices = [item.get("global_episode_index") for item in entries]
+    if indices != list(range(len(entries))) or any(
+        item.get("environment_index") not in {2, 3} for item in entries
+    ):
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "RSI reset assignments are duplicated, missing, or out of vector order",
+        )
+    scheduler = BalancedRSIScheduler(
+        manifest_sha256=plan.manifest_sha256,
+        ppo_seed=plan.seed,
+    )
+    for index, entry in enumerate(entries):
+        environment_index = entry["environment_index"]
+        expected = scheduler.assignment(
+            global_episode_index=index,
+            environment_index=environment_index,
+        ).to_dict()
+        if any(entry.get(name) != value for name, value in expected.items()):
             raise PhaseBTrainingError(
                 TrainingFailureStatus.COUNTER_DRIFT,
-                "RSI reset assignments are duplicated, missing, or out of vector order",
+                "RSI scheduled cell distribution or reset assignment drifted",
             )
     return tuple(entries)
 
@@ -1206,7 +1262,7 @@ def run_ppo_training(
             )
         if last_rollout is None:
             raise AssertionError("validated training plan produced no rollout")
-        rsi_ledger = _runtime_rsi_ledger(vector_environment)
+        rsi_ledger = _runtime_rsi_ledger(vector_environment, plan=plan)
         rsi_bytes = canonical_json_bytes([dict(item) for item in rsi_ledger])
         unfreeze_bytes = canonical_json_bytes(rollout_receipts)
         facts = {
@@ -1271,15 +1327,36 @@ def run_ppo_training(
             "unfreeze_rollouts": rollout_receipts,
         }
         canonical_json_bytes(facts)
-        return TrainingResult(
+        result = TrainingResult(
             policy=policy,
             optimizer=optimizer,
             scientific_facts=MappingProxyType(facts),
             rsi_ledger=rsi_ledger,
             progress_windows=tuple(progress_windows),
+            worker_cleanup=MappingProxyType({}),
         )
-    finally:
-        vector_environment.close()
+    except BaseException as primary_error:
+        cleanup_error: BaseException | None = None
+        try:
+            vector_environment.close()
+        except BaseException as exc:
+            cleanup_error = exc
+        if cleanup_error is not None:
+            detail = f"{type(cleanup_error).__name__}: {cleanup_error}"[:1000]
+            if isinstance(primary_error, PhaseBTrainingError):
+                primary_error.cleanup_error = detail
+            else:
+                primary_error.add_note(f"vector-environment cleanup also failed: {detail}")
+        raise
+    else:
+        try:
+            vector_environment.close()
+        except BaseException:
+            raise
+        result.worker_cleanup = MappingProxyType(
+            {"attempted": True, "error": None, "succeeded": True}
+        )
+        return result
 
 
 def verify_step_zero_worker_action_path(

@@ -981,6 +981,7 @@ def build_scientific_receipt(
         "reward_formula_id",
         "reward_formula_sha256",
         "reward_schema_id",
+        "sealed_input_lineage_sha256",
         "starting_expert_identity",
         "task_sha256",
         "training_design_sha256",
@@ -1101,6 +1102,7 @@ def build_scientific_receipt(
                 "reward_formula_id",
                 "reward_formula_sha256",
                 "reward_schema_id",
+                "sealed_input_lineage_sha256",
                 "task_sha256",
                 "training_design_sha256",
             }

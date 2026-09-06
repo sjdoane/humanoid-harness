@@ -16,10 +16,10 @@ from oracle_composition.phase_b.reference_runtime import (
 )
 from oracle_composition.phase_b.reward import compose_tracking_only_reward
 from oracle_composition.phase_b.runtime import (
-    RealRuntimeConfig,
     real_environment_factories,
     real_policy_factory,
 )
+from oracle_composition.phase_b.supervision import validate_training_preflight
 from oracle_composition.phase_b.task_input_admission import (
     MEASUREMENT_ORIGIN,
     admit_task_inputs_v2,
@@ -127,17 +127,13 @@ def test_step_zero_actor_runs_200_real_steps_with_composed_window() -> None:
 
 @pytest.mark.gym
 def test_rehearsal_adapter_executes_uncounted_predecessor_then_one_counted_step() -> None:
-    config = RealRuntimeConfig(
+    config = validate_training_preflight(
         repository_root=ROOT,
         experiment=EXPERIMENT,
         oracle_path=EXPERIMENT / "phase_b/oracle_cycle_1_reference_v1.json",
         reward_path=EXPERIMENT / "phase_b/tracking_only_v1.json",
-        starting_actor_path=(
-            ROOT / "artifacts/experiments_003/phase_b/step_0_full_authority_actor_v1.npz"
-        ),
-        starting_actor_sha256=STEP_ZERO_SHA256,
-        value_seed=20260905,
-    )
+        allow_dirty=True,
+    ).runtime_config
     plan = TrainingPlan(
         seed=11,
         transitions=16,
