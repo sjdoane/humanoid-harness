@@ -6,6 +6,8 @@
 | bottleneck | PAIR-02 is builder-repaired but lacks Astra's narrow independent closure. T2 execution and F3 dispatch remain **NO-GO**. |
 | next step | Commit the four-path test/handoff slice and send its exact commit to Astra for PAIR-02 re-review; preserve every later dispatch and execution gate. |
 
+Fable integration note (2026-09-06T15:35Z): the single F3 hypothesis call ran and was ingested (docs/operations/dual-orchestration/F3_INITIAL_CALL_RESULT.md): alpha 1.0, beta 0.0, hypothesis only. Next writer: `sol-builder-20260906-t2c1` (packet `TASK-20260906-T2C1`, candidate admission and final-ready re-seal; no training). Then the cycle-0 reservation proposal to Astra and Samuel's authorization 1. Fable resume: read the T2C1 final; commit; verify report admission is final-ready; send Astra the reservation proposal.
+
 T2PAIRR2 completion (2026-09-06): launch base `f9f032e` was clean. The
 builder started only after the launcher acquired the exact write lease as
 `sol-builder-20260906-t2pairr2`, model `gpt-5.6-sol`, role `builder`, with the
