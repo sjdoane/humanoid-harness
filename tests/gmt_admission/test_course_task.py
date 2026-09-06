@@ -9,6 +9,9 @@ import pytest
 from oracle_composition.adapters.gmt.course_task import (
     ALLOWED_GROUND_CONTACT_BODIES,
     TASK_FEATURE_NAMES,
+    TASK_REWARD_DEPTH_SCALE_M,
+    TASK_REWARD_RECIPE_ID,
+    TASK_REWARD_RECIPE_V2_ID,
     CourseTaskSpec,
     TaskFrame,
     TaskRewardRecipe,
@@ -183,6 +186,111 @@ def test_satisfied_posture_component_has_no_region_occupancy_bonus() -> None:
     assert outside.task_reward == inside.task_reward
 
 
+def test_reward_v2_disabled_is_numerically_exact_v1() -> None:
+    v1 = TaskRewardRecipe(1.0, 2.0, 3.0, 4.0, 5.0)
+    v2 = TaskRewardRecipe(
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        recipe_version=2,
+        depth_strength=0.0,
+        ceiling_fraction=0.6,
+    )
+    fields = (
+        "tracking_reward",
+        "task_reward",
+        "total_reward",
+        "speed_component_reward",
+        "posture_component_reward",
+        "lateral_component_reward",
+        "heading_component_reward",
+        "failure_penalty",
+    )
+    cases = (
+        _metrics(after=_qpos(1.50, 0.0, 0.55)),
+        _metrics(after=_qpos(1.50, 0.0, 0.62)),
+        _metrics(before=_qpos(0.48, 0.0), after=_qpos(0.50, 0.0)),
+        _metrics(contacts=("torso_link",)),
+    )
+    for metrics in cases:
+        old = reward(spec=_spec(), recipe=v1, metrics=metrics)
+        migrated = reward(spec=_spec(), recipe=v2, metrics=metrics)
+        assert tuple(getattr(migrated, field) for field in fields) == tuple(
+            getattr(old, field) for field in fields
+        )
+        assert migrated.task_reward_recipe_sha256 != old.task_reward_recipe_sha256
+
+
+def test_reward_v2_depth_ceiling_only_reduces_inside_posture_component() -> None:
+    spec = _spec()
+    v1 = TaskRewardRecipe(0.0, 2.0, 0.0, 0.0, 0.0)
+    v2 = TaskRewardRecipe(
+        0.0,
+        2.0,
+        0.0,
+        0.0,
+        0.0,
+        recipe_version=2,
+        depth_strength=1.0,
+        ceiling_fraction=0.6,
+    )
+    ceiling = spec.posture_band_low_m + 0.6 * (
+        spec.posture_band_high_m - spec.posture_band_low_m
+    )
+    below = _metrics(spec=spec, after=_qpos(1.50, 0.0, ceiling - 0.01))
+    above = _metrics(spec=spec, after=_qpos(1.50, 0.0, ceiling + 0.05))
+    outside = _metrics(
+        spec=spec,
+        before=_qpos(0.48, 0.0, ceiling + 0.05),
+        after=_qpos(0.50, 0.0, ceiling + 0.05),
+    )
+
+    below_result = reward(spec=spec, recipe=v2, metrics=below)
+    above_result = reward(spec=spec, recipe=v2, metrics=above)
+    outside_old = reward(spec=spec, recipe=v1, metrics=outside)
+    outside_new = reward(spec=spec, recipe=v2, metrics=outside)
+
+    assert below_result.posture_component_reward == 1.0
+    assert above_result.posture_component_reward == pytest.approx(
+        1.0 / (1.0 + (0.05 / TASK_REWARD_DEPTH_SCALE_M) ** 2)
+    )
+    assert 0.0 <= above_result.posture_component_reward < 1.0
+    assert outside_new.posture_component_reward == outside_old.posture_component_reward == 1.0
+    assert above_result.tracking_reward == reward(spec=spec, recipe=v1, metrics=above).tracking_reward
+
+
+def test_reward_v2_depth_multiplier_is_monotone_bounded_and_fall_safe() -> None:
+    spec = _spec()
+    recipe = TaskRewardRecipe(
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        recipe_version=2,
+        depth_strength=1.0,
+        ceiling_fraction=0.6,
+    )
+    heights = (0.56, 0.58, 0.60, 0.62)
+    components = [
+        reward(
+            spec=spec,
+            recipe=recipe,
+            metrics=_metrics(spec=spec, after=_qpos(1.50, 0.0, height)),
+        ).posture_component_reward
+        for height in heights
+    ]
+    fallen = reward(spec=spec, recipe=recipe, metrics=_metrics(contacts=("torso_link",)))
+
+    assert all(0.0 <= value <= 1.0 for value in components)
+    assert components == sorted(components, reverse=True)
+    assert fallen.tracking_reward == 0.0
+    assert fallen.posture_component_reward == 0.0
+    assert fallen.task_reward == fallen.total_reward == -5.0
+
+
 def test_task_metrics_and_targets_do_not_depend_on_oracle_reference() -> None:
     matching = _metrics(reference=_reference())
     unrelated = np.full(30, 4.0, dtype=np.float64)
@@ -249,6 +357,32 @@ def test_task_and_recipe_identities_are_canonical_and_strict() -> None:
     assert len(spec.sha256) == len(recipe.sha256) == 64
 
 
+def test_v1_serialization_is_unchanged_and_v2_round_trips_exactly() -> None:
+    v1 = TaskRewardRecipe(1.0, 2.0, 3.0, 4.0, 5.0)
+    assert v1.to_dict() == {
+        "speed_weight": 1.0,
+        "posture_weight": 2.0,
+        "lateral_weight": 3.0,
+        "heading_weight": 4.0,
+        "failure_weight": 5.0,
+        "schema_id": TASK_REWARD_RECIPE_ID,
+        "schema_version": 1,
+    }
+    v2 = TaskRewardRecipe(
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        recipe_version=2,
+        depth_strength=0.75,
+        ceiling_fraction=0.6,
+    )
+    assert v2.to_dict()["schema_id"] == TASK_REWARD_RECIPE_V2_ID
+    assert v2.to_dict()["schema_version"] == 2
+    assert TaskRewardRecipe.from_dict(v2.to_dict()) == v2
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -296,3 +430,55 @@ def test_task_reward_recipe_rejects_unknown_and_boolean_schema_version() -> None
     wrong_version["schema_version"] = True
     with pytest.raises(ValueError, match="schema identity"):
         TaskRewardRecipe.from_dict(wrong_version)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("depth_strength", -0.1),
+        ("depth_strength", 1.1),
+        ("depth_strength", math.nan),
+        ("depth_strength", True),
+        ("ceiling_fraction", -0.1),
+        ("ceiling_fraction", 1.1),
+        ("ceiling_fraction", math.inf),
+        ("ceiling_fraction", False),
+    ],
+)
+def test_reward_v2_rejects_unbounded_or_nonfloat_depth_settings(
+    field: str, value: object
+) -> None:
+    raw = TaskRewardRecipe(
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        recipe_version=2,
+        depth_strength=0.0,
+        ceiling_fraction=0.6,
+    ).to_dict()
+    raw[field] = value
+    with pytest.raises(ValueError, match=r"depth|finite"):
+        TaskRewardRecipe.from_dict(raw)
+
+
+def test_reward_versions_reject_cross_schema_or_hidden_fields() -> None:
+    v1 = TaskRewardRecipe(0.0, 0.0, 0.0, 0.0, 0.0).to_dict()
+    v1["depth_strength"] = 0.0
+    with pytest.raises(ValueError, match="fields differ"):
+        TaskRewardRecipe.from_dict(v1)
+
+    v2 = TaskRewardRecipe(
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        recipe_version=2,
+        depth_strength=0.0,
+        ceiling_fraction=0.6,
+    ).to_dict()
+    del v2["ceiling_fraction"]
+    with pytest.raises(ValueError, match="fields differ"):
+        TaskRewardRecipe.from_dict(v2)

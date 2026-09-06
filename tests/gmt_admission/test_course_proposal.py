@@ -213,6 +213,29 @@ def test_reward_proposal_changes_only_reward_and_does_not_mutate_parent() -> Non
     assert parent.raw == original
 
 
+def test_reward_proposal_admits_v2_as_reward_only_change() -> None:
+    parent = _parent()
+    feedback = _feedback(parent)
+    proposal = _proposal(parent, feedback)
+    replacement = TaskRewardRecipe(
+        1.0,
+        2.0,
+        1.0,
+        0.5,
+        1.0,
+        recipe_version=2,
+        depth_strength=0.75,
+        ceiling_fraction=0.6,
+    ).to_dict()
+    proposal["replacement"] = {"reward": replacement}
+
+    candidate = apply_proposal(parent, proposal, feedback)
+
+    assert candidate["reward"] == replacement
+    for field in CONFIG_KEYS - {"reward"}:
+        assert canonical_json_bytes(candidate[field]) == canonical_json_bytes(parent.raw[field])
+
+
 def test_oracle_proposal_changes_only_oracle_and_segments() -> None:
     parent = _parent()
     feedback = _feedback(parent)

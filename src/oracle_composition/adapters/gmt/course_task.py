@@ -17,6 +17,8 @@ from .reference_math import quaternion_to_euler_wxyz
 
 COURSE_TASK_SPEC_ID = "gmt_g1_posture_course_task/v1"
 TASK_REWARD_RECIPE_ID = "gmt_g1_posture_course_reward/v1"
+TASK_REWARD_RECIPE_V2_ID = "gmt_g1_posture_course_reward/v2"
+TASK_REWARD_DEPTH_SCALE_M = 0.10
 # Exact foot collision-body names in the pinned GMT G1 XML.
 ALLOWED_GROUND_CONTACT_BODIES = frozenset({"left_ankle_roll_link", "right_ankle_roll_link"})
 ROOT_HEIGHT_FAILURE_M = 0.30
@@ -63,14 +65,18 @@ def _strict_float(value: object, name: str) -> float:
 
 
 def _record(
-    value: Mapping[str, object], *, schema_id: str, payload_fields: tuple[str, ...]
+    value: Mapping[str, object],
+    *,
+    schema_id: str,
+    payload_fields: tuple[str, ...],
+    schema_version: int = 1,
 ) -> dict[str, object]:
     if type(value) is not dict or set(value) != {"schema_id", "schema_version", *payload_fields}:
         raise ValueError(f"{schema_id} fields differ")
     if (
         value["schema_id"] != schema_id
         or type(value["schema_version"]) is not int
-        or value["schema_version"] != 1
+        or value["schema_version"] != schema_version
     ):
         raise ValueError(f"{schema_id} schema identity differs")
     return value
@@ -158,6 +164,9 @@ class TaskRewardRecipe:
     lateral_weight: float
     heading_weight: float
     failure_weight: float
+    recipe_version: int = 1
+    depth_strength: float = 0.0
+    ceiling_fraction: float = 0.6
 
     def __post_init__(self) -> None:
         if any(
@@ -165,22 +174,62 @@ class TaskRewardRecipe:
             for value in (getattr(self, name) for name in _RECIPE_WEIGHT_FIELDS)
         ):
             raise ValueError("task reward weights must be finite floats in [0, 5]")
+        if type(self.recipe_version) is not int or self.recipe_version not in {1, 2}:
+            raise ValueError("task reward recipe version must be 1 or 2")
+        if any(
+            type(value) is not float or not math.isfinite(value) or not 0.0 <= value <= 1.0
+            for value in (self.depth_strength, self.ceiling_fraction)
+        ):
+            raise ValueError("task reward depth settings must be finite floats in [0, 1]")
+        if self.recipe_version == 1 and (
+            self.depth_strength != 0.0 or self.ceiling_fraction != 0.6
+        ):
+            raise ValueError("task reward v1 cannot carry v2 depth settings")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             **{name: getattr(self, name) for name in _RECIPE_WEIGHT_FIELDS},
-            "schema_id": TASK_REWARD_RECIPE_ID,
-            "schema_version": 1,
+            "schema_id": (
+                TASK_REWARD_RECIPE_ID
+                if self.recipe_version == 1
+                else TASK_REWARD_RECIPE_V2_ID
+            ),
+            "schema_version": self.recipe_version,
         }
+        if self.recipe_version == 2:
+            result.update(
+                depth_strength=self.depth_strength,
+                ceiling_fraction=self.ceiling_fraction,
+            )
+        return result
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> TaskRewardRecipe:
-        value = _record(
-            value,
-            schema_id=TASK_REWARD_RECIPE_ID,
-            payload_fields=_RECIPE_WEIGHT_FIELDS,
-        )
-        return cls(**{name: _strict_float(value[name], name) for name in _RECIPE_WEIGHT_FIELDS})
+        if type(value) is not dict:
+            raise ValueError("task reward recipe must be an object")
+        if value.get("schema_id") == TASK_REWARD_RECIPE_ID:
+            parsed = _record(
+                value,
+                schema_id=TASK_REWARD_RECIPE_ID,
+                payload_fields=_RECIPE_WEIGHT_FIELDS,
+            )
+            return cls(
+                **{name: _strict_float(parsed[name], name) for name in _RECIPE_WEIGHT_FIELDS}
+            )
+        if value.get("schema_id") == TASK_REWARD_RECIPE_V2_ID:
+            parsed = _record(
+                value,
+                schema_id=TASK_REWARD_RECIPE_V2_ID,
+                schema_version=2,
+                payload_fields=(*_RECIPE_WEIGHT_FIELDS, "depth_strength", "ceiling_fraction"),
+            )
+            return cls(
+                **{name: _strict_float(parsed[name], name) for name in _RECIPE_WEIGHT_FIELDS},
+                recipe_version=2,
+                depth_strength=_strict_float(parsed["depth_strength"], "depth_strength"),
+                ceiling_fraction=_strict_float(parsed["ceiling_fraction"], "ceiling_fraction"),
+            )
+        raise ValueError("task reward recipe schema identity differs")
 
     @property
     def sha256(self) -> str:
@@ -406,6 +455,27 @@ def reward(
             _component_reward(error, scale)
             for error, scale in zip(errors[:4], _TASK_SCALES, strict=True)
         )
+        if (
+            recipe.recipe_version == 2
+            and recipe.depth_strength > 0.0
+            and metrics.inside_posture_region
+        ):
+            if type(metrics.root_height_m) is not float or not math.isfinite(
+                metrics.root_height_m
+            ):
+                raise ValueError("task reward v2 requires one finite root height")
+            ceiling = spec.posture_band_low_m + recipe.ceiling_fraction * (
+                spec.posture_band_high_m - spec.posture_band_low_m
+            )
+            depth_error = max(0.0, metrics.root_height_m - ceiling)
+            cauchy = 1.0 / (1.0 + (depth_error / TASK_REWARD_DEPTH_SCALE_M) ** 2)
+            depth_multiplier = 1.0 - recipe.depth_strength * (1.0 - cauchy)
+            task_components = (
+                task_components[0],
+                task_components[1] * depth_multiplier,
+                task_components[2],
+                task_components[3],
+            )
         tracking_reward = sum(
             weight * _component_reward(error, scale)
             for error, scale, weight in zip(
@@ -448,7 +518,9 @@ __all__ = [
     "COURSE_TASK_SPEC_ID",
     "ROOT_HEIGHT_FAILURE_M",
     "TASK_FEATURE_NAMES",
+    "TASK_REWARD_DEPTH_SCALE_M",
     "TASK_REWARD_RECIPE_ID",
+    "TASK_REWARD_RECIPE_V2_ID",
     "TORSO_UP_FAILURE_MIN",
     "CourseStepMetrics",
     "CourseTaskSpec",

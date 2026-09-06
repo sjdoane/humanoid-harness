@@ -99,6 +99,29 @@ def test_exact_config_and_raw_byte_identity(admitted_config):
     assert module.load_run_config(path).sha256 != original
 
 
+def test_course_config_admits_exact_reward_v2(admitted_config):
+    raw, path = admitted_config
+    reward_v2 = module.TaskRewardRecipe(
+        1.0,
+        2.0,
+        1.0,
+        0.5,
+        1.0,
+        recipe_version=2,
+        depth_strength=0.75,
+        ceiling_fraction=0.6,
+    )
+    raw["reward"] = reward_v2.to_dict()
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.recipe == reward_v2
+    assert admitted.recipe.sha256 != module.TaskRewardRecipe(
+        1.0, 2.0, 1.0, 0.5, 1.0
+    ).sha256
+
+
 @pytest.mark.parametrize(
     "key,value",
     [
