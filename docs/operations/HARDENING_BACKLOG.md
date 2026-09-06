@@ -19,3 +19,5 @@ reproducibility: SCI-03 (admission map; rename the boolean), SCI-05 (screen
 evidence label `interface_check`), R03B-05 (process IDs out of scientific
 digests), R03B-07 (E3 manifest describes a proposed downstream tracker input
 as measured policy input), SCI-06 (corpus wording).
+
+Added 2026-09-05 from the Experiment 003 robustness review (`sol-review-adv-20260905-e003`), deferred because they do not change a claim: E003-R05 (supervised child process with limits and structured failure statuses for evaluation), E003-R06 (descriptor-relative no-follow reads for every ancestor, bounded reads, transactional publication of index, report, and Markdown), E003-R10 (git object size checks before streaming, provenance allowlist for binary blobs, pinned build backend, wheel inventory in CI). Folded into `E003R1`: R01, R02, R03, R04, R07, R08, R09 and SCI-001 to SCI-007.

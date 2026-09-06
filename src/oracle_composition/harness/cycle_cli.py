@@ -6,16 +6,39 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 
 from .contract import ALLOWED_SIGNALS, EVIDENCE_CLASS, ORACLE_SCHEMA_ID, load_oracle_program
 from .evaluator import EvaluationDependencies, evaluate_cycle
+from .evidence import (
+    EvidenceChainError,
+    ValidatedScientificReceipt,
+    current_authority_identities,
+    validate_prior_report_chain,
+)
 from .inputs import LibraryManifest, TaskSpec, load_frozen_inputs
 
 MAX_STEERING_CHARACTERS = 4000
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingCliDependencies:
+    """Explicit test seam; production defaults remain fail-closed and real."""
+
+    runtime_kind: str = "real"
+    test_only: bool = False
+    allow_dirty: bool = False
+    test_steps_per_environment: int = 2048
+    test_batch_size: int = 512
+    test_n_epochs: int = 10
+    failure_mode: str | None = None
+    resource_limits: object | None = None
+    utility_dependencies: object | None = None
 
 
 class CycleCliError(RuntimeError):
@@ -58,7 +81,7 @@ def _library_table(library: LibraryManifest) -> list[str]:
     return lines
 
 
-def _prior_table(report: dict[str, object] | None) -> list[str]:
+def _prior_table(report: ValidatedScientificReceipt | None) -> list[str]:
     lines = [
         "| arm | episodes | median MAE m/s | falls | median switches | median task return |",
         "|---|---:|---:|---:|---:|---:|",
@@ -66,12 +89,8 @@ def _prior_table(report: dict[str, object] | None) -> list[str]:
     if report is None:
         lines.append("| none | 0 | n/a | n/a | n/a | n/a |")
         return lines
-    summary = report.get("summary")
-    if type(summary) is not dict or type(summary.get("arms")) is not list:
-        raise CycleCliError("prior report summary is malformed")
-    for raw_arm in summary["arms"]:
-        if type(raw_arm) is not dict:
-            raise CycleCliError("prior report arm is malformed")
+    for arm in report.arms:
+        raw_arm = arm.value
         lines.append(
             "| {oracle_id} | {episode_count} | {mae:.6f} | {falls} | {switches:.1f} | "
             "{task_return:.6f} |".format(
@@ -91,7 +110,7 @@ def _designer_prompt(
     cycle: int,
     library: LibraryManifest,
     task: TaskSpec,
-    prior_report: dict[str, object] | None,
+    prior_report: ValidatedScientificReceipt | None,
     steering: str,
 ) -> bytes:
     schedule = ", ".join(
@@ -103,7 +122,14 @@ def _designer_prompt(
         "evidence_class": EVIDENCE_CLASS,
         "initial": "state_name",
         "oracle_id": f"cycle_{cycle}_candidate",
-        "recovery": {"behavior": "expert", "guard": "z_root < 1.1"},
+        "recovery": {
+            "behavior": "expert",
+            "guard": "z_root < 1.1",
+            "max_duration": 64,
+            "min_dwell": 8,
+            "reentry_dwell": 8,
+            "rejoin": "suspended_state_dwell_reset",
+        },
         "schema_version": 1,
         "states": {
             "next_state": {"behavior": "expert", "min_dwell": 0},
@@ -147,8 +173,9 @@ def _designer_prompt(
         "arithmetic, and unknown names are invalid.",
         "Transitions are checked in ascending priority after the current state's min_dwell is met. "
         "At most one controller switch occurs per step.",
-        "Recovery is optional, has highest priority, overrides with its behavior while true, and "
-        "rejoins the suspended state with dwell reset when false.",
+        "Recovery is optional and highest priority. It must declare positive min_dwell and "
+        "reentry_dwell, a bounded max_duration, and rejoin=suspended_state_dwell_reset. A "
+        "still-active guard at max_duration fails closed.",
         "",
         "```json",
         json.dumps(schema_example, indent=2, sort_keys=True),
@@ -200,31 +227,43 @@ def _cycle_zero_declarations(
     return result
 
 
-def prepare_cycle(*, experiment: Path, cycle: int, steering: str = "") -> tuple[Path, Path]:
+def prepare_cycle(
+    *,
+    experiment: Path,
+    cycle: int,
+    repository_root: Path,
+    steering: str = "",
+    dependencies: EvaluationDependencies | None = None,
+) -> tuple[Path, Path]:
     if type(cycle) is not int or cycle < 0:
         raise CycleCliError("cycle must be a non-negative integer")
     if type(steering) is not str or len(steering) > MAX_STEERING_CHARACTERS:
         raise CycleCliError("steering text exceeds the bounded contract")
     experiment_path = Path(experiment).resolve(strict=True)
-    library, task = load_frozen_inputs(experiment_path)
-    prior_report: dict[str, object] | None = None
+    root = Path(repository_root).resolve(strict=True)
+    selected_dependencies = dependencies or EvaluationDependencies()
+    try:
+        sealed = selected_dependencies.execution_loader(experiment_path, root)
+    except (EvidenceChainError, OSError, ValueError) as exc:
+        raise CycleCliError(str(exc)) from exc
+    library, task = sealed.library, sealed.task
+    identities = current_authority_identities()
+    metric_core_sha256 = identities["metric_core"]["sha256"]
+    prior_report: ValidatedScientificReceipt | None = None
     prior_sha256: str | None = None
     if cycle > 0:
-        prior_path = experiment_path / "cycles" / f"cycle_{cycle - 1}" / f"report_{cycle - 1}.json"
         try:
-            prior_bytes = prior_path.read_bytes()
-        except OSError as exc:
-            raise CycleCliError("prior cycle report is required") from exc
-        prior_report = json.loads(prior_bytes)
-        if type(prior_report) is not dict:
-            raise CycleCliError("prior cycle report must be an object")
-        if (
-            prior_report.get("evidence_class") != EVIDENCE_CLASS
-            or prior_report.get("task_spec_sha256") != task.raw_sha256
-            or prior_report.get("library_manifest_sha256") != library.raw_sha256
-        ):
-            raise CycleCliError("prior report does not bind the frozen task and library")
-        prior_sha256 = _sha256(prior_bytes)
+            prior_report = validate_prior_report_chain(
+                experiment=experiment_path,
+                repository_root=root,
+                library=library,
+                task=task,
+                prior_cycle=cycle - 1,
+                expected_metric_core_sha256=metric_core_sha256,
+            )
+        except EvidenceChainError as exc:
+            raise CycleCliError(str(exc)) from exc
+        prior_sha256 = prior_report.sha256
     prompt = _designer_prompt(
         cycle=cycle,
         library=library,
@@ -239,11 +278,14 @@ def prepare_cycle(*, experiment: Path, cycle: int, steering: str = "") -> tuple[
         "cycle": cycle,
         "designer_prompt_sha256": _sha256(prompt),
         "evidence_class": EVIDENCE_CLASS,
+        "execution_manifest_sha256": sealed.manifest_sha256,
         "library_manifest_sha256": library.raw_sha256,
+        "metric_core_sha256": metric_core_sha256,
         "oracle_policy": "exact_predeclared_set" if cycle == 0 else "one_designer_oracle",
         "predeclared_oracles": declarations,
         "prior_report_sha256": prior_sha256,
-        "schema_version": 1,
+        "prior_scientific_receipt_sha256": prior_sha256,
+        "schema_version": 2,
         "task_spec_sha256": task.raw_sha256,
     }
     expected_path = output / "expected_inputs.json"
@@ -263,6 +305,472 @@ def _expand_oracle_paths(values: Sequence[str]) -> list[Path]:
     return result
 
 
+def _seed_list(value: str) -> tuple[int, ...]:
+    try:
+        seeds = tuple(int(item) for item in value.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("seeds must be a comma-separated integer list") from exc
+    if not seeds or any(seed <= 0 for seed in seeds) or len(set(seeds)) != len(seeds):
+        raise argparse.ArgumentTypeError("seeds must be unique positive integers")
+    return seeds
+
+
+def _canonical_mapping(path: Path) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise CycleCliError(f"input must be a regular non-linked file: {path}")
+    encoded = path.read_bytes()
+    try:
+        value = json.loads(encoded.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise CycleCliError(f"input is not valid JSON: {path}") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise CycleCliError(f"input is not one canonical JSON object: {path}")
+    return value
+
+
+def _resolve(root: Path, path: Path) -> Path:
+    return path if path.is_absolute() else root / path
+
+
+def _trace_record(path: Path, *, output: Path, role: str) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise CycleCliError(f"trace artifact is unavailable: {path}")
+    encoded = path.read_bytes()
+    return {
+        "byte_count": len(encoded),
+        "path": path.relative_to(output).as_posix(),
+        "role": role,
+        "sha256": _sha256(encoded),
+    }
+
+
+def _train_command(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    selected: TrainingCliDependencies,
+) -> int:
+    from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
+    from oracle_composition.phase_b.report_v2 import (
+        build_scientific_receipt,
+        publish_report_v2,
+    )
+    from oracle_composition.phase_b.supervision import (
+        ResourceLimits,
+        SupervisorStatus,
+        supervise_training_job,
+        validate_training_preflight,
+    )
+    from oracle_composition.phase_b.training import COHORT_SEEDS
+
+    experiment = _resolve(root, args.experiment)
+    oracle = _resolve(root, args.oracle)
+    reward = _resolve(root, args.reward)
+    output = _resolve(root, args.output)
+    if type(args.cycle) is not int or args.cycle < 0:
+        raise CycleCliError("cycle must be a non-negative integer")
+    preflight = validate_training_preflight(
+        repository_root=root,
+        experiment=experiment,
+        oracle_path=oracle,
+        reward_path=reward,
+        allow_dirty=selected.allow_dirty or selected.test_only,
+    )
+    reservation = (
+        _canonical_mapping(_resolve(root, args.reservation))
+        if args.reservation is not None
+        else None
+    )
+    limits = selected.resource_limits
+    if limits is None:
+        limits = ResourceLimits()
+    if not isinstance(limits, ResourceLimits):
+        raise CycleCliError("training resource-limit dependency differs")
+    canonical_argv = [
+        str(Path(sys.executable).resolve()),
+        "-m",
+        "oracle_composition.harness.cycle_cli",
+        "train",
+        "--experiment",
+        str(experiment.resolve()),
+        "--cycle",
+        str(args.cycle),
+        "--oracle",
+        str(oracle.resolve()),
+        "--reward",
+        str(reward.resolve()),
+        "--output",
+        str(output.resolve()),
+        "--seeds",
+        ",".join(str(seed) for seed in args.seeds),
+        "--transitions",
+        str(args.transitions),
+    ]
+    if args.reservation is not None:
+        canonical_argv.extend(("--reservation", str(_resolve(root, args.reservation).resolve())))
+    if args.smoke:
+        canonical_argv.append("--smoke")
+    if args.promote:
+        canonical_argv.append("--promote")
+    result = supervise_training_job(
+        preflight=preflight,
+        output_directory=output,
+        seeds=args.seeds,
+        transitions=args.transitions,
+        smoke=args.smoke,
+        reservation=reservation,
+        limits=limits,
+        runtime_kind=selected.runtime_kind,
+        test_only=selected.test_only,
+        test_steps_per_environment=selected.test_steps_per_environment,
+        test_batch_size=selected.test_batch_size,
+        test_n_epochs=selected.test_n_epochs,
+        failure_mode=selected.failure_mode,
+        canonical_argv=canonical_argv,
+    )
+    if result.status != SupervisorStatus.SUCCEEDED:
+        print(
+            json.dumps(
+                {
+                    "job_result": str(result.job_result.path),
+                    "status": result.status.value,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+    trace_entries = [
+        _trace_record(
+            result.execution_manifest.path,
+            output=output,
+            role="phase_b_execution_manifest",
+        ),
+        _trace_record(result.job_result.path, output=output, role="training_job_result"),
+    ]
+    if result.checkpoint_index is not None:
+        trace_entries.append(
+            _trace_record(
+                result.checkpoint_index.path,
+                output=output,
+                role="five_checkpoint_index",
+            )
+        )
+    for outcome in result.outcomes:
+        seed_directory = output / f"seed_{outcome.seed}"
+        trace_entries.append(
+            _trace_record(outcome.receipt.path, output=output, role="seed_success_receipt")
+        )
+        persistence = outcome.persistence
+        if persistence is None:
+            raise CycleCliError("successful training result omitted persistence")
+        trace_entries.extend(
+            (
+                _trace_record(
+                    seed_directory / "training_facts_v1.json",
+                    output=output,
+                    role="seed_training_facts",
+                ),
+                _trace_record(
+                    seed_directory / "rsi_ledger_v1.json",
+                    output=output,
+                    role="seed_rsi_ledger",
+                ),
+                _trace_record(
+                    persistence.receipt.path,
+                    output=output,
+                    role="seed_persistence_receipt",
+                ),
+                _trace_record(
+                    persistence.checkpoint.path,
+                    output=output,
+                    role="final_full_checkpoint",
+                ),
+                _trace_record(
+                    persistence.strict_export.path,
+                    output=output,
+                    role="final_strict_actor_export",
+                ),
+            )
+        )
+    trace_entries.sort(key=lambda item: (str(item["path"]), str(item["role"])))
+    trace_index_value = {
+        "entries": trace_entries,
+        "entry_count": len(trace_entries),
+        "schema_version": 2,
+        "trace_index_schema_id": "humanoid_phase_b_trace_index/v2",
+    }
+    trace_index = publish_bytes_without_overwrite(
+        output / "trace_index_v2.json",
+        canonical_json_bytes(trace_index_value),
+    )
+    report_inputs = dict(preflight.report_inputs)
+    report_inputs["execution_manifest_sha256"] = result.execution_manifest.sha256
+    seed_facts = [
+        replace(
+            outcome.report_facts,
+            cohort_authority=(
+                {
+                    "cohort_seeds": list(COHORT_SEEDS),
+                    "checkpoint_index_sha256": result.checkpoint_index.sha256,
+                    "execution_manifest_sha256": result.execution_manifest.sha256,
+                    "job_result_sha256": result.job_result.sha256,
+                    "status": "successful_non_smoke_full_budget_promotable",
+                    "success_receipt_sha256": outcome.receipt.sha256,
+                }
+                if result.checkpoint_index is not None
+                else {"status": "not_applicable_interface_or_smoke"}
+            ),
+        )
+        for outcome in result.outcomes
+        if outcome.report_facts is not None
+    ]
+    reward_totals: dict[str, object] = {
+        field: sum(float(seed.training["reward_totals"][field]) for seed in seed_facts)
+        for field in ("ignored_stock_reward", "r_task", "r_track", "r_train")
+    }
+    reward_totals["parameters"] = dict(_canonical_mapping(reward).get("parameters", {}))
+    report = build_scientific_receipt(
+        cycle=args.cycle,
+        inputs=report_inputs,
+        seeds=seed_facts,
+        episodes=[],
+        step_zero_episodes=[],
+        calibration=None,
+        reference_records=[],
+        reward_totals=reward_totals,
+        trace_index_sha256=trace_index.sha256,
+        prior_scientific_receipt={
+            "cycle": 2,
+            "path": "cycles/cycle_2/scientific_receipt_v2.json",
+            "sha256": preflight.prior_scientific_receipt_sha256,
+        },
+    )
+    telemetry_rows = [
+        _canonical_mapping(output / f"seed_{outcome.seed}/telemetry_v1.json")
+        for outcome in result.outcomes
+    ]
+    reports = publish_report_v2(
+        output_directory=output,
+        report=report,
+        telemetry={"per_seed": telemetry_rows},
+    )
+    print(
+        json.dumps(
+            {
+                "checkpoint_index": (
+                    str(result.checkpoint_index.path) if result.checkpoint_index else None
+                ),
+                "job_result": str(result.job_result.path),
+                "promotable": not args.smoke and not selected.test_only,
+                "scientific_receipt": str(reports.scientific_receipt.path),
+                "status": result.status.value,
+                "telemetry": str(reports.telemetry.path),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _evaluate_policy_command(
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    selected: TrainingCliDependencies,
+) -> int:
+    from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
+    from oracle_composition.phase_b.calibration import load_calibration_receipt
+    from oracle_composition.phase_b.evaluation import UtilityEvaluationDependencies
+    from oracle_composition.phase_b.evaluation_lineage import (
+        evaluator_source_identity,
+        validate_evaluation_lineage,
+    )
+    from oracle_composition.phase_b.evaluation_supervision import (
+        EvaluationStatus,
+        EvaluationWorkerRequest,
+        supervise_policy_evaluation,
+    )
+    from oracle_composition.phase_b.report_v2 import (
+        SeedReportFacts,
+        build_scientific_receipt,
+        publish_report_v2,
+    )
+    from oracle_composition.phase_b.supervision import validate_training_preflight
+
+    experiment = _resolve(root, args.experiment)
+    oracle = _resolve(root, args.oracle)
+    reward = _resolve(root, args.reward)
+    checkpoint = _resolve(root, args.checkpoint)
+    output = _resolve(root, args.output)
+    if args.checkpoint_sha256 is not None:
+        raise CycleCliError(
+            "explicit checkpoint SHA-256 bypass is forbidden; use the stored lineage chain"
+        )
+    preflight = validate_training_preflight(
+        repository_root=root,
+        experiment=experiment,
+        oracle_path=oracle,
+        reward_path=reward,
+        allow_dirty=selected.allow_dirty or selected.test_only,
+    )
+    lineage = validate_evaluation_lineage(checkpoint_path=checkpoint, preflight=preflight)
+    source_identity = evaluator_source_identity(root)
+    calibration_path = (
+        _resolve(root, args.calibration_receipt) if args.calibration_receipt is not None else None
+    )
+    if (calibration_path is None) != (args.calibration_receipt_sha256 is None):
+        raise CycleCliError("calibration receipt and SHA-256 must be supplied together")
+    if calibration_path is not None:
+        load_calibration_receipt(
+            calibration_path,
+            expected_sha256=args.calibration_receipt_sha256,
+        )
+    if output.exists() or output.is_symlink():
+        raise CycleCliError("evaluate-policy output must be fresh and no-overwrite")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.mkdir(mode=0o700)
+    dependencies = selected.utility_dependencies
+    if dependencies is not None and not isinstance(dependencies, UtilityEvaluationDependencies):
+        raise CycleCliError("utility evaluation dependency differs")
+    dependencies = dependencies or UtilityEvaluationDependencies()
+    targets = tuple(
+        float(segment.target_m_s) for segment in load_frozen_inputs(experiment)[1].schedule
+    )
+    evaluation_manifest_value = {
+        "checkpoint_lineage": lineage.manifest_record(),
+        "evaluation_manifest_schema_id": "humanoid_phase_b_evaluation_manifest/v1",
+        "evaluator_sources": source_identity,
+        "planned_cells": ["hold_expert", "hold_medium", "hold_simple", "fixed_round_trip"],
+        "planned_episode_count": 160,
+        "planned_evaluation_seeds": list(range(120101, 120121)),
+        "schema_version": 1,
+        "segment_targets_m_s": list(targets),
+        "step_zero_actor_sha256": preflight.runtime_config.starting_actor_sha256,
+    }
+    evaluation_manifest = publish_bytes_without_overwrite(
+        output / "evaluation_manifest_v1.json",
+        canonical_json_bytes(evaluation_manifest_value),
+    )
+    evaluation = supervise_policy_evaluation(
+        request=EvaluationWorkerRequest(
+            checkpoint_path=str(checkpoint),
+            checkpoint_sha256=lineage.checkpoint_sha256,
+            step_zero_actor_path=str(preflight.runtime_config.starting_actor_path),
+            step_zero_actor_sha256=preflight.runtime_config.starting_actor_sha256,
+            corpus_root=str(root / "artifacts/reference_corpus_v2"),
+            calibration_receipt_path=(str(calibration_path) if calibration_path else None),
+            calibration_receipt_sha256=args.calibration_receipt_sha256,
+            segment_targets_m_s=targets,
+            dependencies=dependencies,
+            output_directory=str(output),
+            evaluator_source_sha256=str(source_identity["sha256"]),
+            repository_root=str(root),
+        ),
+        evaluation_manifest=evaluation_manifest,
+    )
+    if evaluation.status is not EvaluationStatus.SUCCEEDED:
+        print(
+            json.dumps(
+                {
+                    "evaluation_receipt": str(evaluation.terminal_receipt.path),
+                    "status": evaluation.status.value,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+    required_artifacts = (
+        evaluation.trained_metrics,
+        evaluation.step_zero_metrics,
+        evaluation.trained_traces,
+        evaluation.step_zero_traces,
+    )
+    if any(artifact is None for artifact in required_artifacts):
+        raise CycleCliError("successful evaluation omitted a protected artifact")
+    trained, baseline, trained_traces, baseline_traces = required_artifacts
+    trace_artifacts = (
+        (evaluation_manifest, "evaluation_manifest"),
+        (evaluation.terminal_receipt, "evaluation_success_receipt"),
+        (trained, "trained_policy_metrics"),
+        (baseline, "step_zero_metrics"),
+        (trained_traces, "trained_policy_protected_traces"),
+        (baseline_traces, "step_zero_protected_traces"),
+    )
+    trace_index_value = {
+        "entries": [
+            _trace_record(artifact.path, output=output, role=role)
+            for artifact, role in trace_artifacts
+        ],
+        "entry_count": len(trace_artifacts),
+        "schema_version": 2,
+        "trace_index_schema_id": "humanoid_phase_b_trace_index/v2",
+    }
+    trace_index = publish_bytes_without_overwrite(
+        output / "trace_index_v2.json", canonical_json_bytes(trace_index_value)
+    )
+    metadata = lineage.checkpoint_metadata
+    training = lineage.training_facts
+    persistence_receipt = lineage.persistence_receipt
+    worker_step_zero = training.get("step_zero_comparator")
+    if type(worker_step_zero) is not dict or worker_step_zero.get("bitwise_equal") is not True:
+        raise CycleCliError("stored checkpoint omitted its worker step-0 comparator")
+    step_zero_comparator = {**worker_step_zero, **dict(evaluation.step_zero_comparator)}
+    seed = SeedReportFacts(
+        ppo_seed=int(metadata["ppo_seed"]),
+        checkpoint_sha256=lineage.checkpoint_sha256,
+        strict_export_sha256=persistence_receipt["strict_export"]["sha256"],
+        training=training,
+        step_zero_comparator=step_zero_comparator,
+        execution_manifest_bytes=lineage.execution_manifest_bytes,
+        rsi_ledger_bytes=lineage.rsi_ledger_bytes,
+        cohort_authority={
+            "cohort_seeds": list(lineage.checkpoint_index["cohort_seeds"]),
+            "checkpoint_index_sha256": lineage.bindings["checkpoint_index"]["sha256"],
+            "execution_manifest_sha256": lineage.execution_manifest_sha256,
+            "job_result_sha256": lineage.bindings["job_result"]["sha256"],
+            "status": "successful_non_smoke_full_budget_promotable",
+            "success_receipt_sha256": lineage.bindings["success_receipt"]["sha256"],
+        },
+    )
+    report_inputs = dict(preflight.report_inputs)
+    report_inputs["execution_manifest_sha256"] = lineage.execution_manifest_sha256
+    stored_reward_totals = training["reward_totals"]
+    reward_totals: dict[str, object] = {
+        field: float(stored_reward_totals[field])
+        for field in ("ignored_stock_reward", "r_task", "r_track", "r_train")
+    }
+    reward_totals["parameters"] = dict(_canonical_mapping(reward).get("parameters", {}))
+    report = build_scientific_receipt(
+        cycle=args.cycle,
+        inputs=report_inputs,
+        seeds=[seed],
+        episodes=evaluation.trained_episodes,
+        step_zero_episodes=evaluation.step_zero_episodes,
+        calibration=evaluation.calibration,
+        reference_records=[],
+        reward_totals=reward_totals,
+        trace_index_sha256=trace_index.sha256,
+        prior_scientific_receipt={
+            "cycle": 2,
+            "path": "cycles/cycle_2/scientific_receipt_v2.json",
+            "sha256": preflight.prior_scientific_receipt_sha256,
+        },
+    )
+    reports = publish_report_v2(output_directory=output, report=report, telemetry={})
+    print(
+        json.dumps(
+            {
+                "evaluation_receipt": str(evaluation.terminal_receipt.path),
+                "scientific_receipt": str(reports.scientific_receipt.path),
+                "step_zero_metrics": str(baseline.path),
+                "trained_metrics": str(trained.path),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m oracle_composition.harness.cycle_cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -274,6 +782,27 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--experiment", type=Path, required=True)
     evaluate.add_argument("--cycle", type=int, required=True)
     evaluate.add_argument("--oracle", action="append", required=True)
+    train = commands.add_parser("train")
+    train.add_argument("--experiment", type=Path, required=True)
+    train.add_argument("--cycle", type=int, required=True)
+    train.add_argument("--oracle", type=Path, required=True)
+    train.add_argument("--reward", type=Path, required=True)
+    train.add_argument("--output", type=Path, required=True)
+    train.add_argument("--seeds", type=_seed_list, required=True)
+    train.add_argument("--transitions", type=int, required=True)
+    train.add_argument("--reservation", type=Path)
+    train.add_argument("--smoke", action="store_true")
+    train.add_argument("--promote", action="store_true")
+    policy = commands.add_parser("evaluate-policy")
+    policy.add_argument("--experiment", type=Path, required=True)
+    policy.add_argument("--cycle", type=int, required=True)
+    policy.add_argument("--oracle", type=Path, required=True)
+    policy.add_argument("--reward", type=Path, required=True)
+    policy.add_argument("--checkpoint", type=Path, required=True)
+    policy.add_argument("--checkpoint-sha256")
+    policy.add_argument("--calibration-receipt", type=Path)
+    policy.add_argument("--calibration-receipt-sha256")
+    policy.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -282,6 +811,7 @@ def main(
     *,
     repository_root: Path | None = None,
     dependencies: EvaluationDependencies | None = None,
+    training_dependencies: TrainingCliDependencies | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     root = (
@@ -296,10 +826,21 @@ def main(
         prompt, expected = prepare_cycle(
             experiment=experiment,
             cycle=args.cycle,
+            repository_root=root,
             steering=args.steer,
+            dependencies=dependencies,
         )
         print(json.dumps({"designer_prompt": str(prompt), "expected_inputs": str(expected)}))
         return 0
+    selected_training = training_dependencies or TrainingCliDependencies()
+    if args.command == "train":
+        if args.promote and args.smoke:
+            raise CycleCliError("smoke mode is interface_check and refuses promotion")
+        if args.promote and selected_training.test_only:
+            raise CycleCliError("controlled fake-runtime output refuses promotion")
+        return _train_command(args, root=root, selected=selected_training)
+    if args.command == "evaluate-policy":
+        return _evaluate_policy_command(args, root=root, selected=selected_training)
     oracle_paths = _expand_oracle_paths(args.oracle)
     report, markdown = evaluate_cycle(
         experiment=experiment,

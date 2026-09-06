@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import platform
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -16,22 +17,39 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.envs.humanoid import make_humanoid_env
 from oracle_composition.sources.strict_tqc_actor_runtime import StrictTQCActorRuntime
 
-from .contract import EVIDENCE_CLASS, OracleProgram, load_oracle_program, read_json_object
+from .contract import (
+    EVIDENCE_CLASS,
+    OracleContractError,
+    OracleProgram,
+    load_oracle_program,
+    read_json_object,
+)
+from .evidence import (
+    REPORT_SCHEMA_ID,
+    SCHEMA_VERSIONS,
+    SCIENTIFIC_RECEIPT_SCHEMA_ID,
+    TELEMETRY_SCHEMA_ID,
+    TRACE_INDEX_SCHEMA_ID,
+    EvidenceChainError,
+    SealedExecution,
+    ValidatedScientificReceipt,
+    current_authority_identities,
+    load_e003_execution,
+    validate_designer_provenance,
+    validate_prior_report_chain,
+)
 from .executor import EpisodeExecution, execute_episode, runtime_fingerprint
 from .inputs import (
     BehaviorManifestEntry,
     LibraryManifest,
+    ScheduleSegment,
     TaskSpec,
-    load_frozen_inputs,
-    verify_library_artifacts,
 )
 
-REPORT_SCHEMA_ID = "humanoid_composition_cycle_report/v1"
-TRACE_INDEX_SCHEMA_ID = "humanoid_composition_trace_index/v1"
 CLAIM_CEILING = (
-    "cycle_0_ran_on_the_frozen_plain_humanoid_v5_runtime_with_predeclared_controller_"
-    "switching_arms_and_a_cycle_1_designer_prompt_only_no_oracle_quality_generalization_"
-    "tracker_reward_or_humanoid_competence_claim"
+    "exploratory_controller_switching_cycle_on_the_frozen_plain_humanoid_v5_runtime_"
+    "only_no_oracle_quality_generalization_tracker_reference_following_reward_naturalness_"
+    "robustness_or_humanoid_competence_claim"
 )
 
 
@@ -42,6 +60,22 @@ class CycleEvaluationError(RuntimeError):
 ActorLoader = Callable[[BehaviorManifestEntry, Path], object]
 EnvironmentFactory = Callable[[], object]
 FingerprintFactory = Callable[[object, TaskSpec], tuple[dict[str, object], str]]
+ExecutionLoader = Callable[[Path, Path], SealedExecution]
+PerfCounter = Callable[[], float]
+UtcNow = Callable[[], str]
+HostFactory = Callable[[], Mapping[str, str]]
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _host() -> Mapping[str, str]:
+    return {
+        "machine": platform.machine(),
+        "node": platform.node(),
+        "system": platform.system(),
+    }
 
 
 def _default_actor_loader(entry: BehaviorManifestEntry, repository_root: Path) -> object:
@@ -56,6 +90,10 @@ class EvaluationDependencies:
     environment_factory: EnvironmentFactory = make_humanoid_env
     actor_loader: ActorLoader = _default_actor_loader
     fingerprint_factory: FingerprintFactory = runtime_fingerprint
+    execution_loader: ExecutionLoader = load_e003_execution
+    perf_counter: PerfCounter = time.perf_counter
+    utc_now: UtcNow = _utc_now
+    host_factory: HostFactory = _host
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,10 +145,13 @@ def _validate_expected_inputs(
     library: LibraryManifest,
     task: TaskSpec,
     loaded_oracles: Sequence[LoadedOracle],
+    execution_manifest_sha256: str,
+    metric_core_sha256: str,
+    prior_receipt: ValidatedScientificReceipt | None,
 ) -> dict[str, object]:
     expected_path = experiment / "cycles" / f"cycle_{cycle}" / "expected_inputs.json"
     value, _encoded = read_json_object(expected_path)
-    required = {
+    common = {
         "schema_version",
         "evidence_class",
         "cycle",
@@ -121,11 +162,15 @@ def _validate_expected_inputs(
         "oracle_policy",
         "predeclared_oracles",
     }
-    if set(value) != required:
+    required = common | {
+        "execution_manifest_sha256",
+        "metric_core_sha256",
+        "prior_scientific_receipt_sha256",
+    }
+    if value.get("schema_version") != 2 or set(value) != required:
         raise CycleEvaluationError("expected_inputs.json keys differ")
     if (
-        value["schema_version"] != 1
-        or value["evidence_class"] != EVIDENCE_CLASS
+        value["evidence_class"] != EVIDENCE_CLASS
         or value["cycle"] != cycle
         or value["task_spec_sha256"] != task.raw_sha256
         or value["library_manifest_sha256"] != library.raw_sha256
@@ -140,16 +185,20 @@ def _validate_expected_inputs(
         raise CycleEvaluationError("designer prompt hash differs from expected_inputs.json")
     prior_hash = value["prior_report_sha256"]
     if cycle == 0:
-        if prior_hash is not None:
+        if prior_hash is not None or prior_receipt is not None:
             raise CycleEvaluationError("cycle 0 cannot bind a prior report")
     else:
-        prior_path = experiment / "cycles" / f"cycle_{cycle - 1}" / f"report_{cycle - 1}.json"
-        try:
-            observed_prior = _sha256_bytes(prior_path.read_bytes())
-        except OSError as exc:
-            raise CycleEvaluationError("prior cycle report is unavailable") from exc
-        if prior_hash != observed_prior:
+        if prior_receipt is None:
+            raise CycleEvaluationError("prior scientific receipt is unavailable")
+        if prior_hash != prior_receipt.sha256:
             raise CycleEvaluationError("prior cycle report hash differs")
+    if (
+        value["execution_manifest_sha256"] != execution_manifest_sha256
+        or value["metric_core_sha256"] != metric_core_sha256
+        or value["prior_scientific_receipt_sha256"]
+        != (None if prior_receipt is None else prior_receipt.sha256)
+    ):
+        raise CycleEvaluationError("expected input identities differ")
     policy = value["oracle_policy"]
     declarations = value["predeclared_oracles"]
     if type(declarations) is not list:
@@ -223,19 +272,165 @@ def _summary_for_oracle(
     }
 
 
-def _report_markdown(cycle: int, arms: Sequence[Mapping[str, object]]) -> bytes:
+def _prior_cycle_comparison(
+    *, experiment: Path, prior: ValidatedScientificReceipt | None
+) -> tuple[list[dict[str, object]], dict[str, object] | None]:
+    if prior is None:
+        return [], None
+    arms = [dict(item.value) for item in prior.arms]
+    return arms, {
+        "cycle": prior.value["cycle"],
+        "path": prior.path.relative_to(experiment).as_posix(),
+        "sha256": prior.sha256,
+    }
+
+
+def _slow_third(task: TaskSpec) -> ScheduleSegment:
+    minimum = min(segment.target_m_s for segment in task.schedule)
+    candidates = [segment for segment in task.schedule if segment.target_m_s == minimum]
+    if len(candidates) != 1:
+        raise CycleEvaluationError("task must define one unique slow-third segment")
+    return candidates[0]
+
+
+def _episode_diagnostics(
+    *,
+    execution: EpisodeExecution,
+    program: OracleProgram,
+    task: TaskSpec,
+    behavior_names: Sequence[str],
+) -> tuple[list[dict[str, object]], dict[str, float]]:
+    samples = execution.metric_samples
+    if any(sample.t != index for index, sample in enumerate(samples)):
+        raise CycleEvaluationError("metric samples are not a contiguous episode")
+    first_fall_step = execution.metrics.first_fall_step
+    previous_behavior = program.states[program.initial].behavior
+    switches: list[dict[str, object]] = []
+    for sample in samples:
+        if sample.controller_switched:
+            switch_speed = 0.0 if sample.t == 0 else samples[sample.t - 1].forward_speed_m_s
+            switches.append(
+                {
+                    "fall_followed_within_100_steps": (
+                        first_fall_step is not None and sample.t < first_fall_step <= sample.t + 100
+                    ),
+                    "from_behavior": previous_behavior,
+                    "step": sample.t,
+                    "to_behavior": sample.active_behavior,
+                    "v_x_m_s": switch_speed,
+                }
+            )
+        previous_behavior = sample.active_behavior
+    if len(switches) != execution.metrics.switch_count:
+        raise CycleEvaluationError("controller-switch diagnostics differ from episode metrics")
+
+    slow = _slow_third(task)
+    slow_samples = [sample for sample in samples if slow.start <= sample.t < slow.stop]
+    denominator = slow.stop - slow.start
+    if len(slow_samples) != denominator:
+        raise CycleEvaluationError("metric samples do not cover the frozen slow third")
+    fractions = {
+        behavior: sum(sample.active_behavior == behavior for sample in slow_samples) / denominator
+        for behavior in behavior_names
+    }
+    return switches, fractions
+
+
+def _metric_outcome(delta: float) -> str:
+    if delta < 0.0:
+        return "component-wise lower"
+    if delta > 0.0:
+        return "component-wise higher"
+    return "component-wise equal"
+
+
+def _comparison_outcomes(
+    *, prior_arms: Sequence[Mapping[str, object]], current_arms: Sequence[Mapping[str, object]]
+) -> dict[str, object] | None:
+    if not prior_arms:
+        return None
+    if len(current_arms) != 1:
+        raise CycleEvaluationError("designer cycles require one current arm for comparison")
+    candidate = current_arms[0]
+    candidate_falls = int(candidate["fall_count"])
+    candidate_mae = float(candidate["median_mean_absolute_speed_error_m_s"])
+    comparisons: list[dict[str, object]] = []
+    for baseline in prior_arms:
+        fall_delta = candidate_falls - int(baseline["fall_count"])
+        mae_delta = candidate_mae - float(baseline["median_mean_absolute_speed_error_m_s"])
+        comparisons.append(
+            {
+                "baseline_oracle_id": baseline["oracle_id"],
+                "fall_count_delta": fall_delta,
+                "fall_count_outcome": _metric_outcome(float(fall_delta)),
+                "median_mean_absolute_speed_error_delta_m_s": mae_delta,
+                "median_mean_absolute_speed_error_outcome": _metric_outcome(mae_delta),
+            }
+        )
+    return {
+        "candidate_oracle_id": candidate["oracle_id"],
+        "comparisons": comparisons,
+        "never_fall_requirement": "met" if candidate_falls == 0 else "did not meet",
+        "no_combined_ranking": True,
+    }
+
+
+def _report_markdown(
+    *,
+    cycle: int,
+    arms: Sequence[Mapping[str, object]],
+    prior_arm_count: int,
+    cycle_zero_arm_count: int,
+    episode_rows: Sequence[Mapping[str, object]],
+    behavior_names: Sequence[str],
+    slow_third: ScheduleSegment,
+    comparison_outcomes: Mapping[str, object] | None,
+) -> bytes:
     lines = [
         f"# Composition cycle {cycle}",
         "",
         f"Evidence class: `{EVIDENCE_CLASS}`. Controller switching stands in for tracker following.",
         "",
-        "| arm | episodes | median MAE (m/s) | falls | median switches | median task return |",
-        "|---|---:|---:|---:|---:|---:|",
     ]
-    for arm in arms:
+    if prior_arm_count:
+        if cycle == 1:
+            carry_forward = (
+                "The four cycle-0 rows are carried forward unchanged; only the cycle-1 candidate "
+                "was evaluated in cycle 1."
+            )
+        else:
+            carry_forward = (
+                f"The {prior_arm_count} rows from the cycle-{cycle - 1} report are carried forward "
+                f"unchanged; only the cycle-{cycle} candidate was evaluated in cycle {cycle}."
+            )
+        lines.extend(
+            [
+                carry_forward,
+                "",
+                "| source | arm | episodes | median MAE (m/s) | falls | median switches | median task return |",
+                "|---|---|---:|---:|---:|---:|---:|",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "| arm | episodes | median MAE (m/s) | falls | median switches | median task return |",
+                "|---|---:|---:|---:|---:|---:|",
+            ]
+        )
+    for index, arm in enumerate(arms):
+        source = ""
+        if prior_arm_count:
+            if index < cycle_zero_arm_count:
+                source = "cycle 0 baseline"
+            elif index < prior_arm_count:
+                source = f"cycle {index - cycle_zero_arm_count + 1} candidate"
+            else:
+                source = f"cycle {cycle} candidate"
         lines.append(
-            "| {oracle_id} | {episode_count} | {mae:.6f} | {fall_count} | "
+            "| {source}{oracle_id} | {episode_count} | {mae:.6f} | {fall_count} | "
             "{switches:.1f} | {task_return:.6f} |".format(
+                source=f"{source} | " if source else "",
                 oracle_id=arm["oracle_id"],
                 episode_count=arm["episode_count"],
                 mae=arm["median_mean_absolute_speed_error_m_s"],
@@ -244,7 +439,149 @@ def _report_markdown(cycle: int, arms: Sequence[Mapping[str, object]]) -> bytes:
                 task_return=arm["median_task_return"],
             )
         )
+    if cycle > 0:
+        if comparison_outcomes is None:
+            raise CycleEvaluationError("cycle comparison outcomes are missing")
+        comparisons = comparison_outcomes["comparisons"]
+        if type(comparisons) is not list:
+            raise CycleEvaluationError("cycle comparison outcomes are malformed")
+        candidate_arm = arms[-1]
+        fall_count = int(candidate_arm["fall_count"])
+        episode_count = int(candidate_arm["episode_count"])
+        requirement = {
+            "failed": "did not meet",
+            "passed": "met",
+        }.get(
+            comparison_outcomes["never_fall_requirement"],
+            comparison_outcomes["never_fall_requirement"],
+        )
+        labels = {
+            "improved": "component-wise lower",
+            "matched": "component-wise equal",
+            "worsened": "component-wise higher",
+        }
+        slow_segment_absent = all(
+            float(row["slow_third_behavior_fractions"][behavior_names[-1]]) == 0.0
+            for row in episode_rows
+        )
+        lines.extend(
+            [
+                "",
+                "## Outcome",
+                "",
+                f"The candidate **{requirement}** the never-fall component: "
+                f"{fall_count}/{episode_count} episodes fell.",
+                "Metric outcomes report component-wise numeric direction only; no task-success "
+                "ranking was predeclared.",
+                "",
+                *(["task not completed: slow segment absent", ""] if slow_segment_absent else []),
+                "| "
+                + ("cycle-0 baseline" if cycle == 1 else "prior arm")
+                + " | fall-count delta | fall outcome | median-MAE delta (m/s) | MAE outcome |",
+                "|---|---:|---|---:|---|",
+            ]
+        )
+        for comparison in comparisons:
+            if type(comparison) is not dict:
+                raise CycleEvaluationError("cycle comparison row is malformed")
+            lines.append(
+                "| {baseline} | {falls:+d} | {fall_outcome} | {mae:+.6f} | {mae_outcome} |".format(
+                    baseline=comparison["baseline_oracle_id"],
+                    falls=int(comparison["fall_count_delta"]),
+                    fall_outcome=labels.get(
+                        comparison["fall_count_outcome"], comparison["fall_count_outcome"]
+                    ),
+                    mae=float(comparison["median_mean_absolute_speed_error_delta_m_s"]),
+                    mae_outcome=labels.get(
+                        comparison["median_mean_absolute_speed_error_outcome"],
+                        comparison["median_mean_absolute_speed_error_outcome"],
+                    ),
+                )
+            )
+        lines.extend(
+            [
+                "",
+                "## Candidate controller switches by episode",
+                "",
+                "A fall is marked only when the episode's first fall boundary occurred after the "
+                "switch and no more than 100 control steps later.",
+                "",
+                "| seed | step | from behavior | to behavior | v_x at switch (m/s) | first fall within 100 steps |",
+                "|---:|---:|---|---|---:|:---:|",
+            ]
+        )
+        for row in episode_rows:
+            raw_switches = row["controller_switches"]
+            if type(raw_switches) is not list:
+                raise CycleEvaluationError("controller-switch diagnostics are malformed")
+            if not raw_switches:
+                lines.append(f"| {row['seed']} | n/a | none | none | n/a | no |")
+                continue
+            for switch in raw_switches:
+                if type(switch) is not dict:
+                    raise CycleEvaluationError("controller-switch event is malformed")
+                lines.append(
+                    "| {seed} | {step} | {source} | {target} | {speed:.6f} | {fall} |".format(
+                        seed=row["seed"],
+                        step=switch["step"],
+                        source=switch["from_behavior"],
+                        target=switch["to_behavior"],
+                        speed=float(switch["v_x_m_s"]),
+                        fall="yes" if switch["fall_followed_within_100_steps"] else "no",
+                    )
+                )
+        lines.extend(
+            [
+                "",
+                "## Slow-third behavior fractions by episode",
+                "",
+                f"Slow-third control steps: `[{slow_third.start},{slow_third.stop})`.",
+                "",
+                "| seed | " + " | ".join(behavior_names) + " |",
+                "|---:|" + "---:|" * len(behavior_names),
+            ]
+        )
+        for row in episode_rows:
+            raw_fractions = row["slow_third_behavior_fractions"]
+            if type(raw_fractions) is not dict:
+                raise CycleEvaluationError("slow-third diagnostics are malformed")
+            values = " | ".join(f"{float(raw_fractions[name]):.6f}" for name in behavior_names)
+            lines.append(f"| {row['seed']} | {values} |")
     return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def render_legacy_report_markdown(
+    report: Mapping[str, object], *, task: TaskSpec, behavior_names: Sequence[str]
+) -> bytes:
+    """Render a v1 scientific report without changing its frozen JSON bytes."""
+
+    if type(report) is not dict or report.get("report_schema_id") != (
+        "humanoid_composition_cycle_report/v1"
+    ):
+        raise CycleEvaluationError("legacy report schema differs")
+    cycle = report.get("cycle")
+    summary = report.get("summary")
+    rows = report.get("per_episode")
+    if (
+        type(cycle) is not int
+        or type(summary) is not dict
+        or type(summary.get("arms")) is not list
+        or type(rows) is not list
+    ):
+        raise CycleEvaluationError("legacy report evidence is malformed")
+    arms = summary["arms"]
+    prior_count = len(arms) - len(report["oracles"])
+    comparison_key = "comparison_to_cycle_zero" if cycle == 1 else "comparison_to_prior_arms"
+    return _report_markdown(
+        cycle=cycle,
+        arms=arms,
+        prior_arm_count=prior_count,
+        cycle_zero_arm_count=len(task.cycle_zero_oracle_ids),
+        episode_rows=rows,
+        behavior_names=behavior_names,
+        slow_third=_slow_third(task),
+        comparison_outcomes=report.get(comparison_key),
+    )
 
 
 def evaluate_cycle(
@@ -255,22 +592,43 @@ def evaluate_cycle(
     repository_root: Path,
     dependencies: EvaluationDependencies | None = None,
 ) -> tuple[Path, Path]:
-    """Evaluate frozen oracles, repeat the first arm, and publish one cycle report."""
+    """Evaluate sealed inputs and publish deterministic science plus telemetry."""
 
     if type(cycle) is not int or cycle < 0:
         raise CycleEvaluationError("cycle must be a non-negative integer")
-    start = time.perf_counter()
+    selected_dependencies = dependencies or EvaluationDependencies()
+    start = selected_dependencies.perf_counter()
     root = Path(repository_root).resolve(strict=True)
     experiment_path = Path(experiment).resolve(strict=True)
     output_directory = experiment_path / "cycles" / f"cycle_{cycle}"
     report_path = output_directory / f"report_{cycle}.json"
     markdown_path = output_directory / f"report_{cycle}.md"
-    if report_path.exists() or markdown_path.exists():
+    telemetry_path = output_directory / f"telemetry_{cycle}.json"
+    if report_path.exists() or markdown_path.exists() or telemetry_path.exists():
         raise CycleEvaluationError(
             "cycle report already exists; refusing to overwrite frozen evidence"
         )
-    library, task = load_frozen_inputs(experiment_path)
-    verify_library_artifacts(root, library)
+    try:
+        sealed = selected_dependencies.execution_loader(experiment_path, root)
+    except (EvidenceChainError, OracleContractError, OSError, ValueError) as exc:
+        raise CycleEvaluationError(str(exc)) from exc
+    library, task = sealed.library, sealed.task
+    identities = current_authority_identities()
+    identities["actors"] = {entry.name: entry.strict_npz.sha256 for entry in library.behaviors}
+    metric_core_sha256 = identities["metric_core"]["sha256"]
+    prior_receipt: ValidatedScientificReceipt | None = None
+    if cycle > 0:
+        try:
+            prior_receipt = validate_prior_report_chain(
+                experiment=experiment_path,
+                repository_root=root,
+                library=library,
+                task=task,
+                prior_cycle=cycle - 1,
+                expected_metric_core_sha256=metric_core_sha256,
+            )
+        except EvidenceChainError as exc:
+            raise CycleEvaluationError(str(exc)) from exc
     loaded_oracles: list[LoadedOracle] = []
     for path in oracle_paths:
         candidate = Path(path).resolve(strict=True)
@@ -290,15 +648,39 @@ def evaluate_cycle(
         raise CycleEvaluationError("at least one oracle is required")
     if len({item.program.oracle_id for item in loaded_oracles}) != len(loaded_oracles):
         raise CycleEvaluationError("oracle ids must be unique within a cycle")
+    if cycle > 0 and (
+        len(loaded_oracles) != 1
+        or loaded_oracles[0].program.oracle_id != f"cycle_{cycle}_candidate"
+    ):
+        raise CycleEvaluationError("designer cycle oracle identity differs")
     _validate_expected_inputs(
         experiment=experiment_path,
         cycle=cycle,
         library=library,
         task=task,
         loaded_oracles=loaded_oracles,
+        execution_manifest_sha256=sealed.manifest_sha256,
+        metric_core_sha256=metric_core_sha256,
+        prior_receipt=prior_receipt,
     )
+    provenance_binding: dict[str, str] | None = None
+    if cycle > 0:
+        try:
+            provenance = validate_designer_provenance(
+                experiment=experiment_path,
+                repository_root=root,
+                cycle=cycle,
+                oracle_id=loaded_oracles[0].program.oracle_id,
+                oracle_file_sha256=loaded_oracles[0].file_sha256,
+                oracle_sha256=loaded_oracles[0].program.sha256,
+            )
+        except EvidenceChainError as exc:
+            raise CycleEvaluationError(str(exc)) from exc
+        provenance_binding = {
+            "path": provenance.path.relative_to(experiment_path).as_posix(),
+            "sha256": provenance.sha256,
+        }
 
-    selected_dependencies = dependencies or EvaluationDependencies()
     actors = {
         entry.name: selected_dependencies.actor_loader(entry, root) for entry in library.behaviors
     }
@@ -309,11 +691,25 @@ def evaluate_cycle(
         )
         artifact_root = root / task.trace_artifact_directory
         episode_rows: list[dict[str, object]] = []
+        episode_telemetry: list[dict[str, object]] = []
         index_entries: list[dict[str, object]] = []
         first_hashes: dict[int, str] = {}
         for oracle_index, oracle in enumerate(loaded_oracles):
+            trace_identities = {
+                "actor_sha256_by_behavior": identities["actors"],
+                "archive_loader_sha256": identities["archive_loader"]["sha256"],
+                "execution_manifest_sha256": sealed.manifest_sha256,
+                "library_manifest_sha256": library.raw_sha256,
+                "metric_core_sha256": metric_core_sha256,
+                "oracle_file_sha256": oracle.file_sha256,
+                "oracle_interpreter_sha256": identities["oracle_interpreter"]["sha256"],
+                "oracle_sha256": oracle.program.sha256,
+                "report_writer_sha256": identities["report_writer"]["sha256"],
+                "runtime_fingerprint_sha256": fingerprint_sha256,
+                "task_spec_sha256": task.raw_sha256,
+            }
             for seed in task.seeds:
-                episode_start = time.perf_counter()
+                episode_start = selected_dependencies.perf_counter()
                 execution = execute_episode(
                     environment=environment,
                     actors=actors,
@@ -321,6 +717,7 @@ def evaluate_cycle(
                     task=task,
                     seed=seed,
                     runtime_fingerprint_sha256=fingerprint_sha256,
+                    trace_identities=trace_identities,
                 )
                 trace_path, trace_bytes = _write_trace(
                     artifact_root=artifact_root,
@@ -329,7 +726,6 @@ def evaluate_cycle(
                     oracle_id=oracle.program.oracle_id,
                 )
                 row = {
-                    "episode_wall_time_seconds": time.perf_counter() - episode_start,
                     "oracle_file_sha256": oracle.file_sha256,
                     "oracle_id": oracle.program.oracle_id,
                     "oracle_sha256": oracle.program.sha256,
@@ -338,7 +734,24 @@ def evaluate_cycle(
                     "trace_path": trace_path,
                     "trace_sha256": execution.trace_sha256,
                 }
+                switches, slow_fractions = _episode_diagnostics(
+                    execution=execution,
+                    program=oracle.program,
+                    task=task,
+                    behavior_names=library.behavior_names,
+                )
+                row["controller_switches"] = switches
+                row["slow_third_behavior_fractions"] = slow_fractions
                 episode_rows.append(row)
+                episode_telemetry.append(
+                    {
+                        "episode_wall_time_seconds": (
+                            selected_dependencies.perf_counter() - episode_start
+                        ),
+                        "oracle_id": oracle.program.oracle_id,
+                        "seed": seed,
+                    }
+                )
                 index_entries.append(
                     {
                         "byte_count": trace_bytes,
@@ -353,7 +766,20 @@ def evaluate_cycle(
                     first_hashes[seed] = execution.trace_sha256
 
         replay_oracle = loaded_oracles[0]
-        replay_start = time.perf_counter()
+        replay_start = selected_dependencies.perf_counter()
+        replay_trace_identities = {
+            "actor_sha256_by_behavior": identities["actors"],
+            "archive_loader_sha256": identities["archive_loader"]["sha256"],
+            "execution_manifest_sha256": sealed.manifest_sha256,
+            "library_manifest_sha256": library.raw_sha256,
+            "metric_core_sha256": metric_core_sha256,
+            "oracle_file_sha256": replay_oracle.file_sha256,
+            "oracle_interpreter_sha256": identities["oracle_interpreter"]["sha256"],
+            "oracle_sha256": replay_oracle.program.sha256,
+            "report_writer_sha256": identities["report_writer"]["sha256"],
+            "runtime_fingerprint_sha256": fingerprint_sha256,
+            "task_spec_sha256": task.raw_sha256,
+        }
         for seed in task.seeds:
             replay = execute_episode(
                 environment=environment,
@@ -362,41 +788,70 @@ def evaluate_cycle(
                 task=task,
                 seed=seed,
                 runtime_fingerprint_sha256=fingerprint_sha256,
+                trace_identities=replay_trace_identities,
             )
             if replay.trace_sha256 != first_hashes[seed]:
                 raise CycleEvaluationError(
                     f"nondeterministic trace for {replay_oracle.program.oracle_id} seed {seed}"
                 )
-        determinism_wall_time = time.perf_counter() - replay_start
+        determinism_wall_time = selected_dependencies.perf_counter() - replay_start
     finally:
         close = getattr(environment, "close", None)
         if callable(close):
             close()
 
+    index_identities = {
+        "actor_sha256_by_behavior": identities["actors"],
+        "archive_loader_sha256": identities["archive_loader"]["sha256"],
+        "execution_manifest_sha256": sealed.manifest_sha256,
+        "library_manifest_sha256": library.raw_sha256,
+        "metric_core_sha256": metric_core_sha256,
+        "oracle_file_sha256_by_id": {
+            oracle.program.oracle_id: oracle.file_sha256 for oracle in loaded_oracles
+        },
+        "oracle_interpreter_sha256": identities["oracle_interpreter"]["sha256"],
+        "oracle_sha256_by_id": {
+            oracle.program.oracle_id: oracle.program.sha256 for oracle in loaded_oracles
+        },
+        "report_writer_sha256": identities["report_writer"]["sha256"],
+        "runtime_fingerprint_sha256": fingerprint_sha256,
+        "task_spec_sha256": task.raw_sha256,
+    }
     index = {
         "entries": sorted(index_entries, key=lambda item: (item["oracle_id"], item["seed"])),
         "entry_count": len(index_entries),
         "evidence_class": EVIDENCE_CLASS,
-        "schema_version": 1,
+        "identities": index_identities,
+        "schema_version": 2,
+        "schema_versions": dict(SCHEMA_VERSIONS),
         "trace_index_schema_id": TRACE_INDEX_SCHEMA_ID,
     }
     index_bytes = canonical_json_bytes(index)
     index_path = artifact_root / f"cycle_{cycle}" / "content_index.json"
     _atomic_write(index_path, index_bytes)
     index_relative = index_path.relative_to(root).as_posix()
-    arms: list[dict[str, object]] = []
+    prior_arms, prior_binding = _prior_cycle_comparison(
+        experiment=experiment_path, prior=prior_receipt
+    )
+    current_arms: list[dict[str, object]] = []
     for oracle in loaded_oracles:
         rows = [row for row in episode_rows if row["oracle_id"] == oracle.program.oracle_id]
-        arms.append(_summary_for_oracle(oracle, rows, library.behavior_names))
+        current_arms.append(_summary_for_oracle(oracle, rows, library.behavior_names))
+    arms = [*prior_arms, *current_arms]
+    comparison_outcomes = _comparison_outcomes(
+        prior_arms=prior_arms,
+        current_arms=current_arms,
+    )
     report = {
         "claim_ceiling": CLAIM_CEILING,
+        "comparisons": comparison_outcomes,
         "cycle": cycle,
         "determinism_check": {
             "all_trace_hashes_equal": True,
             "oracle_id": replay_oracle.program.oracle_id,
             "replayed_episode_count": len(task.seeds),
-            "wall_time_seconds": determinism_wall_time,
         },
+        "designer_provenance": provenance_binding,
         "evidence_class": EVIDENCE_CLASS,
         "evaluation": {
             "episode_steps": task.horizon_steps,
@@ -407,7 +862,8 @@ def evaluate_cycle(
             "seeds": list(task.seeds),
             "task_return": "sum of untouched stock Humanoid-v5 reward; descriptive only",
         },
-        "generated_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "execution_manifest_sha256": sealed.manifest_sha256,
+        "identities": identities,
         "library_manifest_sha256": library.raw_sha256,
         "oracles": [
             {
@@ -419,10 +875,16 @@ def evaluate_cycle(
             for oracle in loaded_oracles
         ],
         "per_episode": episode_rows,
+        "prior_scientific_receipt": prior_binding,
         "report_schema_id": REPORT_SCHEMA_ID,
-        "runtime_fingerprint": fingerprint,
-        "runtime_fingerprint_sha256": fingerprint_sha256,
-        "schema_version": 1,
+        "runtime": {
+            "runtime_fingerprint": fingerprint,
+            "runtime_fingerprint_sha256": fingerprint_sha256,
+        },
+        "schema_version": 2,
+        "schema_versions": dict(SCHEMA_VERSIONS),
+        "scientific_receipt_schema_id": SCIENTIFIC_RECEIPT_SCHEMA_ID,
+        "source_report": None,
         "summary": {"arms": arms},
         "task_spec_sha256": task.raw_sha256,
         "trace_content_index": {
@@ -430,10 +892,34 @@ def evaluate_cycle(
             "path": index_relative,
             "sha256": _sha256_bytes(index_bytes),
         },
-        "wall_time_seconds": time.perf_counter() - start,
     }
     _atomic_write(report_path, canonical_json_bytes(report))
-    _atomic_write(markdown_path, _report_markdown(cycle, arms))
+    _atomic_write(
+        markdown_path,
+        _report_markdown(
+            cycle=cycle,
+            arms=arms,
+            prior_arm_count=len(prior_arms),
+            cycle_zero_arm_count=len(task.cycle_zero_oracle_ids),
+            episode_rows=episode_rows,
+            behavior_names=library.behavior_names,
+            slow_third=_slow_third(task),
+            comparison_outcomes=comparison_outcomes,
+        ),
+    )
+    telemetry = {
+        "cycle": cycle,
+        "determinism_replay_wall_time_seconds": determinism_wall_time,
+        "episode_wall_times": episode_telemetry,
+        "evidence_class": EVIDENCE_CLASS,
+        "generated_utc": selected_dependencies.utc_now(),
+        "host": dict(selected_dependencies.host_factory()),
+        "schema_version": 1,
+        "scientific_receipt_sha256": _sha256_bytes(canonical_json_bytes(report)),
+        "telemetry_schema_id": TELEMETRY_SCHEMA_ID,
+        "total_wall_time_seconds": selected_dependencies.perf_counter() - start,
+    }
+    _atomic_write(telemetry_path, canonical_json_bytes(telemetry))
     return report_path, markdown_path
 
 
@@ -442,4 +928,5 @@ __all__ = [
     "CycleEvaluationError",
     "EvaluationDependencies",
     "evaluate_cycle",
+    "render_legacy_report_markdown",
 ]

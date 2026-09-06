@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | Substrate exists and is verified: three imported public actors, a plain-runtime reference corpus with replay and plain-comparison certificates (`108` clips, run v2), an E3 fork corpus (`28/36` admitted blocks), and a host-verified reward sandbox in Astra's lane. The 2026-09-05 alignment audit found that no harness cycle has run on any MDP. |
-| bottleneck | The critical path drifted into tracker admission science (E1-E5) and hardening, which the collaborator's frame treats as given. The imported expert failed its frozen development screen (`19/20`), and the authority-gap analysis shows a `0.08` residual cannot reproduce the medium or simple gaits at all (`0/56,000` steps), so the residual tracker family is dead before training. |
-| next step | Run composition-loop cycle 0 and 1 on stock `Humanoid-v5` with the library executed by controller switching (Experiment 003, packet `E003-C0`), as a CLI command with a JSON cycle report; in parallel build the fine-tuning runtime (warm start from the expert, full authority) as the local policy-training block for both knobs; move E5 and the hardening backlog off the critical path. |
+| progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |
+| bottleneck | Neither lane has a trained result. Both wait on the combined re-review of FT2R1 to FT2R3, the disposable smoke under a mailbox reservation, and Samuel's authorization for any five-seed cohort. |
+| next step | Fable: re-pin the F3 one-call protocol to the reward lane, lock the T2 reward-study protocol (oracle variant, matched controls, endpoint), and run reward cycle 0 and 1 once compute is authorized. Astra: re-reviews, smoke reservation, next composition packet. |
 
 ## Fable's authority
 
@@ -263,6 +263,85 @@ Decisions from the audit (strategy authority; Samuel may reverse any of them; AD
 5. The sealed E5 blocks were read by the authority-gap analysis and are no
    longer sealed; if E5 ever runs, it draws new sealed seeds first.
 
+## Composition loop results (2026-09-05T18:51Z)
+
+| cycle | designer | arm | median speed MAE (m/s) | falls | note |
+|---|---|---|---:|---:|---|
+| 0 | predeclared | `single_fast` (expert only) | 2.07 | 0/20 | best score; ignores the slow third |
+| 0 | predeclared | `single_slow` (simple only) | 3.31 | 0/20 | |
+| 0 | predeclared | `playback` (switch at 300 and 600) | 3.18 | 20/20 | falls after the first switch |
+| 0 | builder | `handwritten` (velocity and time guards) | 3.21 | 20/20 | never reached `simple` |
+| 1 | read-only LLM from the prompt only | staged through `medium`, dwell 30, velocity gates, recovery | 3.22 | 20/20 | fell 22-57 steps after every expert-to-medium switch at step 300 |
+
+Task T1: fast (expert median `5.52 m/s`) for steps `0`-`299`, slow (simple
+median `0.89 m/s`) for `300`-`599`, fast again to `999`; `20` fixed seeds;
+metric from simulator state; label `exploratory_oracle_cycle`.
+
+What the loop established: the designer can produce contract-valid programs
+from the prompt alone, the reports are deterministic (`20/20` replay), and
+none of the three tested step-300 handovers at running speed survived;
+alternative phases, timings, and state-conditioned handovers are untested
+(correction recorded after the scientific review of `74d7aa5`, SCI-002). That is the collaborator's point restated
+as a measurement: the composition knob needs a tracker that follows a
+composed reference and learns the transition (fine-tuning runtime), and the
+harness's job includes detecting infeasibility and reporting it to the human
+with options rather than iterating blindly.
+
+### Corrections and phase B endpoint after the Experiment 003 reviews (2026-09-05T20:23Z)
+
+| item | correction |
+|---|---|
+| Steering text (SCI-001) | Fable's cycle-2 steering said every cycle-0 and cycle-1 fall followed an expert-to-medium switch by `22`-`57` steps. The cycle-0 playback arm switched expert to simple and fell `20`-`25` steps later; the handwritten arm switched expert to medium and fell `23`-`60` steps later; only the cycle-1 candidate has the `22`-`57` range. The cycle-2 designer worked from that inaccurate summary; the historical text stays, with this correction attached in the cycle record. |
+| Infeasibility wording (SCI-002) | "Cannot hand over" is replaced everywhere by "none of the three tested step-300 running-speed handovers survived; alternative phases, timings, and state-conditioned handovers remain untested". |
+| Evaluator lineage (SCI-004, R03, R04) | The runtime fingerprint hashed only the executor while the evaluator changed each cycle, and reports embed timestamps, so identical reruns change hashes. The repair slice binds runtime, interpreter, metric-core, report-writer, loader, and schema identities separately and chains cycles through a deterministic scientific receipt with telemetry outside the hash. |
+| Designer provenance (SCI-005, R07) | Designer isolation is audit-log-only, not OS-enforced; sanitized provenance receipts (packet, request, events, final response, allowed inputs, model and effort, canonical oracle) are committed per cycle and the property is labeled as observed, not enforced. |
+| Report wording (SCI-007) | "passed" and "improved" become "component-wise lower, equal, or higher" with "task not completed: slow segment absent" above the comparison table. |
+
+Phase B task-success endpoint, frozen before any phase B evaluation (SCI-003):
+
+| element | rule |
+|---|---|
+| Safety gate | `0/20` falls, no forbidden contact, all `1,000` steps completed; an unsafe arm never outranks a safe arm |
+| Episode success | fast, slow, and return-fast segment tolerances and both transition-latency bounds met; tolerances calibrated on a separate calibration-only split and frozen before candidate evaluation |
+| Primary endpoint | per checkpoint: task-success proportion over the `20` fixed evaluation seeds with an exact binomial interval; arm-level inference uses the matched PPO seeds (five final checkpoints) as the independent units, paired across arms; episodes are never pooled as `n = 100` |
+| Secondary endpoints | equal-weight mean of the three segment errors, transition-window error, settle latency, time to first failure |
+| Ordering | safety gate, then task-success proportion, then segment-balanced error, then transition latency; no post-hoc weighted aggregate |
+| Controls | fixed training and evaluation seeds, budget, final-checkpoint rule, tracker, reward and reference manifests, evaluator digest; tolerances (segment speed-error bands, transition-latency caps, settled-state band, censoring rule) calibrated on a disjoint calibration split of blocks and seeds with the complete procedure frozen before candidate evaluation |
+
+## Phase B design decisions (2026-09-05T19:32Z)
+
+From the fine-tuning runtime survey (`sol-survey-20260905-ft`, clean `89688ba`).
+Frozen by strategy authority; the builder packets bind them.
+
+| item | decision |
+|---|---|
+| Policy | Full-authority actor warm-started bitwise from the expert: input `float32[708] = state[348] || reference[8,45]`; the reference columns of the first affine layer start at positive zero; second layer, mean head, and state-dependent log-std head copied bitwise; log-std clamped to `[-20, 2]`; fresh value network `708-256-256-1`; no residual, blend, or expert bypass; exact strict-runtime action mapping (a generic rescale wrapper differs on `58%` of random controls by up to `6e-8` and is not E1-safe). |
+| E1 receipt | Four synthetic states plus `64` SHA-ranked real `(block, boundary)` fixtures; bitwise equality of copied parameters, mean, log-std, deterministic and seeded stochastic actions, reload, and export; PPO likelihood recomputation within `1e-5`; the listed negative tests. |
+| Reference composition | The oracle program (same guard grammar, schema `humanoid_reference_composition_oracle/v1`) selects the active behavior; on a behavior change the target phase is the nearest-state boundary `j* <= t` by lexicographic (max normalized error, sum of squares, index); holds advance one boundary per step; no continuous rematching; no wrap; terminal hold only at the reference end. Static check over the nine admitted training blocks: nearest-phase transfer halves the same-index splice error (expert to medium `1.26`-`2.57` versus `1.51`-`5.24`). |
+| Reward | Training reward is `r_track + r_task`; the baseline is `tracking_only/v1` with `r_task = +0.0`; the stock reward is descriptive telemetry only (this supersedes the earlier "cycle 0 = stock reward" sentence). Reward specifications enter through a fail-closed registry keyed by schema, formula, parser, bounds, and compositor hashes; `CandidateTaskInputsV2` exposes only the trusted COM forward velocity and the constant target `3.0 m/s`; Astra's V1 draft is not integrable and must be handed over as a reviewed V2. |
+| Training design | Inherited PPO recipe and budget (`1,048,576` transitions per seed, seeds `121001`-`121401`, final checkpoint only); training blocks are the nine admitted v2 blocks; two composition-stream and two rehearsal-stream environments at `50/50`; first eight rollouts train only the reference columns and the value network, then the full actor; PPO losses only; no gait ID or imitation loss. |
+| Utility gate | Evaluation blocks `120101`-`120120` with failures in the denominator; three hold cells and one fixed round-trip cell (`20` episodes each); safety plus six whole-episode RMSE scales plus `E <= 1` for eight boundaries within `64` steps after each switch; cell pass `>= 16/20`; family `>= 4/5` of five checkpoints; the step-0 E1 actor reported beside every checkpoint. Bounded utility only. |
+| Labels | `interface_check` for no-learning checks and the disposable smoke; `exploratory_fine_tuning_cycle` for trained cycles; claim ceiling: exploratory reference-conditioned fine-tuning utility only, no causal reference use, oracle or reward improvement, generalization, naturalness, or competence claim. |
+| Compute and gates | Disposable smoke seed `121901`, `196,608` transitions, expected `3 min`, hard `20 min`, mailbox acceptance required; one five-seed arm about `106 min` (hard `120`), which needs a mailbox reservation and Samuel's explicit authorization; a matched two-arm reward comparison about `186 min` as two sequential reservations. |
+
+## Reward lane under Fable (2026-09-06T04:09Z)
+
+Inherited from Astra at the swap (ADR 0009): the A1 proposal and ingestion loop
+(`reward_search` package: `prepare`, `ingest-sol`, `prepare-revision`),
+static-only B0 validation (R1 accepted; R2 containment and R3 provenance still
+gate any generated Python), the F1 target-speed formula lineage, the F2 T2
+evaluator (registered in `main` by FT2R2), and the F3 one-call protocol
+(`ACCEPT_F3_STATIC_ONLY`, conditional `APPROVE_F3_ONE_CALL_PROTOCOL`, zero calls
+made). The reward knob has never been executed against a trained policy.
+
+| item | decision |
+|---|---|
+| First milestone | One executed reward cycle on the fine-tuning runtime for task T2 (hold `3.0 m/s` COM forward speed for `1,000` steps from the expert start, seeds `97001`-`97020`): a tracking-only baseline cohort (`r_task = +0.0`), one LLM alpha and beta hypothesis through the accepted F3 one-call protocol re-pinned to this lane, a matched candidate cohort under the same frozen oracle, initialization, budget, seeds, and evaluator, protected evaluation that measures the tradeoff against tracking rather than relaxing it, and one revision prepared from measured feedback. |
+| Oracle variant for T2 | To be locked in a reviewed protocol before any cohort: fixed expert-reference hold (`expert_hold/v1`) is the candidate variant because it is the collaborator's steer-the-speed example and gives the task reward real work; the survey's medium-hold variant is the alternative. The headroom of either is unknown until the baseline cohort measures COM speed; corpus medians (`5.52`, `3.07 m/s`) are root-delta quantities and do not measure COM-speed task error. |
+| Matched controls | A cohort counts as the reward study's baseline only if its oracle, task, initialization, training design, seeds, and evaluator match the candidate arm and were declared before running; the tracker lane's composition cohort is a separate study unless every condition matches. |
+| Route | Data-only formula family first (F2, bounded alpha and beta); generated Python stays behind R2 and R3. |
+| Compute | The disposable smoke and every cohort follow the shared gates: mailbox reservation, one heavy job at a time, Samuel's authorization for cohorts. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -337,6 +416,12 @@ goal ID.
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Record the corpus result (`108/108` certified, E3 `27/36`, role split `9/14/4`), preserve the stopped screen run, and require an instrumentation fix with a 1,000-step equivalence canary before any screen, tracker, or candidate-reward result. | Slice 03B receipts (`41b2597`); E3 certificate `c977f506…`; runner stop at seed `96001` | diagnostic worker report; fixed slice passes the canary; versioned screen v2 | recorded; diagnostic and two reviews running |
 | 2026-09-05 | `LG-01`, `LG-04`, `LG-10`, `LG-13` | Preregister E3 block admission, the E4 fifteen-cell gait-transition screen and its pass rule, E5's admitted-block rule, and the tracker labels, before any run v2 result is read. | SCI-03 of the `41b2597` scientific review; design survey `sol-survey-20260905-b` | packet B binds the admission map of the run it uses; E4 and E5 receipts cite this row | recorded 2026-09-05T07:20Z |
 | 2026-09-05 | `LG-01`, `LG-02`, `LG-05`, `LG-13`, `LG-15`, `LG-16` | Alignment pivot: run the composition loop now with controller switching; retire the residual tracker family; make the local policy-training block a fine-tuning runtime warm-started from the expert; move E5 and hardening off the critical path; every cycle is a CLI command with a JSON report. | Samuel's alignment request; transcript re-read; authority-gap analysis (`0/56,000` steps within `0.08`); failed screen `19/20` | cycle-0 and cycle-1 reports exist and a human can steer cycle 2 from text | recorded 2026-09-05T17:50Z; ADR 0008 |
+| 2026-09-05 | `LG-02`, `LG-05`, `LG-06`, `LG-16` | Record cycles 0 and 1 of the composition loop; conclude that controller switching cannot compose this library; make the fine-tuning runtime the next block and one steered cycle 2 the confirmation. | cycle reports `report_0`, `report_1`; designer runs `e003d1`, `e003d2` | cycle 2 confirms or refutes the infeasibility; the fine-tuning runtime smoke keeps identity at step 0 and trains | recorded 2026-09-05T18:51Z |
+| 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Freeze the phase B fine-tuning runtime design (full-authority E1 warm start, nearest-state phase transfer, tracking-only baseline reward, utility gate) and split implementation into `FT1` and `FT2`; training beyond the 20-minute smoke needs Samuel's authorization. | survey `sol-survey-20260905-ft`; phase A closure `74d7aa5` | FT1 passes the E1 receipt and phase-transfer tests; FT2 trains a fake runtime end to end; the smoke keeps identity at step 0 | recorded 2026-09-05T19:32Z |
+| 2026-09-05 | `LG-02`, `LG-05`, `LG-16` | Fold the Experiment 003 reviews: correct the steering and infeasibility record, freeze the phase B task-success endpoint, and run repair slice `E003R1` (evaluator and schema identities, deterministic scientific receipts, prior-report chain validation, sealed execution manifest, designer provenance receipts, recovery semantics, non-vacuous negatives) before the training-worker slice. | reviews `sol-review-sci-20260905-e003` (ACCEPT-WITH-REPAIRS, 6 P1) and `sol-review-adv-20260905-e003` (ACCEPT-WITH-REPAIRS, 9 P1, 1 P2) | repair slice passes its negatives; identical reruns give identical scientific receipts | recorded 2026-09-05T20:23Z |
+| 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT1 scientific review (ACCEPT-WITH-REPAIRS, 4 P1, 1 P2) and the E003R1 robustness review (ACCEPT-WITH-REPAIRS, 4 P1, 3 P2) into repair slice `FT2R1` before any training smoke; clarify the phase B endpoint's independent unit and calibration split; accept Astra's F2 formula interface with an adapter-owned velocity admission certificate. | reviews `sol-review-sci-20260905-ft1`, `sol-review-adv-20260905-e003r1`; Astra proposal `20260905T220539` | FT2R1 negatives pass; no smoke before the reservation | recorded 2026-09-05T23:08Z |
+| 2026-09-06 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT2 reviews (scientific ACCEPT-WITH-REPAIRS, 8 P1, 1 P2; robustness ACCEPT-WITH-REPAIRS, 9 P1) into two repair slices, `FT2R2` (evaluator independence, evaluation lineage, non-scoring endpoint, rollout likelihood audit, report completeness, reservation binding, bounded loaders, cohort authority, the F2 registry entry) and `FT2R3` (sealed-input lineage in the worker, clean-environment and resource isolation, bounded IPC frames, fail-closed RSI evidence, mechanism-level negatives); the disposable smoke waits for both. FT2R1 committed as `5965f0c`. | reviews `sol-review-sci-20260905-ft2`, `sol-review-adv-20260905-ft2`; FT2R1 final | repair negatives pass; a combined re-review before the smoke | recorded 2026-09-06T00:32Z |
+| 2026-09-06 | `LG-03`, `LG-05`, `LG-11`, `LG-15` | Lane swap on Samuel's instruction: Fable takes the reward and feedback lane, Astra the oracle and tracker lane; tracker lane handed over at FT2R3 (`docs/operations/TRACKER_LANE_HANDOFF.md`); reward-lane first milestone defined. | Samuel's instruction to both orchestrators; Astra proposal `20260906T023515`; ADR 0009 | reward cycle 0 and 1 executed on T2 with a matched baseline | recorded 2026-09-06T04:09Z |
 
 ## Known strategy inconsistencies
 

@@ -1,0 +1,69 @@
+{
+  "behaviors": [
+    "expert",
+    "medium",
+    "simple"
+  ],
+  "evidence_class": "exploratory_oracle_cycle",
+  "initial": "fast_open",
+  "oracle_id": "cycle_1_candidate",
+  "recovery": {
+    "behavior": "medium",
+    "guard": "torso_up < 0.8 or z_root < 1.1"
+  },
+  "schema_version": 1,
+  "states": {
+    "accelerate_medium": {
+      "behavior": "medium",
+      "min_dwell": 30
+    },
+    "decelerate_medium": {
+      "behavior": "medium",
+      "min_dwell": 30
+    },
+    "fast_finish": {
+      "behavior": "expert",
+      "min_dwell": 30
+    },
+    "fast_open": {
+      "behavior": "expert",
+      "min_dwell": 1
+    },
+    "slow_hold": {
+      "behavior": "simple",
+      "min_dwell": 30
+    }
+  },
+  "transitions": [
+    {
+      "from": "fast_open",
+      "guard": "t >= 300",
+      "priority": 0,
+      "to": "decelerate_medium"
+    },
+    {
+      "from": "decelerate_medium",
+      "guard": "t >= 600",
+      "priority": 0,
+      "to": "accelerate_medium"
+    },
+    {
+      "from": "decelerate_medium",
+      "guard": "v_target < 2.0 and v_x <= 2.0 or v_target < 2.0 and dwell >= 80",
+      "priority": 1,
+      "to": "slow_hold"
+    },
+    {
+      "from": "slow_hold",
+      "guard": "t >= 600",
+      "priority": 0,
+      "to": "accelerate_medium"
+    },
+    {
+      "from": "accelerate_medium",
+      "guard": "v_target > 5.0 and v_x >= 4.3 or v_target > 5.0 and dwell >= 80",
+      "priority": 0,
+      "to": "fast_finish"
+    }
+  ]
+}

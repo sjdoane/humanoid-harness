@@ -88,18 +88,18 @@
     "schema_version": 1,
     "source_hashes": {
       "compositor": "2d406f610726f567c59b9757d9a3ce7f96e115ee352fac662e52c329578ce23e",
-      "contract": "d0ec0495b11bd8c062f35f72b05760f00a5ad28422f76765a200999c38ea6320",
+      "contract": "e7f99a0fbd48b95fac6613bf4ec8caddfbfd58c91de0fdccdf79871bbfdbcbff",
       "environment": "41fd30a944faf39da15414527a6f70d1e69c4b0bfa4531560bfbc89da2b364e9",
-      "manifest": "549ee2ec8bb3b4a00bd85e513c7ee2a18f0b87932ccd342b780b336944e0cc3f",
+      "manifest": "737d037e810f61347dc8287f1ede5a1bd4fb4d2f7f572f58708a64275465e65b",
       "policy": "825f9258b8d606b14a17fe7cf0ed833065df7bd5765f455cc7788fa6517cd65c",
       "protected_endpoint": "41cd3117785a6c188cdca6ee31fb7b06174f3e18bf565c2964fcb2451810859d",
-      "sandbox": "008e67ffb6493d227ee770020e9dc91d6aa296d2625cb93b2e466d38ac757212",
-      "sandbox_worker": "3ab6818d75e5f2d015e9006be9a5a8dc96ff9c43ab823b9f6e0dc496a49ddac9",
-      "scale_calibration": "df04181999c7888f6efe3372fd439c50967e24641bf9453f4271361854c92cba",
+      "sandbox": "855bd8f89580a6014abfff75f6f85193502300dd4f55d9047c3c4744f96a059c",
+      "sandbox_worker": "36112b9d48c152290188ca6a2e242862c6c3d35f616f9f19bd395163c83240c9",
+      "scale_calibration": "8044470be0ce437a89827ae5958b81a9c88e600cb163a32d198bd92061a23a54",
       "trainer": "1bc9eecd01229e477404cc70a7ce27e1cb4b437173fe2aaa67140f1159aaab5f",
-      "validator": "141b30a2c0ee58c13fbd8741f62e0e81a14fb33485e2f005af7292e17a81bad4"
+      "validator": "4c3819007127e4db3126080896b1bcaf6684fc44ee98d7546e66e3cd43888de0"
     },
-    "source_tree_sha256": "dfa4b485b6300b3e66f5290ed2e40171bedb2fff6db0dfbc0d1f3978e5659ad3",
+    "source_tree_sha256": "fce758a405147977389c3f25acc7fcee4581fb76d25f2a36e1795734666ad5db",
     "torque_capacity_n_m": [
       40.0,
       40.0,
@@ -120,7 +120,7 @@
       10.0
     ]
   },
-  "runtime_sha256": "80fa91128cfdbed249afeb418fd6970bc6238f7b5fbf0aeb10c67b890e6b2d14",
+  "runtime_sha256": "bb2b89326c7c8adaafbf0fd6ca9d9bfab9fd8e8f5184ebf860af93a0e8bff23f",
   "schema_version": 1,
   "training_run": false
 }

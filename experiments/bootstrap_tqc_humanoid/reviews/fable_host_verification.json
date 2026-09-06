@@ -68,6 +68,70 @@
       "ruff": "clean, 247 files formatted",
       "started_utc": "2026-09-05T18:30:37Z",
       "tree": "Slice E003C0 (composition-loop cycle CLI and cycle 0) before the reward receipt regeneration"
+    },
+    {
+      "commit": "5dfd701",
+      "finished_utc": "2026-09-05T18:52:38Z",
+      "result": "1322 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 250 files formatted",
+      "started_utc": "2026-09-05T18:50:29Z",
+      "tree": "Slice E003C1 (cycle-1 evaluation and diagnostics) before the reward receipt regeneration"
+    },
+    {
+      "commit": "74d7aa5",
+      "finished_utc": "2026-09-05T19:08Z",
+      "result": "1323 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 250 files formatted",
+      "started_utc": "2026-09-05T19:05Z",
+      "tree": "Slice E003C2 (cycle-2 evaluation, phase A closure) before the reward receipt regeneration"
+    },
+    {
+      "commit": "58e71aa",
+      "finished_utc": "2026-09-05T20:24:13Z",
+      "result": "1351 passed, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 266 files formatted",
+      "started_utc": "2026-09-05T20:22:02Z",
+      "tree": "Slice FT1 (phase B contracts, warm start, phase transfer, reward) before the reward receipt regeneration"
+    },
+    {
+      "commit": "6dc946b",
+      "finished_utc": "2026-09-05T21:42:34Z",
+      "result": "1508 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt (also stale after the Astra merge 8d91a81); reward and manifest tests 135 passed after regeneration (integration commit)",
+      "ruff": "clean, 319 files formatted",
+      "started_utc": "2026-09-05T21:40:21Z",
+      "tree": "Slice E003R1 on top of the Astra integration merge, before the reward receipt regeneration"
+    },
+    {
+      "commit": "f6287e5",
+      "finished_utc": "2026-09-05T23:10:44Z",
+      "result": "1538 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 328 files formatted",
+      "started_utc": "2026-09-05T23:07:59Z",
+      "tree": "Slice FT2 (training worker, supervision, persistence, report v2, CLI train) before the reward receipt regeneration"
+    },
+    {
+      "commit": "5965f0c",
+      "finished_utc": "2026-09-06T00:31:47Z",
+      "result": "1571 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "clean, 332 files formatted",
+      "started_utc": "2026-09-06T00:26:33Z",
+      "tree": "Slice FT2R1 (training-admission repairs) before the reward receipt regeneration"
+    },
+    {
+      "commit": "2930cd6",
+      "finished_utc": "2026-09-06T02:23:44Z",
+      "result": "1699 passed, 16 skipped, 1 failed: only the reward-lane receipt binding test on the pre-regeneration receipt; reward manifest file 8/8 after regeneration (integration commit)",
+      "ruff": "check clean; format: 358 files formatted, 1 pre-existing Astra packet document (TASK-F2-t2-evaluator.md, their commit 2c94710a) would be reformatted, out of Fable scope",
+      "started_utc": "2026-09-06T02:18:25Z",
+      "tree": "Slice FT2R2 (scientific-integrity repairs, F2 registry entry) before the reward receipt regeneration"
+    },
+    {
+      "commit": "c945379",
+      "finished_utc": "2026-09-06T04:10:28Z",
+      "result": "1729 passed, 16 skipped, 2 failed: the reward-lane receipt binding test on the pre-regeneration receipt (regenerated, 8/8 after), and tests/phase_b/test_cli_report_persistence.py::test_cli_fake_runtime_end_to_end_writes_deterministic_report_v2, which failed inside the full outside-sandbox run but passed alone on the same host (24 s); the builder's in-sandbox full run showed only the 44 baseline failures. Open finding handed to the tracker lane (Astra): load- or order-sensitive, to be diagnosed in the FT2R1-FT2R3 re-review.",
+      "ruff": "check clean; format: 362 files formatted, 1 pre-existing Astra packet document would be reformatted (their fix 949f686 pending integration)",
+      "started_utc": "2026-09-06T04:06:49Z",
+      "tree": "Slice FT2R3 (isolation repairs) before the reward receipt regeneration"
     }
   ],
   "schema_version": 1
