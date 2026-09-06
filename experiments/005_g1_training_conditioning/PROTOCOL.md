@@ -17,6 +17,9 @@
   hyperparameters and independent evaluator remain unchanged.
 - Raw and scaled arms use the same reviewed source. The raw arm must reproduce
   all nine original O2r1 output artifacts before interpreting the scaled arm.
+- The scaled arm must retain byte-identical zero-residual trajectory, frames,
+  evaluation and initial policy. Pin its exact factor and trainer identity in
+  the manifest and exact-request receipt, not just a display label.
 - One local worker at a time; each exact request retains its 1,200 s, 8 GiB limit.
 - This is a development comparison, not held-out evaluation or a reward-knob study.
 
@@ -40,8 +43,8 @@
 | Does value prediction improve? | Mean explained variance over the last 16 updates is at least 0.5. Report the full curve. |
 | Is the gait retained? | Full 20 s without falling, both state transitions, existing joint and roll/pitch gates pass. |
 | Does task behavior regress? | Compliance at least 0.534; overall speed MAE at most 0.35 m/s; lateral max at most 2.970430 m. |
-| Is there a task-level gain? | At least one previously failing independent task gate changes to pass. Report every gate. |
-| May this trainer proceed to a longer-budget comparison? | All rows above pass. Otherwise retain the raw trainer while diagnosing the result. |
+| Is there a task-level gain? | Report every independent task gate and whether a previously failing gate changes to pass; descriptive at this screen. |
+| May this trainer proceed to a longer-budget comparison? | The mechanism, gait and no-regression rows pass. A gate flip is not required to test the remaining budget hypothesis. Otherwise retain the raw trainer while diagnosing the result. |
 
 - Value-loss magnitudes have different units across arms. Smaller scaled loss
   is expected mechanically and is not an improvement criterion.
@@ -50,6 +53,9 @@
 - An attempted epoch can stop partway through. Do not label this counter as
   completed epochs or optimizer minibatch steps.
 - The full task gate is unchanged. A trainer-screen pass is not task success.
+- Proceed-rule clarification accepted from Fable's review before either new
+  arm ran: improved value prediction with retained gait justifies testing a
+  longer budget, even without an immediate task-gate flip.
 - Failure of scaling does not uniquely identify capacity, learning rate, reward
   design or observations as the cause; retain competing explanations.
 
