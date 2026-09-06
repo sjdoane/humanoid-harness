@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Slot review passed core behavior and found two path/error defects; parent repaired them, with 37 focused passes. |
-| bottleneck | Independent repair closure and Fable supervisor integration are pending; no accepted smoke slot. |
-| next step | Collect the two-finding closure in the active-run pointer, then hand reviewed source to Fable. No training. |
+| progress | Slot helper independently accepted and committed at `b7b67b7`; parent recheck has 37 focused passes. |
+| bottleneck | Fable-owned supervisor integration and exact smoke resource agreement remain pending. |
+| next step | Hand accepted source to Fable; review/import its clean integration, refresh T1 preflight, then propose the bounded smoke. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 15:21 UTC; slot findings repaired and closure prepared.
+- Last checkpoint: 2026-09-06, 15:56 UTC; helper accepted and committed for peer integration.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,20 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- **Accepted source:** `b7b67b7925650db2e999953e6b85e81f865c7d34`.
+  `RESOURCE_SLOT_01_ACCEPTANCE.md` records the exact closure and caller duties.
+- Closure verdict `ACCEPT_RESOURCE_SLOT_HELPER_ONLY`, terminal 15:29:43 UTC,
+  exit 0; watcher observed completion. Both defects closed, all five hashes
+  verified; final parent recheck 37 passed in 2.69 s. No live Astra worker.
+- Fable owns supervisor integration and main promotion. Do not duplicate the
+  helper review, modify its peer checkout, or acquire a real compute slot.
+  Refresh T1 preflight only after the reviewed final integration is available.
+- Fable reports pairing closure and one initial F3 call. Its `2806729` ledger
+  records alpha 1.0 / beta 0.0, hypothesis only, not admitted or measured.
+  Astra read the committed record and acknowledged the message, not raw logs.
+
+### Repair checkpoint (retained)
 
 - Current result: `RESOURCE_SLOT_01_REVIEW_RESULT.md`; original independent
   verdict `REPAIRS_RESOURCE_SLOT_01`, terminal 14:54:15 UTC, watcher observed
