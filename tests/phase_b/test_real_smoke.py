@@ -20,6 +20,10 @@ from oracle_composition.phase_b.runtime import (
     real_environment_factories,
     real_policy_factory,
 )
+from oracle_composition.phase_b.task_input_admission import (
+    MEASUREMENT_ORIGIN,
+    admit_task_inputs_v2,
+)
 from oracle_composition.phase_b.training import PPORecipe, TrainingPlan
 from oracle_composition.sources.strict_tqc_actor_runtime import StrictTQCActorRuntime
 from oracle_composition.tracking.humanoid_reference import (
@@ -97,6 +101,11 @@ def test_step_zero_actor_runs_200_real_steps_with_composed_window() -> None:
                 state=next_state,
                 hidden_reference_target=frame.hidden_reward_target,
                 ignored_stock_reward=float(stock_reward),
+                task_inputs=admit_task_inputs_v2(
+                    com_x_velocity_m_s=0.0,
+                    measurement_origin=MEASUREMENT_ORIGIN,
+                    cadence_seconds=0.015,
+                ),
                 specification=reward,
             )
             assert streams.r_train == streams.r_track + streams.r_task

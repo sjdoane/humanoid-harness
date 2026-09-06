@@ -25,6 +25,7 @@ from oracle_composition.contracts.reference_identity_v2 import (
 from oracle_composition.experiments.reference_corpus_bundle import load_bundle_manifest
 
 from .contract import (
+    ALLOWED_SIGNALS,
     EVIDENCE_CLASS,
     OracleContractError,
     load_oracle_program,
@@ -77,6 +78,7 @@ MAX_CORPUS_ARRAY_MEMBER_BYTES = 64 * 1024
 MAX_CYCLES = 32
 MAX_EVIDENCE_JSON_DEPTH = 64
 MAX_EVIDENCE_JSON_NODES = 500_000
+MAX_SIGNED_32 = 2_147_483_647
 
 SCHEMA_VERSIONS = MappingProxyType(
     {
@@ -683,6 +685,7 @@ def validate_designer_provenance(
         "designer_provenance_schema_id",
         "evidence_class",
         "isolation_property",
+        "launch_identity",
         "requested",
         "run_artifacts",
         "run_id",
@@ -701,10 +704,17 @@ def validate_designer_provenance(
         != {
             "model": "gpt-5.6-sol",
             "reasoning_effort": "max",
-            "source": "request.json_confirmed_by_result.json",
+            "source": "requested_identity_only",
         }
     ):
         raise EvidenceChainError("designer provenance identity differs")
+    receipt_launch_identity = receipt["launch_identity"]
+    if type(receipt_launch_identity) is not dict or set(receipt_launch_identity) != {
+        "runner_kind",
+        "screen_name",
+        "started_at_utc",
+    }:
+        raise EvidenceChainError("designer receipt launch identity differs")
     run_id = receipt["run_id"]
     if (
         type(run_id) is not str
@@ -849,25 +859,93 @@ def validate_designer_provenance(
     if absent_artifacts and artifact_bytes:
         raise EvidenceChainError("designer raw audit bundle is incomplete")
     if not artifact_bytes:
-        if source_oracle_bytes is not None:
-            raise EvidenceChainError("designer source oracle exists without its raw audit bundle")
-        return ValidatedDesignerProvenance(path=path, sha256=hashlib.sha256(encoded).hexdigest())
+        raise EvidenceChainError("designer provenance is unverifiable without its raw audit bundle")
     if source_oracle_bytes is None:
         raise EvidenceChainError("designer raw audit bundle omits its source oracle")
+    launch = _decode_bounded_object(
+        artifact_bytes["launch.json"], maximum=MAX_REPORT_BYTES, source="designer launch"
+    )
     request = _decode_bounded_object(
         artifact_bytes["request.json"], maximum=MAX_REPORT_BYTES, source="designer request"
     )
     result = _decode_bounded_object(
         artifact_bytes["result.json"], maximum=MAX_REPORT_BYTES, source="designer result"
     )
+    launch_keys = {"runner_kind", "runner_pid", "schema_version", "screen_name", "started_at_utc"}
+    request_keys = {
+        "codex_bin",
+        "codex_cli_version",
+        "created_at_utc",
+        "mode",
+        "owner",
+        "prompt_bytes",
+        "prompt_sha256",
+        "requested_model",
+        "requested_reasoning_effort",
+        "role",
+        "runner_kind",
+        "schema_version",
+        "scope",
+        "screen_name",
+    }
+    result_keys = {
+        "codex_cli_version",
+        "exit_code",
+        "finished_at_utc",
+        "lease_release",
+        "requested_model",
+        "requested_reasoning_effort",
+        "role",
+        "runner_kind",
+        "schema_version",
+        "scope",
+        "screen_name",
+        "status",
+        "termination_escalated",
+        "thread_id",
+    }
+    task_packet = artifact_bytes["task-packet.md"]
     if (
-        request.get("requested_model") != receipt["requested"]["model"]
+        set(launch) != launch_keys
+        or set(request) != request_keys
+        or set(result) != result_keys
+        or {
+            "runner_kind": launch["runner_kind"],
+            "screen_name": launch["screen_name"],
+            "started_at_utc": launch["started_at_utc"],
+        }
+        != receipt_launch_identity
+        or launch["schema_version"] != 1
+        or type(launch["runner_pid"]) is not int
+        or not 1 <= launch["runner_pid"] <= MAX_SIGNED_32
+        or request["schema_version"] != 1
+        or request["mode"] != "read-only"
+        or request["role"] != "designer"
+        or result["schema_version"] != 1
+        or result["role"] != request["role"]
+        or result["scope"] != request["scope"]
+        or result["runner_kind"] != request["runner_kind"]
+        or result["screen_name"] != request["screen_name"]
+        or launch["runner_kind"] != request["runner_kind"]
+        or launch["screen_name"] != request["screen_name"]
+        or launch["started_at_utc"] != request["created_at_utc"]
+        or type(request["prompt_bytes"]) is not int
+        or not 1 <= request["prompt_bytes"] <= MAX_REPORT_BYTES
+        or request["prompt_bytes"] != len(task_packet)
+        or _sha(request["prompt_sha256"], field="designer prompt SHA")
+        != hashlib.sha256(task_packet).hexdigest()
+        or type(result["exit_code"]) is not int
+        or result["exit_code"] != 0
+        or result["lease_release"] != "NOT_REQUIRED"
+        or result["termination_escalated"] is not False
+        or result["codex_cli_version"] != request["codex_cli_version"]
+        or request.get("requested_model") != receipt["requested"]["model"]
         or request.get("requested_reasoning_effort") != receipt["requested"]["reasoning_effort"]
         or result.get("requested_model") != receipt["requested"]["model"]
         or result.get("requested_reasoning_effort") != receipt["requested"]["reasoning_effort"]
         or result.get("status") != receipt["status"]
     ):
-        raise EvidenceChainError("designer request or result identity differs")
+        raise EvidenceChainError("designer launch, request, or result identity differs")
     final_text = artifact_bytes["final.txt"].decode("utf-8")
     match = re.search(r"```json\n(.*?)\n```", final_text, flags=re.DOTALL)
     if match is None:
@@ -977,9 +1055,15 @@ def _validate_episode_row(
         raise EvidenceChainError("episode first-fall boundary is invalid")
     if row["fall"] != (first_fall is not None):
         raise EvidenceChainError("episode fall and first-fall boundary disagree")
-    for field in ("observed_steps", "seed", "switch_count", "trace_byte_count"):
-        if type(row[field]) is not int or row[field] < 0:
-            raise EvidenceChainError(f"episode {field} must be a non-negative integer")
+    integer_bounds = {
+        "observed_steps": task.horizon_steps,
+        "seed": MAX_SIGNED_32,
+        "switch_count": task.horizon_steps,
+        "trace_byte_count": MAX_TRACE_BYTES,
+    }
+    for field, maximum in integer_bounds.items():
+        if type(row[field]) is not int or not 0 <= row[field] <= maximum:
+            raise EvidenceChainError(f"episode {field} lies outside its semantic integer bound")
     if row["observed_steps"] != task.horizon_steps or row["seed"] not in task.seeds:
         raise EvidenceChainError("episode horizon or seed differs from the task")
     _finite(row["mean_absolute_speed_error_m_s"], field="episode MAE")
@@ -1036,6 +1120,168 @@ def _validate_episode_row(
         ):
             raise EvidenceChainError("slow-segment fractions do not sum to one")
     return row
+
+
+def _trace_metrics(
+    trace: Mapping[str, object],
+    *,
+    task: TaskSpec,
+    behavior_names: Sequence[str],
+    diagnostics: bool,
+) -> dict[str, object]:
+    """Parse exact trace steps and independently reconstruct every protected metric."""
+
+    steps = trace["steps"]
+    assert type(steps) is list  # checked by the trace-header validator
+    step_keys = {
+        "active_behavior",
+        "active_state",
+        "physical_action_sha256",
+        "post_boundary",
+        "signals",
+        "switch_flags",
+        "switch_reason",
+        "t",
+    }
+    post_keys = {
+        "stock_info_x_velocity_m_s",
+        "task_reward",
+        "torso_up",
+        "truncated",
+        "v_x",
+        "x_travelled",
+        "z_root",
+    }
+    flag_keys = {
+        "controller_switched",
+        "recovery_entered",
+        "recovery_exited",
+        "state_transition",
+    }
+    errors: list[float] = []
+    rewards: list[float] = []
+    counts = {name: 0 for name in behavior_names}
+    switches: list[dict[str, object]] = []
+    first_fall: int | None = None
+    initial_fallen = False
+    previous_behavior: str | None = None
+    active_by_step: list[str] = []
+    fallen_boundaries: list[int] = []
+    for index, step in enumerate(steps):
+        if type(step) is not dict or set(step) != step_keys or step["t"] != index:
+            raise TraceIntegrityError("persisted trace step schema or order differs")
+        behavior = step["active_behavior"]
+        if behavior not in behavior_names:
+            raise TraceIntegrityError("persisted trace step behavior is unknown")
+        _identifier(step["active_state"], field="trace active state")
+        _sha(step["physical_action_sha256"], field="trace physical action SHA")
+        if type(step["switch_reason"]) is not str or not 1 <= len(step["switch_reason"]) <= 256:
+            raise TraceIntegrityError("persisted trace switch reason is malformed")
+        signals = step["signals"]
+        post = step["post_boundary"]
+        flags = step["switch_flags"]
+        if (
+            type(signals) is not dict
+            or set(signals) != ALLOWED_SIGNALS
+            or signals["t"] != index
+            or type(signals["dwell"]) is not int
+            or not 0 <= signals["dwell"] <= task.horizon_steps
+            or type(post) is not dict
+            or set(post) != post_keys
+            or type(post["truncated"]) is not bool
+            or type(flags) is not dict
+            or set(flags) != flag_keys
+            or any(type(value) is not bool for value in flags.values())
+        ):
+            raise TraceIntegrityError("persisted trace nested step schema differs")
+        for name in ALLOWED_SIGNALS - {"t", "dwell"}:
+            _finite(signals[name], field=f"trace signal {name}")
+        for name in post_keys - {"truncated"}:
+            _finite(post[name], field=f"trace post-boundary {name}")
+        if index == 0:
+            initial_fallen = (
+                not 1.0 < float(signals["z_root"]) < 2.0 or float(signals["torso_up"]) < 0.5
+            )
+            if initial_fallen:
+                first_fall = 0
+            previous_behavior = behavior
+        fallen = not 1.0 < float(post["z_root"]) < 2.0 or float(post["torso_up"]) < 0.5
+        if fallen:
+            fallen_boundaries.append(index + 1)
+            if first_fall is None:
+                first_fall = index + 1
+        errors.append(abs(float(post["v_x"]) - float(signals["v_target"])))
+        rewards.append(float(post["task_reward"]))
+        counts[behavior] += 1
+        active_by_step.append(behavior)
+        if flags["controller_switched"]:
+            switch_speed = 0.0 if index == 0 else float(steps[index - 1]["post_boundary"]["v_x"])
+            switches.append(
+                {
+                    "fall_followed_within_100_steps": any(
+                        index < boundary <= index + 100 for boundary in fallen_boundaries
+                    ),
+                    "from_behavior": previous_behavior,
+                    "step": index,
+                    "to_behavior": behavior,
+                    "v_x_m_s": switch_speed,
+                }
+            )
+        previous_behavior = behavior
+    # The forward scan above cannot know about later falls when it records a switch.
+    for switch in switches:
+        switch["fall_followed_within_100_steps"] = first_fall is not None and (
+            switch["step"] < first_fall <= switch["step"] + 100
+        )
+    slow = min(task.schedule, key=lambda segment: segment.target_m_s)
+    if sum(segment.target_m_s == slow.target_m_s for segment in task.schedule) != 1:
+        raise TraceIntegrityError("task does not define one unique slow segment")
+    slow_steps = active_by_step[slow.start : slow.stop]
+    denominator = slow.stop - slow.start
+    result: dict[str, object] = {
+        "fall": initial_fallen or bool(fallen_boundaries),
+        "first_fall_step": first_fall,
+        "mean_absolute_speed_error_m_s": math.fsum(errors) / len(errors),
+        "observed_steps": len(steps),
+        "switch_count": len(switches),
+        "task_return": math.fsum(rewards),
+        "time_in_each_behavior_steps": counts,
+    }
+    if diagnostics:
+        result.update(
+            {
+                "controller_switches": switches,
+                "slow_third_behavior_fractions": {
+                    name: sum(value == name for value in slow_steps) / denominator
+                    for name in behavior_names
+                },
+            }
+        )
+    return result
+
+
+def _require_trace_metrics_match(
+    row: Mapping[str, object], recomputed: Mapping[str, object]
+) -> None:
+    for name, expected in recomputed.items():
+        observed = row[name]
+        if type(expected) is float:
+            matches = type(observed) in {int, float} and math.isclose(
+                float(observed), expected, rel_tol=0.0, abs_tol=1e-12
+            )
+        elif (
+            type(expected) is dict
+            and expected
+            and all(type(value) is float for value in expected.values())
+        ):
+            matches = set(observed) == set(expected) and all(
+                math.isclose(float(observed[key]), value, rel_tol=0.0, abs_tol=1e-12)
+                for key, value in expected.items()
+            )
+        else:
+            matches = observed == expected
+        if not matches:
+            raise TraceIntegrityError(f"protected episode metric {name} differs from trace steps")
 
 
 def _expected_evaluation(task: TaskSpec) -> dict[str, object]:
@@ -1099,6 +1345,9 @@ def _trace_index_entries(
     receipt: Mapping[str, object],
     repository_root: Path,
     rows: Sequence[Mapping[str, object]],
+    task: TaskSpec,
+    behavior_names: Sequence[str],
+    diagnostics: bool,
 ) -> None:
     binding = receipt["trace_content_index"]
     if type(binding) is not dict or set(binding) != {"entry_count", "path", "sha256"}:
@@ -1265,6 +1514,15 @@ def _trace_index_entries(
                 SCHEMA_VERSIONS
             ):
                 raise TraceIntegrityError("persisted trace authority identities differ")
+        _require_trace_metrics_match(
+            row,
+            _trace_metrics(
+                trace,
+                task=task,
+                behavior_names=behavior_names,
+                diagnostics=diagnostics,
+            ),
+        )
     if len(by_key) != len(rows):
         raise TraceIntegrityError("trace index contains unreported evidence")
 
@@ -1439,6 +1697,7 @@ def validate_scientific_receipt(
         ):
             raise EvidenceChainError("designer-provenance identity differs")
     source_report = receipt["source_report"]
+    source_report_value: Mapping[str, object] | None = None
     if source_report is not None:
         if type(source_report) is not dict or set(source_report) != {
             "path",
@@ -1465,6 +1724,9 @@ def validate_scientific_receipt(
             != f"cycles/cycle_{expected_cycle}/report_{expected_cycle}.json"
         ):
             raise EvidenceChainError("legacy source-report schema differs")
+        source_report_value = _decode_bounded_object(
+            source_bytes, maximum=MAX_REPORT_BYTES, source="legacy source report"
+        )
     expected_claim = (
         _LEGACY_CYCLE_ZERO_CLAIM_CEILING
         if source_report is not None and expected_cycle == 0
@@ -1498,6 +1760,21 @@ def validate_scientific_receipt(
         )
         for row in rows
     ]
+    if source_report_value is not None:
+        source_rows = source_report_value.get("per_episode")
+        if type(source_rows) is not list:
+            raise EvidenceChainError("legacy source report omits episode evidence")
+        migrated_rows = []
+        for item in source_rows:
+            if type(item) is not dict or "episode_wall_time_seconds" not in item:
+                raise EvidenceChainError("legacy source-report episode schema differs")
+            migrated = dict(item)
+            migrated.pop("episode_wall_time_seconds")
+            migrated_rows.append(migrated)
+        if migrated_rows != checked_rows:
+            raise EvidenceChainError(
+                "migrated episode evidence differs from the frozen source report"
+            )
     oracle_ids = [oracle["oracle_id"] for oracle in oracles]
     if expected_cycle == 0:
         if tuple(oracle_ids) != task.cycle_zero_oracle_ids:
@@ -1571,6 +1848,9 @@ def validate_scientific_receipt(
             receipt=receipt,
             repository_root=Path(repository_root),
             rows=checked_rows,
+            task=task,
+            behavior_names=library.behavior_names,
+            diagnostics=diagnostics,
         )
     return ValidatedScientificReceipt(
         path=Path(path),

@@ -96,6 +96,18 @@ def test_first_eight_rollouts_change_only_reference_columns_and_value() -> None:
     receipts = result.scientific_facts["unfreeze_rollouts"]
     assert len(receipts) == REFERENCE_ONLY_ROLLOUTS
     assert {receipt["actor_stage"] for receipt in receipts} == {"reference_columns_only"}
+    initialization = result.scientific_facts["optimizer_initialization"]
+    assert initialization["state_empty"] is True
+    assert initialization["parameter_membership_unique"] is True
+    assert initialization["membership_complete"] is True
+    expected_membership = initialization["membership_sha256"]
+    assert all(
+        receipt[stage]["membership_sha256"] == expected_membership
+        and receipt[stage]["parameter_membership_unique"] is True
+        and receipt[stage]["membership_complete"] is True
+        for receipt in receipts
+        for stage in ("optimizer_authority_before", "optimizer_authority_after")
+    )
 
 
 def test_worker_counts_streams_exactly_half_and_orders_global_rsi_resets() -> None:
@@ -114,6 +126,11 @@ def test_worker_counts_streams_exactly_half_and_orders_global_rsi_resets() -> No
     )
     assert result.scientific_facts["likelihood_audit"]["passed"] is True
     assert result.scientific_facts["unfreeze_rollouts"][-1]["actor_stage"] == "full_actor"
+    final_receipt = result.scientific_facts["unfreeze_rollouts"][-1]
+    assert (
+        final_receipt["optimizer_authority_before"]["membership_sha256"]
+        == (final_receipt["optimizer_authority_after"]["membership_sha256"])
+    )
 
 
 def test_time_limit_transitions_use_value_bootstrap_without_changing_step_count() -> None:
@@ -187,13 +204,13 @@ def test_real_expert_step_zero_uses_the_worker_action_path_on_ft1_fixtures() -> 
         repository_root=ROOT,
         receipt_path=PHASE_B / "receipts/e1_full_authority_warm_start_v1.json",
         expected_receipt_sha256=(
-            "c602e14ab4cea1b856eaf4cd86240035214d2af096381429ececac3f7e2f3788"
+            "5754db8e8afdc7f05f8a67ab3fb6a69ae453968a6c14e9f1dca545d688834bc9"
         ),
     )
     assert audit == {
         "action_sha256": "5a70c79209d0830ef63d8d5cef59c53f6bf49f7b9c60cadf6de4e9e0b1ceb568",
         "bitwise_equal": True,
-        "e1_receipt_sha256": ("c602e14ab4cea1b856eaf4cd86240035214d2af096381429ececac3f7e2f3788"),
+        "e1_receipt_sha256": ("5754db8e8afdc7f05f8a67ab3fb6a69ae453968a6c14e9f1dca545d688834bc9"),
         "fixture_count": 68,
         "reported_beside_checkpoint": True,
         "worker_path": (

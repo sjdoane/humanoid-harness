@@ -58,6 +58,7 @@ from .policy import (
 )
 from .reference_runtime import ComposedReferenceRuntime, load_v2_reference_clip
 from .reward import compose_tracking_only_reward
+from .task_input_admission import MEASUREMENT_ORIGIN, admit_task_inputs_v2
 from .training import (
     BEHAVIORS,
     STREAM_BY_ENVIRONMENT,
@@ -525,6 +526,11 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
             state=state,
             hidden_reference_target=target,
             ignored_stock_reward=float(stock_reward),
+            task_inputs=admit_task_inputs_v2(
+                com_x_velocity_m_s=com_forward_speed,
+                measurement_origin=MEASUREMENT_ORIGIN,
+                cadence_seconds=0.015,
+            ),
             specification=self.reward_spec,
         )
         root_x = float(state.root_position_world_m[0])

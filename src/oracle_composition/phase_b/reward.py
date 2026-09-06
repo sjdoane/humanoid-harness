@@ -19,6 +19,7 @@ from .contracts import (
     PhaseBContractError,
     TrackingOnlyRewardSpec,
 )
+from .task_input_admission import AdmittedTaskInputsV2, validate_admitted_task_inputs_v2
 
 
 def require_frozen_tracking_reward_config(
@@ -59,6 +60,7 @@ def compose_tracking_only_reward(
     state: HumanoidTrackingState,
     hidden_reference_target: np.ndarray,
     ignored_stock_reward: float,
+    task_inputs: AdmittedTaskInputsV2,
     specification: TrackingOnlyRewardSpec,
     config: TrackingRewardConfig | None = None,
 ) -> TrainingRewardStreams:
@@ -66,6 +68,7 @@ def compose_tracking_only_reward(
 
     if type(specification) is not TrackingOnlyRewardSpec:
         raise PhaseBContractError("reward compositor requires the registered tracking-only spec")
+    validate_admitted_task_inputs_v2(task_inputs)
     stock = float(ignored_stock_reward)
     if not math.isfinite(stock):
         raise PhaseBContractError("stock reward telemetry must be finite")

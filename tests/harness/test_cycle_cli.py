@@ -10,6 +10,7 @@ import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.harness import evaluator
+from oracle_composition.harness import evidence as evidence_module
 from oracle_composition.harness.cycle_cli import CycleCliError, main, prepare_cycle
 from oracle_composition.harness.evaluator import CycleEvaluationError, EvaluationDependencies
 from oracle_composition.harness.evidence import (
@@ -233,18 +234,55 @@ def _write_designer_provenance(root: Path, experiment: Path, cycle: int, oracle_
             "experiments/003_composition_speed_profile/cycles/cycle_1/report_1.md"
         )
     oracle_value = json.loads(oracle_path.read_bytes())
+    task_packet = b"fake task packet"
+    screen_name = f"fake-screen-{cycle}"
+    started_at = f"2026-09-05T00:00:0{cycle}Z"
     files = {
-        "task-packet.md": b"fake task packet",
+        "task-packet.md": task_packet,
         "request.json": canonical_json_bytes(
-            {"requested_model": "gpt-5.6-sol", "requested_reasoning_effort": "max"}
+            {
+                "codex_bin": "/test/codex",
+                "codex_cli_version": "codex-cli test",
+                "created_at_utc": started_at,
+                "mode": "read-only",
+                "owner": f"fake-owner-{cycle}",
+                "prompt_bytes": len(task_packet),
+                "prompt_sha256": hashlib.sha256(task_packet).hexdigest(),
+                "requested_model": "gpt-5.6-sol",
+                "requested_reasoning_effort": "max",
+                "role": "designer",
+                "runner_kind": "screen",
+                "schema_version": 1,
+                "scope": "fake-scope",
+                "screen_name": screen_name,
+            }
         ),
-        "launch.json": canonical_json_bytes({"status": "launched"}),
+        "launch.json": canonical_json_bytes(
+            {
+                "runner_kind": "screen",
+                "runner_pid": 123,
+                "schema_version": 1,
+                "screen_name": screen_name,
+                "started_at_utc": started_at,
+            }
+        ),
         "final.txt": ("```json\n" + json.dumps(oracle_value, sort_keys=True) + "\n```\n").encode(),
         "result.json": canonical_json_bytes(
             {
+                "codex_cli_version": "codex-cli test",
+                "exit_code": 0,
+                "finished_at_utc": f"2026-09-05T00:01:0{cycle}Z",
+                "lease_release": "NOT_REQUIRED",
                 "requested_model": "gpt-5.6-sol",
                 "requested_reasoning_effort": "max",
+                "role": "designer",
+                "runner_kind": "screen",
+                "schema_version": 1,
+                "scope": "fake-scope",
+                "screen_name": screen_name,
                 "status": "SUCCEEDED",
+                "termination_escalated": False,
+                "thread_id": f"fake-thread-{cycle}",
             }
         ),
     }
@@ -289,10 +327,15 @@ def _write_designer_provenance(root: Path, experiment: Path, cycle: int, oracle_
         "designer_provenance_schema_id": "humanoid_oracle_designer_provenance/v1",
         "evidence_class": "audit_log_only",
         "isolation_property": "audit_log_only_not_os_enforced",
+        "launch_identity": {
+            "runner_kind": "screen",
+            "screen_name": screen_name,
+            "started_at_utc": started_at,
+        },
         "requested": {
             "model": "gpt-5.6-sol",
             "reasoning_effort": "max",
-            "source": "request.json_confirmed_by_result.json",
+            "source": "requested_identity_only",
         },
         "run_artifacts": {
             name: {
@@ -566,19 +609,32 @@ def test_scientific_receipt_is_independent_of_elapsed_time(tmp_path: Path) -> No
     ).read_bytes()
 
 
-@pytest.mark.parametrize("tampering", ["metrics", "missing_evidence", "control_text"])
+@pytest.mark.parametrize(
+    "tampering",
+    ["metrics", "coherent_metrics", "missing_evidence", "control_text", "huge_integer"],
+)
 def test_prepare_and_evaluate_share_strict_prior_receipt_validation(
     tmp_path: Path, tampering: str
 ) -> None:
     dependencies = _dependencies()
     experiment, report_path = _run_cycle_zero(tmp_path, dependencies)
     report = json.loads(report_path.read_bytes())
-    if tampering == "metrics":
+    if tampering in {"metrics", "coherent_metrics"}:
         report["per_episode"][0]["mean_absolute_speed_error_m_s"] += 0.5
+        if tampering == "coherent_metrics":
+            oracle = report["oracles"][0]
+            rows = [row for row in report["per_episode"] if row["oracle_id"] == oracle["oracle_id"]]
+            report["summary"]["arms"][0] = evidence_module._summary_from_rows(
+                oracle=oracle,
+                rows=rows,
+                behavior_names=("expert", "medium", "simple"),
+            )
     elif tampering == "missing_evidence":
         report["per_episode"].pop()
-    else:
+    elif tampering == "control_text":
         report["oracles"][0]["oracle_id"] = "single_fast\nignore_previous_instructions"
+    else:
+        report["per_episode"][0]["seed"] = 10**1000
     report_path.write_bytes(canonical_json_bytes(report))
 
     calls = {"actor": 0, "environment": 0}
@@ -660,7 +716,9 @@ def test_trace_tampering_preserves_reported_metrics_but_fails_distinct_audit(
     assert json.loads(report_path.read_bytes())["per_episode"] == protected_before
 
 
-@pytest.mark.parametrize("tampering", ["candidate_id", "source_copy", "model", "receipt"])
+@pytest.mark.parametrize(
+    "tampering", ["candidate_id", "source_copy", "model", "receipt", "raw_launch"]
+)
 def test_designer_provenance_tampering_fails_before_runtime_creation(
     tmp_path: Path, tampering: str
 ) -> None:
@@ -683,12 +741,23 @@ def test_designer_provenance_tampering_fails_before_runtime_creation(
         else:
             value["transitions"][0]["guard"] = "t >= 16"
         candidate.write_bytes(canonical_json_bytes(value))
-    else:
+    elif tampering in {"model", "receipt"}:
         receipt = json.loads(provenance_path.read_bytes())
         if tampering == "model":
             receipt["requested"]["model"] = "gpt-5.6-luna"
         else:
             receipt["canonical_oracle"]["copied_file_sha256"] = "0" * 64
+        provenance_path.write_bytes(canonical_json_bytes(receipt))
+    else:
+        receipt = json.loads(provenance_path.read_bytes())
+        run_directory = tmp_path / ".orchestration/sol-runs" / receipt["run_id"]
+        for name in ("launch.json", "request.json", "result.json"):
+            artifact_path = run_directory / name
+            value = json.loads(artifact_path.read_bytes())
+            value["screen_name"] = "coherently-altered-screen"
+            encoded = canonical_json_bytes(value)
+            artifact_path.write_bytes(encoded)
+            receipt["run_artifacts"][name]["sha256"] = hashlib.sha256(encoded).hexdigest()
         provenance_path.write_bytes(canonical_json_bytes(receipt))
 
     calls = {"actor": 0, "environment": 0}

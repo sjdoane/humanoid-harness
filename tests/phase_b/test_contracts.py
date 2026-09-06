@@ -3,11 +3,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.phase_b import contracts as contracts_module
 from oracle_composition.phase_b.contracts import (
     PHASE_POLICY,
     TASK_INPUTS_V2_SCHEMA_SHA256,
@@ -44,29 +46,102 @@ def test_canonical_phase_b_contract_artifacts_and_hashes() -> None:
     assert reward.to_dict()["tracking_reward_config_sha256"]
     assert reward.to_dict()["task_inputs_source_sha256"] == TASK_INPUTS_V2_SOURCE_SHA256
     assert reward.to_dict()["task_inputs_schema_sha256"] == TASK_INPUTS_V2_SCHEMA_SHA256
-    assert len(reward.registry_key) == 7
+    assert len(reward.registry_key) == 9
     assert all(len(digest) == 64 for digest in reward.registry_key)
     assert reward_bytes == canonical_json_bytes(reward_raw) == reward.canonical_bytes
 
     starting_raw = json.loads((PHASE_B / "starting_checkpoint_v1.json").read_bytes())
     assert StartingCheckpointContract.from_dict(starting_raw).value_initialization_seed == 20260905
-    manifest_raw = json.loads((PHASE_B / "run_manifest_interface_check_v1.json").read_bytes())
-    assert FineTuningRunManifest.from_dict(manifest_raw).value["ppo_seed"] == 121901
+    manifest_path = PHASE_B / "run_manifest_training_admission_v2.json"
+    manifest_raw = json.loads(manifest_path.read_bytes())
+    profiles = FineTuningRunManifest.from_dict(manifest_raw).value["execution_profiles"]
+    assert profiles["smoke"]["seeds"] == [121901]
+    assert profiles["cohort"]["seeds"] == [121001, 121101, 121201, 121301, 121401]
     loaded_manifest, manifest_sha256 = load_fine_tuning_run_manifest(
-        PHASE_B / "run_manifest_interface_check_v1.json",
+        manifest_path,
         repository_root=ROOT,
     )
-    assert loaded_manifest.value["ppo_seed"] == 121901
+    assert loaded_manifest.value["execution_profiles"] == profiles
     assert manifest_sha256 == FineTuningRunManifest.from_dict(manifest_raw).sha256
 
 
+def test_design_frozen_artifact_hashes_match_the_validated_bytes() -> None:
+    design = (PHASE_B / "DESIGN.md").read_text()
+    rows = {
+        name: digest
+        for name, digest in re.findall(
+            r"^\| `([^`]+)` \| `([0-9a-f]{64})` \|", design, flags=re.MULTILINE
+        )
+    }
+    expected = {
+        "oracle_cycle_1_reference_v1.json",
+        "tracking_only_v1.json",
+        "training_design_v1.json",
+        "utility_evaluation_design_v1.json",
+        "starting_checkpoint_v1.json",
+        "run_manifest_training_admission_v2.json",
+        "receipts/e1_full_authority_warm_start_v1.json",
+        "receipts/phase_transfer_static_v1.json",
+    }
+    assert set(rows) == expected
+    for relative, documented_sha256 in rows.items():
+        artifact = PHASE_B / relative
+        assert hashlib.sha256(artifact.read_bytes()).hexdigest() == documented_sha256
+    actor_match = re.search(
+        r"^\| ignored step-0 actor export \| `([0-9a-f]{64})` \|",
+        design,
+        flags=re.MULTILINE,
+    )
+    assert actor_match is not None
+    actor = ROOT / "artifacts/experiments_003/phase_b/step_0_full_authority_actor_v1.npz"
+    assert hashlib.sha256(actor.read_bytes()).hexdigest() == actor_match.group(1)
+
+
 def test_run_manifest_refuses_a_bound_hash_mismatch(tmp_path: Path) -> None:
-    raw = json.loads((PHASE_B / "run_manifest_interface_check_v1.json").read_bytes())
+    raw = json.loads((PHASE_B / "run_manifest_training_admission_v2.json").read_bytes())
     raw["library"]["sha256"] = "0" * 64
     path = tmp_path / "manifest.json"
     path.write_bytes(canonical_json_bytes(raw))
-    with pytest.raises(PhaseBContractError, match="library artifact SHA-256 differs"):
+    with pytest.raises(PhaseBContractError, match="reviewed admission seal"):
         load_fine_tuning_run_manifest(path, repository_root=ROOT)
+
+
+def test_run_manifest_rejects_unreviewed_smoke_budget_even_when_json_is_valid() -> None:
+    raw = json.loads((PHASE_B / "run_manifest_training_admission_v2.json").read_bytes())
+    raw["execution_profiles"]["smoke"]["transitions_per_seed"] = 196_607
+    with pytest.raises(PhaseBContractError, match="execution profiles"):
+        FineTuningRunManifest.from_dict(raw)
+
+
+def test_run_manifest_semantics_reject_self_consistent_substitution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = json.loads((PHASE_B / "run_manifest_training_admission_v2.json").read_bytes())
+    substituted = tmp_path / "training.json"
+    value = json.loads((PHASE_B / "training_design_v1.json").read_bytes())
+    value["ppo"]["learning_rate"] = 0.001
+    substituted.write_bytes(canonical_json_bytes(value))
+    raw["training_design"] = {
+        "byte_count": substituted.stat().st_size,
+        "path": "experiments/003_composition_speed_profile/phase_b/training_design_v1.json",
+        "sha256": hashlib.sha256(substituted.read_bytes()).hexdigest(),
+    }
+    manifest = tmp_path / "manifest.json"
+    encoded = canonical_json_bytes(raw)
+    manifest.write_bytes(encoded)
+    original_verify = contracts_module._verify_bound_artifact
+
+    def substituted_verify(repository_root: Path, binding: object, *, field: str) -> Path:
+        if field == "training_design":
+            return substituted
+        return original_verify(repository_root, binding, field=field)
+
+    monkeypatch.setattr(
+        contracts_module, "REVIEWED_RUN_MANIFEST_SHA256", hashlib.sha256(encoded).hexdigest()
+    )
+    monkeypatch.setattr(contracts_module, "_verify_bound_artifact", substituted_verify)
+    with pytest.raises(PhaseBContractError, match="training design semantics differ"):
+        load_fine_tuning_run_manifest(manifest, repository_root=ROOT)
 
 
 def test_oracle_refuses_wrong_schema() -> None:
@@ -92,6 +167,18 @@ def test_reward_registry_refuses_unknown_formula_and_schema() -> None:
 def test_reward_registry_binds_the_authoritative_task_input_v2_module() -> None:
     source = Path(task_inputs_v2.__file__).read_bytes()
     assert hashlib.sha256(source).hexdigest() == TASK_INPUTS_V2_SOURCE_SHA256
+
+
+def test_phase_b_numeric_parsers_normalize_out_of_representation_integers() -> None:
+    starting = json.loads((PHASE_B / "starting_checkpoint_v1.json").read_bytes())
+    starting["value_initialization_seed"] = 10**1000
+    with pytest.raises(PhaseBContractError, match="integer"):
+        StartingCheckpointContract.from_dict(starting)
+
+    report = _minimal_v2_report()
+    report["reward_runtime"]["r_track"] = 10**1000
+    with pytest.raises(PhaseBContractError, match="finite"):
+        validate_cycle_report(report)
 
 
 def _minimal_v2_report() -> dict[str, object]:

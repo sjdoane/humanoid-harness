@@ -23,6 +23,7 @@ from oracle_composition.tracking.humanoid_reference import (
 )
 from oracle_composition.tracking.reward import compute_tracking_reward
 
+from .calibration import TaskSuccessCalibration, load_calibration_receipt
 from .persistence import LoadedFullCheckpoint, load_full_checkpoint
 from .policy import FullAuthorityPolicy, compose_policy_input, load_full_authority_actor
 from .reference_runtime import ERROR_NAMES, load_v2_reference_clip, select_nearest_phase
@@ -36,6 +37,7 @@ _FOOT_GEOMS = {"left_foot", "right_foot"}
 
 @dataclass(frozen=True, slots=True)
 class UtilityEvaluationResult:
+    calibration: TaskSuccessCalibration
     checkpoint: LoadedFullCheckpoint
     trained_episodes: tuple[ProtectedEpisodeMetrics, ...]
     step_zero_episodes: tuple[ProtectedEpisodeMetrics, ...]
@@ -268,6 +270,16 @@ def _real_episode(
             if cell == "fixed_round_trip"
             else None
         )
+        settled_state_error = (
+            float(
+                max(
+                    np.mean(normalized_max_errors[332:364]),
+                    np.mean(normalized_max_errors[632:664]),
+                )
+            )
+            if cell == "fixed_round_trip"
+            else None
+        )
         latencies = [
             record["settle_latency_steps"]
             for record in resynchronization
@@ -292,6 +304,7 @@ def _real_episode(
             settle_latency_steps=max(latencies) if latencies else None,
             time_to_first_failure_steps=first_failure,
             task_success=None,
+            settled_state_normalized_error=settled_state_error,
         )
     finally:
         environment.close()
@@ -304,6 +317,34 @@ def _bind_checkpoint(
     return replace(episode, checkpoint_sha256=checkpoint_sha256)
 
 
+def _score_task_success(
+    episode: ProtectedEpisodeMetrics,
+    calibration: TaskSuccessCalibration,
+) -> ProtectedEpisodeMetrics:
+    if episode.cell != "fixed_round_trip":
+        return replace(episode, task_success=None)
+    latencies = [record.get("settle_latency_steps") for record in episode.resynchronization_records]
+    latency_passed = len(latencies) == 2 and all(
+        type(latency) is int and 0 <= latency <= cap
+        for latency, cap in zip(latencies, calibration.transition_latency_caps_steps, strict=True)
+    )
+    segment_passed = set(episode.segment_errors) == set(
+        calibration.segment_speed_error_bands_m_s
+    ) and all(
+        float(episode.segment_errors[name]) <= limit
+        for name, limit in calibration.segment_speed_error_bands_m_s.items()
+    )
+    settled = episode.settled_state_normalized_error
+    passed = (
+        episode.safety_passed
+        and latency_passed
+        and segment_passed
+        and settled is not None
+        and float(settled) <= calibration.settled_state_normalized_error_band
+    )
+    return replace(episode, task_success=passed)
+
+
 def evaluate_policy_checkpoint(
     *,
     checkpoint_path: Path,
@@ -311,11 +352,17 @@ def evaluate_policy_checkpoint(
     step_zero_actor_path: Path,
     step_zero_actor_sha256: str,
     corpus_root: Path,
+    calibration_receipt_path: Path,
+    calibration_receipt_sha256: str,
     segment_targets_m_s: tuple[float, float, float] | None = None,
     dependencies: UtilityEvaluationDependencies | None = None,
 ) -> UtilityEvaluationResult:
     """Evaluate one final checkpoint and its step-0 comparator on identical cells."""
 
+    calibration = load_calibration_receipt(
+        calibration_receipt_path,
+        expected_sha256=calibration_receipt_sha256,
+    )
     checkpoint = load_full_checkpoint(checkpoint_path, expected_sha256=checkpoint_sha256)
     step_zero_actor = load_full_authority_actor(
         step_zero_actor_path,
@@ -363,15 +410,21 @@ def evaluate_policy_checkpoint(
     for cell in ("hold_expert", "hold_medium", "hold_simple", "fixed_round_trip"):
         for evaluation_seed in EVALUATION_BLOCKS:
             trained.append(
-                _bind_checkpoint(
-                    runner(checkpoint.policy, policy_seed, evaluation_seed, cell, corpus_root),
-                    checkpoint_sha256,
+                _score_task_success(
+                    _bind_checkpoint(
+                        runner(checkpoint.policy, policy_seed, evaluation_seed, cell, corpus_root),
+                        checkpoint_sha256,
+                    ),
+                    calibration,
                 )
             )
             baseline.append(
-                _bind_checkpoint(
-                    runner(step_zero_policy, policy_seed, evaluation_seed, cell, corpus_root),
-                    step_zero_actor_sha256,
+                _score_task_success(
+                    _bind_checkpoint(
+                        runner(step_zero_policy, policy_seed, evaluation_seed, cell, corpus_root),
+                        step_zero_actor_sha256,
+                    ),
+                    calibration,
                 )
             )
     trained_bytes = canonical_json_bytes([episode.to_dict() for episode in trained])
@@ -379,11 +432,13 @@ def evaluate_policy_checkpoint(
     comparator = {
         "bitwise_equal": True,
         "evaluation_schedule_identical": True,
+        "calibration_receipt_sha256": calibration.sha256,
         "step_zero_actor_sha256": step_zero_actor_sha256,
         "step_zero_metrics_sha256": hashlib.sha256(baseline_bytes).hexdigest(),
         "trained_metrics_sha256": hashlib.sha256(trained_bytes).hexdigest(),
     }
     return UtilityEvaluationResult(
+        calibration=calibration,
         checkpoint=checkpoint,
         trained_episodes=tuple(trained),
         step_zero_episodes=tuple(baseline),

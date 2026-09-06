@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import numpy as np
 
@@ -32,6 +32,8 @@ from oracle_composition.experiments.tqc_actor_npz import (
     load_actor_npz,
 )
 
+from .strict_npz import decode_strict_npz
+
 try:
     import torch
     from torch import nn
@@ -52,6 +54,8 @@ INPUT_LAYOUT_ID = "state_float32_348_then_reference_row_major_float32_8x45/v1"
 ACTION_ADAPTER_ID = "strict_float32_low_plus_half_u_plus_one_span/v1"
 EXPORT_FORMAT_ID = "strict_full_authority_actor_npz_npy1_c_order_no_pickle/v1"
 MAX_EXPORT_BYTES = 4 * 1024 * 1024
+MAX_EXPORT_MEMBER_BYTES = 2 * 1024 * 1024
+MAX_EXPORT_EXPANSION_BYTES = 8 * 1024 * 1024
 
 _INPUT_ISSUER = object()
 _FLOAT32 = np.dtype("<f4")
@@ -478,17 +482,91 @@ def verify_actor_warm_start(
 
 
 def verify_optimizer_authority(
-    policy: FullAuthorityPolicy, optimizer: torch.optim.Optimizer
-) -> None:
-    expected = {id(parameter) for parameter in policy.parameters() if parameter.requires_grad}
-    observed = {
-        id(parameter)
-        for group in optimizer.param_groups
-        for parameter in group.get("params", ())
-        if getattr(parameter, "requires_grad", False)
+    policy: FullAuthorityPolicy,
+    optimizer: torch.optim.Optimizer,
+    *,
+    expected_learning_rate: float = 3e-4,
+    require_empty_state: bool = False,
+    stage: str = "construction",
+) -> dict[str, object]:
+    """Validate and receipt exact Adam ownership, uniqueness, groups, and state."""
+
+    if type(policy) is not FullAuthorityPolicy or type(optimizer) is not torch.optim.Adam:
+        raise ExperimentContractError("optimizer must be the exact Phase B Adam authority")
+    if type(expected_learning_rate) is not float or expected_learning_rate <= 0.0:
+        raise ExperimentContractError("optimizer expected learning rate is invalid")
+    named = tuple(policy.named_parameters())
+    expected_parameters = tuple(parameter for _name, parameter in named)
+    expected_ids = tuple(id(parameter) for parameter in expected_parameters)
+    if len(set(expected_ids)) != len(expected_ids):
+        raise ExperimentContractError("Phase B policy exposes duplicate parameter identities")
+    if len(optimizer.param_groups) != 1:
+        raise ExperimentContractError("optimizer parameter-group count differs")
+    group = optimizer.param_groups[0]
+    expected_group_keys = {
+        "amsgrad",
+        "betas",
+        "capturable",
+        "decoupled_weight_decay",
+        "differentiable",
+        "eps",
+        "foreach",
+        "fused",
+        "lr",
+        "maximize",
+        "params",
+        "weight_decay",
     }
-    if observed != expected:
+    if set(group) != expected_group_keys:
+        raise ExperimentContractError("optimizer parameter-group fields differ")
+    observed_parameters = tuple(group["params"])
+    observed_ids = tuple(id(parameter) for parameter in observed_parameters)
+    if len(set(observed_ids)) != len(observed_ids):
+        raise ExperimentContractError("optimizer contains duplicate parameter membership")
+    if observed_ids != expected_ids:
         raise ExperimentContractError("optimizer omits or adds Phase B policy parameters")
+    expected_hyperparameters = {
+        "amsgrad": False,
+        "betas": (0.9, 0.999),
+        "capturable": False,
+        "decoupled_weight_decay": False,
+        "differentiable": False,
+        "eps": 1e-8,
+        "foreach": None,
+        "fused": None,
+        "lr": expected_learning_rate,
+        "maximize": False,
+        "weight_decay": 0,
+    }
+    if any(group[name] != value for name, value in expected_hyperparameters.items()):
+        raise ExperimentContractError("optimizer hyperparameters differ from the frozen PPO recipe")
+    state_ids = {id(parameter) for parameter in optimizer.state}
+    if not state_ids.issubset(set(expected_ids)):
+        raise ExperimentContractError("optimizer state contains a foreign parameter")
+    if require_empty_state and optimizer.state:
+        raise ExperimentContractError("fresh optimizer state is not empty")
+    parameter_names = [name for name, _parameter in named]
+    membership_sha256 = hashlib.sha256("\0".join(parameter_names).encode("utf-8")).hexdigest()
+    return {
+        "group_count": 1,
+        "groups": [
+            {
+                "hyperparameters": {
+                    **expected_hyperparameters,
+                    "betas": list(expected_hyperparameters["betas"]),
+                },
+                "parameter_names": parameter_names,
+            }
+        ],
+        "membership_complete": True,
+        "membership_sha256": membership_sha256,
+        "optimizer_type": "torch.optim.Adam",
+        "parameter_count": len(parameter_names),
+        "parameter_membership_unique": True,
+        "stage": stage,
+        "state_empty": not optimizer.state,
+        "state_entry_count": len(optimizer.state),
+    }
 
 
 def _validate_parameter_arrays(values: Mapping[str, object]) -> dict[str, np.ndarray]:
@@ -576,8 +654,8 @@ def _npy_bytes(value: np.ndarray) -> bytes:
     return stream.getvalue()
 
 
-def encode_full_authority_actor(actor: FullAuthorityActor) -> bytes:
-    arrays = _export_arrays(actor)
+def _encode_export_arrays(values: Mapping[str, object]) -> bytes:
+    arrays = _validate_export_arrays(values)
     stream = io.BytesIO()
     with ZipFile(stream, "w", compression=ZIP_DEFLATED, compresslevel=9) as archive:
         for name in _EXPORT_SCHEMA:
@@ -590,6 +668,10 @@ def encode_full_authority_actor(actor: FullAuthorityActor) -> bytes:
     if not 0 < len(payload) <= MAX_EXPORT_BYTES:
         raise ExperimentContractError("strict actor export exceeds its byte bound")
     return payload
+
+
+def encode_full_authority_actor(actor: FullAuthorityActor) -> bytes:
+    return _encode_export_arrays(_export_arrays(actor))
 
 
 def export_full_authority_actor(path: Path, actor: FullAuthorityActor) -> PublishedArtifact:
@@ -624,46 +706,41 @@ class LoadedFullAuthorityActor:
     member_hashes: Mapping[str, str]
 
 
+def load_full_authority_actor_arrays(
+    path: Path,
+    *,
+    expected_sha256: str,
+) -> Mapping[str, np.ndarray]:
+    """Decode and authenticate an export without constructing a Torch module."""
+
+    payload = _read_export(Path(path), expected_sha256)
+    validated = _validate_export_arrays(
+        decode_strict_npz(
+            payload,
+            schema=_EXPORT_SCHEMA,
+            archive_label="strict actor export",
+            maximum_member_bytes=MAX_EXPORT_MEMBER_BYTES,
+            maximum_total_bytes=MAX_EXPORT_EXPANSION_BYTES,
+        )
+    )
+    if _encode_export_arrays(validated) != payload:
+        raise ExperimentContractError("strict actor export is not canonical")
+    return MappingProxyType(validated)
+
+
 def load_full_authority_actor(
     path: Path,
     *,
     expected_sha256: str,
 ) -> LoadedFullAuthorityActor:
     payload = _read_export(Path(path), expected_sha256)
-    expected_names = tuple(f"{name}.npy" for name in _EXPORT_SCHEMA)
-    try:
-        with ZipFile(io.BytesIO(payload), "r") as archive:
-            infos = archive.infolist()
-            if tuple(info.filename for info in infos) != expected_names:
-                raise ExperimentContractError("strict actor export member order differs")
-            arrays: dict[str, np.ndarray] = {}
-            for info, name in zip(infos, _EXPORT_SCHEMA, strict=True):
-                if (
-                    info.date_time != (1980, 1, 1, 0, 0, 0)
-                    or info.compress_type != ZIP_DEFLATED
-                    or info.create_system != 3
-                    or ((info.external_attr >> 16) & 0xFFFF) != 0o100600
-                    or info.flag_bits != 0
-                    or info.extra
-                    or info.comment
-                    or info.is_dir()
-                ):
-                    raise ExperimentContractError("strict actor export ZIP metadata differs")
-                with archive.open(info, "r") as member:
-                    arrays[name] = np.ascontiguousarray(
-                        np.lib.format.read_array(member, allow_pickle=False)
-                    )
-    except ExperimentContractError:
-        raise
-    except (BadZipFile, EOFError, OSError, ValueError) as exc:
-        raise ExperimentContractError(f"strict actor export is invalid: {exc}") from exc
-    validated = _validate_export_arrays(arrays)
+    validated = load_full_authority_actor_arrays(path, expected_sha256=expected_sha256)
     actor = FullAuthorityActor(
         {name: validated[name] for name in _ACTOR_PARAMETER_NAMES},
         source_actor_sha256=bytes(validated["source_actor_sha256"][0]).decode("ascii"),
     )
     if encode_full_authority_actor(actor) != payload:
-        raise ExperimentContractError("strict actor export is not canonical")
+        raise ExperimentContractError("strict actor export model reconstruction differs")
     return LoadedFullAuthorityActor(
         actor=actor,
         content_sha256=expected_sha256,
@@ -723,6 +800,7 @@ __all__ = [
     "exact_physical_action",
     "export_full_authority_actor",
     "load_full_authority_actor",
+    "load_full_authority_actor_arrays",
     "numpy_log_likelihood",
     "squashed_gaussian_log_likelihood",
     "verify_actor_warm_start",

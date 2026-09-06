@@ -45,10 +45,13 @@ from .policy import (
     FullAuthorityActor,
     build_full_authority_policy,
     compose_policy_input,
+    encode_full_authority_actor,
     exact_physical_action,
     export_full_authority_actor,
     load_full_authority_actor,
+    load_full_authority_actor_arrays,
     verify_actor_warm_start,
+    verify_optimizer_authority,
 )
 from .reference_runtime import (
     load_v2_reference_clip,
@@ -237,6 +240,202 @@ def _expanded_expected(parameters: Mapping[str, np.ndarray]) -> dict[str, np.nda
     return result
 
 
+def _export_distribution(
+    parameters: Mapping[str, np.ndarray],
+    policy_input: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Replay the actor math from authenticated arrays without constructing a model."""
+
+    import torch
+    from torch.nn import functional
+
+    tensors = {
+        name: torch.from_numpy(np.ascontiguousarray(value, dtype="<f4").copy())
+        for name, value in parameters.items()
+        if name.startswith(("latent_pi", "mu", "log_std"))
+    }
+    value = torch.from_numpy(policy_input.copy(order="C"))
+    with torch.inference_mode():
+        first = functional.linear(
+            value[..., :348],
+            tensors["latent_pi.0.weight"][:, :348],
+            tensors["latent_pi.0.bias"],
+        ) + functional.linear(
+            value[..., 348:],
+            tensors["latent_pi.0.weight"][:, 348:],
+            None,
+        )
+        latent = functional.relu(first)
+        latent = functional.relu(
+            functional.linear(
+                latent,
+                tensors["latent_pi.2.weight"],
+                tensors["latent_pi.2.bias"],
+            )
+        )
+        mean = functional.linear(latent, tensors["mu.weight"], tensors["mu.bias"])
+        log_std = torch.clamp(
+            functional.linear(
+                latent,
+                tensors["log_std.weight"],
+                tensors["log_std.bias"],
+            ),
+            min=LOG_STD_MIN,
+            max=LOG_STD_MAX,
+        )
+    return tuple(np.ascontiguousarray(item.numpy(), dtype="<f4") for item in (mean, log_std))  # type: ignore[return-value]
+
+
+def validate_e1_receipt_at_admission(
+    *,
+    repository_root: Path,
+    receipt_path: Path,
+    expected_receipt_sha256: str,
+    export_path: Path,
+    expected_export_sha256: str,
+) -> dict[str, object]:
+    """Bind live sources and replay all 68 E1 fixtures before model construction."""
+
+    root = Path(repository_root)
+    encoded = Path(receipt_path).read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != expected_receipt_sha256:
+        raise ExperimentContractError("E1 admission receipt identity differs")
+    try:
+        receipt = json.loads(encoded)
+    except (json.JSONDecodeError, UnicodeError, ValueError) as exc:
+        raise ExperimentContractError("E1 admission receipt is invalid") from exc
+    if type(receipt) is not dict or canonical_json_bytes(receipt) != encoded:
+        raise ExperimentContractError("E1 admission receipt is not canonical")
+    live_source_hashes = {
+        "policy": sha256_file(Path(sys.modules[FullAuthorityActor.__module__].__file__)),
+        "receipt_generator": sha256_file(Path(__file__)),
+    }
+    if receipt.get("source_hashes") != live_source_hashes:
+        raise ExperimentContractError("E1 admission source hashes differ from live modules")
+    source = receipt.get("source_expert")
+    export = receipt.get("export")
+    if (
+        type(source) is not dict
+        or source.get("sha256") != EXPERT_ACTOR_NPZ_SHA256
+        or type(export) is not dict
+        or export.get("sha256") != expected_export_sha256
+        or receipt.get("passed") is not True
+        or receipt.get("training_steps") != 0
+    ):
+        raise ExperimentContractError("E1 admission receipt bindings differ")
+    optimizer = receipt.get("optimizer_admission")
+    expected_names = [
+        "actor.latent_0.weight",
+        "actor.latent_0.bias",
+        "actor.latent_2.weight",
+        "actor.latent_2.bias",
+        "actor.mu.weight",
+        "actor.mu.bias",
+        "actor.log_std.weight",
+        "actor.log_std.bias",
+        "value.0.weight",
+        "value.0.bias",
+        "value.2.weight",
+        "value.2.bias",
+        "value.4.weight",
+        "value.4.bias",
+    ]
+    expected_optimizer = {
+        "group_count": 1,
+        "groups": [
+            {
+                "hyperparameters": {
+                    "amsgrad": False,
+                    "betas": [0.9, 0.999],
+                    "capturable": False,
+                    "decoupled_weight_decay": False,
+                    "differentiable": False,
+                    "eps": 1e-8,
+                    "foreach": None,
+                    "fused": None,
+                    "lr": 0.0003,
+                    "maximize": False,
+                    "weight_decay": 0,
+                },
+                "parameter_names": expected_names,
+            }
+        ],
+        "membership_complete": True,
+        "membership_sha256": hashlib.sha256("\0".join(expected_names).encode()).hexdigest(),
+        "optimizer_type": "torch.optim.Adam",
+        "parameter_count": len(expected_names),
+        "parameter_membership_unique": True,
+        "stage": "e1_fresh_before_first_update",
+        "state_empty": True,
+        "state_entry_count": 0,
+    }
+    if optimizer != expected_optimizer:
+        raise ExperimentContractError("E1 fresh optimizer admission differs")
+    states, windows, real_fixtures = _input_batch(root)
+    policy_input = compose_policy_input(states, windows).array
+    fixture = receipt.get("fixture_batch")
+    if (
+        type(fixture) is not dict
+        or fixture.get("count") != 68
+        or fixture.get("real_fixtures") != real_fixtures
+        or fixture.get("state_sha256") != array_sha256(states)
+        or fixture.get("window_sha256") != array_sha256(windows)
+        or fixture.get("input_sha256") != array_sha256(policy_input)
+    ):
+        raise ExperimentContractError("E1 admission fixture batch differs")
+    expert = load_actor_npz(root / EXPERT_ACTOR_PATH, expected_sha256=EXPERT_ACTOR_NPZ_SHA256)
+    exported = load_full_authority_actor_arrays(
+        export_path,
+        expected_sha256=expected_export_sha256,
+    )
+    parameters = {name: exported[name] for name in _expanded_expected(expert.arrays)}
+    expected_parameters = _expanded_expected(expert.arrays)
+    if any(
+        parameters[name].tobytes(order="C") != expected_parameters[name].tobytes(order="C")
+        for name in expected_parameters
+    ):
+        raise ExperimentContractError("E1 admission exported parameters differ")
+    base_mean, base_log_std = _base_distribution(expert.arrays, states)
+    mean, log_std = _export_distribution(parameters, policy_input)
+    if mean.tobytes(order="C") != base_mean.tobytes(order="C") or log_std.tobytes(
+        order="C"
+    ) != base_log_std.tobytes(order="C"):
+        raise ExperimentContractError("E1 admission distribution replay differs")
+    epsilon = _epsilon((68, 17))
+    import torch
+
+    with torch.inference_mode():
+        deterministic = np.ascontiguousarray(torch.tanh(torch.from_numpy(mean.copy())).numpy())
+        pre_tanh = torch.from_numpy(mean.copy()) + torch.exp(torch.from_numpy(log_std.copy())) * (
+            torch.from_numpy(epsilon.copy())
+        )
+        stochastic = np.ascontiguousarray(torch.tanh(pre_tanh).numpy(), dtype="<f4")
+    low = np.ascontiguousarray(expert.arrays["action_low"], dtype="<f4")
+    high = np.ascontiguousarray(expert.arrays["action_high"], dtype="<f4")
+    replay = {
+        "deterministic_normalized_action": deterministic,
+        "deterministic_physical_action": exact_physical_action(deterministic, low, high),
+        "log_std": log_std,
+        "mean": mean,
+        "seeded_stochastic_normalized_action": stochastic,
+        "seeded_stochastic_physical_action": exact_physical_action(stochastic, low, high),
+    }
+    identity = receipt.get("identity_checks")
+    if type(identity) is not dict or any(
+        type(identity.get(name)) is not dict
+        or identity[name].get("sha256") != array_sha256(value)
+        or identity[name].get("bitwise_equal") is not True
+        for name, value in replay.items()
+    ):
+        raise ExperimentContractError("E1 admission action replay differs")
+    return {
+        "fixture_count": 68,
+        "receipt_sha256": expected_receipt_sha256,
+        "replayed": True,
+        "source_hashes": live_source_hashes,
+    }
+
+
 def build_e1_receipt(
     *,
     repository_root: Path,
@@ -256,6 +455,16 @@ def build_e1_receipt(
     ):
         raise ExperimentContractError("expert NPZ identity mismatch")
     policy = build_full_authority_policy(actor_path, value_seed=E1_VALUE_SEED)
+    import torch
+
+    optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
+    optimizer_admission = verify_optimizer_authority(
+        policy,
+        optimizer,
+        expected_learning_rate=3e-4,
+        require_empty_state=True,
+        stage="e1_fresh_before_first_update",
+    )
     expected_parameters = _expanded_expected(expert.arrays)
     parameter_audit = verify_actor_warm_start(policy.actor, expected_parameters)
     states, windows, real_fixtures = _input_batch(root)
@@ -274,8 +483,6 @@ def build_e1_receipt(
             field="log_std",
         ),
     }
-    import torch
-
     with torch.inference_mode():
         base_deterministic = np.ascontiguousarray(
             torch.tanh(torch.from_numpy(base_mean.copy(order="C"))).numpy(),
@@ -341,7 +548,17 @@ def build_e1_receipt(
         raise ExperimentContractError(
             f"PPO likelihood recomputation exceeded 1e-5: {likelihood_delta!r}"
         )
-    published_export = export_full_authority_actor(export_path, policy.actor)
+    export_payload = encode_full_authority_actor(policy.actor)
+    if Path(export_path).exists():
+        if Path(export_path).is_symlink() or Path(export_path).read_bytes() != export_payload:
+            raise ExperimentContractError("sealed E1 export differs from the regenerated bytes")
+        published_export = PublishedArtifact(
+            Path(export_path),
+            hashlib.sha256(export_payload).hexdigest(),
+            len(export_payload),
+        )
+    else:
+        published_export = export_full_authority_actor(export_path, policy.actor)
     reloaded = load_full_authority_actor(
         published_export.path,
         expected_sha256=published_export.sha256,
@@ -427,6 +644,7 @@ def build_e1_receipt(
             "passed": True,
             "tolerance": 1e-5,
         },
+        "optimizer_admission": optimizer_admission,
         "passed": True,
         "receipt_id": E1_RECEIPT_ID,
         "reload_identity_checks": reload_equality,
@@ -650,6 +868,7 @@ __all__ = [
     "publish_e1_receipt",
     "publish_phase_transfer_receipt",
     "sha_ranked_real_fixtures",
+    "validate_e1_receipt_at_admission",
 ]
 
 

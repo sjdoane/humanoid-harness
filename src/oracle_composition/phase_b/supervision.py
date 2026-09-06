@@ -305,7 +305,7 @@ def validate_training_preflight(
         expected_cycle=2,
         expected_metric_core_sha256=None,
     )
-    template_path = experiment_path / "phase_b/run_manifest_interface_check_v1.json"
+    template_path = experiment_path / "phase_b/run_manifest_training_admission_v2.json"
     template, template_sha = load_fine_tuning_run_manifest(template_path, repository_root=root)
     loaded_oracle, oracle_sha = load_phase_b_oracle(
         oracle,
@@ -465,6 +465,7 @@ def _execution_manifest_value(
     test_only: bool,
 ) -> dict[str, object]:
     return {
+        "checkpoint_selection": "final_transition_only",
         "e003_execution_manifest_sha256": preflight.e003_execution_manifest_sha256,
         "evidence_class": "interface_check" if smoke else "exploratory_fine_tuning_cycle",
         "execution_manifest_schema_id": EXECUTION_MANIFEST_SCHEMA_ID,

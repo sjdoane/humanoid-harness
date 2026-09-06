@@ -15,6 +15,7 @@ from oracle_composition.harness.evaluator import (
     render_legacy_report_markdown,
 )
 from oracle_composition.harness.evidence import (
+    EvidenceChainError,
     current_authority_identities,
     execution_manifest_value,
     legacy_phase_a_artifacts,
@@ -144,7 +145,7 @@ def test_designer_provenance_binds_sanitized_audit_and_copied_oracle(cycle: int)
     assert receipt["requested"] == {
         "model": "gpt-5.6-sol",
         "reasoning_effort": "max",
-        "source": "request.json_confirmed_by_result.json",
+        "source": "requested_identity_only",
     }
     assert receipt["status"] == "SUCCEEDED"
     copied = ROOT / receipt["canonical_oracle"]["copied_file_path"]
@@ -170,7 +171,9 @@ def test_designer_provenance_binds_sanitized_audit_and_copied_oracle(cycle: int)
             assert _sha256(ROOT / allowed["path"]) == allowed["sha256"]
 
 
-def test_designer_provenance_receipt_survives_absent_ignored_raw_audit(tmp_path: Path) -> None:
+def test_designer_provenance_is_explicitly_unverifiable_without_raw_audit(
+    tmp_path: Path,
+) -> None:
     relative_experiment = Path("experiments/003_composition_speed_profile")
     portable_experiment = tmp_path / relative_experiment
     copied_relatives = (
@@ -186,17 +189,15 @@ def test_designer_provenance_receipt_survives_absent_ignored_raw_audit(tmp_path:
     receipt = json.loads(
         (portable_experiment / "cycles/cycle_1/designer_provenance.json").read_bytes()
     )
-    validated = validate_designer_provenance(
-        experiment=portable_experiment,
-        repository_root=tmp_path,
-        cycle=1,
-        oracle_id="cycle_1_candidate",
-        oracle_file_sha256=receipt["canonical_oracle"]["copied_file_sha256"],
-        oracle_sha256=receipt["canonical_oracle"]["canonical_sha256"],
-    )
-    assert validated.sha256 == _sha256(
-        portable_experiment / "cycles/cycle_1/designer_provenance.json"
-    )
+    with pytest.raises(EvidenceChainError, match="unverifiable"):
+        validate_designer_provenance(
+            experiment=portable_experiment,
+            repository_root=tmp_path,
+            cycle=1,
+            oracle_id="cycle_1_candidate",
+            oracle_file_sha256=receipt["canonical_oracle"]["copied_file_sha256"],
+            oracle_sha256=receipt["canonical_oracle"]["canonical_sha256"],
+        )
 
 
 def _mutated_experiment(tmp_path: Path, mutation: str) -> Path:

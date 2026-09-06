@@ -25,6 +25,8 @@ from .contracts import (
     PhaseBOracleProgram,
     StartingCheckpointContract,
     TrackingOnlyRewardSpec,
+    training_design_contract_value,
+    utility_evaluation_design_contract_value,
 )
 
 PHASE_A_ORACLE_PATH = "experiments/003_composition_speed_profile/cycles/cycle_1/oracle_1.json"
@@ -64,86 +66,11 @@ def _artifact_binding(published: PublishedArtifact, root: Path) -> dict[str, obj
 
 
 def _training_design() -> dict[str, object]:
-    return {
-        "actor_unfreeze": {
-            "first_rollouts": 8,
-            "initial_trainable": ["reference_columns", "value_network"],
-            "then_trainable": "full_actor_and_value_network",
-        },
-        "checkpoint_selection": "final_transition_only",
-        "cohort_seeds": [121001, 121101, 121201, 121301, 121401],
-        "environments": {
-            "count": 4,
-            "implementation": "DummyVecEnv",
-            "stream_mix": {
-                "composition": 2,
-                "rehearsal": 2,
-            },
-        },
-        "evidence_class": "exploratory_fine_tuning_cycle",
-        "normalization": {"observation": False, "reward": False},
-        "ppo": {
-            "batch_size": 512,
-            "clip_range": 0.2,
-            "clip_range_vf": None,
-            "ent_coef": 0.0,
-            "gae_lambda": 0.95,
-            "gamma": 0.99,
-            "learning_rate": 0.0003,
-            "max_grad_norm": 0.5,
-            "n_epochs": 10,
-            "normalize_advantage": True,
-            "target_kl": None,
-            "vf_coef": 0.5,
-        },
-        "retries_or_seed_replacement": False,
-        "rollout": {
-            "rollout_count": 128,
-            "steps_per_environment": 2048,
-            "transitions_per_rollout": 8192,
-        },
-        "rsi": {
-            "balanced_origin_actor_cells": 27,
-            "schedule_classes": ["hold", "one_way", "round_trip"],
-            "start_boundary_hash_modulus": 489,
-        },
-        "schema_version": 1,
-        "training_blocks": [
-            120001,
-            120002,
-            120003,
-            120005,
-            120007,
-            120008,
-            120009,
-            120011,
-            120012,
-        ],
-        "training_design_schema_id": "humanoid_fine_tuning_training_design/v1",
-        "transitions_per_seed": 1048576,
-    }
+    return training_design_contract_value()
 
 
 def _evaluation_design() -> dict[str, object]:
-    return {
-        "cell_episode_counts": {
-            "fixed_round_trip": 20,
-            "hold_expert": 20,
-            "hold_medium": 20,
-            "hold_simple": 20,
-        },
-        "cell_pass_minimum": 16,
-        "claim_ceiling": "bounded utility only",
-        "error_threshold": 1.0,
-        "evaluation_blocks": list(range(120101, 120121)),
-        "failure_denominator": "all_predeclared_episodes",
-        "family_checkpoint_minimum": 4,
-        "family_checkpoint_total": 5,
-        "reference_resynchronization_steps": 64,
-        "schema_version": 1,
-        "step_zero_comparator_required": True,
-        "utility_evaluation_schema_id": "humanoid_fine_tuning_utility_evaluation/v1",
-    }
+    return utility_evaluation_design_contract_value()
 
 
 def publish_contract_artifacts(
@@ -192,17 +119,31 @@ def publish_contract_artifacts(
         "evidence_class": EVIDENCE_CLASS,
         "library": _binding(root, LIBRARY_PATH),
         "oracle": _artifact_binding(oracle, root),
-        "ppo_seed": 121901,
+        "execution_profiles": {
+            "checkpoint_selection": "final_transition_only",
+            "cohort": {
+                "evidence_class": "exploratory_fine_tuning_cycle",
+                "promotable": True,
+                "seeds": [121001, 121101, 121201, 121301, 121401],
+                "transitions_per_seed": 1048576,
+            },
+            "smoke": {
+                "evidence_class": "interface_check",
+                "promotable": False,
+                "seeds": [121901],
+                "transitions_per_seed": 196608,
+            },
+        },
         "reference_corpus": _binding(root, CORPUS_PATH),
         "reward": _artifact_binding(reward, root),
-        "run_manifest_schema_id": "humanoid_fine_tuning_run_manifest/v1",
-        "schema_version": 1,
+        "run_manifest_schema_id": "humanoid_fine_tuning_run_manifest/v2",
+        "schema_version": 2,
         "starting_checkpoint": _artifact_binding(starting, root),
         "task": _binding(root, TASK_PATH),
         "training_design": _artifact_binding(training, root),
     }
     FineTuningRunManifest.from_dict(manifest_value)
-    manifest = _publish(output / "run_manifest_interface_check_v1.json", manifest_value)
+    manifest = _publish(output / "run_manifest_training_admission_v2.json", manifest_value)
     return {
         "evaluator": evaluator,
         "manifest": manifest,

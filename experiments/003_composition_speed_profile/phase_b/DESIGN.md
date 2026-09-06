@@ -2,21 +2,21 @@
 
 | status | current truth |
 |---|---|
-| progress | FT1 and FT2 now implement the no-learning contracts, exact 708-D warm start, custom PPO worker, balanced composition/rehearsal runtime, supervised final persistence, report-v2 writer, and train/evaluate CLI paths. The fake-runtime end-to-end and bounded real interface checks exercise those paths without training a policy. |
-| bottleneck | No disposable smoke, cohort, or protected utility evaluation has run. Interface checks do not establish numeric-reference use, transition success, oracle or reward improvement, or humanoid competence. |
-| next step | Fable reviews and commits FT2. A disposable smoke then requires its own accepted mailbox reservation; the five-seed cohort additionally requires Samuel's explicit authorization. |
+| progress | FT2R1 closes the FT1/E003R1 training-admission findings: live-source E1 replay, exact optimizer receipts, certified task inputs, a reviewed execution seal, bounded actor reload, trace-derived protected metrics, strict designer provenance, and an executable disjoint calibration contract. No training ran. |
+| bottleneck | No calibration receipt, disposable smoke, cohort, or protected utility evaluation exists. Interface checks do not establish numeric-reference use, transition success, oracle or reward improvement, or humanoid competence. |
+| next step | Fable reviews and commits FT2R1. Calibration data must be collected and frozen before task-success evaluation; any later smoke still requires its own accepted mailbox reservation. |
 
 ## Frozen artifacts
 
 | artifact | SHA-256 | role |
 |---|---|---|
 | `oracle_cycle_1_reference_v1.json` | `4d24f22780360d7632235572d97b3fccfe7c376162e69e15082f77bd7afcccf1` | `humanoid_reference_composition_oracle/v1`; Phase A guard grammar plus the fixed phase policy |
-| `tracking_only_v1.json` | `aeb14853490aed4a9195a6efeb4910d1a670a1edcd843d2d322c43d6ce655b83` | sole registered reward; `r_task = +0.0` |
+| `tracking_only_v1.json` | `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f` | sole registered reward; `r_task = +0.0`; certified task-input adapter bound |
 | `training_design_v1.json` | `1d104a52238eee4f5065b4fcc30c285662e26ab06edd847da7ca9e160364c69e` | frozen worker design; FT2 implements it but does not execute a training run |
-| `utility_evaluation_design_v1.json` | `0dbcd6c6991f200cfec72033238b3a9b067684e600ded5ed5311c8b76f7393e0` | bounded utility gate definition |
-| `starting_checkpoint_v1.json` | `964868d069652766f8527d23eccc8b904906784a7792f564a292785da3f1fb28` | exact expert, E1 receipt, step-0 export, and fresh value-network binding |
-| `run_manifest_interface_check_v1.json` | `28d800f077723382f892f3ca6e68c4b33d79e6a3e30478b7b4888fd2d64f9e0e` | complete pre-model-construction binding for the interface check |
-| `receipts/e1_full_authority_warm_start_v1.json` | `c602e14ab4cea1b856eaf4cd86240035214d2af096381429ececac3f7e2f3788` | four synthetic plus 64 SHA-ranked real fixtures |
+| `utility_evaluation_design_v1.json` | `4145c7bae5deacd9156070aa6531dafc0e4c9041e4fac6a8e4033e0713334f7d` | bounded utility gate and disjoint calibration procedure |
+| `starting_checkpoint_v1.json` | `9931750c5015ae5a385ac42202485868b0338530918421234c5aacbfe9b3e3b5` | exact expert, fresh E1 receipt, unchanged step-0 export, and value-network binding |
+| `run_manifest_training_admission_v2.json` | `45ce5baa66b6d6dadba38c61bbdfc943a75c542ae7c355927f1031fc65661ebb` | reviewed pre-construction seal for smoke and cohort profiles |
+| `receipts/e1_full_authority_warm_start_v1.json` | `5754db8e8afdc7f05f8a67ab3fb6a69ae453968a6c14e9f1dca545d688834bc9` | live-source-bound replay of four synthetic plus 64 SHA-ranked real fixtures and fresh optimizer state |
 | `receipts/phase_transfer_static_v1.json` | `eee389c5dbb0fd030457c9022e879bb3f87794726f7c09446c8ffea91e9b7953` | nine-block static splice check |
 | ignored step-0 actor export | `6ebc2b56be9a5f304b8b584157fd0141d449d75297366213e4976291cb2dcfe0` | local-only strict code-free actor export; not eligible for Git redistribution |
 
@@ -66,7 +66,7 @@ This is a reference-row comparison, not evidence that the simulator survives eit
 |---|---|
 | Training reward | `r_train = r_track + r_task`; baseline `r_task = +0.0` |
 | Stock Humanoid reward | named telemetry only; never added to training reward |
-| CandidateTaskInputsV2 | trusted float64 COM forward velocity in `[-25,25]`, exact target `3.0`, exact cadence `0.015 s`; no other field or callback |
+| CandidateTaskInputsV2 | adapter-certified built-in float from the stock body-mass-weighted COM-x delta, inclusive `[-25,25] m/s`, and exact `0.015 s` cadence; Astra's reviewed `task_inputs_v2.py` bytes remain unchanged |
 | Registry | exact schema, formula, parser, bounds, and compositor hashes; only `tracking_only/v1` admitted in FT1 |
 | Report | `humanoid_composition_cycle_report/v2`, a backward-shaped report-v1 superset with separate input, policy, training, reference, reward, episode, summary, and integrity evidence |
 
@@ -88,6 +88,23 @@ or reward candidate ran.
 | Persistence | One final full checkpoint and strict actor export per successful seed, no-overwrite publication, strict canonical reload, frozen-fixture bitwise inference, checkpoint/export equivalence, and a five-seed cohort index |
 | Report v2 | Deterministic scientific receipt chained to E003R1; separate host/wall/resource telemetry; per-seed training facts; protected speed, tracking, safety, switch, resynchronization, task-success, and utility-gate fields |
 | CLI | `train` performs complete preflight before construction; `evaluate-policy` runs the three hold cells and fixed round trip for a stored checkpoint and the step-0 actor on the same 20 blocks |
+
+Training admission replays E1 and semantically parses the task, library,
+reference corpus, evaluator, training design, oracle, reward, and starting
+checkpoint before model or environment construction. The reviewed manifest
+admits only smoke seed `121901` at `196,608` transitions or cohort seeds
+`121001,121101,121201,121301,121401` at `1,048,576` transitions each, with
+`final_transition_only` checkpoint selection.
+
+Task-success thresholds are not placeholders. The calibration writer requires
+the exact Cartesian split of blocks `120201`-`120220` and policy seeds
+`122001,122101,122201,122301,122401`, disjoint from training and evaluation.
+It freezes higher empirical 95th-percentile segment bands, two censored
+transition-latency caps, and a settled-state band with declared margins. The
+evaluator rejects a missing or mismatched receipt before loading a checkpoint.
+Reports retain a 20-episode exact binomial interval per checkpoint and paired
+candidate-minus-step-zero effects by PPO seed; they never report pooled
+`n = 100` task success.
 
 The fake runtime exercises the real worker process, supervisor, persistence,
 report writer, and CLI. It is controlled software evidence, not simulator or
@@ -138,6 +155,8 @@ python -m oracle_composition.harness.cycle_cli evaluate-policy \
   --oracle experiments/003_composition_speed_profile/phase_b/oracle_cycle_1_reference_v1.json \
   --reward experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json \
   --checkpoint /absolute/path/to/checkpoint_seed_121001_final.npz \
+  --calibration-receipt /absolute/path/to/frozen_task_success_calibration.json \
+  --calibration-receipt-sha256 <reviewed-sha256> \
   --output /absolute/fresh/path/phase_b_utility_121001
 ```
 

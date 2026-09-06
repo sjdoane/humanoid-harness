@@ -19,6 +19,7 @@ from oracle_composition.experiments.artifact_io import (
 )
 from oracle_composition.harness.evidence import current_authority_identities
 
+from .calibration import TaskSuccessCalibration
 from .contracts import CLAIM_CEILING, REPORT_V2_SCHEMA_ID, validate_cycle_report
 from .reference_runtime import ERROR_NAMES
 from .training import COHORT_SEEDS
@@ -30,6 +31,7 @@ TASK_SUCCESS_ENDPOINT_ID = "phase_b_speed_profile_task_success/v1"
 UTILITY_GATE_ID = "phase_b_minimum_utility_gate/v1"
 
 UTILITY_CELLS = ("hold_expert", "hold_medium", "hold_simple", "fixed_round_trip")
+MAX_SIGNED_32 = 2_147_483_647
 TRACKING_SCALES = MappingProxyType(
     {
         "joint_position_rmse_rad": 0.35,
@@ -62,13 +64,14 @@ class ProtectedEpisodeMetrics:
     settle_latency_steps: int | None
     time_to_first_failure_steps: int | None
     task_success: bool | None
+    settled_state_normalized_error: float | None = None
 
     def __post_init__(self) -> None:
         if (
             type(self.policy_seed) is not int
-            or self.policy_seed <= 0
+            or not 0 < self.policy_seed <= MAX_SIGNED_32
             or type(self.evaluation_seed) is not int
-            or self.evaluation_seed <= 0
+            or not 0 < self.evaluation_seed <= MAX_SIGNED_32
             or self.cell not in UTILITY_CELLS
             or type(self.observed_steps) is not int
             or not 0 <= self.observed_steps <= 1_000
@@ -96,7 +99,10 @@ class ProtectedEpisodeMetrics:
         if set(self.segment_errors) != {"fast", "slow", "return_fast"}:
             raise ValueError("episode must report all three task segment errors")
         for name, value in self.segment_errors.items():
-            if type(name) is not str or not name or not math.isfinite(float(value)):
+            if type(name) is not str or not name:
+                raise ValueError("segment error is malformed")
+            _finite_sequence((value,), "segment error")
+            if float(value) < 0.0:
                 raise ValueError("segment error is malformed")
         for contact in self.forbidden_contacts:
             if (
@@ -111,13 +117,14 @@ class ProtectedEpisodeMetrics:
                 raise ValueError("forbidden-contact record is malformed")
         for value, name in (
             (self.transition_window_error, "transition_window_error"),
+            (self.settled_state_normalized_error, "settled_state_normalized_error"),
             (self.settle_latency_steps, "settle_latency_steps"),
             (self.time_to_first_failure_steps, "time_to_first_failure_steps"),
         ):
-            if value is not None and (
-                type(value) not in {int, float} or not math.isfinite(float(value)) or value < 0
-            ):
-                raise ValueError(f"{name} is malformed")
+            if value is not None:
+                _finite_sequence((value,), name)
+                if value < 0:
+                    raise ValueError(f"{name} is malformed")
         if self.task_success is True and not self.safety_passed:
             raise ValueError("an unsafe episode cannot be recorded as task-successful")
 
@@ -187,6 +194,7 @@ class ProtectedEpisodeMetrics:
             "resynchronization_records": [dict(item) for item in self.resynchronization_records],
             "root_delta_forward_speed_m_s": list(self.root_delta_forward_speed_m_s),
             "segment_errors": dict(sorted(self.segment_errors.items())),
+            "settled_state_normalized_error": self.settled_state_normalized_error,
             "settle_latency_steps": self.settle_latency_steps,
             "six_tracking_errors": dict(sorted(self.six_tracking_errors.items())),
             "switch_records": [dict(item) for item in self.switch_records],
@@ -207,7 +215,7 @@ class SeedReportFacts:
     step_zero_comparator: Mapping[str, object]
 
     def __post_init__(self) -> None:
-        if type(self.ppo_seed) is not int or self.ppo_seed <= 0:
+        if type(self.ppo_seed) is not int or not 0 < self.ppo_seed <= MAX_SIGNED_32:
             raise ValueError("seed report PPO seed is invalid")
         _require_sha(self.checkpoint_sha256, "checkpoint SHA-256")
         _require_sha(self.strict_export_sha256, "strict export SHA-256")
@@ -234,6 +242,17 @@ class SeedReportFacts:
             or self.training["planned_transitions"] != self.training["observed_transitions"]
         ):
             raise ValueError("seed report training counters differ")
+        integer_bounds = {
+            "observed_transitions": 1_048_576,
+            "optimizer_updates": MAX_SIGNED_32,
+            "planned_transitions": 1_048_576,
+            "rollouts": 128,
+        }
+        if any(
+            type(self.training[name]) is not int or not 0 < self.training[name] <= maximum
+            for name, maximum in integer_bounds.items()
+        ):
+            raise ValueError("seed report training integer lies outside its bound")
         _require_sha(self.training["execution_manifest_sha256"], "training manifest SHA-256")
         _require_sha(self.training["rsi_ledger_sha256"], "RSI ledger SHA-256")
         _require_sha(self.training["unfreeze_receipt_sha256"], "unfreeze receipt SHA-256")
@@ -257,8 +276,15 @@ def _require_sha(value: object, field: str) -> str:
 
 
 def _finite_sequence(values: Sequence[object], field: str) -> None:
-    if any(type(value) not in {int, float} or not math.isfinite(float(value)) for value in values):
-        raise ValueError(f"{field} contains NaN or Inf")
+    for value in values:
+        if type(value) not in {int, float}:
+            raise ValueError(f"{field} contains a non-numeric value")
+        try:
+            finite = math.isfinite(float(value))
+        except (OverflowError, ValueError) as exc:
+            raise ValueError(f"{field} contains an out-of-range value") from exc
+        if not finite:
+            raise ValueError(f"{field} contains NaN or Inf")
 
 
 def _binomial_cdf(k: int, n: int, probability: float) -> float:
@@ -368,11 +394,66 @@ def utility_gate(
 def task_success_endpoint(
     episodes: Sequence[ProtectedEpisodeMetrics],
     *,
-    segment_tolerances: Mapping[str, float] | None = None,
+    step_zero_episodes: Sequence[ProtectedEpisodeMetrics],
+    calibration: TaskSuccessCalibration,
 ) -> dict[str, object]:
-    calibrated = [episode for episode in episodes if episode.task_success is not None]
-    successes = sum(bool(episode.task_success) for episode in calibrated)
-    interval = exact_binomial_interval(successes, len(calibrated)) if calibrated else None
+    calibrated = [
+        episode
+        for episode in episodes
+        if episode.cell == "fixed_round_trip" and episode.task_success is not None
+    ]
+    comparators = [
+        episode
+        for episode in step_zero_episodes
+        if episode.cell == "fixed_round_trip" and episode.task_success is not None
+    ]
+    candidate_by_seed: dict[int, list[ProtectedEpisodeMetrics]] = defaultdict(list)
+    comparator_by_seed: dict[int, list[ProtectedEpisodeMetrics]] = defaultdict(list)
+    for episode in calibrated:
+        candidate_by_seed[episode.policy_seed].append(episode)
+    for episode in comparators:
+        comparator_by_seed[episode.policy_seed].append(episode)
+    if set(candidate_by_seed) != set(comparator_by_seed):
+        raise ValueError("task-success candidate and step-zero policy seed sets differ")
+    checkpoint_results = []
+    paired_effects = []
+    expected_evaluation_seeds = list(range(120101, 120121))
+    for seed in sorted(candidate_by_seed):
+        candidate_rows = sorted(candidate_by_seed[seed], key=lambda item: item.evaluation_seed)
+        comparator_rows = sorted(comparator_by_seed[seed], key=lambda item: item.evaluation_seed)
+        if [item.evaluation_seed for item in candidate_rows] != expected_evaluation_seeds or [
+            item.evaluation_seed for item in comparator_rows
+        ] != expected_evaluation_seeds:
+            raise ValueError("task-success endpoint requires exactly 20 predeclared episodes")
+        candidate_checkpoint_hashes = {item.checkpoint_sha256 for item in candidate_rows}
+        comparator_checkpoint_hashes = {item.checkpoint_sha256 for item in comparator_rows}
+        if len(candidate_checkpoint_hashes) != 1 or len(comparator_checkpoint_hashes) != 1:
+            raise ValueError("task-success checkpoint identity differs within a policy seed")
+        candidate_successes = sum(item.task_success is True for item in candidate_rows)
+        comparator_successes = sum(item.task_success is True for item in comparator_rows)
+        candidate_proportion = candidate_successes / 20
+        comparator_proportion = comparator_successes / 20
+        checkpoint_results.append(
+            {
+                "checkpoint_sha256": next(iter(candidate_checkpoint_hashes)),
+                "exact_binomial_95_interval": list(
+                    exact_binomial_interval(candidate_successes, 20)
+                ),
+                "policy_seed": seed,
+                "proportion": candidate_proportion,
+                "successes": candidate_successes,
+                "total": 20,
+            }
+        )
+        paired_effects.append(
+            {
+                "candidate_proportion": candidate_proportion,
+                "effect_candidate_minus_step_zero": candidate_proportion - comparator_proportion,
+                "paired_evaluation_seed_count": 20,
+                "policy_seed": seed,
+                "step_zero_proportion": comparator_proportion,
+            }
+        )
     segment_names = sorted({name for episode in episodes for name in episode.segment_errors})
     secondary = {
         "equal_weight_mean_three_segment_errors": (
@@ -406,27 +487,15 @@ def task_success_endpoint(
             episode.time_to_first_failure_steps for episode in episodes
         ],
     }
-    tolerances: dict[str, object]
-    if segment_tolerances is None:
-        tolerances = {
-            "calibration_status": "placeholder_until_calibrated",
-            "fast": None,
-            "return_fast": None,
-            "slow": None,
-            "transition_latency": None,
-        }
-    else:
-        required_tolerances = {"fast", "return_fast", "slow", "transition_latency"}
-        if set(segment_tolerances) != required_tolerances or any(
-            type(value) not in {int, float} or not math.isfinite(float(value)) or float(value) < 0.0
-            for value in segment_tolerances.values()
-        ):
-            raise ValueError("calibrated segment tolerances differ")
-        tolerances = {
-            "calibration_status": "frozen_calibrated",
-            **{name: float(value) for name, value in sorted(segment_tolerances.items())},
-        }
     return {
+        "calibration": {
+            "receipt_sha256": calibration.sha256,
+            "segment_speed_error_bands_m_s": dict(calibration.segment_speed_error_bands_m_s),
+            "settled_state_normalized_error_band": (
+                calibration.settled_state_normalized_error_band
+            ),
+            "transition_latency_caps_steps": list(calibration.transition_latency_caps_steps),
+        },
         "endpoint_id": TASK_SUCCESS_ENDPOINT_ID,
         "ordering": [
             "safety_gate",
@@ -435,10 +504,10 @@ def task_success_endpoint(
             "transition_latency",
         ],
         "primary_endpoint": {
-            "exact_binomial_95_interval": list(interval) if interval is not None else None,
-            "proportion": successes / len(calibrated) if calibrated else None,
-            "successes": successes,
-            "total": len(calibrated),
+            "checkpoint_results": checkpoint_results,
+            "five_seed_cohort_complete": tuple(sorted(candidate_by_seed)) == COHORT_SEEDS,
+            "pooled_episode_estimate": None,
+            "rule": "20_episode_exact_binomial_interval_per_checkpoint_no_pooled_n_100",
         },
         "safety_gate": {
             "all_1000_steps_completed": all(item.observed_steps == 1_000 for item in episodes),
@@ -448,7 +517,16 @@ def task_success_endpoint(
             "rule": "0_falls_no_forbidden_contact_all_1000_steps",
         },
         "secondary_endpoints": secondary,
-        "segment_tolerances": tolerances,
+        "paired_seed_level_effects": paired_effects,
+        "paired_seed_level_summary": {
+            "five_seed_cohort_complete": tuple(sorted(candidate_by_seed)) == COHORT_SEEDS,
+            "mean_effect_across_policy_seeds": (
+                fmean(row["effect_candidate_minus_step_zero"] for row in paired_effects)
+                if tuple(sorted(candidate_by_seed)) == COHORT_SEEDS
+                else None
+            ),
+            "required_policy_seeds": list(COHORT_SEEDS),
+        },
         "unsafe_arm_may_outrank_safe_arm": False,
     }
 
@@ -476,6 +554,8 @@ def build_scientific_receipt(
     inputs: Mapping[str, object],
     seeds: Sequence[SeedReportFacts],
     episodes: Sequence[ProtectedEpisodeMetrics],
+    step_zero_episodes: Sequence[ProtectedEpisodeMetrics],
+    calibration: TaskSuccessCalibration | None,
     reference_records: Sequence[Mapping[str, object]],
     reward_totals: Mapping[str, object],
     trace_index_sha256: str,
@@ -531,9 +611,21 @@ def build_scientific_receipt(
     ).hexdigest()
     episode_rows = _episode_rows(episodes)
     utility = utility_gate(checkpoints=seeds, episodes=episodes)
-    endpoint = task_success_endpoint(
-        [episode for episode in episodes if episode.cell == "fixed_round_trip"]
-    )
+    if episodes:
+        if calibration is None:
+            raise ValueError("evaluation evidence requires a bound calibration receipt")
+        endpoint = task_success_endpoint(
+            episodes,
+            step_zero_episodes=step_zero_episodes,
+            calibration=calibration,
+        )
+    else:
+        if step_zero_episodes or calibration is not None:
+            raise ValueError("training-only receipt cannot contain calibration evaluation")
+        endpoint = {
+            "endpoint_id": TASK_SUCCESS_ENDPOINT_ID,
+            "status": "not_scored_training_only_receipt",
+        }
     policy_rows = [
         {
             "checkpoint_sha256": seed.checkpoint_sha256,
@@ -687,8 +779,8 @@ def _render_markdown(report: Mapping[str, object]) -> bytes:
         "",
         "| endpoint | value |",
         "|---|---:|",
-        f"| safety gate | {endpoint['safety_gate']['passed']} |",
-        f"| task successes | {endpoint['primary_endpoint']['successes']} / {endpoint['primary_endpoint']['total']} |",
+        f"| safety gate | {endpoint.get('safety_gate', {}).get('passed', 'not scored')} |",
+        f"| task-success checkpoints | {len(endpoint.get('primary_endpoint', {}).get('checkpoint_results', []))} |",
         f"| utility family | {utility['family_passed']} |",
         "",
         f"Claim ceiling: `{report['claim_ceiling']}`",

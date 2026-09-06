@@ -40,6 +40,7 @@ from .policy import (
     compose_policy_input,
     encode_full_authority_actor,
 )
+from .strict_npz import decode_strict_npz
 from .training import COHORT_SEEDS, TrainingPlan, TrainingResult
 
 CHECKPOINT_SCHEMA_ID = "humanoid_phase_b_full_checkpoint/v1"
@@ -204,42 +205,13 @@ def _actor_from_trained_parameters(
 
 
 def _decode_strict_actor_export(payload: bytes) -> dict[str, np.ndarray]:
-    expected_names = tuple(f"{name}.npy" for name in _STRICT_EXPORT_SCHEMA)
-    try:
-        with ZipFile(io.BytesIO(payload), "r") as archive:
-            infos = archive.infolist()
-            if tuple(info.filename for info in infos) != expected_names:
-                raise ExperimentContractError("strict trained export member order differs")
-            arrays: dict[str, np.ndarray] = {}
-            for info, (name, (shape, dtype)) in zip(
-                infos, _STRICT_EXPORT_SCHEMA.items(), strict=True
-            ):
-                if (
-                    info.date_time != (1980, 1, 1, 0, 0, 0)
-                    or info.compress_type != ZIP_DEFLATED
-                    or info.create_system != 3
-                    or ((info.external_attr >> 16) & 0xFFFF) != 0o100600
-                    or info.flag_bits != 0
-                    or info.extra
-                    or info.comment
-                    or info.is_dir()
-                ):
-                    raise ExperimentContractError("strict trained export ZIP metadata differs")
-                with archive.open(info, "r") as member:
-                    value = np.ascontiguousarray(
-                        np.lib.format.read_array(member, allow_pickle=False)
-                    )
-                if (
-                    value.shape != shape
-                    or value.dtype.str != dtype.str
-                    or (value.dtype.kind == "f" and not np.isfinite(value).all())
-                ):
-                    raise ExperimentContractError(f"strict trained export member differs: {name}")
-                arrays[name] = value
-    except ExperimentContractError:
-        raise
-    except (BadZipFile, EOFError, OSError, ValueError) as exc:
-        raise ExperimentContractError(f"strict trained export is invalid: {exc}") from exc
+    arrays = decode_strict_npz(
+        payload,
+        schema=_STRICT_EXPORT_SCHEMA,
+        archive_label="strict trained export",
+        maximum_member_bytes=MAX_ACTOR_EXPORT_BYTES,
+        maximum_total_bytes=MAX_ACTOR_EXPORT_BYTES * 2,
+    )
     if (
         not np.array_equal(arrays["action_low"], np.full(ACTION_WIDTH, -0.4, dtype="<f4"))
         or not np.array_equal(arrays["action_high"], np.full(ACTION_WIDTH, 0.4, dtype="<f4"))
@@ -453,6 +425,18 @@ def _decode_full_checkpoint(encoded: bytes) -> tuple[dict[str, object], dict[str
         or manifest["transitions"] != manifest["planned_transitions"]
     ):
         raise ExperimentContractError("full checkpoint contract differs")
+    bounded_integers = {
+        "planned_transitions": (1, 1_048_576),
+        "ppo_seed": (1, 2_147_483_647),
+        "rollouts": (1, 1_000_000),
+        "transitions": (1, 1_048_576),
+        "value_initialization_seed": (1, 2_147_483_647),
+    }
+    if any(
+        type(manifest[name]) is not int or not minimum <= manifest[name] <= maximum
+        for name, (minimum, maximum) in bounded_integers.items()
+    ):
+        raise ExperimentContractError("full checkpoint integer field lies outside its bound")
     return manifest, arrays
 
 

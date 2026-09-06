@@ -148,8 +148,14 @@ def test_guard_byte_node_and_depth_limits(source: str, message: str) -> None:
     ],
 )
 def test_guard_boolean_operations_have_short_circuit_semantics(source: str, expected: bool) -> None:
-    signals = {name: 0.0 for name in ALLOWED_SIGNALS}
-    assert GuardExpression.parse(source).evaluate(signals) is expected
+    class SentinelSignals(dict[str, float]):
+        def __getitem__(self, key: str) -> float:
+            if key == "v_x":
+                raise AssertionError("right-hand side was evaluated")
+            return super().__getitem__(key)
+
+    signals = SentinelSignals({name: 0.0 for name in ALLOWED_SIGNALS})
+    assert GuardExpression.parse(source).evaluate_prevalidated(signals) is expected
 
 
 def test_oracle_rejects_unicode_identifier_and_structural_caps() -> None:

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes, sha256_file
-from oracle_composition.phase_b.receipts import ADMITTED_TRAINING_BLOCKS
+from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.phase_b.receipts import (
+    ADMITTED_TRAINING_BLOCKS,
+    validate_e1_receipt_at_admission,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -37,3 +44,24 @@ def test_real_e1_receipt_is_canonical_complete_and_interface_only() -> None:
     assert value["likelihood_audit"]["maximum_absolute_recomputation_difference"] <= 1e-5
     assert all(item["bitwise_equal"] for item in value["identity_checks"].values())
     assert all(item["bitwise_equal"] for item in value["reload_identity_checks"].values())
+
+
+def test_e1_admission_rejects_rehashed_stale_source_receipt(tmp_path: Path) -> None:
+    source = (
+        ROOT / "experiments/003_composition_speed_profile/phase_b/receipts/"
+        "e1_full_authority_warm_start_v1.json"
+    )
+    value = json.loads(source.read_bytes())
+    value["source_hashes"]["policy"] = "0" * 64
+    encoded = canonical_json_bytes(value)
+    receipt = tmp_path / "receipt.json"
+    receipt.write_bytes(encoded)
+    export = ROOT / value["export"]["path"]
+    with pytest.raises(ExperimentContractError, match="live modules"):
+        validate_e1_receipt_at_admission(
+            repository_root=ROOT,
+            receipt_path=receipt,
+            expected_receipt_sha256=hashlib.sha256(encoded).hexdigest(),
+            export_path=export,
+            expected_export_sha256=value["export"]["sha256"],
+        )

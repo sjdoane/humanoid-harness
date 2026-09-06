@@ -12,6 +12,12 @@ from oracle_composition.harness.cycle_cli import (
     TrainingCliDependencies,
     main,
 )
+from oracle_composition.phase_b.calibration import (
+    CALIBRATION_BLOCKS,
+    CALIBRATION_POLICY_SEEDS,
+    TaskSuccessCalibration,
+    publish_calibration_receipt,
+)
 from oracle_composition.phase_b.evaluation import UtilityEvaluationDependencies
 from oracle_composition.phase_b.persistence import (
     publish_checkpoint_index,
@@ -155,6 +161,36 @@ def _episode(
         settle_latency_steps=7 if cell == "fixed_round_trip" else None,
         time_to_first_failure_steps=None,
         task_success=task_success,
+        settled_state_normalized_error=0.1 if cell == "fixed_round_trip" else None,
+    )
+
+
+def _calibration(path: Path) -> tuple[Path, str, TaskSuccessCalibration]:
+    samples = [
+        {
+            "block_id": block,
+            "fall": False,
+            "first_transition_latency_steps": 7,
+            "policy_seed_id": seed,
+            "second_transition_latency_steps": 8,
+            "segment_speed_errors_m_s": {
+                "fast": 0.2,
+                "return_fast": 0.2,
+                "slow": 0.2,
+            },
+            "settled_state_normalized_error": 0.2,
+            "source_checkpoint_sha256": f"{seed:064x}",
+        }
+        for seed in CALIBRATION_POLICY_SEEDS
+        for block in CALIBRATION_BLOCKS
+    ]
+    artifact = publish_calibration_receipt(path, samples)
+    from oracle_composition.phase_b.calibration import load_calibration_receipt
+
+    return (
+        artifact.path,
+        artifact.sha256,
+        load_calibration_receipt(artifact.path, expected_sha256=artifact.sha256),
     )
 
 
@@ -279,6 +315,9 @@ def test_cli_evaluate_policy_runs_hold_and_transition_cells_with_step_zero(
     checkpoint = trained / "seed_11/checkpoint_seed_11_final.npz"
     output = (tmp_path / "evaluation").resolve()
     utility_dependencies = UtilityEvaluationDependencies(episode_runner=_fake_episode_runner)
+    calibration_path, calibration_sha256, _calibration_contract = _calibration(
+        tmp_path / "calibration.json"
+    )
     args = [
         "evaluate-policy",
         "--experiment",
@@ -291,6 +330,10 @@ def test_cli_evaluate_policy_runs_hold_and_transition_cells_with_step_zero(
         str(REWARD),
         "--checkpoint",
         str(checkpoint),
+        "--calibration-receipt",
+        str(calibration_path),
+        "--calibration-receipt-sha256",
+        calibration_sha256,
         "--output",
         str(output),
     ]
@@ -369,7 +412,9 @@ def test_utility_cell_and_family_rules_use_fixed_denominators() -> None:
     }
 
 
-def test_task_success_endpoint_uses_exact_interval_and_uncalibrated_placeholder() -> None:
+def test_task_success_endpoint_uses_per_checkpoint_exact_interval_and_paired_effect(
+    tmp_path: Path,
+) -> None:
     episodes = [
         _episode(
             policy_seed=11,
@@ -379,13 +424,76 @@ def test_task_success_endpoint_uses_exact_interval_and_uncalibrated_placeholder(
         )
         for index in range(20)
     ]
-    endpoint = task_success_endpoint(episodes)
-    assert endpoint["primary_endpoint"]["successes"] == 16
-    assert endpoint["primary_endpoint"]["exact_binomial_95_interval"] == list(
-        exact_binomial_interval(16, 20)
-    )
-    assert endpoint["segment_tolerances"]["calibration_status"] == ("placeholder_until_calibrated")
+    baseline = [replace(episode, task_success=index < 10) for index, episode in enumerate(episodes)]
+    _path, _sha, calibration = _calibration(tmp_path / "calibration.json")
+    endpoint = task_success_endpoint(episodes, step_zero_episodes=baseline, calibration=calibration)
+    checkpoint = endpoint["primary_endpoint"]["checkpoint_results"][0]
+    assert checkpoint["successes"] == 16
+    assert checkpoint["exact_binomial_95_interval"] == list(exact_binomial_interval(16, 20))
+    assert endpoint["primary_endpoint"]["pooled_episode_estimate"] is None
+    assert endpoint["paired_seed_level_effects"][0][
+        "effect_candidate_minus_step_zero"
+    ] == pytest.approx(0.3)
     assert endpoint["unsafe_arm_may_outrank_safe_arm"] is False
+
+
+def test_task_success_endpoint_rejects_mixed_checkpoint_identity() -> None:
+    episodes = [
+        _episode(
+            policy_seed=11,
+            evaluation_seed=120101 + index,
+            cell="fixed_round_trip",
+            task_success=True,
+        )
+        for index in range(20)
+    ]
+    episodes[0] = replace(episodes[0], checkpoint_sha256="f" * 64)
+    baseline = [replace(episode, checkpoint_sha256="1" * 64) for episode in episodes]
+    calibration = TaskSuccessCalibration(
+        sha256="2" * 64,
+        segment_speed_error_bands_m_s={"fast": 1.0, "return_fast": 1.0, "slow": 1.0},
+        transition_latency_caps_steps=(64, 64),
+        settled_state_normalized_error_band=1.0,
+        censoring_latency_steps=65,
+    )
+    with pytest.raises(ValueError, match="checkpoint identity"):
+        task_success_endpoint(episodes, step_zero_episodes=baseline, calibration=calibration)
+
+
+def test_task_success_endpoint_reports_paired_effects_across_five_ppo_seeds() -> None:
+    episodes = [
+        _episode(
+            policy_seed=policy_seed,
+            evaluation_seed=120101 + index,
+            cell="fixed_round_trip",
+            checkpoint_sha256=f"{policy_seed:064x}",
+            task_success=index < 16,
+        )
+        for policy_seed in COHORT_SEEDS
+        for index in range(20)
+    ]
+    baseline = [
+        replace(episode, checkpoint_sha256="1" * 64, task_success=index % 20 < 10)
+        for index, episode in enumerate(episodes)
+    ]
+    calibration = TaskSuccessCalibration(
+        sha256="2" * 64,
+        segment_speed_error_bands_m_s={"fast": 1.0, "return_fast": 1.0, "slow": 1.0},
+        transition_latency_caps_steps=(64, 64),
+        settled_state_normalized_error_band=1.0,
+        censoring_latency_steps=65,
+    )
+    endpoint = task_success_endpoint(
+        episodes,
+        step_zero_episodes=baseline,
+        calibration=calibration,
+    )
+    assert endpoint["primary_endpoint"]["five_seed_cohort_complete"] is True
+    assert len(endpoint["primary_endpoint"]["checkpoint_results"]) == 5
+    assert len(endpoint["paired_seed_level_effects"]) == 5
+    assert endpoint["paired_seed_level_summary"][
+        "mean_effect_across_policy_seeds"
+    ] == pytest.approx(0.3)
 
 
 def test_resynchronization_limit_accepts_64_and_rejects_65() -> None:

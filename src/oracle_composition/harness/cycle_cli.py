@@ -489,6 +489,8 @@ def _train_command(
         inputs=report_inputs,
         seeds=seed_facts,
         episodes=[],
+        step_zero_episodes=[],
+        calibration=None,
         reference_records=[],
         reward_totals=reward_totals,
         trace_index_sha256=trace_index.sha256,
@@ -586,6 +588,8 @@ def _evaluate_policy_command(
         step_zero_actor_path=preflight.runtime_config.starting_actor_path,
         step_zero_actor_sha256=preflight.runtime_config.starting_actor_sha256,
         corpus_root=root / "artifacts/reference_corpus_v2",
+        calibration_receipt_path=_resolve(root, args.calibration_receipt),
+        calibration_receipt_sha256=args.calibration_receipt_sha256,
         segment_targets_m_s=tuple(
             float(segment.target_m_s) for segment in load_frozen_inputs(experiment)[1].schedule
         ),
@@ -664,6 +668,8 @@ def _evaluate_policy_command(
         inputs=report_inputs,
         seeds=[seed],
         episodes=evaluation.trained_episodes,
+        step_zero_episodes=evaluation.step_zero_episodes,
+        calibration=evaluation.calibration,
         reference_records=[],
         reward_totals=reward_totals,
         trace_index_sha256=trace_index.sha256,
@@ -716,6 +722,8 @@ def _parser() -> argparse.ArgumentParser:
     policy.add_argument("--reward", type=Path, required=True)
     policy.add_argument("--checkpoint", type=Path, required=True)
     policy.add_argument("--checkpoint-sha256")
+    policy.add_argument("--calibration-receipt", type=Path, required=True)
+    policy.add_argument("--calibration-receipt-sha256", required=True)
     policy.add_argument("--output", type=Path, required=True)
     return parser
 

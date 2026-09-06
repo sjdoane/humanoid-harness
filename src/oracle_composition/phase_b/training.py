@@ -762,6 +762,13 @@ def _ppo_update(
     advantages = rollout.advantages.reshape(sample_count).astype("<f4", copy=True)
     returns = rollout.returns.reshape(sample_count)
     initial_stage = rollout_index < REFERENCE_ONLY_ROLLOUTS
+    stage = "reference_columns_only" if initial_stage else "full_actor"
+    optimizer_before = verify_optimizer_authority(
+        policy,
+        optimizer,
+        expected_learning_rate=plan.recipe.learning_rate,
+        stage=f"before_{stage}",
+    )
     actor_before = _actor_snapshot(policy) if initial_stage else {}
     totals = Counter[str]()
     updates = 0
@@ -844,7 +851,14 @@ def _ppo_update(
     reference = policy.actor.latent_0.weight.detach().cpu().numpy()[:, OBSERVATION_WIDTH:]
     state = policy.actor.latent_0.weight.detach().cpu().numpy()[:, :OBSERVATION_WIDTH]
     receipt = {
-        "actor_stage": "reference_columns_only" if initial_stage else "full_actor",
+        "actor_stage": stage,
+        "optimizer_authority_after": verify_optimizer_authority(
+            policy,
+            optimizer,
+            expected_learning_rate=plan.recipe.learning_rate,
+            stage=f"after_{stage}",
+        ),
+        "optimizer_authority_before": optimizer_before,
         "reference_columns_sha256": array_sha256(np.ascontiguousarray(reference, dtype="<f4")),
         "rollout_index": rollout_index,
         "state_columns_sha256": array_sha256(np.ascontiguousarray(state, dtype="<f4")),
@@ -969,7 +983,13 @@ def run_ppo_training(
         )
     canonical_json_bytes(step_zero_comparator)
     optimizer = torch.optim.Adam(policy.parameters(), lr=plan.recipe.learning_rate)
-    verify_optimizer_authority(policy, optimizer)
+    optimizer_initialization = verify_optimizer_authority(
+        policy,
+        optimizer,
+        expected_learning_rate=plan.recipe.learning_rate,
+        require_empty_state=True,
+        stage="fresh_before_first_update",
+    )
     try:
         from stable_baselines3.common.vec_env import DummyVecEnv
     except ImportError as exc:  # pragma: no cover - guarded by the train extra
@@ -1061,6 +1081,7 @@ def run_ppo_training(
             "normalization": {"observation": False, "reward": False},
             "observed_transitions": observed_transitions,
             "optimizer_updates": update_count,
+            "optimizer_initialization": optimizer_initialization,
             "planned_transitions": plan.transitions,
             "ppo_recipe": plan.recipe.to_dict(),
             "ppo_recipe_id": PPO_RECIPE_ID,

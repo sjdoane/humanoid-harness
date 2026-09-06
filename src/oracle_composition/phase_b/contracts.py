@@ -36,7 +36,7 @@ REWARD_SCHEMA_ID = "reward_specification/tracking_only/v1"
 REPORT_V1_SCHEMA_ID = "humanoid_composition_cycle_report/v1"
 REPORT_V2_SCHEMA_ID = "humanoid_composition_cycle_report/v2"
 STARTING_CHECKPOINT_SCHEMA_ID = "humanoid_fine_tuning_starting_checkpoint/v1"
-RUN_MANIFEST_SCHEMA_ID = "humanoid_fine_tuning_run_manifest/v1"
+RUN_MANIFEST_SCHEMA_ID = "humanoid_fine_tuning_run_manifest/v2"
 EVIDENCE_CLASS = "interface_check"
 CLAIM_CEILING = (
     "exploratory_reference_conditioned_fine_tuning_utility_only_"
@@ -46,7 +46,19 @@ CLAIM_CEILING = (
 EXPERT_ACTOR_NPZ_SHA256 = "60987a4e054db2e04f9cb3ab73e13dfe8e2f3ec7dec46346d2b9d0277ad18d9b"
 TASK_INPUTS_V2_SOURCE_SHA256 = "9607f2d56a54922eac06ec7fcc740b79e68d4ed9e88b192602aae2900fb3f0d2"
 TASK_INPUTS_V2_SCHEMA_SHA256 = "8f382dde13ee44c27cbbbc0b3a53a568338f6b7cebc8e660e4084425b7b494e9"
+TASK_INPUT_ADMISSION_SOURCE_SHA256 = (
+    "db63c68693232a95995a3867e230d6d83ee1d31ba7072405d9377a38ebbede44"
+)
+TASK_INPUT_ADMISSION_SCHEMA_SHA256 = (
+    "c2d8908533a47e76e5ec469c80b6cf2d7061397d3716597ec7c66b4f8913b4b5"
+)
 _LEGACY_PHASE_B_ORACLE_SHA256 = "4d24f22780360d7632235572d97b3fccfe7c376162e69e15082f77bd7afcccf1"
+REVIEWED_RUN_MANIFEST_SHA256 = "45ce5baa66b6d6dadba38c61bbdfc943a75c542ae7c355927f1031fc65661ebb"
+SMOKE_SEEDS = (121901,)
+COHORT_SEEDS = (121001, 121101, 121201, 121301, 121401)
+SMOKE_TRANSITIONS = 196_608
+COHORT_TRANSITIONS = 1_048_576
+FINAL_CHECKPOINT_RULE = "final_transition_only"
 
 PHASE_POLICY = MappingProxyType(
     {
@@ -117,6 +129,10 @@ REWARD_SCHEMA_SHA256 = sha256_json(
             "task_inputs_schema_id",
             "task_inputs_schema_sha256",
             "task_inputs_source_sha256",
+            "task_input_admission_id",
+            "task_input_admission_contract",
+            "task_input_admission_schema_sha256",
+            "task_input_admission_source_sha256",
             "tracking_reward_config_sha256",
             "tracking_reward_id",
         ],
@@ -158,16 +174,25 @@ def _nonempty_text(value: object, *, field: str) -> str:
     return value
 
 
-def _integer(value: object, *, field: str, minimum: int = 0) -> int:
-    if type(value) is not int or value < minimum:
-        raise PhaseBContractError(f"{field} must be an integer >= {minimum}")
+def _integer(
+    value: object,
+    *,
+    field: str,
+    minimum: int = 0,
+    maximum: int = 2_147_483_647,
+) -> int:
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise PhaseBContractError(f"{field} must be an integer in [{minimum}, {maximum}]")
     return value
 
 
 def _finite(value: object, *, field: str) -> float:
     if type(value) not in {int, float}:
         raise PhaseBContractError(f"{field} must be numeric")
-    result = float(value)
+    try:
+        result = float(value)
+    except (OverflowError, ValueError) as exc:
+        raise PhaseBContractError(f"{field} must be finite") from exc
     if not math.isfinite(result):
         raise PhaseBContractError(f"{field} must be finite")
     return result
@@ -286,7 +311,7 @@ class TrackingOnlyRewardSpec:
     """The sole reward admitted before Astra supplies a reviewed V2."""
 
     @property
-    def registry_key(self) -> tuple[str, str, str, str, str, str, str]:
+    def registry_key(self) -> tuple[str, ...]:
         return (
             REWARD_SCHEMA_SHA256,
             TRACKING_ONLY_FORMULA_SHA256,
@@ -295,6 +320,8 @@ class TrackingOnlyRewardSpec:
             REWARD_COMPOSITOR_SHA256,
             TASK_INPUTS_V2_SOURCE_SHA256,
             TASK_INPUTS_V2_SCHEMA_SHA256,
+            TASK_INPUT_ADMISSION_SOURCE_SHA256,
+            TASK_INPUT_ADMISSION_SCHEMA_SHA256,
         )
 
     @property
@@ -306,6 +333,8 @@ class TrackingOnlyRewardSpec:
         return hashlib.sha256(self.canonical_bytes).hexdigest()
 
     def to_dict(self) -> dict[str, object]:
+        from .task_input_admission import task_input_admission_contract
+
         return {
             "compositor_id": REWARD_COMPOSITOR_ID,
             "compositor_sha256": REWARD_COMPOSITOR_SHA256,
@@ -324,6 +353,10 @@ class TrackingOnlyRewardSpec:
             "task_inputs_schema_id": TASK_INPUTS_V2_SCHEMA_ID,
             "task_inputs_schema_sha256": TASK_INPUTS_V2_SCHEMA_SHA256,
             "task_inputs_source_sha256": TASK_INPUTS_V2_SOURCE_SHA256,
+            "task_input_admission_id": "phase_b_stock_com_task_input_admission/v1",
+            "task_input_admission_contract": task_input_admission_contract(),
+            "task_input_admission_schema_sha256": TASK_INPUT_ADMISSION_SCHEMA_SHA256,
+            "task_input_admission_source_sha256": TASK_INPUT_ADMISSION_SOURCE_SHA256,
             "tracking_reward_config_sha256": TRACKING_REWARD_CONFIG_SHA256,
             "tracking_reward_id": TRACKING_REWARD_ID,
         }
@@ -352,6 +385,20 @@ class RewardRegistry:
             raise PhaseBContractError("task-input V2 source identity differs")
         if sha256_json(task_input_contract_v2()) != TASK_INPUTS_V2_SCHEMA_SHA256:
             raise PhaseBContractError("task-input V2 schema identity differs")
+        from . import task_input_admission as admission_module
+
+        admission_path = Path(admission_module.__file__ or "")
+        try:
+            admission_source_sha256 = hashlib.sha256(admission_path.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise PhaseBContractError("task-input admission source is unavailable") from exc
+        if admission_source_sha256 != TASK_INPUT_ADMISSION_SOURCE_SHA256:
+            raise PhaseBContractError("task-input admission source identity differs")
+        if (
+            sha256_json(admission_module.task_input_admission_contract())
+            != TASK_INPUT_ADMISSION_SCHEMA_SHA256
+        ):
+            raise PhaseBContractError("task-input admission schema identity differs")
         baseline = TrackingOnlyRewardSpec()
         self._entries = MappingProxyType({baseline.registry_key: baseline})
 
@@ -431,6 +478,100 @@ class StartingCheckpointContract:
         return cls(source, export, receipt, seed)
 
 
+def training_design_contract_value() -> dict[str, object]:
+    return {
+        "actor_unfreeze": {
+            "first_rollouts": 8,
+            "initial_trainable": ["reference_columns", "value_network"],
+            "then_trainable": "full_actor_and_value_network",
+        },
+        "checkpoint_selection": FINAL_CHECKPOINT_RULE,
+        "cohort_seeds": list(COHORT_SEEDS),
+        "environments": {
+            "count": 4,
+            "implementation": "DummyVecEnv",
+            "stream_mix": {"composition": 2, "rehearsal": 2},
+        },
+        "evidence_class": "exploratory_fine_tuning_cycle",
+        "normalization": {"observation": False, "reward": False},
+        "ppo": {
+            "batch_size": 512,
+            "clip_range": 0.2,
+            "clip_range_vf": None,
+            "ent_coef": 0.0,
+            "gae_lambda": 0.95,
+            "gamma": 0.99,
+            "learning_rate": 0.0003,
+            "max_grad_norm": 0.5,
+            "n_epochs": 10,
+            "normalize_advantage": True,
+            "target_kl": None,
+            "vf_coef": 0.5,
+        },
+        "retries_or_seed_replacement": False,
+        "rollout": {
+            "rollout_count": 128,
+            "steps_per_environment": 2048,
+            "transitions_per_rollout": 8192,
+        },
+        "rsi": {
+            "balanced_origin_actor_cells": 27,
+            "schedule_classes": ["hold", "one_way", "round_trip"],
+            "start_boundary_hash_modulus": 489,
+        },
+        "schema_version": 1,
+        "training_blocks": [
+            120001,
+            120002,
+            120003,
+            120005,
+            120007,
+            120008,
+            120009,
+            120011,
+            120012,
+        ],
+        "training_design_schema_id": "humanoid_fine_tuning_training_design/v1",
+        "transitions_per_seed": COHORT_TRANSITIONS,
+    }
+
+
+def utility_evaluation_design_contract_value() -> dict[str, object]:
+    return {
+        "cell_episode_counts": {
+            "fixed_round_trip": 20,
+            "hold_expert": 20,
+            "hold_medium": 20,
+            "hold_simple": 20,
+        },
+        "cell_pass_minimum": 16,
+        "claim_ceiling": "bounded utility only",
+        "error_threshold": 1.0,
+        "evaluation_blocks": list(range(120101, 120121)),
+        "failure_denominator": "all_predeclared_episodes",
+        "family_checkpoint_minimum": 4,
+        "family_checkpoint_total": 5,
+        "reference_resynchronization_steps": 64,
+        "schema_version": 2,
+        "step_zero_comparator_required": True,
+        "task_success_calibration": {
+            "calibration_block_ids": list(range(120201, 120221)),
+            "calibration_policy_seed_ids": [122001, 122101, 122201, 122301, 122401],
+            "censoring": {
+                "fall_or_never_settled_latency_steps": 65,
+                "maximum_admissible_latency_cap_steps": 64,
+            },
+            "empirical_quantile": 0.95,
+            "quantile_method": "higher",
+            "receipt_schema_id": "phase_b_task_success_calibration_receipt/v1",
+            "segment_multiplicative_safety_margin": 1.1,
+            "settled_state_multiplicative_safety_margin": 1.1,
+            "transition_latency_additive_safety_margin_steps": 4,
+        },
+        "utility_evaluation_schema_id": "humanoid_fine_tuning_utility_evaluation/v2",
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class FineTuningRunManifest:
     value: Mapping[str, object]
@@ -443,9 +584,9 @@ class FineTuningRunManifest:
                 "claim_ceiling",
                 "evaluator",
                 "evidence_class",
+                "execution_profiles",
                 "library",
                 "oracle",
-                "ppo_seed",
                 "reference_corpus",
                 "reward",
                 "run_manifest_schema_id",
@@ -458,12 +599,28 @@ class FineTuningRunManifest:
         )
         if (
             item["run_manifest_schema_id"] != RUN_MANIFEST_SCHEMA_ID
-            or item["schema_version"] != 1
+            or item["schema_version"] != 2
             or item["evidence_class"] != EVIDENCE_CLASS
             or item["claim_ceiling"] != CLAIM_CEILING
         ):
             raise PhaseBContractError("run manifest identity or claim boundary differs")
-        _integer(item["ppo_seed"], field="ppo_seed", minimum=1)
+        expected_profiles = {
+            "checkpoint_selection": FINAL_CHECKPOINT_RULE,
+            "cohort": {
+                "evidence_class": "exploratory_fine_tuning_cycle",
+                "promotable": True,
+                "seeds": list(COHORT_SEEDS),
+                "transitions_per_seed": COHORT_TRANSITIONS,
+            },
+            "smoke": {
+                "evidence_class": EVIDENCE_CLASS,
+                "promotable": False,
+                "seeds": list(SMOKE_SEEDS),
+                "transitions_per_seed": SMOKE_TRANSITIONS,
+            },
+        }
+        if item["execution_profiles"] != expected_profiles:
+            raise PhaseBContractError("run manifest execution profiles differ")
         for field in (
             "evaluator",
             "library",
@@ -529,7 +686,7 @@ def load_starting_checkpoint(
         contract.source_expert,
         field="source_expert",
     )
-    _verify_bound_artifact(
+    export_path = _verify_bound_artifact(
         repository_root,
         contract.strict_actor_export,
         field="strict_actor_export",
@@ -554,6 +711,20 @@ def load_starting_checkpoint(
         or hashlib.sha256(receipt_encoded).hexdigest() != contract.e1_receipt["sha256"]
     ):
         raise PhaseBContractError("starting checkpoint E1 receipt differs")
+    from oracle_composition.experiments.fixed_reference import ExperimentContractError
+
+    from .receipts import validate_e1_receipt_at_admission
+
+    try:
+        validate_e1_receipt_at_admission(
+            repository_root=repository_root,
+            receipt_path=receipt_path,
+            expected_receipt_sha256=str(contract.e1_receipt["sha256"]),
+            export_path=export_path,
+            expected_export_sha256=str(contract.strict_actor_export["sha256"]),
+        )
+    except ExperimentContractError as exc:
+        raise PhaseBContractError(str(exc)) from exc
     return contract, hashlib.sha256(encoded).hexdigest()
 
 
@@ -566,6 +737,9 @@ def load_fine_tuning_run_manifest(
 
     value, encoded = _require_canonical_file(path)
     manifest = FineTuningRunManifest.from_dict(value)
+    observed_manifest_sha256 = hashlib.sha256(encoded).hexdigest()
+    if observed_manifest_sha256 != REVIEWED_RUN_MANIFEST_SHA256:
+        raise PhaseBContractError("run manifest digest differs from the reviewed admission seal")
     root = Path(repository_root)
     verified = {
         field: _verify_bound_artifact(root, manifest.value[field], field=field)
@@ -580,6 +754,38 @@ def load_fine_tuning_run_manifest(
             "training_design",
         )
     }
+    from oracle_composition.contracts.reference_identity_v2 import validate_corpus_manifest
+    from oracle_composition.harness.evidence import EvidenceChainError, verify_library_statistics
+    from oracle_composition.harness.inputs import (
+        load_library_manifest,
+        load_task_spec,
+        verify_library_artifacts,
+    )
+
+    try:
+        library = load_library_manifest(verified["library"])
+        task = load_task_spec(verified["task"], library=library)
+        verify_library_artifacts(root, library)
+        verify_library_statistics(root, library)
+        corpus_value, corpus_encoded = _require_canonical_file(verified["reference_corpus"])
+        validate_corpus_manifest(corpus_value)
+    except (EvidenceChainError, OracleContractError, ValueError) as exc:
+        raise PhaseBContractError(f"frozen task, library, or corpus is invalid: {exc}") from exc
+    if (
+        library.raw_sha256 != manifest.value["library"]["sha256"]
+        or task.raw_sha256 != manifest.value["task"]["sha256"]
+        or hashlib.sha256(corpus_encoded).hexdigest()
+        != manifest.value["reference_corpus"]["sha256"]
+        or library.source_evidence["corpus_manifest_v2"].sha256
+        != manifest.value["reference_corpus"]["sha256"]
+    ):
+        raise PhaseBContractError("task, library, and reference-corpus cross-links differ")
+    training_value, _training_encoded = _require_canonical_file(verified["training_design"])
+    evaluator_value, _evaluator_encoded = _require_canonical_file(verified["evaluator"])
+    if training_value != training_design_contract_value():
+        raise PhaseBContractError("training design semantics differ")
+    if evaluator_value != utility_evaluation_design_contract_value():
+        raise PhaseBContractError("utility evaluator semantics differ")
     oracle, oracle_sha256 = load_phase_b_oracle(
         verified["oracle"],
         available_behaviors=("expert", "medium", "simple"),
@@ -595,7 +801,7 @@ def load_fine_tuning_run_manifest(
     )
     if starting_sha256 != manifest.value["starting_checkpoint"]["sha256"]:
         raise PhaseBContractError("run manifest starting checkpoint differs")
-    return manifest, hashlib.sha256(encoded).hexdigest()
+    return manifest, observed_manifest_sha256
 
 
 _REPORT_V1_REQUIRED = {
@@ -782,6 +988,7 @@ __all__ = [
     "ORACLE_SCHEMA_ID",
     "PHASE_POLICY",
     "REPORT_V2_SCHEMA_ID",
+    "REVIEWED_RUN_MANIFEST_SHA256",
     "REWARD_COMPOSITOR_SHA256",
     "REWARD_SCHEMA_ID",
     "REWARD_SCHEMA_SHA256",
@@ -789,6 +996,8 @@ __all__ = [
     "STARTING_CHECKPOINT_SCHEMA_ID",
     "TASK_INPUTS_V2_SCHEMA_SHA256",
     "TASK_INPUTS_V2_SOURCE_SHA256",
+    "TASK_INPUT_ADMISSION_SCHEMA_SHA256",
+    "TASK_INPUT_ADMISSION_SOURCE_SHA256",
     "TRACKING_ONLY_BOUNDS_SHA256",
     "TRACKING_ONLY_FORMULA_ID",
     "TRACKING_ONLY_FORMULA_SHA256",
@@ -805,5 +1014,7 @@ __all__ = [
     "load_fine_tuning_run_manifest",
     "load_phase_b_oracle",
     "load_starting_checkpoint",
+    "training_design_contract_value",
+    "utility_evaluation_design_contract_value",
     "validate_cycle_report",
 ]

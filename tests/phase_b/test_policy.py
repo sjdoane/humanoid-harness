@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import io
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import numpy as np
 import pytest
@@ -16,6 +19,7 @@ from oracle_composition.phase_b.policy import (
     StrictPolicyInput,
     build_full_authority_policy,
     compose_policy_input,
+    encode_full_authority_actor,
     exact_physical_action,
     export_full_authority_actor,
     load_full_authority_actor,
@@ -85,6 +89,18 @@ def test_omitted_clamp_is_refused() -> None:
         verify_actor_warm_start(policy.actor, expected)
 
 
+@pytest.mark.parametrize(("bias", "expected"), [(100.0, 2.0), (-100.0, -20.0)])
+def test_actual_torch_log_std_clamp_saturates_at_both_boundaries(
+    bias: float, expected: float
+) -> None:
+    policy = _policy()
+    with torch.no_grad():
+        policy.actor.log_std.weight.zero_()
+        policy.actor.log_std.bias.fill_(bias)
+    _mean, log_std = policy.actor._distribution_tensors(_input())
+    assert torch.equal(log_std, torch.full_like(log_std, expected))
+
+
 def test_reordered_or_float64_inputs_are_refused() -> None:
     policy = _policy()
     with pytest.raises(ExperimentContractError, match="little-endian float32"):
@@ -126,6 +142,71 @@ def test_optimizer_must_cover_replacement_actor_and_fresh_value_parameters() -> 
     actor_only = torch.optim.Adam(policy.actor.parameters(), lr=3e-4)
     with pytest.raises(ExperimentContractError, match="omits"):
         verify_optimizer_authority(policy, actor_only)
+    wrong_recipe = torch.optim.Adam(policy.parameters(), lr=1e-3)
+    with pytest.raises(ExperimentContractError, match="hyperparameters"):
+        verify_optimizer_authority(policy, wrong_recipe)
+    duplicated = torch.optim.Adam(policy.parameters(), lr=3e-4)
+    duplicated.param_groups[0]["params"].append(duplicated.param_groups[0]["params"][0])
+    with pytest.raises(ExperimentContractError, match="duplicate"):
+        verify_optimizer_authority(policy, duplicated)
+    nonfresh = torch.optim.Adam(policy.parameters(), lr=3e-4)
+    nonfresh.state[next(iter(policy.parameters()))]["step"] = torch.tensor(1.0)
+    with pytest.raises(ExperimentContractError, match="not empty"):
+        verify_optimizer_authority(policy, nonfresh, require_empty_state=True)
+
+
+def _canonical_member(name: str) -> ZipInfo:
+    member = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+    member.compress_type = ZIP_DEFLATED
+    member.create_system = 3
+    member.external_attr = 0o100600 << 16
+    return member
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["over_limit", "wrong_header", "wrong_version", "wrong_dtype", "member_set", "order"],
+)
+def test_strict_phase_b_actor_reload_rejects_bounded_archive_mutations(
+    tmp_path: Path, mutation: str
+) -> None:
+    payload = encode_full_authority_actor(_policy().actor)
+    with ZipFile(io.BytesIO(payload), "r") as source:
+        members = [(info.filename, source.read(info)) for info in source.infolist()]
+    name, _first = members[0]
+    if mutation == "over_limit":
+        stream = io.BytesIO()
+        np.lib.format.write_array(
+            stream, np.zeros(600_000, dtype="<f4"), version=(1, 0), allow_pickle=False
+        )
+        members[0] = (name, stream.getvalue())
+    elif mutation == "wrong_header":
+        members[0] = (name, b"not-an-npy-header")
+    elif mutation == "wrong_version":
+        stream = io.BytesIO()
+        np.lib.format.write_array(
+            stream,
+            _policy().actor.parameter_arrays()[name.removesuffix(".npy")],
+            version=(2, 0),
+            allow_pickle=False,
+        )
+        members[0] = (name, stream.getvalue())
+    elif mutation == "wrong_dtype":
+        stream = io.BytesIO()
+        value = _policy().actor.parameter_arrays()[name.removesuffix(".npy")].astype("<f8")
+        np.lib.format.write_array(stream, value, version=(1, 0), allow_pickle=False)
+        members[0] = (name, stream.getvalue())
+    elif mutation == "member_set":
+        members.pop()
+    elif mutation == "order":
+        members[0], members[1] = members[1], members[0]
+    path = tmp_path / f"{mutation}.npz"
+    with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
+        for member_name, member_payload in members:
+            archive.writestr(_canonical_member(member_name), member_payload, compresslevel=9)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    with pytest.raises(ExperimentContractError):
+        load_full_authority_actor(path, expected_sha256=digest)
 
 
 def test_source_hash_and_state_dependent_heads_are_exact() -> None:

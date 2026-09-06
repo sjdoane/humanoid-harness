@@ -283,7 +283,12 @@ class GuardExpression:
             name: _finite_number(signals[name], field=f"signal {name}")
             for name in sorted(ALLOWED_SIGNALS)
         }
-        return bool(_evaluate_guard_node(self._tree, checked))
+        return self.evaluate_prevalidated(checked)
+
+    def evaluate_prevalidated(self, signals: Mapping[str, float]) -> bool:
+        """Evaluation seam for observing branch access after signal admission."""
+
+        return bool(_evaluate_guard_node(self._tree, signals))
 
 
 @dataclass(frozen=True, slots=True)
