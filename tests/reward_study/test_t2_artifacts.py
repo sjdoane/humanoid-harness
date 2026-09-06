@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -28,9 +29,14 @@ from oracle_composition.reward_study.execution_manifest import (
     T2_EXECUTION_LAUNCH_BASE_COMMIT,
     final_ready_t2_execution_manifest_contract_value,
     load_t2_execution_manifest,
+    t2_runtime_execution_identity,
     validate_t2_execution_manifest,
 )
-from oracle_composition.reward_study.final_admission import admit_t2_candidate_and_reseal
+from oracle_composition.reward_study.final_admission import (
+    T2FinalReadyArtifacts,
+    admit_t2_candidate_and_reseal,
+    admit_t2_study,
+)
 from oracle_composition.reward_study.pairing import (
     validate_pairing_receipt,
 )
@@ -159,6 +165,8 @@ def test_final_ready_execution_manifest_is_canonical_and_records_verified_head(
     assert value["tracker"]["external_tracker_checkpoint"] is None
     assert value["normalizers"] == {"observation": None, "reward": None}
     assert load_t2_execution_manifest(manifest_path, repository_root=ROOT)[0] == value
+    with pytest.raises(ExperimentContractError, match="requires the v2 descendant-aware re-seal"):
+        t2_runtime_execution_identity(value, repository_root=ROOT)
 
 
 def test_t2_training_design_is_phase_b_validated_without_changing_t1_bytes() -> None:
@@ -303,20 +311,133 @@ def test_final_execution_manifest_refuses_wrong_head(
     expected_commit = "a" * 40
     value = execution_manifest.t2_execution_manifest_contract_value(
         ROOT,
-        execution_commit=expected_commit,
+        admission_commit=expected_commit,
     )
     monkeypatch.setattr(
         execution_manifest,
         "_observed_clean_execution_commit",
         lambda _root: "b" * 40,
     )
-    with pytest.raises(ExperimentContractError, match="HEAD differs from its admission seal"):
+    monkeypatch.setattr(
+        execution_manifest.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 1, b"", b""),
+    )
+    with pytest.raises(ExperimentContractError, match="not a descendant"):
         validate_t2_execution_manifest(value, repository_root=ROOT)
-    with pytest.raises(ExperimentContractError, match="HEAD differs at final admission"):
+    with pytest.raises(ExperimentContractError, match="expected admission commit"):
         final_ready_t2_execution_manifest_contract_value(
             ROOT,
-            expected_execution_commit=expected_commit,
+            expected_admission_commit=expected_commit,
         )
+
+
+def test_execution_manifest_accepts_allowlisted_document_descendant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    admission_commit = "a" * 40
+    observed_commit = "b" * 40
+    value = execution_manifest.t2_execution_manifest_contract_value(
+        ROOT,
+        admission_commit=admission_commit,
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: observed_commit,
+    )
+    monkeypatch.setattr(
+        execution_manifest.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, b"", b""),
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_descendant_changed_paths",
+        lambda *_args, **_kwargs: (
+            "README.md",
+            "docs/operations/dual-orchestration/T2C2_RESULT.md",
+        ),
+    )
+
+    assert validate_t2_execution_manifest(value, repository_root=ROOT) == value
+    assert t2_runtime_execution_identity(value, repository_root=ROOT) == {
+        "admission_commit": admission_commit,
+        "execution_commit_observed": observed_commit,
+    }
+
+
+@pytest.mark.parametrize(
+    "changed_path",
+    (
+        "src/oracle_composition/phase_b/training.py",
+        "tests/reward_study/test_t2_artifacts.py",
+        "uv.lock",
+        "experiments/004_t2_reward_study/payloads/episode.npz",
+    ),
+)
+def test_execution_manifest_refuses_non_record_descendant_path(
+    monkeypatch: pytest.MonkeyPatch,
+    changed_path: str,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    admission_commit = "a" * 40
+    value = execution_manifest.t2_execution_manifest_contract_value(
+        ROOT,
+        admission_commit=admission_commit,
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: "b" * 40,
+    )
+    monkeypatch.setattr(
+        execution_manifest.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, b"", b""),
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_descendant_changed_paths",
+        lambda *_args, **_kwargs: (changed_path,),
+    )
+
+    with pytest.raises(ExperimentContractError, match="non-admission path"):
+        validate_t2_execution_manifest(value, repository_root=ROOT)
+
+
+def test_execution_manifest_refuses_changed_binding_on_allowed_descendant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    admission_commit = "a" * 40
+    value = execution_manifest.t2_execution_manifest_contract_value(
+        ROOT,
+        admission_commit=admission_commit,
+    )
+    value["sources"]["trainer"]["sha256"] = "0" * 64
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: "b" * 40,
+    )
+    monkeypatch.setattr(
+        execution_manifest.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, b"", b""),
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_descendant_changed_paths",
+        lambda *_args, **_kwargs: ("docs/record.md",),
+    )
+
+    with pytest.raises(ExperimentContractError, match="semantics or bindings differ"):
+        validate_t2_execution_manifest(value, repository_root=ROOT)
 
 
 def test_final_execution_manifest_refuses_dirty_tree_through_isolation_helper(
@@ -333,8 +454,30 @@ def test_final_execution_manifest_refuses_dirty_tree_through_isolation_helper(
     with pytest.raises(ExperimentContractError, match="requires clean committed sources"):
         final_ready_t2_execution_manifest_contract_value(
             ROOT,
-            expected_execution_commit="a" * 40,
+            expected_admission_commit="a" * 40,
         )
+
+
+def test_execution_manifest_refuses_untracked_dirty_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    class CleanSourceSnapshot:
+        def __init__(self) -> None:
+            self.value = {"git": {"clean": True, "commit": "a" * 40}}
+
+    monkeypatch.setattr(
+        "oracle_composition.phase_b.supervision.inspect_runtime_sources",
+        lambda _root, *, allow_dirty: CleanSourceSnapshot(),
+    )
+    monkeypatch.setattr(
+        execution_manifest.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, b"?? untracked-record\n", b""),
+    )
+    with pytest.raises(ExperimentContractError, match="tree is dirty"):
+        execution_manifest._observed_clean_execution_commit(ROOT)
 
 
 def test_candidate_admission_builds_one_final_ready_reseal(
@@ -355,11 +498,11 @@ def test_candidate_admission_builds_one_final_ready_reseal(
     }
     pending["status"] = STUDY_STATUS
     pending["study_pairing_sha256"] = study_pairing_sha256_from_arm(pending["arms"][0])
-    execution_commit = "a" * 40
+    admission_commit = "a" * 40
     monkeypatch.setattr(
         execution_manifest,
         "_observed_clean_execution_commit",
-        lambda _root: execution_commit,
+        lambda _root: admission_commit,
     )
     monkeypatch.setattr(
         final_admission,
@@ -374,15 +517,20 @@ def test_candidate_admission_builds_one_final_ready_reseal(
         pending_study_manifest_path=(EXPERIMENT / "t2_reward_study_expert_hold_v1.json"),
         candidate_artifact_root=tmp_path,
         candidate_reward_path=candidate_path,
-        expected_execution_commit=execution_commit,
+        expected_admission_commit=admission_commit,
     )
     execution = json.loads(artifacts.execution_manifest_bytes)
     study = json.loads(artifacts.study_manifest_bytes)
     seal = json.loads(artifacts.t2_seal_bytes)
-    assert artifacts.execution_commit == execution_commit
+    assert artifacts.admission_commit == admission_commit
     assert execution["status"] == T2_EXECUTION_FINAL_READY_STATUS
-    assert execution["repository"]["execution_commit"] == execution_commit
+    assert execution["repository"]["admission_commit"] == admission_commit
     assert execution["repository"]["execution_tree_clean_at_admission"] is True
+    assert len(execution["source_snapshot_sha256"]) == 64
+    assert t2_runtime_execution_identity(execution, repository_root=ROOT) == {
+        "admission_commit": admission_commit,
+        "execution_commit_observed": admission_commit,
+    }
     assert study["status"] == STUDY_FINAL_READY_STATUS
     assert study["arms"][1]["reward"] == {
         "path": "candidate.json",
@@ -399,6 +547,54 @@ def test_candidate_admission_builds_one_final_ready_reseal(
         seal["study_manifest"]["sha256"]
         == hashlib.sha256(artifacts.study_manifest_bytes).hexdigest()
     )
+
+
+def test_clean_commit_reseal_function_replaces_only_three_canonical_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.final_admission as final_admission
+
+    experiment = tmp_path / "experiments/004_t2_reward_study"
+    experiment.mkdir(parents=True)
+    names = (
+        "execution_manifest_t2_v1.json",
+        "t2_reward_study_expert_hold_v1.json",
+        "t2_seal_v1.json",
+    )
+    for name in names:
+        (experiment / name).write_bytes(b"old\n")
+    expected = T2FinalReadyArtifacts(
+        execution_manifest_bytes=b"execution\n",
+        study_manifest_bytes=b"study\n",
+        t2_seal_bytes=b"seal\n",
+        admission_commit="a" * 40,
+    )
+
+    def build(**kwargs: object) -> T2FinalReadyArtifacts:
+        assert kwargs == {
+            "repository_root": tmp_path,
+            "pending_study_manifest_path": experiment / "t2_reward_study_expert_hold_v1.json",
+            "candidate_artifact_root": tmp_path,
+            "candidate_reward_path": experiment / "candidate_target_speed_t2_v1.json",
+            "expected_admission_commit": "a" * 40,
+            "allow_final_ready_reseal": True,
+        }
+        return expected
+
+    monkeypatch.setattr(final_admission, "admit_t2_candidate_and_reseal", build)
+    assert (
+        admit_t2_study(
+            repository_root=tmp_path,
+            experiment=Path("experiments/004_t2_reward_study"),
+            expected_commit="a" * 40,
+        )
+        == expected
+    )
+    assert (experiment / names[0]).read_bytes() == b"execution\n"
+    assert (experiment / names[1]).read_bytes() == b"study\n"
+    assert (experiment / names[2]).read_bytes() == b"seal\n"
+    assert {path.name for path in experiment.iterdir()} == set(names)
 
 
 def test_study_manifest_refuses_common_field_drift_even_with_a_rehashed_key() -> None:

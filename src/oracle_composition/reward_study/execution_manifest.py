@@ -8,8 +8,9 @@ import importlib.resources
 import json
 import platform
 import stat
+import subprocess
 from collections.abc import Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
@@ -19,7 +20,8 @@ from oracle_composition.phase_b.contracts import (
     TRACKING_REWARD_ID,
 )
 
-T2_EXECUTION_MANIFEST_SCHEMA_ID = "t2_execution_manifest_v1"
+T2_EXECUTION_MANIFEST_SCHEMA_ID = "t2_execution_manifest_v2"
+T2_EXECUTION_LEGACY_MANIFEST_SCHEMA_ID = "t2_execution_manifest_v1"
 T2_EXECUTION_MANIFEST_ID = "t2_reward_study_frozen_execution/v1"
 T2_EXECUTION_LAUNCH_BASE_COMMIT = "ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe"
 T2_EXECUTION_BASE_COMMIT = T2_EXECUTION_LAUNCH_BASE_COMMIT
@@ -36,6 +38,12 @@ _SOURCE_PATHS = {
     "trainer": "src/oracle_composition/phase_b/training.py",
 }
 _DEPENDENCIES = ("gymnasium", "mujoco", "numpy", "torch")
+_ADMISSION_RECORD_PREFIXES = (
+    ("docs",),
+    ("experiments", "004_t2_reward_study"),
+    ("experiments", "bootstrap_tqc_humanoid", "reviews"),
+    ("experiments", "family_b_target_speed_v1", "receipts"),
+)
 
 
 def _regular_bytes(path: Path, *, field: str, maximum: int) -> bytes:
@@ -113,21 +121,144 @@ def _observed_clean_execution_commit(repository_root: Path) -> str:
     git = snapshot.value.get("git")
     if type(git) is not dict or git.get("clean") is not True:
         raise ExperimentContractError("T2 execution tree is dirty at final admission")
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    if status:
+        raise ExperimentContractError("T2 execution tree is dirty at final admission")
     return _git_commit(git.get("commit"), field="observed T2 execution commit")
 
 
-def t2_execution_manifest_contract_value(
-    repository_root: Path,
+def _source_snapshot_sha256(
     *,
-    execution_commit: str | None = None,
-) -> dict[str, object]:
-    """Record launch-base provenance; the execution commit is verified at admission."""
+    dependency_lock: Mapping[str, object],
+    environment_source: Mapping[str, object],
+    model: Mapping[str, object],
+    sources: Mapping[str, object],
+) -> str:
+    sealed_source_set = {
+        "dependency_lock": dict(dependency_lock),
+        "environment_source": dict(environment_source),
+        "model": dict(model),
+        "sources": dict(sources),
+    }
+    return hashlib.sha256(canonical_json_bytes(sealed_source_set)).hexdigest()
 
+
+def _runtime_bindings(repository_root: Path) -> dict[str, object]:
     root = Path(repository_root).resolve(strict=True)
     sources = {name: _binding(root, path) for name, path in sorted(_SOURCE_PATHS.items())}
     dependency_lock = _binding(root, "uv.lock")
     model = _package_binding("gymnasium.envs.mujoco", "assets/humanoid.xml")
     environment_source = _package_binding("gymnasium.envs.mujoco", "humanoid_v5.py")
+    return {
+        "dependency_lock": dependency_lock,
+        "environment_source": environment_source,
+        "model": model,
+        "source_snapshot_sha256": _source_snapshot_sha256(
+            dependency_lock=dependency_lock,
+            environment_source=environment_source,
+            model=model,
+            sources=sources,
+        ),
+        "sources": sources,
+    }
+
+
+def _admission_record_path(relative_path: str) -> bool:
+    path = PurePosixPath(relative_path)
+    if (
+        not relative_path
+        or path.is_absolute()
+        or "\\" in relative_path
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        return False
+    if path.parts == ("README.md",):
+        return True
+    for prefix in _ADMISSION_RECORD_PREFIXES:
+        if path.parts[: len(prefix)] != prefix:
+            continue
+        if (
+            prefix == ("experiments", "004_t2_reward_study")
+            and "payloads" in path.parts[len(prefix) :]
+        ):
+            return False
+        return len(path.parts) > len(prefix)
+    return False
+
+
+def _descendant_changed_paths(
+    repository_root: Path,
+    *,
+    admission_commit: str,
+    execution_commit_observed: str,
+) -> tuple[str, ...]:
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "-z",
+            f"{admission_commit}..{execution_commit_observed}",
+            "--",
+        ],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+    )
+    try:
+        return tuple(
+            item.decode("utf-8", errors="strict") for item in result.stdout.split(b"\0") if item
+        )
+    except UnicodeError as exc:
+        raise ExperimentContractError("T2 execution descendant paths are not UTF-8") from exc
+
+
+def _validate_runtime_commit(
+    repository_root: Path,
+    *,
+    admission_commit: str,
+) -> str:
+    root = Path(repository_root).resolve(strict=True)
+    observed = _observed_clean_execution_commit(root)
+    if observed == admission_commit:
+        return observed
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", admission_commit, observed],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if ancestry.returncode == 1:
+        raise ExperimentContractError("T2 execution HEAD is not a descendant of admission")
+    if ancestry.returncode != 0:
+        raise ExperimentContractError("T2 execution ancestry cannot be verified")
+    changed = _descendant_changed_paths(
+        root,
+        admission_commit=admission_commit,
+        execution_commit_observed=observed,
+    )
+    refused = tuple(path for path in changed if not _admission_record_path(path))
+    if refused:
+        raise ExperimentContractError(
+            f"T2 execution descendant changes non-admission path {refused[0]}"
+        )
+    return observed
+
+
+def t2_execution_manifest_contract_value(
+    repository_root: Path,
+    *,
+    admission_commit: str | None = None,
+) -> dict[str, object]:
+    """Record immutable sources and the clean commit observed at admission."""
+
+    bindings = _runtime_bindings(repository_root)
     return {
         "action_abi": {
             "action_dtype": "<f4",
@@ -138,7 +269,7 @@ def t2_execution_manifest_contract_value(
             "observation_shape": [348],
             "reference_window_shape": [8, 45],
         },
-        "dependency_lock": dependency_lock,
+        "dependency_lock": bindings["dependency_lock"],
         "execution_manifest_id": T2_EXECUTION_MANIFEST_ID,
         "execution_manifest_schema_id": T2_EXECUTION_MANIFEST_SCHEMA_ID,
         "host_fingerprint": t2_host_fingerprint_value(),
@@ -151,27 +282,28 @@ def t2_execution_manifest_contract_value(
                 "reset_noise_scale": 0.01,
                 "terminate_when_unhealthy": False,
             },
-            "environment_source": environment_source,
-            "model": model,
+            "environment_source": bindings["environment_source"],
+            "model": bindings["model"],
             "time_limit_steps": 1_000,
         },
         "normalizers": {"observation": None, "reward": None},
         "repository": {
-            "execution_commit": execution_commit,
-            "execution_commit_verification": (
+            "admission_commit": admission_commit,
+            "admission_commit_verification": (
                 "pending_final_admission"
-                if execution_commit is None
+                if admission_commit is None
                 else "verified_clean_head_at_final_admission"
             ),
-            "execution_tree_clean_at_admission": (None if execution_commit is None else True),
+            "execution_tree_clean_at_admission": (None if admission_commit is None else True),
             "launch_base_commit": T2_EXECUTION_LAUNCH_BASE_COMMIT,
             "launch_base_semantics": "provenance_only_not_execution_commit",
         },
-        "schema_version": 1,
-        "sources": sources,
+        "schema_version": 2,
+        "source_snapshot_sha256": bindings["source_snapshot_sha256"],
+        "sources": bindings["sources"],
         "status": (
             T2_EXECUTION_PENDING_STATUS
-            if execution_commit is None
+            if admission_commit is None
             else T2_EXECUTION_FINAL_READY_STATUS
         ),
         "study_id": "t2_reward_study_expert_hold/v1",
@@ -187,18 +319,138 @@ def t2_execution_manifest_contract_value(
 def final_ready_t2_execution_manifest_contract_value(
     repository_root: Path,
     *,
-    expected_execution_commit: str,
+    expected_admission_commit: str,
 ) -> dict[str, object]:
-    """Bind the actual clean HEAD observed by the Phase B isolation gate."""
+    """Bind the actual clean HEAD as admission provenance, not a forever HEAD."""
 
-    expected = _git_commit(expected_execution_commit, field="expected T2 execution commit")
+    expected = _git_commit(expected_admission_commit, field="expected T2 admission commit")
     observed = _observed_clean_execution_commit(repository_root)
     if observed != expected:
-        raise ExperimentContractError("T2 execution HEAD differs at final admission")
-    return t2_execution_manifest_contract_value(
+        raise ExperimentContractError("T2 execution HEAD differs from expected admission commit")
+    value = t2_execution_manifest_contract_value(
         repository_root,
-        execution_commit=observed,
+        admission_commit=observed,
     )
+    if _observed_clean_execution_commit(repository_root) != expected:
+        raise ExperimentContractError("T2 execution tree changed while admission was sealed")
+    return value
+
+
+def _legacy_t2_execution_manifest_contract_value(
+    repository_root: Path,
+    *,
+    execution_commit: str | None,
+) -> dict[str, object]:
+    """Recompute the retained T2C1 bytes until Fable performs the v2 re-seal."""
+
+    bindings = _runtime_bindings(repository_root)
+    return {
+        "action_abi": {
+            "action_dtype": "<f4",
+            "action_high": [0.4] * 17,
+            "action_low": [-0.4] * 17,
+            "action_shape": [17],
+            "actor_input_layout": "state_float32_348_then_reference_row_major_float32_8x45/v1",
+            "observation_shape": [348],
+            "reference_window_shape": [8, 45],
+        },
+        "dependency_lock": bindings["dependency_lock"],
+        "execution_manifest_id": T2_EXECUTION_MANIFEST_ID,
+        "execution_manifest_schema_id": T2_EXECUTION_LEGACY_MANIFEST_SCHEMA_ID,
+        "host_fingerprint": t2_host_fingerprint_value(),
+        "mdp": {
+            "control_period_seconds": 0.015,
+            "environment_id": "Humanoid-v5",
+            "environment_kwargs": {
+                "exclude_current_positions_from_observation": True,
+                "frame_skip": 5,
+                "reset_noise_scale": 0.01,
+                "terminate_when_unhealthy": False,
+            },
+            "environment_source": bindings["environment_source"],
+            "model": bindings["model"],
+            "time_limit_steps": 1_000,
+        },
+        "normalizers": {"observation": None, "reward": None},
+        "repository": {
+            "execution_commit": execution_commit,
+            "execution_commit_verification": (
+                "pending_final_admission"
+                if execution_commit is None
+                else "verified_clean_head_at_final_admission"
+            ),
+            "execution_tree_clean_at_admission": (None if execution_commit is None else True),
+            "launch_base_commit": T2_EXECUTION_LAUNCH_BASE_COMMIT,
+            "launch_base_semantics": "provenance_only_not_execution_commit",
+        },
+        "schema_version": 1,
+        "sources": bindings["sources"],
+        "status": (
+            T2_EXECUTION_PENDING_STATUS
+            if execution_commit is None
+            else T2_EXECUTION_FINAL_READY_STATUS
+        ),
+        "study_id": "t2_reward_study_expert_hold/v1",
+        "tracker": {
+            "external_tracker_checkpoint": None,
+            "tracking_reward_config": FROZEN_TRACKING_REWARD_CONFIG.to_dict(),
+            "tracking_reward_config_sha256": TRACKING_REWARD_CONFIG_SHA256,
+            "tracking_reward_id": TRACKING_REWARD_ID,
+        },
+    }
+
+
+def _validate_t2_execution_manifest_runtime(
+    value: Mapping[str, object],
+    *,
+    repository_root: Path,
+) -> tuple[dict[str, object], str | None, str | None]:
+    repository = value.get("repository") if type(value) is dict else None
+    schema_id = value.get("execution_manifest_schema_id") if type(value) is dict else None
+    if schema_id == T2_EXECUTION_LEGACY_MANIFEST_SCHEMA_ID:
+        execution_commit = (
+            repository.get("execution_commit") if type(repository) is dict else object()
+        )
+        if execution_commit is None:
+            expected = _legacy_t2_execution_manifest_contract_value(
+                repository_root, execution_commit=None
+            )
+            admission_commit = None
+            observed = None
+        else:
+            admission_commit = _git_commit(
+                execution_commit, field="legacy bound T2 admission commit"
+            )
+            observed = _validate_runtime_commit(
+                repository_root,
+                admission_commit=admission_commit,
+            )
+            expected = _legacy_t2_execution_manifest_contract_value(
+                repository_root,
+                execution_commit=admission_commit,
+            )
+    else:
+        admission_value = (
+            repository.get("admission_commit") if type(repository) is dict else object()
+        )
+        if admission_value is None:
+            expected = t2_execution_manifest_contract_value(repository_root)
+            admission_commit = None
+            observed = None
+        else:
+            admission_commit = _git_commit(admission_value, field="bound T2 admission commit")
+            observed = _validate_runtime_commit(
+                repository_root,
+                admission_commit=admission_commit,
+            )
+            expected = t2_execution_manifest_contract_value(
+                repository_root,
+                admission_commit=admission_commit,
+            )
+    if type(value) is not dict or value != expected:
+        raise ExperimentContractError("T2 execution manifest semantics or bindings differ")
+    canonical_json_bytes(dict(value))
+    return dict(value), admission_commit, observed
 
 
 def validate_t2_execution_manifest(
@@ -208,23 +460,32 @@ def validate_t2_execution_manifest(
 ) -> dict[str, object]:
     """Recompute bindings and verify a final manifest against the live clean HEAD."""
 
-    repository = value.get("repository") if type(value) is dict else None
-    execution_commit = repository.get("execution_commit") if type(repository) is dict else object()
-    if execution_commit is None:
-        expected = t2_execution_manifest_contract_value(repository_root)
-    else:
-        checked_commit = _git_commit(execution_commit, field="bound T2 execution commit")
-        observed = _observed_clean_execution_commit(repository_root)
-        if observed != checked_commit:
-            raise ExperimentContractError("T2 execution HEAD differs from its admission seal")
-        expected = t2_execution_manifest_contract_value(
-            repository_root,
-            execution_commit=checked_commit,
-        )
-    if type(value) is not dict or value != expected:
-        raise ExperimentContractError("T2 execution manifest semantics or bindings differ")
-    canonical_json_bytes(dict(value))
-    return dict(value)
+    validated, _admission_commit, _observed = _validate_t2_execution_manifest_runtime(
+        value,
+        repository_root=repository_root,
+    )
+    return validated
+
+
+def t2_runtime_execution_identity(
+    value: Mapping[str, object],
+    *,
+    repository_root: Path,
+) -> dict[str, str]:
+    """Return the two commit identities a runtime receipt must record together."""
+
+    if value.get("execution_manifest_schema_id") != T2_EXECUTION_MANIFEST_SCHEMA_ID:
+        raise ExperimentContractError("T2 runtime requires the v2 descendant-aware re-seal")
+    _validated, admission_commit, observed = _validate_t2_execution_manifest_runtime(
+        value,
+        repository_root=repository_root,
+    )
+    if admission_commit is None or observed is None:
+        raise ExperimentContractError("pending T2 execution manifest cannot authorize runtime")
+    return {
+        "admission_commit": admission_commit,
+        "execution_commit_observed": observed,
+    }
 
 
 def load_t2_execution_manifest(
@@ -248,6 +509,7 @@ __all__ = [
     "T2_EXECUTION_BASE_COMMIT",
     "T2_EXECUTION_FINAL_READY_STATUS",
     "T2_EXECUTION_LAUNCH_BASE_COMMIT",
+    "T2_EXECUTION_LEGACY_MANIFEST_SCHEMA_ID",
     "T2_EXECUTION_MANIFEST_ID",
     "T2_EXECUTION_MANIFEST_SCHEMA_ID",
     "T2_EXECUTION_PENDING_STATUS",
@@ -256,5 +518,6 @@ __all__ = [
     "load_t2_execution_manifest",
     "t2_execution_manifest_contract_value",
     "t2_host_fingerprint_value",
+    "t2_runtime_execution_identity",
     "validate_t2_execution_manifest",
 ]

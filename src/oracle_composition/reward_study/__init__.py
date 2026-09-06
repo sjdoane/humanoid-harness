@@ -3,6 +3,7 @@
 from .execution_manifest import (
     T2_EXECUTION_MANIFEST_SCHEMA_ID,
     load_t2_execution_manifest,
+    t2_runtime_execution_identity,
 )
 from .pairing import (
     PAIRING_DERIVATION_ID,
@@ -37,5 +38,6 @@ __all__ = [
     "evaluate_t2_trace",
     "load_t2_execution_manifest",
     "load_t2_study_manifest",
+    "t2_runtime_execution_identity",
     "validate_t2_study_manifest",
 ]

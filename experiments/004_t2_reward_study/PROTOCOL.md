@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2C1 publishes the recipe-derived candidate, registry-resolves its exact canonical bytes, and regenerates the execution manifest, both arm bindings, study manifest, pairing key, and T2 seal as one `final_ready` set at verified clean HEAD `28067291bf43bb315e1702fc66c649310d4a3c97`. |
-| bottleneck | Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists; resource reservation, Samuel's authorization, and review of this admission slice remain pending. |
-| next step | Fable reviews and commits the complete T2C1 slice, then proposes the separately gated cycle-0 reservation to Astra and obtains Samuel's explicit authorization before any runtime command. |
+| progress | T2C2 replaces the impossible forever-equal-HEAD seal with a clean `admission_commit`, exact source snapshot, bounded descendant rule, and runtime-observed execution identity; Phase B training and evaluation now require Astra's complete shared heavy-job token immediately before spawn. |
+| bottleneck | The committed T2C1 v1 artifacts remain the current sealed set and must not be rewritten from this dirty builder tree. Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
+| next step | Fable reviews and commits T2C2, runs the documented re-seal command once at that exact clean commit, commits only the regenerated seal set as an allowlisted child, and obtains independent review before proposing any runtime reservation. |
 
 ## Frozen artifact ledger
 
@@ -13,7 +13,7 @@
 | `oracle_expert_hold_v1.json` | 964 | `489b82591cf65034d58d30f921442a84c93c9c98885cb2f5b22dcaf645a77010` | canonical Phase B oracle; no transitions or recovery |
 | `training_design_t2_v1.json` | 1,815 | `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e` | exact T2 Phase B design contract |
 | `candidate_target_speed_t2_v1.json` | 2,105 | `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` | canonical `target_speed_triangular_affine_t2_adapter/v1` specification; parameters reproduced from the exact retained recipe and registry-resolved |
-| `execution_manifest_t2_v1.json` | 3,585 | `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` | final-ready frozen MDP/model/ABI/source/lock/host seal; clean execution HEAD verified as `28067291bf43bb315e1702fc66c649310d4a3c97` |
+| `execution_manifest_t2_v1.json` | 3,585 | `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` | retained T2C1 v1 seal; clean admission HEAD was `28067291bf43bb315e1702fc66c649310d4a3c97`; superseded only after Fable performs the clean-commit v2 re-seal below |
 | `evaluator_design_t2_v1.json` | 1,808 | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | evaluator/report/protected-core source-bound design |
 | `t2_reward_study_expert_hold_v1.json` | 5,999 | `2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5` | `final_ready`; exact baseline/candidate bindings and final execution binding; integrated receipt unchanged |
 | `t2_seal_v1.json` | 1,684 | `89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624` | final admission ledger; state `candidate_admitted_no_further_initial_dispatch`; cannot authorize another F3 call |
@@ -30,6 +30,47 @@ The common arm-invariant pairing key is
 `ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2`.
 It excludes only reward, arm label, output path, and timestamps. Any common
 field change changes the key and creates a different execution family.
+
+### T2C2 execution seal and clean-commit re-seal
+
+The v2 execution identity binds the clean HEAD observed during admission as
+`admission_commit`. It also binds every previously sealed runtime file and a
+`source_snapshot_sha256` computed over the exact dependency-lock,
+environment-source, MuJoCo-model, and source-binding records. Runtime admission
+accepts that commit itself or a descendant only when the tree is clean, every
+binding and the source snapshot recompute exactly, and the complete endpoint
+diff from `admission_commit` contains only:
+
+- `README.md`;
+- `docs/**`;
+- `experiments/004_t2_reward_study/**`, except any `payloads/` subtree;
+- `experiments/bootstrap_tqc_humanoid/reviews/**`; or
+- `experiments/family_b_target_speed_v1/receipts/**`.
+
+A non-descendant or a diff touching any other path is refused. In particular,
+changes under `src/**`, `tests/**`, `uv.lock`, environment/model assets, or a
+T2 payload cannot ride an old admission seal. Runtime receipt construction must
+call `t2_runtime_execution_identity` after validation and record its exact two
+fields together: `admission_commit` and `execution_commit_observed`.
+
+T2C1's three JSON artifacts above stay byte-identical through this builder
+slice. After T2C2 is reviewed and committed, Fable must verify an empty
+`git status --porcelain=v1 --untracked-files=all` and run this command once from
+the repository root, replacing the placeholder with that exact full clean
+commit:
+
+```bash
+.venv/bin/python -m oracle_composition.reward_study.final_admission \
+  --experiment experiments/004_t2_reward_study \
+  --expected-commit <FULL_40_HEX_T2C2_COMMIT>
+```
+
+The command refuses a different or dirty HEAD and regenerates only
+`execution_manifest_t2_v1.json`, `t2_reward_study_expert_hold_v1.json`, and
+`t2_seal_v1.json`. Commit those three record paths alone as the allowlisted
+child, read back their hashes, and obtain independent admission review. The
+command performs no simulator step, training, evaluation, or model call and is
+not runtime authorization.
 
 ### Astra integration re-seal
 

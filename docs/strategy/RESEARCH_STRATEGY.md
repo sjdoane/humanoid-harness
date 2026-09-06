@@ -4,7 +4,7 @@
 |---|---|
 | progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |
 | bottleneck | Neither lane has a trained result. Both wait on the combined re-review of FT2R1 to FT2R3, the disposable smoke under a mailbox reservation, and Samuel's authorization for any five-seed cohort. |
-| next step | Fable: re-pin the F3 one-call protocol to the reward lane, lock the T2 reward-study protocol (oracle variant, matched controls, endpoint), and run reward cycle 0 and 1 once compute is authorized. Astra: re-reviews, smoke reservation, next composition packet. |
+| next step | Role change relayed from Samuel on 2026-09-06 (Astra messages `20260906T164045` and `164341`): Astra leads all implementation and bounded local training through a trained, evaluated full-loop demonstration; Fable reviews, critiques, and ideates and launches no further builder. Fable finishes the T2C2 checkpoint (commit, one clean-commit re-seal, handoff of HEAD and findings), then answers Astra's review questions. |
 
 ## Fable's authority
 
@@ -393,6 +393,25 @@ produced:
 | Cheapest joint demonstration | Two stages. Stage 1 needs no cross-gait tracking: the reward study T2 on the expert-hold oracle (baseline cohort, one LLM reward hypothesis, candidate cohort), which exercises the reward knob with the lowest risk and gives the first measured adaptation effect. Stage 2, only after the mechanism smoke passes, is Astra's straight-course speed-zone task with both knobs in the four locked arms plus a handwritten state-aware composer, on whichever tracker survives the stop rule. Each stage's cohorts follow the existing gates: reservation, one heavy job, Samuel's authorization. |
 | Claim ceiling | "Under these fixed conditions the revised oracle or reward met or did not meet the preregistered criterion in a matched five-seed implementation, at this cost." No generalization or scale claim in either direction. |
 
+## Role change: Astra system lead, Fable reviewer (2026-09-06T17:58Z)
+
+Samuel, through Astra's mailbox messages `20260906T164045` and `164341`,
+assigned Astra complete leadership of both harness lanes (implementation and
+bounded local training) through a trained, evaluated full-loop demonstration,
+and made Fable the independent reviewer, critic, and ideation partner. Fable
+acknowledged in `20260906T…` (acknowledgment reply), finished only the bounded
+T2C2 checkpoint, and launched no further builder. Samuel can confirm or
+adjust this in the Fable session; until then Fable acts on it. Bounded local
+training is authorized by Samuel to Astra under the existing correctness,
+evaluator, held-out, provenance, and resource-coordination gates; paid
+compute, publication of private data, and safeguard evasion remain excluded.
+
+Fable's standing review duties: source reviews on request (correctness and
+scientific blockers, not protocol expansion), critique of study designs
+against the Lokesh goal ledger, resource-conflict acknowledgment, and joint
+ideation. Fable keeps its identity and writer guards; the mailbox remains the
+channel.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -476,6 +495,7 @@ goal ID.
 | 2026-09-06 | `LG-03`, `LG-11`, `LG-15` | Freeze the T2 reward-study protocol `t2_reward_study_expert_hold/v1` (expert-hold oracle, paired five-seed arms, reward-independent evaluator, preregistered `0.25 m/s` rule, separate safety and tracking gates); propose the arm-invariant pairing key to Astra as a shared-runtime change. | survey `sol-survey-20260906-t2proto` | every TBD hash exists and the pairing receipt verifies identical streams before cycle 0 | recorded 2026-09-06T04:38Z |
 | 2026-09-06 | `LG-01`, `LG-02`, `LG-03`, `LG-05`, `LG-13` | Answer the first-principles challenge: drop the necessity claim, frame the harness as design-level in-context learning measured as conditional adaptation benefit and cost against fixed-schedule, handwritten, and prompt-conditioned baselines; adopt the tracker stop rule (capped mechanism smoke, then a supplied or existing tracker); stage the joint demonstration after the reward study. | Samuel's challenge via Astra `20260906T073336`; Astra advisory `d47f528`; project evidence (switching failures, authority gap, failed screen) | mechanism smoke result and T2 cycle 0 and 1 | recorded 2026-09-06T08:36Z |
 | 2026-09-06 | `LG-03`, `LG-05`, `LG-15`, `LG-16` | First real LLM reward hypothesis retained under the one-call protocol after an independent APPROVE_DISPATCH: alpha `1.0`, beta `0.0` for the F2 target-speed family on T2; hypothesis only; candidate admission next. | `F3_INITIAL_CALL_RESULT.md`; readback `20260906T144450Z-48272687` | admission seals final-ready; cycle 0 after reservation and authorization | recorded 2026-09-06T15:35Z |
+| 2026-09-06 | all | Role change relayed from Samuel: Astra leads implementation and bounded training; Fable reviews and ideates; Fable stops dispatching after the T2C2 checkpoint. | Astra messages `20260906T164045`, `164341`, `164747`, `171815`, `173107` | Fable's reviews are requested and answered through the mailbox | recorded 2026-09-06T17:58Z |
 
 ## Known strategy inconsistencies
 

@@ -2,9 +2,50 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2C1` publishes the recipe-derived candidate and one final-ready execution/study/pairing/seal set at verified clean HEAD `28067291bf43bb315e1702fc66c649310d4a3c97`; current report admission passes and the superseded T2PAIRR1 seal remains refused. |
-| bottleneck | T2C1 is uncommitted builder output. Cycle 0 remains **NO-GO** without review, a resource reservation, and Samuel's explicit authorization; no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
-| next step | Fable reviews and commits the complete T2C1 slice, reads back its exact identities, then sends Astra the separately gated cycle-0 reservation proposal and obtains Samuel's authorization. |
+| progress | `T2C2` repairs the execution-seal paradox with a clean admission commit, exact source snapshot, and bounded record-only descendant rule; training and evaluation now validate Astra's complete shared heavy-job token at the immediate pre-spawn boundary and release its exact identity after terminal cleanup. |
+| bottleneck | T2C2 is dirty builder output, so the clean-commit v2 re-seal has correctly not run. T2C1's v1 artifacts remain current, and cycle 0 remains **NO-GO** with no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence. |
+| next step | Fable reviews and commits T2C2, runs the protocol's exact re-seal command once at that clean commit, commits only the three regenerated record files as its child, and obtains independent review before proposing runtime. |
+
+T2C2 completion (2026-09-06): launch base
+`8773961167ab797c7f911f704a7555a39f506e82`. The launcher acquired the exact
+write lease as `sol-builder-20260906-t2c2`, model `gpt-5.6-sol`, role `builder`,
+with the declared scope; the builder performed no Git write and did not renew
+or release the launcher's lease.
+
+The v2 T2 execution manifest binds `admission_commit` and a canonical
+`source_snapshot_sha256`. At runtime it accepts the clean admission commit or a
+clean descendant only when the endpoint diff contains admitted record paths
+and all sealed bindings still recompute. Source, tests, lock, model/environment
+asset, payload, dirty-tree, changed-binding, and non-descendant cases refuse.
+`t2_runtime_execution_identity` supplies the paired `admission_commit` and
+`execution_commit_observed` run-receipt fields. The T2C1 JSON artifacts are
+unchanged pending Fable's clean-commit re-seal.
+
+Production training and protected evaluation now require the same fully bound
+heavy-job token as their already validated mailbox reservation. Validation is
+immediately before each worker spawn; the captured owner/token ID is held
+through process cleanup and only that exact pair is released on success or
+failure. Isolated negative tests use tempfile slots and injected spawn seams;
+no real shared token, training, or simulator command was used.
+
+| T2C2 verification | result |
+|---|---|
+| Focused descendant-seal and supervision tests | final-byte run `122 passed in 85.87s` |
+| Full suite with named reward receipt deselected | `1933 passed, 18 skipped, 1 deselected, 44 failed in 367.94s` |
+| Recorded sandbox-ledger comparison | cleared pytest cache contained exactly the recorded `44` nodes; sorted diff was empty |
+| Repository-wide Ruff lint / format and `git diff --check` | passed / all `427` files formatted / passed |
+| Builder wall time | `75m` from lease acquisition through final validation and handoff readback |
+
+See the [T2C2 result](dual-orchestration/T2C2_RESULT.md) and exact re-seal
+command in the [T2 protocol](../../experiments/004_t2_reward_study/PROTOCOL.md).
+This is interface and admission evidence only, not a reward, training,
+simulator, tracking, or humanoid-behavior result.
+
+Fable resume: inspect the execution descendant rule, exact source snapshot,
+runtime receipt identity, both pre-spawn token gates, and exact terminal
+release; commit the complete T2C2 slice; run the documented re-seal once at the
+clean source commit and commit only its three regenerated T2 records; then seek
+independent review. Keep all runtime work withheld.
 
 T2C1 completion (2026-09-06): launch base and verified clean execution HEAD
 `28067291bf43bb315e1702fc66c649310d4a3c97`. The launcher acquired the exact

@@ -323,6 +323,7 @@ def load_t2_study_manifest(
     *,
     repository_root: Path | None = None,
     candidate_artifact_root: Path | None = None,
+    validate_execution_runtime: bool = True,
 ) -> tuple[dict[str, object], str]:
     """Load canonical bytes and optionally verify every currently frozen file."""
 
@@ -392,10 +393,15 @@ def load_t2_study_manifest(
                 report_v2_source_path=root / "src/oracle_composition/phase_b/report_v2.py",
                 report_writer_source_path=root / "src/oracle_composition/reward_study/t2_report.py",
             )
-            _execution, execution_sha256 = load_t2_execution_manifest(
-                verified["execution_manifest"],
-                repository_root=root,
-            )
+            if validate_execution_runtime:
+                _execution, execution_sha256 = load_t2_execution_manifest(
+                    verified["execution_manifest"],
+                    repository_root=root,
+                )
+            else:
+                execution_sha256 = hashlib.sha256(
+                    verified["execution_manifest"].read_bytes()
+                ).hexdigest()
             _reward, reward_sha256, _baseline_reward_path = resolve_t2_reward_binding(
                 validated["arms"][0]["reward"],
                 artifact_root=root,

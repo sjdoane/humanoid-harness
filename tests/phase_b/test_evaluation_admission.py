@@ -335,6 +335,88 @@ def test_parent_manifest_mismatch_refuses_before_spawn(
         supervision.supervise_policy_evaluation(
             request=request,
             evaluation_manifest=artifact,
+            test_only=True,
         )
 
     assert spawn_calls == 0
+
+
+def test_evaluation_missing_heavy_slot_refuses_before_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_identity: dict[str, object],
+) -> None:
+    artifact = _publish_manifest(tmp_path, source_identity)
+    request = _request(tmp_path, artifact, source_identity)
+    coordination_root = tmp_path / "coordination"
+    coordination_root.mkdir()
+    spawn_calls = 0
+
+    def spawn_sentinel(_request: supervision.EvaluationWorkerRequest) -> None:
+        nonlocal spawn_calls
+        spawn_calls += 1
+        raise AssertionError("evaluation spawn must not be reached")
+
+    monkeypatch.setattr(supervision, "_spawn", spawn_sentinel)
+    with pytest.raises(ExperimentContractError, match="heavy-job slot refused dispatch"):
+        supervision.supervise_policy_evaluation(
+            request=request,
+            evaluation_manifest=artifact,
+            validated_reservation={},
+            coordination_root=coordination_root,
+            expected_wall_seconds=1_200,
+        )
+    assert spawn_calls == 0
+
+
+def test_evaluation_releases_exact_captured_slot_after_terminal_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_identity: dict[str, object],
+) -> None:
+    artifact = _publish_manifest(tmp_path, source_identity)
+    request = _request(tmp_path, artifact, source_identity)
+    coordination_root = tmp_path / "coordination"
+    coordination_root.mkdir()
+    reservation = {"owner": "evaluation-owner"}
+    validations = 0
+    releases: list[tuple[str, str]] = []
+
+    def validate_slot(
+        root: Path,
+        observed_reservation: object,
+        *,
+        expected_wall_seconds: int,
+    ) -> dict[str, object]:
+        nonlocal validations
+        validations += 1
+        assert root == coordination_root
+        assert observed_reservation == reservation
+        assert expected_wall_seconds == 1_800
+        return {"owner": "evaluation-owner", "token_id": "7" * 32}
+
+    def release_slot(root: Path, *, owner: str, token_id: str) -> dict[str, object]:
+        assert root == coordination_root
+        releases.append((owner, token_id))
+        return {"owner": owner, "token_id": token_id}
+
+    def terminal_failure(**kwargs: object) -> object:
+        kwargs["slot_session"].validate_before_spawn()
+        raise RuntimeError("controlled evaluation failure after pre-spawn validation")
+
+    monkeypatch.setattr(supervision, "_supervise_policy_evaluation", terminal_failure)
+    dependencies = supervision.SupervisionDependencies(
+        validate_heavy_job_slot=validate_slot,
+        release_heavy_job_slot=release_slot,
+    )
+    with pytest.raises(RuntimeError, match="controlled evaluation failure"):
+        supervision.supervise_policy_evaluation(
+            request=request,
+            evaluation_manifest=artifact,
+            validated_reservation=reservation,
+            coordination_root=coordination_root,
+            expected_wall_seconds=1_800,
+            slot_dependencies=dependencies,
+        )
+    assert validations == 2
+    assert releases == [("evaluation-owner", "7" * 32)]

@@ -328,6 +328,25 @@
       "follow_up_receipt_for": "Slice F3PINR2 (full SHA, SCI-READBACK-02)",
       "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
       "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2C2 slice: the commit containing this record; follow-up receipt with the full SHA in the re-seal commit",
+      "finished_utc": "2026-09-06T18:04:06Z",
+      "result": "2 failed, 1978 passed, 16 skipped, 2 warnings in 389.78s (0:06:29)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c2.txt",
+      "retained_scratch_record_sha256": "cdcce11915172fe9d52bfd36f4306c16fb68d57d5dc7cff79b73738629df5fb4",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T17:57:36Z",
+      "tree": "Slice T2C2 (descendant-aware execution seal, source snapshot, slot validation in supervision)"
+    },
+    {
+      "commit": "ce18e29",
+      "follow_up_receipt_for": "Slice T2C1",
+      "note": "full SHA: see git; binds the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c1.txt",
+      "retained_scratch_record_sha256": "9d68164efb5c3fb69b87ae8edb559092b6cba0926755d96d7a14432daa3dbb00"
     }
   ],
   "schema_version": 1

@@ -165,7 +165,11 @@ def _run(
         evaluation_manifest_sha256=manifest.sha256,
         evaluation_manifest_byte_count=manifest.byte_count,
     )
-    return supervise_policy_evaluation(request=request, evaluation_manifest=manifest)
+    return supervise_policy_evaluation(
+        request=request,
+        evaluation_manifest=manifest,
+        test_only=True,
+    )
 
 
 def test_evaluation_supervisor_accounts_for_all_planned_episodes(

@@ -6,9 +6,15 @@ has run.
 
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
+import json
+import os
 import stat
+import tempfile
+from collections.abc import Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,7 +42,7 @@ class T2FinalReadyArtifacts:
     execution_manifest_bytes: bytes
     study_manifest_bytes: bytes
     t2_seal_bytes: bytes
-    execution_commit: str
+    admission_commit: str
 
 
 def _binding(path: str, encoded: bytes) -> dict[str, object]:
@@ -111,7 +117,8 @@ def admit_t2_candidate_and_reseal(
     pending_study_manifest_path: Path,
     candidate_artifact_root: Path,
     candidate_reward_path: Path,
-    expected_execution_commit: str,
+    expected_admission_commit: str,
+    allow_final_ready_reseal: bool = False,
 ) -> T2FinalReadyArtifacts:
     """Resolve a candidate, verify clean HEAD, and regenerate every final seal."""
 
@@ -125,8 +132,12 @@ def admit_t2_candidate_and_reseal(
         pending_path,
         repository_root=root,
         candidate_artifact_root=candidate_artifact_root,
+        validate_execution_runtime=not allow_final_ready_reseal,
     )
-    if pending["status"] != STUDY_STATUS:
+    allowed_statuses = (
+        {STUDY_STATUS, STUDY_FINAL_READY_STATUS} if allow_final_ready_reseal else {STUDY_STATUS}
+    )
+    if pending["status"] not in allowed_statuses:
         raise ExperimentContractError("T2 candidate admission requires the pending study state")
 
     candidate_relative_path = _candidate_relative_path(
@@ -143,10 +154,15 @@ def admit_t2_candidate_and_reseal(
         artifact_root=candidate_artifact_root,
         candidate=True,
     )
+    if (
+        pending["status"] == STUDY_FINAL_READY_STATUS
+        and pending["arms"][1]["reward"] != candidate_binding
+    ):
+        raise ExperimentContractError("T2 re-seal candidate differs from the admitted candidate")
 
     execution = final_ready_t2_execution_manifest_contract_value(
         root,
-        expected_execution_commit=expected_execution_commit,
+        expected_admission_commit=expected_admission_commit,
     )
     execution_bytes = canonical_json_bytes(execution)
     final_study = copy.deepcopy(pending)
@@ -172,8 +188,109 @@ def admit_t2_candidate_and_reseal(
         execution_manifest_bytes=execution_bytes,
         study_manifest_bytes=study_bytes,
         t2_seal_bytes=seal_bytes,
-        execution_commit=expected_execution_commit,
+        admission_commit=expected_admission_commit,
     )
 
 
-__all__ = ["T2FinalReadyArtifacts", "admit_t2_candidate_and_reseal"]
+def _replace_seal_set(
+    replacements: Sequence[tuple[Path, bytes]],
+) -> None:
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for target, encoded in replacements:
+            before = target.lstat()
+            if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+                raise ExperimentContractError("T2 re-seal target is not a regular file")
+            descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+            temporary_path = Path(temporary)
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fchmod(handle.fileno(), stat.S_IMODE(before.st_mode))
+                os.fsync(handle.fileno())
+            staged.append((target, temporary_path))
+        for target, temporary in staged:
+            os.replace(temporary, target)
+    finally:
+        for _target, temporary in staged:
+            with suppress(FileNotFoundError):
+                temporary.unlink()
+
+
+def admit_t2_study(
+    *,
+    repository_root: Path,
+    experiment: Path,
+    expected_commit: str,
+) -> T2FinalReadyArtifacts:
+    """Re-seal the retained T2 candidate once from an expected clean commit."""
+
+    root = Path(repository_root).resolve(strict=True)
+    experiment_path = Path(experiment)
+    if not experiment_path.is_absolute():
+        experiment_path = root / experiment_path
+    experiment_path = experiment_path.resolve(strict=True)
+    expected_experiment = (root / "experiments/004_t2_reward_study").resolve(strict=True)
+    if experiment_path != expected_experiment:
+        raise ExperimentContractError("T2 re-seal requires the canonical experiment directory")
+    artifacts = admit_t2_candidate_and_reseal(
+        repository_root=root,
+        pending_study_manifest_path=experiment_path / "t2_reward_study_expert_hold_v1.json",
+        candidate_artifact_root=root,
+        candidate_reward_path=experiment_path / "candidate_target_speed_t2_v1.json",
+        expected_admission_commit=expected_commit,
+        allow_final_ready_reseal=True,
+    )
+    _replace_seal_set(
+        (
+            (
+                experiment_path / "execution_manifest_t2_v1.json",
+                artifacts.execution_manifest_bytes,
+            ),
+            (
+                experiment_path / "t2_reward_study_expert_hold_v1.json",
+                artifacts.study_manifest_bytes,
+            ),
+            (experiment_path / "t2_seal_v1.json", artifacts.t2_seal_bytes),
+        )
+    )
+    return artifacts
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="admit_t2_study")
+    parser.add_argument("--experiment", type=Path, required=True)
+    parser.add_argument("--expected-commit", required=True)
+    parser.add_argument("--repository-root", type=Path, default=Path.cwd())
+    args = parser.parse_args(argv)
+    artifacts = admit_t2_study(
+        repository_root=args.repository_root,
+        experiment=args.experiment,
+        expected_commit=args.expected_commit,
+    )
+    print(
+        json.dumps(
+            {
+                "admission_commit": artifacts.admission_commit,
+                "execution_manifest_sha256": hashlib.sha256(
+                    artifacts.execution_manifest_bytes
+                ).hexdigest(),
+                "study_manifest_sha256": hashlib.sha256(artifacts.study_manifest_bytes).hexdigest(),
+                "t2_seal_sha256": hashlib.sha256(artifacts.t2_seal_bytes).hexdigest(),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+__all__ = [
+    "T2FinalReadyArtifacts",
+    "admit_t2_candidate_and_reseal",
+    "admit_t2_study",
+    "main",
+]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

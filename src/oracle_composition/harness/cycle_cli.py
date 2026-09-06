@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sys
 from collections.abc import Sequence
@@ -386,6 +387,10 @@ def _train_command(
         limits = ResourceLimits()
     if not isinstance(limits, ResourceLimits):
         raise CycleCliError("training resource-limit dependency differs")
+    if not selected.test_only and (
+        type(args.expected_wall_seconds) is not int or args.expected_wall_seconds <= 0
+    ):
+        raise CycleCliError("production training requires --expected-wall-seconds")
     canonical_argv = [
         str(Path(sys.executable).resolve()),
         "-m",
@@ -408,6 +413,8 @@ def _train_command(
     ]
     if args.reservation is not None:
         canonical_argv.extend(("--reservation", str(_resolve(root, args.reservation).resolve())))
+    if args.expected_wall_seconds is not None:
+        canonical_argv.extend(("--expected-wall-seconds", str(args.expected_wall_seconds)))
     if args.smoke:
         canonical_argv.append("--smoke")
     if args.promote:
@@ -427,6 +434,7 @@ def _train_command(
         test_n_epochs=selected.test_n_epochs,
         failure_mode=selected.failure_mode,
         canonical_argv=canonical_argv,
+        expected_wall_seconds=args.expected_wall_seconds,
     )
     if result.status != SupervisorStatus.SUCCEEDED:
         print(
@@ -595,13 +603,21 @@ def _evaluate_policy_command(
         build_scientific_receipt,
         publish_report_v2,
     )
-    from oracle_composition.phase_b.supervision import validate_training_preflight
+    from oracle_composition.phase_b.supervision import (
+        validate_reservation,
+        validate_training_preflight,
+    )
 
     experiment = _resolve(root, args.experiment)
     oracle = _resolve(root, args.oracle)
     reward = _resolve(root, args.reward)
     checkpoint = _resolve(root, args.checkpoint)
     output = _resolve(root, args.output)
+    reservation = (
+        _canonical_mapping(_resolve(root, args.reservation))
+        if args.reservation is not None
+        else None
+    )
     if args.checkpoint_sha256 is not None:
         raise CycleCliError(
             "explicit checkpoint SHA-256 bypass is forbidden; use the stored lineage chain"
@@ -625,10 +641,6 @@ def _evaluate_policy_command(
             calibration_path,
             expected_sha256=args.calibration_receipt_sha256,
         )
-    if output.exists() or output.is_symlink():
-        raise CycleCliError("evaluate-policy output must be fresh and no-overwrite")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.mkdir(mode=0o700)
     dependencies = selected.utility_dependencies
     if dependencies is not None and not isinstance(dependencies, UtilityEvaluationDependencies):
         raise CycleCliError("utility evaluation dependency differs")
@@ -647,9 +659,61 @@ def _evaluate_policy_command(
         "segment_targets_m_s": list(targets),
         "step_zero_actor_sha256": preflight.runtime_config.starting_actor_sha256,
     }
+    evaluation_manifest_bytes = canonical_json_bytes(evaluation_manifest_value)
+    canonical_argv = [
+        str(Path(sys.executable).resolve()),
+        "-m",
+        "oracle_composition.harness.cycle_cli",
+        "evaluate-policy",
+        "--experiment",
+        str(experiment.resolve()),
+        "--cycle",
+        str(args.cycle),
+        "--oracle",
+        str(oracle.resolve()),
+        "--reward",
+        str(reward.resolve()),
+        "--checkpoint",
+        str(checkpoint.resolve()),
+        "--output",
+        str(output.resolve()),
+    ]
+    if calibration_path is not None:
+        canonical_argv.extend(
+            (
+                "--calibration-receipt",
+                str(calibration_path.resolve()),
+                "--calibration-receipt-sha256",
+                args.calibration_receipt_sha256,
+            )
+        )
+    if args.reservation is not None:
+        canonical_argv.extend(("--reservation", str(_resolve(root, args.reservation).resolve())))
+    expected_reservation_inputs = {
+        **dict(preflight.report_inputs),
+        "checkpoint_sha256": lineage.checkpoint_sha256,
+        "evaluation_manifest_sha256": hashlib.sha256(evaluation_manifest_bytes).hexdigest(),
+        "evaluator_source_sha256": source_identity["sha256"],
+        "runtime_source_snapshot_sha256": preflight.source_snapshot.sha256,
+    }
+    git_value = preflight.source_snapshot.value["git"]
+    accepted = validate_reservation(
+        reservation,
+        smoke=False,
+        output_directory=output,
+        test_only=selected.test_only,
+        repository_root=root,
+        canonical_argv=canonical_argv,
+        current_commit=str(git_value["commit"]),
+        expected_inputs=expected_reservation_inputs,
+    )
+    if output.exists() or output.is_symlink():
+        raise CycleCliError("evaluate-policy output must be fresh and no-overwrite")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.mkdir(mode=0o700)
     evaluation_manifest = publish_bytes_without_overwrite(
         output / "evaluation_manifest_v1.json",
-        canonical_json_bytes(evaluation_manifest_value),
+        evaluation_manifest_bytes,
     )
     evaluation = supervise_policy_evaluation(
         request=EvaluationWorkerRequest(
@@ -670,6 +734,9 @@ def _evaluate_policy_command(
             evaluation_manifest_byte_count=evaluation_manifest.byte_count,
         ),
         evaluation_manifest=evaluation_manifest,
+        validated_reservation=accepted,
+        expected_wall_seconds=math.ceil(float(dependencies.wall_seconds)),
+        test_only=selected.test_only,
     )
     if evaluation.status is not EvaluationStatus.SUCCEEDED:
         print(
@@ -794,6 +861,7 @@ def _parser() -> argparse.ArgumentParser:
     train.add_argument("--seeds", type=_seed_list, required=True)
     train.add_argument("--transitions", type=int, required=True)
     train.add_argument("--reservation", type=Path)
+    train.add_argument("--expected-wall-seconds", type=int)
     train.add_argument("--smoke", action="store_true")
     train.add_argument("--promote", action="store_true")
     policy = commands.add_parser("evaluate-policy")
@@ -806,6 +874,7 @@ def _parser() -> argparse.ArgumentParser:
     policy.add_argument("--calibration-receipt", type=Path)
     policy.add_argument("--calibration-receipt-sha256")
     policy.add_argument("--output", type=Path, required=True)
+    policy.add_argument("--reservation", type=Path)
     return parser
 
 
