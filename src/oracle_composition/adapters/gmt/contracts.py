@@ -16,8 +16,47 @@ GMT_SUPPORT_FILE_SHA256 = {
     "README.md": "8ae6728345c1605b335c754957004713b44a4ded9409bf6b1dc4a137fb86d52b",
     "sim2sim.py": "10e8cac2e2cd4895ee4b229db4a06aad7f467d1a14399355a7254d789b8e1b5f",
     "utils/motion_lib.py": "c54d8d9f543c6eaf0b9fcd04ad3c8c7447068eece00d83be40741904c1b2f5d1",
+    "utils/torch_utils.py": "7bf1941c721cbfe58bb8d73d0cbe937a7f56a9b0db8976bce98e485677d405c1",
     "assets/robots/g1/g1.xml": ("7013cd256c89796b2844613d24dda2a13410df7cd32ddd4d59b1741f85094304"),
 }
+GMT_G1_MESH_NAMES = (
+    "head_link.STL",
+    "left_ankle_pitch_link.STL",
+    "left_ankle_roll_link.STL",
+    "left_elbow_link.STL",
+    "left_hip_pitch_link.STL",
+    "left_hip_roll_link.STL",
+    "left_hip_yaw_link.STL",
+    "left_knee_link.STL",
+    "left_rubber_hand.STL",
+    "left_shoulder_pitch_link.STL",
+    "left_shoulder_roll_link.STL",
+    "left_shoulder_yaw_link.STL",
+    "left_wrist_pitch_link.STL",
+    "left_wrist_roll_link.STL",
+    "left_wrist_yaw_link.STL",
+    "logo_link.STL",
+    "pelvis.STL",
+    "pelvis_contour_link.STL",
+    "right_ankle_pitch_link.STL",
+    "right_ankle_roll_link.STL",
+    "right_elbow_link.STL",
+    "right_hip_pitch_link.STL",
+    "right_hip_roll_link.STL",
+    "right_hip_yaw_link.STL",
+    "right_knee_link.STL",
+    "right_rubber_hand.STL",
+    "right_shoulder_pitch_link.STL",
+    "right_shoulder_roll_link.STL",
+    "right_shoulder_yaw_link.STL",
+    "right_wrist_pitch_link.STL",
+    "right_wrist_roll_link.STL",
+    "right_wrist_yaw_link.STL",
+    "torso_link_rev_1_0.STL",
+    "waist_roll_link_rev_1_0.STL",
+    "waist_yaw_link_rev_1_0.STL",
+)
+GMT_G1_MESH_TREE_SHA256 = "d8366a1f0c1e64d47c3710dfe7fd01d136ee462fda77d3cb571ab7dcecc967f2"
 GENERATED_OPERATOR_ALLOWLIST = (
     "ops.prim.NumToTensor",
     "torch._convolution",
@@ -54,9 +93,15 @@ PROPRIOCEPTION_HISTORY_SLICE = slice(674, 2_154)
 
 CONTROL_DT_SECONDS = 0.02
 SIMULATION_DT_SECONDS = 0.001
+SIMULATION_DECIMATION = 20
 ACTION_SCALE = 0.5
 RAW_ACTION_MIN = -10.0
 RAW_ACTION_MAX = 10.0
+ANGULAR_VELOCITY_SCALE = 0.25
+DOF_POSITION_SCALE = 1.0
+DOF_VELOCITY_SCALE = 0.05
+HISTORY_LENGTH = 20
+SURVIVAL_ROOT_HEIGHT_MIN = 0.5
 REFERENCE_OFFSETS = (
     1,
     5,

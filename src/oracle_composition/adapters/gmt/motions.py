@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import struct
+import zipfile
 from pathlib import Path
 
 import numpy as np
 
 from .contracts import GMT_UPSTREAM_COMMIT, MOTION_SPECS, MotionSpec
-from .io import GMTAdmissionError, read_verified_bytes, write_deterministic_npz, write_json_receipt
+from .io import (
+    GMTAdmissionError,
+    read_verified_bytes,
+    validate_zip_members,
+    write_deterministic_npz,
+    write_json_receipt,
+)
 
 
 def _decode_fps(payload: bytes, spec: MotionSpec) -> float:
@@ -36,7 +44,7 @@ def _extract_motion_for_spec(source: Path, spec: MotionSpec) -> dict[str, np.nda
     payload = read_verified_bytes(source, spec.sha256, expected_size=spec.size)
     if payload[:2] != b"\x80\x04":
         raise GMTAdmissionError(f"{spec.name}: expected pickle protocol 4 marker")
-    arrays: dict[str, np.ndarray] = {"fps": np.asarray(_decode_fps(payload, spec), dtype="<f8")}
+    arrays: dict[str, np.ndarray] = {"fps": np.asarray([_decode_fps(payload, spec)], dtype="<f8")}
     for span in spec.arrays:
         header_offset = span.offset - 5
         if header_offset < 0 or payload[header_offset] != 0x42:
@@ -152,3 +160,49 @@ def motion_array_sha256(array: np.ndarray) -> str:
     """Digest exact C-order values for audit comparisons without model execution."""
 
     return hashlib.sha256(np.ascontiguousarray(array).tobytes()).hexdigest()
+
+
+def load_converted_motion(path: Path, *, name: str, expected_sha256: str) -> dict[str, np.ndarray]:
+    """Load one admitted numeric motion under its exact post-conversion identity."""
+
+    try:
+        spec = MOTION_SPECS[name]
+    except KeyError as exc:
+        raise GMTAdmissionError(f"motion is not in the pinned GMT catalog: {name}") from exc
+    payload = read_verified_bytes(Path(path), expected_sha256, maximum_size=1024 * 1024)
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+    except zipfile.BadZipFile as exc:
+        raise GMTAdmissionError(f"invalid converted motion NPZ: {Path(path).name}") from exc
+    expected = {
+        "fps.npy": ((1,), "<f8"),
+        **{f"{span.key}.npy": (span.shape, "<f4") for span in spec.arrays},
+    }
+    arrays: dict[str, np.ndarray] = {}
+    with archive:
+        members = validate_zip_members(
+            archive,
+            expected_count=len(expected),
+            maximum_member_size=750 * 1024,
+        )
+        if set(members) != set(expected):
+            raise GMTAdmissionError("converted motion member set does not match its contract")
+        for member_name, (shape, dtype) in expected.items():
+            info = members[member_name]
+            if info.compress_type != zipfile.ZIP_STORED:
+                raise GMTAdmissionError(f"converted motion member must be stored: {member_name}")
+            stream = io.BytesIO(archive.read(member_name))
+            try:
+                array = np.lib.format.read_array(stream, allow_pickle=False, max_header_size=512)
+            except (ValueError, EOFError) as exc:
+                raise GMTAdmissionError(f"invalid numeric motion member: {member_name}") from exc
+            if stream.tell() != info.file_size:
+                raise GMTAdmissionError(f"trailing bytes in motion member: {member_name}")
+            if array.shape != shape or array.dtype.str != dtype or not array.flags.c_contiguous:
+                raise GMTAdmissionError(f"motion array contract mismatch: {member_name}")
+            if not np.isfinite(array).all():
+                raise GMTAdmissionError(f"non-finite converted motion member: {member_name}")
+            arrays[member_name.removesuffix(".npy")] = array
+    if arrays["fps"].item() != spec.fps:
+        raise GMTAdmissionError(f"converted motion fps mismatch for {name}")
+    return arrays

@@ -24,6 +24,8 @@ from .contracts import (
     GMT_ARCHIVE_UNCOMPRESSED_SIZE,
     GMT_CHECKPOINT_SHA256,
     GMT_CHECKPOINT_SIZE,
+    GMT_G1_MESH_NAMES,
+    GMT_G1_MESH_TREE_SHA256,
     GMT_SUPPORT_FILE_SHA256,
     GMT_UPSTREAM_COMMIT,
     LAYER_NORM_EPSILON,
@@ -296,4 +298,21 @@ def verify_upstream_root(path: Path) -> dict[str, str]:
     root = Path(path)
     for relative_path, expected_digest in GMT_SUPPORT_FILE_SHA256.items():
         require_sha256(root / relative_path, expected_digest)
-    return dict(GMT_SUPPORT_FILE_SHA256)
+    mesh_root = root / "assets/robots/g1/meshes"
+    mesh_tree = hashlib.sha256()
+    mesh_receipts: dict[str, str] = {}
+    for name in GMT_G1_MESH_NAMES:
+        digest = sha256_file(mesh_root / name)
+        mesh_tree.update(f"{name}\0{digest}\n".encode())
+        mesh_receipts[f"assets/robots/g1/meshes/{name}"] = digest
+    observed_mesh_tree = mesh_tree.hexdigest()
+    if observed_mesh_tree != GMT_G1_MESH_TREE_SHA256:
+        raise GMTAdmissionError(
+            "G1 mesh-tree mismatch: "
+            f"expected {GMT_G1_MESH_TREE_SHA256}, observed {observed_mesh_tree}"
+        )
+    return {
+        **GMT_SUPPORT_FILE_SHA256,
+        **mesh_receipts,
+        "assets/robots/g1/meshes@tree": GMT_G1_MESH_TREE_SHA256,
+    }

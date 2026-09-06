@@ -39,3 +39,20 @@ fine-tuning stability remain unmeasured. The upstream repository is pinned at
 README says research use only and supplies no separate weight or per-motion
 license. Converted bytes remain local and must not be redistributed until those
 terms and motion provenance are resolved.
+
+## Bounded headless replay
+
+`replay` is a source-reviewed but not-yet-executed adapter. It accepts only the
+converted actor and converted motion, verifies the XML and all 35 meshes it
+consumes, and caps a run at 10 simulated seconds. It writes 1 kHz state,
+target, torque, and contact-count traces plus 50 Hz reference-window,
+observation, raw-action, and tracking-error traces. Its manifest labels results
+as reconstructed-actor evidence, not original-JIT equivalence.
+
+```bash
+PYTHONPATH=src python -m oracle_composition.adapters.gmt replay \
+  --upstream-root /path/to/pinned/gmt/repo \
+  --weights /path/to/gmt_g1_actor_weights.npz --weights-sha256 SHA256 \
+  --motion /path/to/motions/walk_stand.npz --motion-sha256 SHA256 \
+  --motion-name walk_stand --trace /path/to/new/walk_stand_trace.npz
+```
