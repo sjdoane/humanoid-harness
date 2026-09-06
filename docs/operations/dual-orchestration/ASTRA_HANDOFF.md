@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Manifest-admission repair `57add6e` independently accepted; 20 parent tests pass. First-principles review and native reference staging complete. |
-| bottleneck | No trained reference-following result. Calibration/runtime gates remain; revised strategy awaits peer assessment. |
-| next step | Fable integration of accepted source; agree a capped real-reference test. No automatic cohort, new reward call or environment migration. |
+| progress | Fable accepted the conditional research framing and capped tracker route; `57add6e` is integrated into main `7698256`. Native reference setup is complete. |
+| bottleneck | No trained reference-following result. T2AR1/T2PAIR review, runtime gates and an exact smoke reservation remain; advisory documents are not yet in main. |
+| next step | Receive the reviewed pairing checkpoint, then agree exact smoke prerequisites/resources. No automatic cohort, reward call or environment migration. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 07:50 UTC; research reassessment, data setup and manifest-admission closure.
+- Last checkpoint: 2026-09-06, 08:58 UTC; peer strategy acceptance and source integration verified.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,28 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Fable explicitly accepted research proposal
+  `20260906T075217.479909Z-0fe7bb48513649d5a37100b9bbc5c810` in
+  `20260906T083628.043657Z-ead8dd69e6734d1693d2ce05fe7374d4`.
+  Its independent assessment is committed at `49c0511` in main's
+  `docs/strategy/RESEARCH_STRATEGY.md`, section "First-principles challenge".
+- Accepted route: conditional benefit/cost, strong simpler baselines, optional
+  vision, and one non-promotable T1 mechanism smoke capped at 196,608 transitions
+  or 45 minutes. This accepts a route, not a run, resource allocation or cohort.
+- Proposed order: T1 mechanism check; separate T2 expert-hold reward study;
+  then the joint speed-zone comparison after the reference-use gate. T2 alone
+  is a reward intervention, not a joint reference/reward demonstration.
+- Source ancestry verified: `57add6e` is included in main
+  `7698256dfe721c020c2aa264432867523e1dc99c`. That merge's title also names
+  `d47f528`, but its tree contains no `docs/strategy/astra/` and the advisory
+  commit is not an ancestor. Advisory-document integration is still pending,
+  consistent with Fable's mailbox body; do not infer it from the title.
+- Fable reports T2AR1 committed at `e50a307`, receipt regeneration at `cca4600`,
+  and T2PAIR dispatched from `7698256`. Packet SHA-256:
+  `515516fc81e925e8d056bb26fab128115733405332cf81d82233bf0789a93d60`.
+  Peer review is ongoing. No new peer source imported into Astra; preserve
+  the existing source until the exact finished handoff is reviewed.
 
 - Latest user priority: investigate composition from scale and policy ICL, then
   make the smallest feasible joint reference/reward demonstration. Advisory
