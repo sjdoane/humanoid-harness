@@ -26,6 +26,11 @@ from oracle_composition.adapters.gmt.course_proposal import (
 )
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
 from oracle_composition.adapters.gmt.io import validate_zip_members
+from oracle_composition.adapters.gmt.training_telemetry import (
+    MAX_TELEMETRY_BYTES,
+    TELEMETRY_FILENAME,
+    validate_training_telemetry_descriptor,
+)
 from oracle_composition.experiments.artifact_io import publish_json_without_overwrite
 from oracle_composition.harness.contract import decode_json_object
 
@@ -57,6 +62,7 @@ _TRAIN_OUTPUTS = {
     "final_policy_trajectory.npz",
     "final_policy_evaluation.json",
 }
+_TRAIN_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
 _SUMMARY_FIELDS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -390,10 +396,19 @@ def build_g1_course_feedback(
         raise ValueError("course run output ledger is malformed")
     config_sha256 = _sha256(manifest["input_config_sha256"], field="input config")
     output_names = set(outputs)
-    mode_hint = "train" if output_names == _TRAIN_OUTPUTS else "probe"
-    if output_names != _PROBE_OUTPUTS and output_names != _TRAIN_OUTPUTS:
+    train_output = output_names in (
+        _TRAIN_OUTPUTS,
+        _TRAIN_TELEMETRY_OUTPUTS,
+    )
+    mode_hint = "train" if train_output else "probe"
+    if output_names not in (
+        _PROBE_OUTPUTS,
+        _TRAIN_OUTPUTS,
+        _TRAIN_TELEMETRY_OUTPUTS,
+    ):
         raise ValueError("course run output ledger differs")
     retained: dict[str, bytes] = {}
+    telemetry_encoded = None
     selected = {
         "input_config.json",
         f"{label}_frames.jsonl",
@@ -405,13 +420,17 @@ def build_g1_course_feedback(
     for name, digest in outputs.items():
         expected = _sha256(digest, field=f"course output {name}")
         maximum = (
-            _MAX_FRAMES_BYTES
+            MAX_TELEMETRY_BYTES
+            if name == TELEMETRY_FILENAME
+            else _MAX_FRAMES_BYTES
             if name.endswith("_frames.jsonl")
             else _MAX_NUMERIC_BYTES
             if name.endswith(".npz")
             else _MAX_JSON_BYTES
         )
         encoded = _verified_bytes(run_root / name, expected, maximum)
+        if name == TELEMETRY_FILENAME:
+            telemetry_encoded = encoded
         if name in selected:
             retained[name] = encoded
     if outputs.get("input_config.json") != config_sha256:
@@ -422,6 +441,16 @@ def build_g1_course_feedback(
         raise ValueError("admitted config differs from retained run bytes")
     if config.raw["mode"] != mode_hint:
         raise ValueError("course run mode and output ledger differ")
+    training = manifest["training"]
+    has_descriptor = type(training) is dict and "telemetry" in training
+    descriptor = training.get("telemetry") if has_descriptor else None
+    if telemetry_encoded is None:
+        if has_descriptor:
+            raise ValueError("training telemetry descriptor lacks its output")
+    else:
+        validate_training_telemetry_descriptor(
+            descriptor, telemetry_encoded, config.raw["training_steps"]
+        )
     identities = {
         "task": config.task.sha256,
         "oracle": config.program.sha256,

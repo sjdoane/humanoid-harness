@@ -16,6 +16,10 @@ from oracle_composition.adapters.gmt.course_task import (
     evaluate_step,
 )
 from oracle_composition.adapters.gmt.io import sha256_file, write_deterministic_npz
+from oracle_composition.adapters.gmt.training_telemetry import (
+    TELEMETRY_FILENAME,
+    TrainingTelemetry,
+)
 from oracle_composition.feedback import g1_course as module
 
 
@@ -114,7 +118,11 @@ def _write_frames(path: Path, rows: list[dict]) -> str:
 
 
 def _run_fixture(
-    root: Path, monkeypatch: pytest.MonkeyPatch, *, observe_region: bool = True
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    observe_region: bool = True,
+    telemetry: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -177,6 +185,13 @@ def _run_fixture(
     for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
         (root / name).write_bytes(b"numeric policy fixture")
         outputs[name] = _sha(root / name)
+    training = {"completed_transitions": 512}
+    if telemetry:
+        with TrainingTelemetry(root / TELEMETRY_FILENAME) as writer:
+            writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
+            writer.final_update({}, None)
+            training["telemetry"] = writer.descriptor(512)
+        outputs[TELEMETRY_FILENAME] = _sha(root / TELEMETRY_FILENAME)
     manifest = {
         "schema_version": 1,
         "artifact": "gmt_g1_course_development_run",
@@ -190,7 +205,7 @@ def _run_fixture(
             "segments": {"walk": "2" * 64},
         },
         "frozen_runtime": {},
-        "training": {"completed_transitions": 512},
+        "training": training,
         "zero_residual": summaries["zero_residual"],
         "final_policy": summaries["final_policy"],
         "runtime": {},
@@ -242,6 +257,55 @@ def test_builds_exact_feedback_and_input_receipt(tmp_path, monkeypatch) -> None:
     assert receipt["inputs"]["source_manifest_sha256"] == digest
     assert receipt["inputs"]["label"] == "final_policy"
     assert receipt["output"]["sha256"] == result["feedback"]["sha256"]
+
+
+def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:
+    manifest, digest, _ = _run_fixture(
+        tmp_path / "run", monkeypatch, telemetry=True
+    )
+
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=tmp_path / "feedback",
+    )
+
+    assert (tmp_path / "feedback/feedback_v1.json").is_file()
+
+
+def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:
+    manifest_path, _, _ = _run_fixture(
+        tmp_path / "run", monkeypatch, telemetry=True
+    )
+    manifest = json.loads(manifest_path.read_text())
+    manifest["training"]["telemetry"]["record_count"] += 1
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="descriptor"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
+
+
+def test_feedback_rejects_descriptor_key_without_telemetry_output(
+    tmp_path, monkeypatch
+) -> None:
+    manifest_path, _, _ = _run_fixture(tmp_path / "run", monkeypatch)
+    manifest = json.loads(manifest_path.read_text())
+    manifest["training"]["telemetry"] = None
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="descriptor lacks its output"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
 
 
 def test_rejects_tampered_manifest_output(tmp_path, monkeypatch) -> None:

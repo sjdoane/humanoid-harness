@@ -10,6 +10,10 @@ from oracle_composition.adapters.gmt.course_run import (
     make_policy,
 )
 from oracle_composition.adapters.gmt.io import sha256_file
+from oracle_composition.adapters.gmt.training_telemetry import (
+    TELEMETRY_FILENAME,
+    TrainingTelemetry,
+)
 
 
 class NumericFixture(gym.Env):
@@ -29,12 +33,31 @@ class NumericFixture(gym.Env):
         assert self.action_space.contains(action)
         self.tick += 1
         obs = np.full(2171, self.tick / 100, dtype=np.float32)
+        horizon = self.tick == 16
+        metrics = {
+            "control_step": self.tick,
+            "progress_m": self.tick / 100,
+            "lateral_error_m": 0.0,
+            "heading_error_rad": 0.0,
+            "root_height_m": 0.7,
+            "forward_speed_m_s": 0.5,
+            "speed_error_m_s": 0.0,
+            "posture_band_error_m": 0.0,
+            "joint_position_rmse_rad": 0.0,
+            "root_height_abs_error_m": 0.0,
+            "roll_pitch_rmse_rad": 0.0,
+            "inside_posture_region": False,
+            "posture_success": False,
+            "finish_condition_met": False,
+            "horizon_reached": horizon,
+            "fallen": False,
+        }
         return (
             obs,
             float(1 - np.square(action).mean()),
             False,
-            self.tick == 16,
-            {"metrics": {"fallen": False}},
+            horizon,
+            {"metrics": metrics},
         )
 
 
@@ -56,13 +79,18 @@ def test_zero_initial_mean_is_exact_and_seeded_state_is_repeatable(tmp_path):
             assert archive[name].tobytes() == tensor.numpy().tobytes()
 
 
-def test_real_ppo_adapter_completes_exact_fixture_budget_and_logs_transitions(capsys):
+def test_real_ppo_adapter_completes_exact_fixture_budget_and_logs_transitions(
+    capsys, tmp_path
+):
     torch.set_num_threads(1)
     model = make_policy(NumericFixture(), 29)
     before = model.policy.action_net.weight.detach().clone()
-    callback = _TrainingProgress()
-    model.learn(total_timesteps=512, callback=callback)
+    with TrainingTelemetry(tmp_path / TELEMETRY_FILENAME) as telemetry:
+        callback = _TrainingProgress(telemetry)
+        model.learn(total_timesteps=512, callback=callback)
+        descriptor = telemetry.descriptor(512)
     assert model.num_timesteps == 512
     assert callback.episodes == 32 and callback.falls == 0
     assert not torch.equal(before, model.policy.action_net.weight)
+    assert descriptor["rollout_boundary_count"] == 1
     assert '"transitions": 512' in capsys.readouterr().out

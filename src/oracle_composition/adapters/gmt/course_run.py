@@ -20,6 +20,7 @@ from .course_config import CourseRunConfig, load_run_config
 from .course_evaluation import evaluate_episode
 from .gym_env import GYM_RUNTIME_ID, RESIDUAL_OBSERVATION_DIM, RESIDUAL_RAW_SCALE, GMTResidualEnv
 from .io import sha256_file, write_deterministic_npz, write_json_receipt
+from .training_telemetry import TELEMETRY_FILENAME, TrainingTelemetry
 
 TRAINING_CONTRACT = {
     "algorithm": "stable_baselines3.PPO",
@@ -177,8 +178,9 @@ def _rollout(
 
 
 class _TrainingProgress(BaseCallback):
-    def __init__(self) -> None:
+    def __init__(self, telemetry: TrainingTelemetry) -> None:
         super().__init__()
+        self.telemetry = telemetry
         self.started = time.monotonic()
         self.episodes = 0
         self.falls = 0
@@ -188,6 +190,9 @@ class _TrainingProgress(BaseCallback):
             np.isfinite(np.asarray(self.locals[key])).all() for key in ("rewards", "new_obs")
         ):
             raise ValueError("non-finite training transition")
+        self.telemetry.observe_step(
+            self.locals["rewards"], self.locals["dones"], self.locals["infos"]
+        )
         for done, info in zip(self.locals["dones"], self.locals["infos"], strict=True):
             if done:
                 self.episodes += 1
@@ -195,6 +200,12 @@ class _TrainingProgress(BaseCallback):
         return True
 
     def _on_rollout_end(self) -> None:
+        self.telemetry.rollout_boundary(
+            self.num_timesteps,
+            self.model.rollout_buffer.observations,
+            self.logger.name_to_value,
+            getattr(self.model, "_n_updates", None),
+        )
         print(
             json.dumps(
                 {
@@ -206,6 +217,12 @@ class _TrainingProgress(BaseCallback):
                 }
             ),
             flush=True,
+        )
+
+    def _on_training_end(self) -> None:
+        self.telemetry.final_update(
+            self.logger.name_to_value,
+            getattr(self.model, "_n_updates", None),
         )
 
 
@@ -236,8 +253,11 @@ def run_course(config_path: Path, output: Path) -> dict:
         outputs["initial_residual_policy.npz"] = _numeric_policy(
             model, output / "initial_residual_policy.npz"
         )
-        callback = _TrainingProgress()
-        model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
+        with TrainingTelemetry(output / TELEMETRY_FILENAME) as telemetry:
+            callback = _TrainingProgress(telemetry)
+            model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
+            telemetry_descriptor = telemetry.descriptor(config.raw["training_steps"])
+        outputs[TELEMETRY_FILENAME] = str(telemetry_descriptor["sha256"])
         base_after = _frozen_actor_digest(training_env)
         if base_after != base_before:
             raise ValueError("training changed the frozen base actor state")
@@ -256,6 +276,7 @@ def run_course(config_path: Path, output: Path) -> dict:
             "policy_artifact": "numeric_weights_not_optimizer_resume",
             "frozen_base_state_before_sha256": base_before,
             "frozen_base_state_after_sha256": base_after,
+            "telemetry": telemetry_descriptor,
         }
         training_env.close()
     env.close()

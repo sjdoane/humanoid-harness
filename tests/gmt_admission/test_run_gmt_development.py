@@ -9,7 +9,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
+
+from oracle_composition.adapters.gmt.training_telemetry import (
+    TELEMETRY_FILENAME,
+    TrainingTelemetry,
+)
 
 SCRIPT = Path(__file__).parents[2] / "scripts/run_gmt_development.py"
 SCRIPT_DIR = str(SCRIPT.parent)
@@ -120,20 +126,34 @@ def _summary(*, residual_rms: float) -> dict[str, object]:
     }
 
 
-def _write_course_result(plan: Any, loaded: Any) -> dict[str, object]:
+def _write_course_result(
+    plan: Any, loaded: Any, *, telemetry: bool = False
+) -> dict[str, object]:
     output = plan.config.output_directory
     (output / DEVELOPMENT.supervisor.STDOUT_FILENAME).write_text("{}\n", encoding="utf-8")
     (output / DEVELOPMENT.supervisor.STDERR_FILENAME).write_text("", encoding="utf-8")
     expected = (
         DEVELOPMENT.COURSE_PROBE_OUTPUTS
         if loaded.course_mode == "probe"
-        else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
+        else (
+            DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
+            if telemetry
+            else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
+        )
     )
+    telemetry_descriptor = None
+    if telemetry:
+        with TrainingTelemetry(output / TELEMETRY_FILENAME) as writer:
+            writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
+            writer.final_update({}, None)
+            telemetry_descriptor = writer.descriptor(512)
     outputs = {}
     for name in sorted(expected):
         path = output / name
         if name == "input_config.json":
             path.write_bytes((Path(plan.inputs["config"]["path"])).read_bytes())
+        elif name == TELEMETRY_FILENAME:
+            pass
         else:
             path.write_bytes(f"fixture:{name}".encode())
         outputs[name] = _digest(path)
@@ -148,6 +168,8 @@ def _write_course_result(plan: Any, loaded: Any) -> dict[str, object]:
             "frozen_base_state_before_sha256": "5" * 64,
             "frozen_base_state_after_sha256": "5" * 64,
         }
+        if telemetry_descriptor is not None:
+            training["telemetry"] = telemetry_descriptor
         final_policy = _summary(residual_rms=0.02)
     manifest = {
         "schema_version": 1,
@@ -188,6 +210,41 @@ def test_course_verifier_accepts_only_mode_bound_complete_artifacts(
         if mode == "probe"
         else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
     )
+
+
+def test_course_verifier_accepts_only_exact_paired_telemetry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan, loaded = _plan(tmp_path, mode="train")
+    _write_course_result(plan, loaded, telemetry=True)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
+    assert artifacts["outputs"][TELEMETRY_FILENAME]["size"] > 0
+
+
+@pytest.mark.parametrize("mutation", ["orphan_output", "orphan_descriptor", "digest"])
+def test_course_verifier_rejects_unpaired_or_unbound_telemetry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    plan, loaded = _plan(tmp_path, mode="train")
+    manifest = _write_course_result(plan, loaded, telemetry=mutation != "orphan_descriptor")
+    output = plan.config.output_directory
+    if mutation == "orphan_output":
+        manifest["training"].pop("telemetry")
+    elif mutation == "orphan_descriptor":
+        manifest["training"]["telemetry"] = {"unbound": True}
+    else:
+        manifest["training"]["telemetry"]["sha256"] = "0" * 64
+    _write_json(output / DEVELOPMENT.COURSE_MANIFEST_FILENAME, manifest)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match=r"telemetry|training record"):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 @pytest.mark.parametrize(

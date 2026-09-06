@@ -20,6 +20,11 @@ from oracle_composition.adapters.gmt.contracts import GMT_UPSTREAM_COMMIT, MOTIO
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
+from oracle_composition.adapters.gmt.training_telemetry import (
+    MAX_TELEMETRY_BYTES,
+    TELEMETRY_FILENAME,
+    validate_training_telemetry_descriptor,
+)
 from oracle_composition.harness.resource_slot import (
     ResourceSlotError,
     canonical_json_bytes,
@@ -59,6 +64,7 @@ COURSE_TRAIN_OUTPUTS = {
     "final_policy_trajectory.npz",
     "final_policy_evaluation.json",
 }
+COURSE_TRAIN_TELEMETRY_OUTPUTS = {*COURSE_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
 LAUNCHER_SOURCES = ("scripts/run_gmt_probe.py", "scripts/run_gmt_development.py")
 PARITY_CONFIG_FIELDS = {
     "manifest_path",
@@ -706,7 +712,13 @@ def _validate_course_summary(
         raise supervisor.ProbeError(f"course {label} summary is malformed")
 
 
-def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
+def _validate_training_record(
+    value: object,
+    *,
+    mode: str,
+    steps: int,
+    telemetry_encoded: bytes | None,
+) -> None:
     if mode == "probe":
         if value is not None:
             raise supervisor.ProbeError("probe course run reports training")
@@ -719,6 +731,8 @@ def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
         "frozen_base_state_before_sha256",
         "frozen_base_state_after_sha256",
     }
+    if telemetry_encoded is not None:
+        expected.add("telemetry")
     if not isinstance(value, Mapping) or set(value) != expected:
         raise supervisor.ProbeError("course training record fields differ")
     if (
@@ -734,6 +748,13 @@ def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
         != _sha256(value["frozen_base_state_after_sha256"], field="frozen base state after")
     ):
         raise supervisor.ProbeError("course training record differs from the fixed budget")
+    if telemetry_encoded is not None:
+        try:
+            validate_training_telemetry_descriptor(
+                value["telemetry"], telemetry_encoded, steps
+            )
+        except ValueError as exc:
+            raise supervisor.ProbeError(str(exc)) from exc
 
 
 def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
@@ -759,8 +780,16 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     ):
         raise supervisor.ProbeError("course run manifest identity or config binding differs")
     outputs = manifest.get("outputs")
-    expected_outputs = COURSE_PROBE_OUTPUTS if mode == "probe" else COURSE_TRAIN_OUTPUTS
-    if not isinstance(outputs, Mapping) or set(outputs) != expected_outputs:
+    output_names = set(outputs) if isinstance(outputs, Mapping) else set()
+    valid_output_sets = (
+        {frozenset(COURSE_PROBE_OUTPUTS)}
+        if mode == "probe"
+        else {
+            frozenset(COURSE_TRAIN_OUTPUTS),
+            frozenset(COURSE_TRAIN_TELEMETRY_OUTPUTS),
+        }
+    )
+    if not isinstance(outputs, Mapping) or frozenset(output_names) not in valid_output_sets:
         raise supervisor.ProbeError("course run output hash ledger differs from its mode")
     expected_names = {
         COURSE_MANIFEST_FILENAME,
@@ -768,6 +797,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         supervisor.STDERR_FILENAME,
     }
     artifacts: dict[str, object] = {}
+    telemetry_encoded = None
     for raw_name, raw_sha256 in outputs.items():
         name = _safe_output_name(raw_name)
         expected_sha256 = _sha256(raw_sha256, field=f"course output {name}")
@@ -777,6 +807,10 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             raise supervisor.ProbeError(f"course output hash differs: {name}")
         expected_names.add(name)
         artifacts[name] = {"path": name, "sha256": observed, "size": path.stat().st_size}
+        if name == TELEMETRY_FILENAME:
+            telemetry_encoded = supervisor._read_bounded(
+                path, MAX_TELEMETRY_BYTES, "course training telemetry"
+            )
     if _output_names(output) != expected_names:
         raise supervisor.ProbeError("course run has unknown or missing output files")
     supervisor._read_bounded(
@@ -824,7 +858,12 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     training_steps = raw.get("training_steps")
     if type(training_steps) is not int:
         raise supervisor.ProbeError("course training-step binding is malformed")
-    _validate_training_record(manifest.get("training"), mode=mode, steps=training_steps)
+    _validate_training_record(
+        manifest.get("training"),
+        mode=mode,
+        steps=training_steps,
+        telemetry_encoded=telemetry_encoded,
+    )
     if manifest.get("identities") != loaded.course_identities:
         raise supervisor.ProbeError("course semantic identities differ from admitted config")
     expected_claims = {
