@@ -255,6 +255,23 @@
       "note": "binds the exact target SHA to the retained host run record",
       "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar2.txt",
       "retained_scratch_record_sha256": "92df0d9481de2193e4db553c99d1ea83c0db55859c718ad8604c8f88fe5efa8b"
+    },
+    {
+      "commit": "df3c41d5980ac31efb5024798e20e473f36fa17b",
+      "follow_up_receipt_for": "Slice T2PAIRR1",
+      "note": "follow-up receipt written 2026-09-06T12:54Z after review SCI-T2PAIRR1-02",
+      "result": "1 failed, 1922 passed, 16 skipped in 370.64 s (2026-09-06T12:24:12Z to 12:32:50Z); the failure is the expected stale reward no-learning receipt, regenerated in 78f6c7b; a post-regeneration full run is recorded separately",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr1.txt",
+      "retained_scratch_record_sha256": "73151835c7eb43ebd09561de8a4fdaec0bd038dbcb744d1a60f88fc2cea35fcf"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "78f6c7b7e243a1aab4372256a0e4891a78c48138",
+      "note": "full outside-sandbox run after the receipted reward-receipt regeneration; written 2026-09-06T12:55Z",
+      "post_regeneration_full_run": true,
+      "result": "1923 passed, 16 skipped, 2 warnings in 372.75s (0:06:12)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_78f6c7b_post_regeneration.txt",
+      "retained_scratch_record_sha256": "c634912a5fb3c68a697459ef647ab55541f84e01cb5ac7fe12b8c808804a80e6"
     }
   ],
   "schema_version": 1
