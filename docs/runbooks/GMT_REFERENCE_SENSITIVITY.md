@@ -2,9 +2,15 @@
 
 | State | Evidence boundary |
 |---|---|
-| progress | Data-only replay admission, actor/motion hash binding, and three reference-only interventions are implemented. |
+| progress | Real matched-state test completed: exact actions reproduce byte-for-byte; zero/shuffle/shift change all 500 action rows. |
 | bottleneck | No closed-loop intervention rollout has been run. |
-| next step | Run this probe on the retained `walk_stand` baseline, inspect action deltas, then decide whether a bounded rollout intervention is warranted. |
+| next step | Keep this as input-influence evidence; use the separate course trials for composition and learning claims. |
+
+- Mean raw-action L2 changes: zero `4.94323`, shuffle `2.80658`, shift `3.01661`.
+- Retained non-reference dimensions: 1,554, unchanged per matched state.
+- Output in sibling `humanoid-harness-probe-runs/`:
+  `gmt_walk_stand_reference_sensitivity_20260906.npz`.
+- SHA-256: `7e7499b920e14dec3ca94170b959b292db057fa64b8d928d6d2642db6244c8c6`.
 
 ## Question
 

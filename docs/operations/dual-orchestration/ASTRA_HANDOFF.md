@@ -2,15 +2,19 @@
 
 | status | current truth |
 |---|---|
-| progress | GMT PATH-repair baseline completed 10 s of supplied-motion tracking; real recorded-state GIF exists. Development feedback and evaluation cleanup are integrated; 42 focused tests pass. |
-| bottleneck | No novel composition or task-reward learning; native numerical repair is awaiting parent/peer review. |
-| next step | Prioritize the G1 reference-sensitivity probe and shared state-triggered/residual runtime; keep the native repair as a separate option. |
+| progress | 13 G1 training runs completed. Three-seed controls show a useful composed-oracle/task-reward interaction; an LLM reward revision was trained and rejected. Recorded task-overlay GIF and verified feedback CLI exist. |
+| bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
+| next step | Admit and test the earlier-entry oracle O3 with retained reward r1. Keep native Humanoid-v5 as a separate optional lane. |
 
-- Current evidence and design decision: `../../strategy/astra/GMT_BASELINE_20260906.md`.
-- GIF: sibling `humanoid-harness-probe-runs/gmt_walk_stand_pathfix_20260906_recorded.gif`.
-- Resource slot is free after verified cleanup. No training worker is active.
-- Integrated feedback `ce6a172` as `42331c9`, evaluation cleanup `4369261` as
-  `ab14ff4`. Native likelihood `6666e70` is not yet integrated.
+- Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
+- GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
+- All 13 training runs used source `004592f`; later changes add reporting only.
+- Integrated task-overlay renderer `b609bf6`, feedback builder `6d30af1`, raw
+  boundary verification `a8f7431`. Parent: 200 focused + 9 CLI tests pass.
+- O3 authoring is pending at this checkpoint; refresh `.orchestration/astra-active-run.json`
+  and the mailbox before launching. No live heavy job at 21:41 UTC.
+- Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
+- Everything below is historical context, not current dispatch authority.
 
 ## Earlier attempts (retained)
 
@@ -35,7 +39,7 @@
 - Separate evaluation cleanup `4369261` and GMT renderer `2065c10` remain
   unmerged. No protected evaluation or new simulation has run at this checkpoint.
 
-## Current system-lead checkpoint: 2026-09-06
+## Earlier system-lead checkpoint: 2026-09-06 (historical)
 
 - Authority: `../../strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`; Samuel assigns
   Astra implementation, integration and bounded local training across both knobs.
@@ -76,7 +80,7 @@
 - Original checkout belongs to Fable. Its B0 worker was actively renewing the
   main writer lease at setup; its uncommitted files were not copied.
 
-## Current oracle slice
+## Earlier oracle slice (historical)
 
 - **Accepted source:** `b7b67b7925650db2e999953e6b85e81f865c7d34`.
   `RESOURCE_SLOT_01_ACCEPTANCE.md` records the exact closure and caller duties.

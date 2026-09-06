@@ -1,5 +1,8 @@
 # G1 baseline: real supplied-motion tracking
 
+Historical baseline record. Composition and learning results now live in
+[`G1_LEARNING_RESULTS_20260906.md`](G1_LEARNING_RESULTS_20260906.md).
+
 | status | evidence |
 |---|---|
 | progress | One reconstructed GMT controller tracked `walk_stand` for 10 simulated seconds. |

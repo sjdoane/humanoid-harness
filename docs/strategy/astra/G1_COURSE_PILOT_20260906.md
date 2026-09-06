@@ -1,5 +1,8 @@
 # G1 course pilot — frozen before course data
 
+Historical pre-course design. Current measured evidence is in
+[`G1_LEARNING_RESULTS_20260906.md`](G1_LEARNING_RESULTS_20260906.md).
+
 | state | evidence |
 |---|---|
 | progress | Supplied walk and crouch replay; exact matched-state reference influence; course runtime implemented. |
@@ -105,3 +108,13 @@ robot state → O(state, phase) → H×D reference → GMT actor [FROZEN WEIGHTS
 - Astra decision: `20260906T201915.702273Z-fc1fa5b3f2af4d9ba6044c3cc301671f`.
 - Fable acknowledgment: `20260906T202031.095894Z-1fbd8a15bfc64063b6b4cb6a78ce9dd4`.
 - These are pre-course-data decisions, not post-result changes to the gates.
+
+## Recorded change before learning
+
+- The original O1 probe failed at 4.12 s. O2 restricts crouch entry to the first
+  0.15 s of crop 2.7–6.5 s and holds its terminal pose; guards stay unchanged.
+- O2 completed 20 s with both switches. It replaced O1 in the learning table;
+  no task, evaluator, tracking, trainer or budget threshold changed.
+- Fable review: `20260906T205341.940362Z-406a6c73e40f4504bd8783b801b6d2a9`.
+- Matched learning ran O0/O2 × r0/r1, then two declared replication seeds.
+  See the result record for every negative outcome and the rejected r2 trial.
