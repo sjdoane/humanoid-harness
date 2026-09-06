@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import subprocess
+import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAILBOX = REPO_ROOT / "scripts" / "research-mailbox"
+RESOURCE_SLOT = REPO_ROOT / "src" / "oracle_composition" / "harness" / "resource_slot.py"
+UTC = timezone.utc  # noqa: UP017 -- CLI also targets macOS system Python 3.9.
 
 
 def run_mailbox(
@@ -63,9 +70,19 @@ def test_two_git_worktrees_share_the_git_common_directory(tmp_path: Path) -> Non
     primary = tmp_path / "primary"
     peer = tmp_path / "peer"
     (primary / "scripts").mkdir(parents=True)
+    (primary / "src" / "oracle_composition" / "harness").mkdir(parents=True)
     shutil.copy2(MAILBOX, primary / "scripts" / "research-mailbox")
+    shutil.copy2(
+        RESOURCE_SLOT,
+        primary / "src" / "oracle_composition" / "harness" / "resource_slot.py",
+    )
     git("init", cwd=primary)
-    git("add", "scripts/research-mailbox", cwd=primary)
+    git(
+        "add",
+        "scripts/research-mailbox",
+        "src/oracle_composition/harness/resource_slot.py",
+        cwd=primary,
+    )
     environment = os.environ.copy()
     environment.update(
         {
@@ -80,8 +97,10 @@ def test_two_git_worktrees_share_the_git_common_directory(tmp_path: Path) -> Non
 
     message = send(None, "shared", script=primary / "scripts" / "research-mailbox")
     inbox = succeed(None, "inbox", "fable", script=peer / "scripts" / "research-mailbox")
+    board = succeed(None, "board", script=peer / "scripts" / "research-mailbox")
 
     assert [item["id"] for item in inbox["messages"]] == [message["id"]]  # type: ignore[index]
+    assert board["heavy_job_slot"] == {"state": "free"}
     common = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         cwd=peer,
@@ -291,4 +310,240 @@ def test_status_replaces_one_agent_snapshot_and_board_reports_mail(tmp_path: Pat
     assert board["statuses"]["astra"] == replacement  # type: ignore[index]
     assert board["statuses"]["fable"] is None  # type: ignore[index]
     assert board["mail"]["fable"] == {"total": 1, "unread": 1}  # type: ignore[index]
+    assert board["heavy_job_slot"] == {"state": "free"}
     assert len(list((root / "status").iterdir())) == 1
+
+
+def _stamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _message_id() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ") + f"-{uuid.uuid4().hex}"
+
+
+def _write_json(path: Path, value: object) -> None:
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _reservation_fixture(root: Path, *, owner: str) -> Path:
+    now = datetime.now(UTC)
+    proposal_id = _message_id()
+    acceptance_id = _message_id()
+    (root / "messages").mkdir(parents=True, exist_ok=True)
+    (root / "acks").mkdir(exist_ok=True)
+    authoritative = {
+        "accepted_until_utc": _stamp(now + timedelta(minutes=20)),
+        "canonical_argv": ["python", "-m", "oracle_composition.harness.cycle_cli", "train"],
+        "commit": "1" * 40,
+        "conflict_check": "no_other_heavy_repository_job",
+        "hard_wall_seconds": 1_200,
+        "inputs": {"execution_manifest_sha256": "2" * 64},
+        "mode": "smoke",
+        "output": str(root / "output"),
+        "owner": owner,
+        "proposal_id": proposal_id,
+        "required_authorizer": "fable",
+    }
+    body = json.dumps(authoritative, sort_keys=True, separators=(",", ":"))
+    message_path = root / "messages" / f"{acceptance_id}.json"
+    _write_json(
+        message_path,
+        {
+            "body": body,
+            "from": "fable",
+            "id": acceptance_id,
+            "kind": "acceptance",
+            "reply_to": proposal_id,
+            "schema_version": 1,
+            "sent_at": _stamp(now - timedelta(minutes=2)),
+            "subject": "Accepted bounded heavy job",
+            "to": "astra",
+        },
+    )
+    ack_path = root / "acks" / f"{acceptance_id}.json"
+    _write_json(
+        ack_path,
+        {
+            "acknowledged_at": _stamp(now - timedelta(minutes=1)),
+            "meaning": "read_not_agreement",
+            "message_id": acceptance_id,
+            "recipient": "astra",
+            "schema_version": 1,
+        },
+    )
+    reservation = {
+        "accepted": True,
+        "acceptance_message": {
+            "path": f"messages/{acceptance_id}.json",
+            "sha256": hashlib.sha256(message_path.read_bytes()).hexdigest(),
+        },
+        "acknowledgment": {
+            "path": f"acks/{acceptance_id}.json",
+            "sha256": hashlib.sha256(ack_path.read_bytes()).hexdigest(),
+        },
+        "schema_version": 2,
+        **authoritative,
+    }
+    path = root / "reservation.json"
+    _write_json(path, reservation)
+    return path
+
+
+def test_cli_reserve_board_and_exact_release(tmp_path: Path) -> None:
+    root = tmp_path / "mailbox"
+    reservation = _reservation_fixture(root, owner="cli-owner")
+
+    reserved = succeed(
+        root,
+        "reserve",
+        "--owner",
+        "cli-owner",
+        "--reservation",
+        str(reservation),
+        "--expected-wall-seconds",
+        "600",
+    )
+    token = reserved["slot"]
+    board = succeed(root, "board")
+
+    assert reserved["created"] is True
+    assert board["heavy_job_slot"]["state"] == "held"  # type: ignore[index]
+    assert board["heavy_job_slot"]["token"] == token  # type: ignore[index]
+
+    wrong = run_mailbox(
+        root,
+        "release",
+        "--owner",
+        "cli-owner",
+        "--token-id",
+        "0" * 32,
+    )
+    assert wrong.returncode == 2
+    assert json.loads(wrong.stderr)["ok"] is False
+    assert len(wrong.stderr.encode("utf-8")) < 512
+    assert succeed(root, "board")["heavy_job_slot"]["token"] == token  # type: ignore[index]
+
+    released = succeed(
+        root,
+        "release",
+        "--owner",
+        "cli-owner",
+        "--token-id",
+        str(token["token_id"]),  # type: ignore[index]
+    )
+    assert released == {"released": True, "slot": token}
+    assert succeed(root, "board")["heavy_job_slot"] == {"state": "free"}
+
+
+def test_cli_slot_errors_are_json_and_bounded(tmp_path: Path) -> None:
+    root = tmp_path / "mailbox"
+    reservation = _reservation_fixture(root, owner="cli-owner")
+    invalid_seconds = run_mailbox(
+        root,
+        "reserve",
+        "--owner",
+        "cli-owner",
+        "--reservation",
+        str(reservation),
+        "--expected-wall-seconds",
+        "0",
+    )
+    assert invalid_seconds.returncode == 2
+    assert json.loads(invalid_seconds.stderr)["ok"] is False
+    assert len(invalid_seconds.stderr.encode("utf-8")) < 512
+
+    (root / "heavy-job.lock").write_text("{}", encoding="utf-8")
+    malformed = run_mailbox(root, "board")
+    assert malformed.returncode == 2
+    assert json.loads(malformed.stderr)["ok"] is False
+    assert "slot fields differ" in malformed.stderr
+    assert len(malformed.stderr.encode("utf-8")) < 512
+
+
+@pytest.mark.parametrize("command", ["reserve", "release", "board"])
+def test_cli_rejects_symlink_root_before_preparing_target(tmp_path: Path, command: str) -> None:
+    root = tmp_path / "real-root"
+    reservation = _reservation_fixture(root, owner="cli-owner")
+    (root / "heavy-job.lock").write_bytes(b"retained-token")
+    (root / "heavy-job.guard").write_bytes(b"")
+    alias = tmp_path / "root-link"
+    alias.symlink_to(root, target_is_directory=True)
+    before_names = set(root.iterdir())
+    guard_inode = (root / "heavy-job.guard").stat().st_ino
+    arguments = [command]
+    if command == "reserve":
+        arguments.extend(
+            [
+                "--owner",
+                "cli-owner",
+                "--reservation",
+                str(reservation),
+                "--expected-wall-seconds",
+                "600",
+            ]
+        )
+    elif command == "release":
+        arguments.extend(["--owner", "cli-owner", "--token-id", "0" * 32])
+
+    result = run_mailbox(alias, *arguments)
+
+    assert result.returncode == 2
+    assert json.loads(result.stderr)["ok"] is False
+    assert "symlink" in result.stderr
+    assert len(result.stderr.encode()) < 512
+    assert set(root.iterdir()) == before_names
+    assert (root / "heavy-job.lock").read_bytes() == b"retained-token"
+    assert (root / "heavy-job.guard").read_bytes() == b""
+    assert (root / "heavy-job.guard").stat().st_ino == guard_inode
+
+
+@pytest.mark.parametrize(
+    "malformation",
+    ["nul-authority-path", "surrogate-owner", "surrogate-argv", "surrogate-body", "surrogate-key"],
+)
+def test_cli_malformed_encoded_values_are_bounded_json_without_slot_changes(
+    tmp_path: Path, malformation: str
+) -> None:
+    root = tmp_path / "mailbox"
+    reservation_path = _reservation_fixture(root, owner="cli-owner")
+    reservation = json.loads(reservation_path.read_text())
+    if malformation == "nul-authority-path":
+        reservation["acceptance_message"]["path"] = "messages/x\x00.json"
+    elif malformation == "surrogate-owner":
+        reservation["owner"] = "\ud800"
+    elif malformation == "surrogate-argv":
+        reservation["canonical_argv"] = ["\ud800"]
+    elif malformation == "surrogate-key":
+        reservation["inputs"]["\ud800"] = 1
+    else:
+        message_path = root / reservation["acceptance_message"]["path"]
+        message = json.loads(message_path.read_text())
+        message["body"] = "\ud800"
+        _write_json(message_path, message)
+        reservation["acceptance_message"]["sha256"] = hashlib.sha256(
+            message_path.read_bytes()
+        ).hexdigest()
+    _write_json(reservation_path, reservation)
+    (root / "heavy-job.lock").write_bytes(b"retained-token")
+    (root / "heavy-job.guard").write_bytes(b"")
+    guard_inode = (root / "heavy-job.guard").stat().st_ino
+
+    result = run_mailbox(
+        root,
+        "reserve",
+        "--owner",
+        "cli-owner",
+        "--reservation",
+        str(reservation_path),
+        "--expected-wall-seconds",
+        "600",
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stderr)["ok"] is False
+    assert "Traceback" not in result.stderr
+    assert len(result.stderr.encode()) < 512
+    assert (root / "heavy-job.lock").read_bytes() == b"retained-token"
+    assert (root / "heavy-job.guard").read_bytes() == b""
+    assert (root / "heavy-job.guard").stat().st_ino == guard_inode
