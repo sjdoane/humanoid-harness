@@ -29,7 +29,12 @@ def _sha(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _fixture(root: Path, *, scaled: bool = False) -> tuple[Path, Path, dict[str, object]]:
+def _fixture(
+    root: Path,
+    *,
+    scaled: bool = False,
+    manifest_scaled: bool | None = None,
+) -> tuple[Path, Path, dict[str, object]]:
     run = root / "runs" / "o2-seed7"
     run.mkdir(parents=True)
     config = {"mode": "train", "seed": 7, "training_steps": 512}
@@ -82,7 +87,13 @@ def _fixture(root: Path, *, scaled: bool = False) -> tuple[Path, Path, dict[str,
             "reward": "3" * 64,
             "segments": {"walk": "4" * 64},
         },
-        "frozen_runtime": {"trainer": effective_training_contract(trainer)},
+        "frozen_runtime": {
+            "trainer": effective_training_contract(
+                CourseTrainerSpec(TRAINING_REWARD_SCALE)
+                if (scaled if manifest_scaled is None else manifest_scaled)
+                else None
+            )
+        },
         "training": {"completed_transitions": 512},
         "zero_residual": None,
         "final_policy": {"objective_evaluation": objective},
@@ -285,6 +296,30 @@ def test_budget_mismatch_rejects_only_the_registered_run(
             "detail": "completed_training_budget_invalid",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("config_scaled", "manifest_scaled"),
+    [(False, True), (True, False)],
+    ids=["raw-config-scaled-manifest", "scaled-config-raw-manifest"],
+)
+def test_trainer_manifest_must_match_retained_config_variant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_scaled: bool,
+    manifest_scaled: bool,
+) -> None:
+    _registry, _manifest, objective = _fixture(
+        tmp_path,
+        scaled=config_scaled,
+        manifest_scaled=manifest_scaled,
+    )
+    _install_validator(monkeypatch, objective)
+
+    payload = module.g1_learning_status(tmp_path)
+
+    assert payload["state"] == "rejected"
+    assert payload["runs"][0]["detail"] == "trainer_config_manifest_mismatch"
 
 
 def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None:

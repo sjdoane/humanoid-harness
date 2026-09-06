@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from oracle_composition.adapters.gmt.training_contract import (
-    TRAINING_REWARD_SCALE,
     CourseTrainerSpec,
     effective_training_contract,
 )
@@ -258,20 +257,25 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
     elif budget != 0 or manifest.get("training") is not None:
         raise G1LearningError("probe_training_record_invalid")
 
+    try:
+        trainer_spec = (
+            CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
+        )
+    except ValueError as exc:
+        raise G1LearningError("trainer_config_invalid") from exc
     frozen = manifest.get("frozen_runtime")
     trainer = frozen.get("trainer") if type(frozen) is dict else None
-    raw_contract = effective_training_contract(None)
-    scaled_contract = effective_training_contract(CourseTrainerSpec(TRAINING_REWARD_SCALE))
-    if trainer == raw_contract:
+    expected_trainer = effective_training_contract(trainer_spec)
+    if trainer != expected_trainer:
+        raise G1LearningError("trainer_config_manifest_mismatch")
+    if trainer_spec is None:
         base_contract = trainer
         trainer_variant = "legacy_raw_training_reward"
         payload_identity = None
-    elif trainer == scaled_contract:
+    else:
         base_contract = trainer["base_ppo_contract"]
         trainer_variant = trainer["schema_id"]
         payload_identity = _digest(trainer["identity_sha256"], "trainer_payload_identity")
-    else:
-        raise G1LearningError("trainer_contract_invalid")
     trainer_bytes = canonical_json_bytes(trainer)
     if len(trainer_bytes) > 16 * 1024:
         raise G1LearningError("trainer_contract_size_invalid")
