@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
-from oracle_composition.phase_b.contracts import TargetSpeedRewardSpec
 from oracle_composition.phase_b.protected_metrics import (
     CONTROL_PERIOD_SECONDS,
     ERROR_NAMES,
@@ -19,14 +18,8 @@ from oracle_composition.phase_b.protected_metrics import (
     protected_step_record,
 )
 from oracle_composition.phase_b.reference_runtime import tracking_state_from_reference_row
-from oracle_composition.reward_study.execution_manifest import (
-    t2_execution_manifest_contract_value,
-)
-from oracle_composition.reward_study.study_manifest import (
-    CANDIDATE_REWARD_ID,
-    STUDY_FINAL_READY_STATUS,
-    study_pairing_sha256_from_arm,
-)
+from oracle_composition.reward_search.t2_model_contracts import T2PreDispatchSeal
+from oracle_composition.reward_study.study_manifest import CANDIDATE_REWARD_ID
 from oracle_composition.reward_study.t2_evaluator import (
     T2EpisodeMetrics,
     _evaluate_t2_trace_against_reference,
@@ -47,7 +40,8 @@ from oracle_composition.reward_study.t2_report import (
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/004_t2_reward_study"
-TEST_EXECUTION_COMMIT = "a" * 40
+SUPERSEDED = ROOT / "experiments/004_t2_reward_study/superseded"
+TEST_EXECUTION_COMMIT = "28067291bf43bb315e1702fc66c649310d4a3c97"
 
 
 def _episode(
@@ -211,8 +205,6 @@ def replay_fixture(
     run_root = tmp_path_factory.mktemp("t2-report-run")
     trace_root = run_root / "traces"
     trace_root.mkdir()
-    candidate_path = run_root / "candidate_reward.json"
-    candidate_path.write_bytes(TargetSpeedRewardSpec(alpha=1.0, beta=0.0).canonical_bytes)
 
     references = {
         seed: load_t2_verified_reference(repository_root=ROOT, evaluation_seed=seed)
@@ -259,38 +251,12 @@ def replay_fixture(
     index = build_t2_trace_index(entries)
     index_path = run_root / "trace_index.json"
     index_path.write_bytes(canonical_json_bytes(index))
-    pending_study_path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
-    pending_study = json.loads(pending_study_path.read_bytes())
-    execution_relative = pending_study["arms"][0]["execution_manifest"]["path"]
-    final_execution = canonical_json_bytes(
-        t2_execution_manifest_contract_value(
-            ROOT,
-            execution_commit=TEST_EXECUTION_COMMIT,
-        )
-    )
-    final_execution_path = run_root / execution_relative
-    final_execution_path.parent.mkdir(parents=True, exist_ok=True)
-    final_execution_path.write_bytes(final_execution)
-
-    final_study = copy.deepcopy(pending_study)
-    final_execution_binding = {
-        "byte_count": len(final_execution),
-        "path": execution_relative,
-        "sha256": hashlib.sha256(final_execution).hexdigest(),
-    }
-    for arm in final_study["arms"]:
-        arm["execution_manifest"] = final_execution_binding
-    final_study["arms"][1]["reward"] = {
-        "path": "candidate_reward.json",
-        "reward_id": CANDIDATE_REWARD_ID,
-        "sha256": hashlib.sha256(candidate_path.read_bytes()).hexdigest(),
-    }
-    final_study["status"] = STUDY_FINAL_READY_STATUS
-    final_study["study_pairing_sha256"] = study_pairing_sha256_from_arm(final_study["arms"][0])
+    final_study_path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
+    final_study = json.loads(final_study_path.read_bytes())
     study_relative = "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json"
-    final_study_path = run_root / study_relative
-    final_study_path.write_bytes(canonical_json_bytes(final_study))
     common = final_study["arms"][0]
+    candidate_relative = final_study["arms"][1]["reward"]["path"]
+    execution_relative = common["execution_manifest"]["path"]
     artifacts = {
         "baseline_reward": _binding(
             ROOT / "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json",
@@ -299,9 +265,9 @@ def replay_fixture(
             reward_id="tracking_only/v1",
         ),
         "candidate_reward": _binding(
-            candidate_path,
-            root="run",
-            relative="candidate_reward.json",
+            ROOT / candidate_relative,
+            root="repository",
+            relative=candidate_relative,
             reward_id=CANDIDATE_REWARD_ID,
         ),
         "evaluator_design": _binding(
@@ -310,8 +276,8 @@ def replay_fixture(
             relative=common["evaluator"]["path"],
         ),
         "execution_manifest": _binding(
-            final_execution_path,
-            root="run",
+            ROOT / execution_relative,
+            root="repository",
             relative=execution_relative,
         ),
         "integrated_pairing_receipt": _binding(
@@ -346,7 +312,7 @@ def replay_fixture(
         ),
         "study_manifest": _binding(
             final_study_path,
-            root="run",
+            root="repository",
             relative=study_relative,
         ),
         "trace_index": _binding(index_path, root="run", relative="trace_index.json"),
@@ -365,15 +331,20 @@ def replay_fixture(
         baseline_episodes=episodes["baseline"],
         candidate_episodes=episodes["candidate"],
     )
-    pending_inputs = copy.deepcopy(inputs)
-    pending_inputs["artifacts"]["study_manifest"] = _binding(
-        pending_study_path,
-        root="repository",
-        relative=study_relative,
+    superseded_relative = (
+        "experiments/004_t2_reward_study/superseded/superseded_t2pairr1_study_manifest_v1.json"
     )
-    pending_inputs["study_pairing_sha256"] = pending_study["study_pairing_sha256"]
-    pending_report = build_t2_study_report(
-        inputs=pending_inputs,
+    superseded_path = ROOT / superseded_relative
+    superseded_study = json.loads(superseded_path.read_bytes())
+    superseded_inputs = copy.deepcopy(inputs)
+    superseded_inputs["artifacts"]["study_manifest"] = _binding(
+        superseded_path,
+        root="repository",
+        relative=superseded_relative,
+    )
+    superseded_inputs["study_pairing_sha256"] = superseded_study["study_pairing_sha256"]
+    superseded_report = build_t2_study_report(
+        inputs=superseded_inputs,
         baseline_episodes=episodes["baseline"],
         candidate_episodes=episodes["candidate"],
     )
@@ -383,9 +354,10 @@ def replay_fixture(
         "index": index,
         "inputs": inputs,
         "baseline": episodes["baseline"],
-        "pending_report": pending_report,
         "report": report,
         "run_root": run_root,
+        "superseded_report": superseded_report,
+        "superseded_study": superseded_study,
     }
 
 
@@ -472,9 +444,15 @@ def test_report_structure_contains_no_reward_telemetry() -> None:
     assert report["summary"]["weighted_aggregate"] is None
 
 
-def test_report_acceptance_resolves_inputs_and_replays_exact_index(
+def test_final_ready_report_bound_to_current_seal_resolves_and_replays_exact_index(
     replay_fixture: dict[str, object],
 ) -> None:
+    current_seal = T2PreDispatchSeal.model_validate_json(
+        (EXPERIMENT / "t2_seal_v1.json").read_bytes()
+    )
+    report_study = replay_fixture["report"]["inputs"]["artifacts"]["study_manifest"]
+    assert report_study["sha256"] == current_seal.study_manifest.sha256
+    assert current_seal.dispatch_state == "candidate_admitted_no_further_initial_dispatch"
     assert (
         validate_t2_study_report(
             replay_fixture["report"],
@@ -485,12 +463,26 @@ def test_report_acceptance_resolves_inputs_and_replays_exact_index(
     )
 
 
-def test_pending_canonical_study_report_fails_with_explicit_state_reason(
+def test_report_bound_to_superseded_t2pairr1_seal_stays_refused(
     replay_fixture: dict[str, object],
 ) -> None:
+    superseded_study_bytes = (
+        SUPERSEDED / "superseded_t2pairr1_study_manifest_v1.json"
+    ).read_bytes()
+    superseded_seal_bytes = (SUPERSEDED / "superseded_t2pairr1_seal_v1.json").read_bytes()
+    superseded_seal = T2PreDispatchSeal.model_validate_json(superseded_seal_bytes)
+    assert (
+        superseded_seal.study_manifest.sha256 == hashlib.sha256(superseded_study_bytes).hexdigest()
+    )
+    assert superseded_seal.study_manifest.sha256 == (
+        "a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb"
+    )
+    assert replay_fixture["superseded_study"]["status"] == (
+        "execution_no_go_until_candidate_is_admitted"
+    )
     with pytest.raises(ValueError, match=r"^study_not_final_ready$"):
         validate_t2_study_report(
-            replay_fixture["pending_report"],
+            replay_fixture["superseded_report"],
             repository_root=ROOT,
             run_root=replay_fixture["run_root"],
         )

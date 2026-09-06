@@ -32,6 +32,9 @@ from oracle_composition.reward_study.study_manifest import (
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/004_t2_reward_study"
 STUDY_PATH = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
+SUPERSEDED_STUDY_PATH = (
+    ROOT / "experiments/004_t2_reward_study/superseded/superseded_t2pairr1_study_manifest_v1.json"
+)
 RECEIPT_PATH = EXPERIMENT / "pairing_receipt_v1.json"
 
 
@@ -159,7 +162,7 @@ def test_paired_plan_cannot_start_from_a_supplied_digest_without_study_bytes() -
 
 
 def test_paired_plan_refuses_study_bytes_with_a_missing_candidate_reward_hash() -> None:
-    incomplete = T2RewardPairing.from_study_manifest_bytes(STUDY_PATH.read_bytes())
+    incomplete = T2RewardPairing.from_study_manifest_bytes(SUPERSEDED_STUDY_PATH.read_bytes())
     with pytest.raises(ValueError, match="both exact reward SHA-256 identities"):
         build_t2_training_plan(
             pairing=incomplete,

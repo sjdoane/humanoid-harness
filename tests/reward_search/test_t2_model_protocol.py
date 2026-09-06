@@ -56,13 +56,35 @@ from oracle_composition.reward_study.study_manifest import study_pairing_sha256_
 OLD_BASELINE = b'{"compositor_id":"tracking_plus_task_stock_telemetry/v1","compositor_sha256":"f048a1d47280e88fd0bdf9dc207bed5c3c7bd3736feb95e59e298c6b9017b46b","evidence_class":"interface_check","formula_id":"tracking_only/v1","formula_sha256":"0e7514f39a4153e8baf308cfb217ea85314b7f088e5476cc5f0ba167801fe7fe","parameter_bounds_sha256":"42c0b5c273e19a3bb356c2d88c3ff4545ebaf1f78ac441af49521ff71bc38ca1","parameters":{},"parser_id":"no_candidate_inputs/v1","parser_sha256":"525ab6d15844f444c2eae522893e61cfe7c2bf5b3ec7d604e4a1fa10332ca83a","r_task":0.0,"reward_schema_id":"reward_specification/tracking_only/v1","schema_sha256":"fa7dc510f759cf0bec4038d0c82e6c49804756bbe2eae795b21203de8143c3ae","schema_version":1,"stock_reward":"telemetry_only","task_inputs_schema_id":"humanoid-fixed-com-speed/task-inputs/v2","task_inputs_schema_sha256":"8f382dde13ee44c27cbbbc0b3a53a568338f6b7cebc8e660e4084425b7b494e9","task_inputs_source_sha256":"9607f2d56a54922eac06ec7fcc740b79e68d4ed9e88b192602aae2900fb3f0d2","tracking_reward_config_sha256":"cc55731febc0c05a94174d4b99601fc8b3745273d21ee72236f4d9a75f81b10e","tracking_reward_id":"humanoid_root_and_joint_tracking/v1"}'
 BASELINE = b'{"compositor_id":"tracking_plus_task_stock_telemetry/v1","compositor_sha256":"f048a1d47280e88fd0bdf9dc207bed5c3c7bd3736feb95e59e298c6b9017b46b","evidence_class":"interface_check","formula_id":"tracking_only/v1","formula_sha256":"0e7514f39a4153e8baf308cfb217ea85314b7f088e5476cc5f0ba167801fe7fe","parameter_bounds_sha256":"42c0b5c273e19a3bb356c2d88c3ff4545ebaf1f78ac441af49521ff71bc38ca1","parameters":{},"parser_id":"no_candidate_inputs/v1","parser_sha256":"525ab6d15844f444c2eae522893e61cfe7c2bf5b3ec7d604e4a1fa10332ca83a","r_task":0.0,"reward_schema_id":"reward_specification/tracking_only/v1","schema_sha256":"adb07a7bd474a0234b3025d84578e41925532e0c722510280daf64f49b512c84","schema_version":1,"stock_reward":"telemetry_only","task_input_admission_contract":{"cadence_seconds":0.015,"inclusive_velocity_range_m_s":[-25.0,25.0],"measurement_origin":"stock_body_mass_weighted_com_x_delta_over_control_period","numeric_representation":"builtin_float_from_little_endian_float64_measurement","schema_version":1,"task_input_admission_id":"phase_b_stock_com_task_input_admission/v1"},"task_input_admission_id":"phase_b_stock_com_task_input_admission/v1","task_input_admission_schema_sha256":"c2d8908533a47e76e5ec469c80b6cf2d7061397d3716597ec7c66b4f8913b4b5","task_input_admission_source_sha256":"db63c68693232a95995a3867e230d6d83ee1d31ba7072405d9377a38ebbede44","task_inputs_schema_id":"humanoid-fixed-com-speed/task-inputs/v2","task_inputs_schema_sha256":"8f382dde13ee44c27cbbbc0b3a53a568338f6b7cebc8e660e4084425b7b494e9","task_inputs_source_sha256":"9607f2d56a54922eac06ec7fcc740b79e68d4ed9e88b192602aae2900fb3f0d2","tracking_reward_config_sha256":"cc55731febc0c05a94174d4b99601fc8b3745273d21ee72236f4d9a75f81b10e","tracking_reward_id":"humanoid_root_and_joint_tracking/v1"}'
 ROOT = Path(__file__).parents[2]
-T2_SEAL_PATH = ROOT / "experiments/004_t2_reward_study/t2_seal_v1.json"
+SUPERSEDED_ROOT = ROOT / "experiments/004_t2_reward_study/superseded"
+SUPERSEDED_EXECUTION_PATH = SUPERSEDED_ROOT / "superseded_t2pairr1_execution_manifest_v1.json"
+SUPERSEDED_STUDY_PATH = SUPERSEDED_ROOT / "superseded_t2pairr1_study_manifest_v1.json"
+T2_SEAL_PATH = SUPERSEDED_ROOT / "superseded_t2pairr1_seal_v1.json"
 T2_SEAL = T2_SEAL_PATH.read_bytes()
+SUPERSEDED_SEALED_BYTES = {
+    "experiments/004_t2_reward_study/execution_manifest_t2_v1.json": (
+        SUPERSEDED_EXECUTION_PATH.read_bytes()
+    ),
+    "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json": (
+        SUPERSEDED_STUDY_PATH.read_bytes()
+    ),
+}
 
 
 @pytest.fixture(autouse=True)
 def _isolated_canonical_call_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(protocol, "CALL_ROOT", tmp_path / "canonical-call-root")
+    read_current_artifact = protocol._read_sealed_t2_artifact
+
+    def read_historical_artifact(path: str, *, byte_count: int, sha256: str) -> bytes:
+        if protocol._ROOT == ROOT and path in SUPERSEDED_SEALED_BYTES:
+            encoded = SUPERSEDED_SEALED_BYTES[path]
+            if len(encoded) != byte_count or hashlib.sha256(encoded).hexdigest() != sha256:
+                raise T2ProtocolError("sealed T2 artifact identity differs")
+            return encoded
+        return read_current_artifact(path, byte_count=byte_count, sha256=sha256)
+
+    monkeypatch.setattr(protocol, "_read_sealed_t2_artifact", read_historical_artifact)
 
 
 def _record() -> tuple[bytes, T2InitialPacketRecord]:
@@ -344,7 +366,7 @@ def test_rendered_prompt_is_deterministic_hash_bound_and_minimal() -> None:
     assert all(item.content_base64.encode() not in first_prompt for item in retained_payloads)
     seal = parse_model_bytes(T2_SEAL, T2PreDispatchSeal, max_bytes=65_536)
     evaluator_bytes = (ROOT / seal.evaluator_design.path).read_bytes()
-    study_manifest_bytes = (ROOT / seal.study_manifest.path).read_bytes()
+    study_manifest_bytes = SUPERSEDED_STUDY_PATH.read_bytes()
     assert evaluator_bytes not in first_prompt
     assert study_manifest_bytes not in first_prompt
     assert seal.evaluator_design.sha256.encode() not in first_prompt
@@ -407,7 +429,7 @@ def test_prompt_bytes_do_not_change_with_a_valid_non_model_facing_seal_change(
     alternate_root = tmp_path / "alternate-repository"
 
     seal_payload = json.loads(T2_SEAL)
-    manifest_payload = json.loads((ROOT / seal_payload["study_manifest"]["path"]).read_bytes())
+    manifest_payload = json.loads(SUPERSEDED_STUDY_PATH.read_bytes())
     alternate_evaluator = canonical_json_bytes(
         {"design": "test-only-alternate-non-model-facing-evaluator"}
     )
@@ -444,7 +466,12 @@ def test_prompt_bytes_do_not_change_with_a_valid_non_model_facing_seal_change(
     for relative in copied_paths:
         destination = alternate_root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes((ROOT / relative).read_bytes())
+        source = (
+            SUPERSEDED_EXECUTION_PATH
+            if relative == seal_payload["execution_manifest"]["path"]
+            else ROOT / relative
+        )
+        destination.write_bytes(source.read_bytes())
     evaluator_path = alternate_root / alternate_evaluator_binding["path"]
     evaluator_path.parent.mkdir(parents=True, exist_ok=True)
     evaluator_path.write_bytes(alternate_evaluator)

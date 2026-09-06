@@ -2,11 +2,50 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2PAIRR2` replaces helper-return pairing evidence with exact action, PPO-input, composition, reset, and RSI sink observations; all 10 independent mutation cases pass. |
-| bottleneck | PAIR-02 is builder-repaired but lacks Astra's narrow independent closure. T2 execution and F3 dispatch remain **NO-GO**. |
-| next step | Commit the four-path test/handoff slice and send its exact commit to Astra for PAIR-02 re-review; preserve every later dispatch and execution gate. |
+| progress | `T2C1` publishes the recipe-derived candidate and one final-ready execution/study/pairing/seal set at verified clean HEAD `28067291bf43bb315e1702fc66c649310d4a3c97`; current report admission passes and the superseded T2PAIRR1 seal remains refused. |
+| bottleneck | T2C1 is uncommitted builder output. Cycle 0 remains **NO-GO** without review, a resource reservation, and Samuel's explicit authorization; no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
+| next step | Fable reviews and commits the complete T2C1 slice, reads back its exact identities, then sends Astra the separately gated cycle-0 reservation proposal and obtains Samuel's authorization. |
 
-Fable integration note (2026-09-06T15:35Z): the single F3 hypothesis call ran and was ingested (docs/operations/dual-orchestration/F3_INITIAL_CALL_RESULT.md): alpha 1.0, beta 0.0, hypothesis only. Next writer: `sol-builder-20260906-t2c1` (packet `TASK-20260906-T2C1`, candidate admission and final-ready re-seal; no training). Then the cycle-0 reservation proposal to Astra and Samuel's authorization 1. Fable resume: read the T2C1 final; commit; verify report admission is final-ready; send Astra the reservation proposal.
+T2C1 completion (2026-09-06): launch base and verified clean execution HEAD
+`28067291bf43bb315e1702fc66c649310d4a3c97`. The launcher acquired the exact
+write lease as `sol-builder-20260906-t2c1`, model `gpt-5.6-sol`, role `builder`,
+with the declared scope; the builder performed no Git write.
+
+The exact 73-byte recipe `078fabc8…ec28` supplied the parameters to
+`TargetSpeedRewardSpec`; the resulting 2,105-byte candidate is
+`c09e93dc…c123` and reloads through `RewardRegistry`. The committed-call ledger
+contains only the exact proposal, recipe, and model-call receipt JSON and binds
+them plus the candidate to `F3_INITIAL_CALL_RESULT.md`; no raw run bytes were
+copied.
+
+| final-ready identity | exact value |
+|---|---|
+| candidate reward | `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` |
+| execution manifest | 3,585 bytes / `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` |
+| study manifest | 5,999 bytes / `2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5` |
+| pairing key | `ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2` |
+| T2 seal | 1,684 bytes / `89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624` |
+| integrated pairing receipt | unchanged `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` |
+
+The exact T2PAIRR1 predecessor execution/study/seal bytes are retained under
+`experiments/004_t2_reward_study/superseded/`. A well-formed synthetic report
+bound to the current seal passes admission and trace replay; rebinding it to the
+predecessor study fails `study_not_final_ready`. Wrong-HEAD and dirty-tree
+negatives remain passing. Focused reward-study, Phase B, and reward-search
+validation is `445 passed in 236.39s`. The full suite with the named reward-lane
+receipt test deselected is `1888 passed, 18 skipped, 1 deselected, 44 failed in
+371.97s`; the sorted 44-node failure set exactly equals the recorded sandbox
+baseline. Builder wall time was `55m` from lease acquisition through final
+validation and handoff readback. See the [T2C1 result](dual-orchestration/T2C1_RESULT.md).
+
+This is admission and seal evidence only. It establishes no reward effect,
+tracking utility, training outcome, simulator behavior, or humanoid competence.
+
+Fable resume: inspect the exact call ledger, recipe-to-candidate registry round
+trip, final-ready seal set, predecessor refusal, and validation record; commit
+the complete T2C1 slice, then send Astra a cycle-0 resource-reservation proposal
+and obtain Samuel's explicit authorization before any smoke, baseline
+measurement, training, cohort, or evaluation.
 
 T2PAIRR2 completion (2026-09-06): launch base `f9f032e` was clean. The
 builder started only after the launcher acquired the exact write lease as

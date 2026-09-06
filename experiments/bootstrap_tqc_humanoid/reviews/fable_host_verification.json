@@ -303,6 +303,31 @@
       "note": "binds the exact target SHA to the retained host run record",
       "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
       "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2C1 slice: the commit containing this record; follow-up receipt with the full SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T16:38:57Z",
+      "result": "1935 passed, 16 skipped, 2 warnings in 384.57s (0:06:24)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2c1.txt",
+      "retained_scratch_record_sha256": "9d68164efb5c3fb69b87ae8edb559092b6cba0926755d96d7a14432daa3dbb00",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T16:32:31Z",
+      "tree": "Slice T2C1 (candidate admission and final-ready re-seal)"
+    },
+    {
+      "commit": "d97f8da8a72311e627ba7e51601fb93cb022ae10",
+      "follow_up_receipt_for": "Slice T2PAIRR2",
+      "note": "binds the full target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pairr2.txt",
+      "retained_scratch_record_sha256": "5077c852fe733bbf52d7f7f4d712a61cdcc54edfc670a8893cd9035d3d792530"
+    },
+    {
+      "commit": "f9f032ea816f6391938fba275168d256b825243e",
+      "follow_up_receipt_for": "Slice F3PINR2 (full SHA, SCI-READBACK-02)",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr2.txt",
+      "retained_scratch_record_sha256": "1529ce319796a418beaa356fbde8624e1e15b441ccefddf3f05b646e8331fa95"
     }
   ],
   "schema_version": 1

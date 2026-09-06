@@ -12,6 +12,7 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 from oracle_composition.phase_b.contracts import (
     PhaseBContractError,
+    RewardRegistry,
     TargetSpeedRewardSpec,
     load_phase_b_oracle,
     t2_training_design_contract_value,
@@ -21,10 +22,10 @@ from oracle_composition.phase_b.reference_runtime import (
     ComposedReferenceRuntime,
     tracking_state_from_reference_row,
 )
+from oracle_composition.reward_search.t2_model_contracts import T2PreDispatchSeal
 from oracle_composition.reward_study.execution_manifest import (
     T2_EXECUTION_FINAL_READY_STATUS,
     T2_EXECUTION_LAUNCH_BASE_COMMIT,
-    T2_EXECUTION_PENDING_STATUS,
     final_ready_t2_execution_manifest_contract_value,
     load_t2_execution_manifest,
     validate_t2_execution_manifest,
@@ -40,16 +41,22 @@ from oracle_composition.reward_study.study_manifest import (
     T2StudyManifestError,
     load_t2_study_manifest,
     resolve_t2_reward_binding,
+    study_pairing_sha256_from_arm,
     validate_t2_study_manifest,
 )
 from oracle_composition.reward_study.t2_evaluator import (
     load_evaluator_design,
     load_t2_verified_reference,
 )
+from oracle_composition.rewards.target_speed_formula import (
+    parse_target_speed_formula_recipe,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/004_t2_reward_study"
+F3_CALL = EXPERIMENT / "f3_call"
 PAIRING_RECEIPT = ROOT / "artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json"
+T2C1_EXECUTION_COMMIT = "28067291bf43bb315e1702fc66c649310d4a3c97"
 
 
 def test_protocol_source_hash_ledger_matches_exact_source_bytes() -> None:
@@ -116,13 +123,22 @@ def test_expert_hold_oracle_is_canonical_and_yields_rows_zero_through_1000() -> 
     assert runtime.transfer_logs == ()
 
 
-def test_resealed_execution_manifest_is_canonical_and_records_launch_provenance() -> None:
+def test_final_ready_execution_manifest_is_canonical_and_records_verified_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: T2C1_EXECUTION_COMMIT,
+    )
     manifest_path = EXPERIMENT / "execution_manifest_t2_v1.json"
     encoded = manifest_path.read_bytes()
     value = json.loads(encoded)
     digest = hashlib.sha256(encoded).hexdigest()
     assert encoded == canonical_json_bytes(value)
-    assert digest == "7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c"
+    assert digest == "1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba"
     study = json.loads((EXPERIMENT / "t2_reward_study_expert_hold_v1.json").read_bytes())
     expected_binding = {
         "byte_count": manifest_path.stat().st_size,
@@ -133,13 +149,13 @@ def test_resealed_execution_manifest_is_canonical_and_records_launch_provenance(
     assert study["arms"][1]["execution_manifest"] == expected_binding
     assert value["execution_manifest_schema_id"] == "t2_execution_manifest_v1"
     assert value["repository"] == {
-        "execution_commit": None,
-        "execution_commit_verification": "pending_final_admission",
-        "execution_tree_clean_at_admission": None,
+        "execution_commit": T2C1_EXECUTION_COMMIT,
+        "execution_commit_verification": "verified_clean_head_at_final_admission",
+        "execution_tree_clean_at_admission": True,
         "launch_base_commit": T2_EXECUTION_LAUNCH_BASE_COMMIT,
         "launch_base_semantics": "provenance_only_not_execution_commit",
     }
-    assert value["status"] == T2_EXECUTION_PENDING_STATUS
+    assert value["status"] == T2_EXECUTION_FINAL_READY_STATUS
     assert value["tracker"]["external_tracker_checkpoint"] is None
     assert value["normalizers"] == {"observation": None, "reward": None}
     assert load_t2_execution_manifest(manifest_path, repository_root=ROOT)[0] == value
@@ -181,22 +197,101 @@ def test_evaluator_design_is_canonical_and_source_bound() -> None:
     assert value["calibration"] == "none"
 
 
-def test_study_manifest_verifies_common_files_and_pairing_key() -> None:
+def test_study_manifest_verifies_final_ready_files_rewards_and_pairing_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: T2C1_EXECUTION_COMMIT,
+    )
     path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
     value, digest = load_t2_study_manifest(path, repository_root=ROOT)
-    assert digest == "a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb"
+    assert digest == "2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5"
     assert value["study_pairing_sha256"] == (
-        "affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19"
+        "ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2"
     )
     assert value["integrated_pairing_receipt_sha256"] == INTEGRATED_PAIRING_RECEIPT_SHA256
-    assert value["status"] == STUDY_STATUS
+    assert value["status"] == STUDY_FINAL_READY_STATUS
     assert value["arms"][0]["reward"]["sha256"].startswith("eea2b6a9")
-    assert value["arms"][1]["reward"]["sha256"] == "TBD"
+    assert value["arms"][1]["reward"] == {
+        "path": "experiments/004_t2_reward_study/candidate_target_speed_t2_v1.json",
+        "reward_id": "target_speed_triangular_affine_t2_adapter/v1",
+        "sha256": "c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123",
+    }
     assert (
         value["arms"][0]["pairing_adapter"]["sha256"]
         == hashlib.sha256(
             (ROOT / "src/oracle_composition/reward_study/pairing.py").read_bytes()
         ).hexdigest()
+    )
+
+
+def test_committed_f3_call_ledger_reproduces_and_registry_resolves_candidate() -> None:
+    ledger = json.loads((F3_CALL / "ledger_v1.json").read_bytes())
+    assert set(ledger) == {
+        "call_result",
+        "derived_candidate",
+        "kind",
+        "raw_run_bytes_committed",
+        "retained_call_json",
+        "schema_version",
+    }
+    assert ledger["schema_version"] == 1
+    assert ledger["kind"] == "t2_f3_call_committed_ledger"
+    assert ledger["raw_run_bytes_committed"] is False
+
+    def exact_bytes(binding: dict[str, object]) -> bytes:
+        path = ROOT / str(binding["path"])
+        encoded = path.read_bytes()
+        assert len(encoded) == binding["byte_count"]
+        assert hashlib.sha256(encoded).hexdigest() == binding["sha256"]
+        return encoded
+
+    exact_bytes(ledger["call_result"])
+    proposal_bytes = exact_bytes(ledger["retained_call_json"]["proposal"])
+    recipe_bytes = exact_bytes(ledger["retained_call_json"]["recipe"])
+    receipt_bytes = exact_bytes(ledger["retained_call_json"]["model_call_receipt"])
+    candidate_bytes = exact_bytes(ledger["derived_candidate"])
+
+    recipe = parse_target_speed_formula_recipe(recipe_bytes)
+    assert recipe.canonical_bytes == recipe_bytes
+    reproduced = TargetSpeedRewardSpec(alpha=recipe.alpha, beta=recipe.beta)
+    assert reproduced.canonical_bytes == candidate_bytes
+    resolved, candidate_sha256 = RewardRegistry().load(
+        ROOT / str(ledger["derived_candidate"]["path"])
+    )
+    assert resolved == reproduced
+    assert candidate_sha256 == ledger["derived_candidate"]["sha256"]
+
+    proposal = json.loads(proposal_bytes)
+    receipt = json.loads(receipt_bytes)
+    assert proposal["parameters"] == {"alpha": recipe.alpha, "beta": recipe.beta}
+    assert receipt["candidate_recipe_sha256"] == ledger["retained_call_json"]["recipe"]["sha256"]
+    assert receipt["proposal_sha256"] == ledger["retained_call_json"]["proposal"]["sha256"]
+    assert {path.name for path in F3_CALL.iterdir()} == {
+        "ledger_v1.json",
+        *(Path(str(binding["path"])).name for binding in ledger["retained_call_json"].values()),
+    }
+
+
+def test_final_t2_seal_binds_the_published_final_ready_set() -> None:
+    seal_bytes = (EXPERIMENT / "t2_seal_v1.json").read_bytes()
+    seal = T2PreDispatchSeal.model_validate_json(seal_bytes)
+    assert hashlib.sha256(seal_bytes).hexdigest() == (
+        "89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624"
+    )
+    assert seal.dispatch_state == "candidate_admitted_no_further_initial_dispatch"
+    assert seal.execution_manifest.sha256 == (
+        "1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba"
+    )
+    assert seal.study_manifest.sha256 == (
+        "2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5"
+    )
+    assert seal.study_pairing_sha256 == (
+        "ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2"
     )
 
 
@@ -247,15 +342,32 @@ def test_candidate_admission_builds_one_final_ready_reseal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import oracle_composition.reward_study.execution_manifest as execution_manifest
+    import oracle_composition.reward_study.final_admission as final_admission
 
     candidate_path = tmp_path / "candidate.json"
     candidate = TargetSpeedRewardSpec(alpha=1.0, beta=0.0)
     candidate_path.write_bytes(candidate.canonical_bytes)
+    pending = json.loads((EXPERIMENT / "t2_reward_study_expert_hold_v1.json").read_bytes())
+    pending["arms"][1]["reward"] = {
+        "path": "TBD",
+        "reward_id": "target_speed_triangular_affine_t2_adapter/v1",
+        "sha256": "TBD",
+    }
+    pending["status"] = STUDY_STATUS
+    pending["study_pairing_sha256"] = study_pairing_sha256_from_arm(pending["arms"][0])
     execution_commit = "a" * 40
     monkeypatch.setattr(
         execution_manifest,
         "_observed_clean_execution_commit",
         lambda _root: execution_commit,
+    )
+    monkeypatch.setattr(
+        final_admission,
+        "load_t2_study_manifest",
+        lambda *_args, **_kwargs: (
+            pending,
+            hashlib.sha256(canonical_json_bytes(pending)).hexdigest(),
+        ),
     )
     artifacts = admit_t2_candidate_and_reseal(
         repository_root=ROOT,

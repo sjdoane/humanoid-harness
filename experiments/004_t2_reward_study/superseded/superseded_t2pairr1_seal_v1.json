@@ -1,14 +1,14 @@
 {
-  "dispatch_state": "candidate_admitted_no_further_initial_dispatch",
+  "dispatch_state": "withheld_pending_dispatch_verdict",
   "evaluator_design": {
     "byte_count": 1808,
     "path": "experiments/004_t2_reward_study/evaluator_design_t2_v1.json",
     "sha256": "634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708"
   },
   "execution_manifest": {
-    "byte_count": 3585,
+    "byte_count": 3554,
     "path": "experiments/004_t2_reward_study/execution_manifest_t2_v1.json",
-    "sha256": "1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba"
+    "sha256": "7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c"
   },
   "expert_hold_oracle": {
     "byte_count": 964,
@@ -21,11 +21,11 @@
   "seal_id": "f3_t2_pre_dispatch_seal/v1",
   "study_id": "t2_reward_study_expert_hold/v1",
   "study_manifest": {
-    "byte_count": 5999,
+    "byte_count": 5908,
     "path": "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json",
-    "sha256": "2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5"
+    "sha256": "a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb"
   },
-  "study_pairing_sha256": "ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2",
+  "study_pairing_sha256": "affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19",
   "tracking_only_baseline": {
     "byte_count": 1773,
     "path": "experiments/003_composition_speed_profile/phase_b/tracking_only_v1.json",

@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2PAIRR1 closes PAIR-01 through PAIR-03: both common projections are type-validated and byte-compared, two paired fake-runtime arms traverse the production PPO/reset/RSI routes with a disabling mutation control, and the source ledger plus pending seal chain are regenerated. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
-| bottleneck | Execution remains **NO-GO**: baseline is registry-resolved; the candidate resolver is unit-tested and the canonical candidate is TBD. Report admission therefore stops with `study_not_final_ready`; the actual execution commit and clean tree cannot be sealed until candidate admission. |
-| next step | Astra performs the narrow T2PAIRR1 delta review. A later candidate still needs a separate dispatch verdict, registry resolution of both rewards, exact clean execution HEAD verification, and one final-ready execution/study/seal regeneration before any runtime decision. |
+| progress | T2C1 publishes the recipe-derived candidate, registry-resolves its exact canonical bytes, and regenerates the execution manifest, both arm bindings, study manifest, pairing key, and T2 seal as one `final_ready` set at verified clean HEAD `28067291bf43bb315e1702fc66c649310d4a3c97`. |
+| bottleneck | Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists; resource reservation, Samuel's authorization, and review of this admission slice remain pending. |
+| next step | Fable reviews and commits the complete T2C1 slice, then proposes the separately gated cycle-0 reservation to Astra and obtains Samuel's explicit authorization before any runtime command. |
 
 ## Frozen artifact ledger
 
@@ -12,10 +12,12 @@
 |---|---:|---|---|
 | `oracle_expert_hold_v1.json` | 964 | `489b82591cf65034d58d30f921442a84c93c9c98885cb2f5b22dcaf645a77010` | canonical Phase B oracle; no transitions or recovery |
 | `training_design_t2_v1.json` | 1,815 | `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e` | exact T2 Phase B design contract |
-| `execution_manifest_t2_v1.json` | 3,554 | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` | frozen MDP/model/ABI/source/lock/host seal; records launch-base provenance; the execution commit is verified at admission |
+| `candidate_target_speed_t2_v1.json` | 2,105 | `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` | canonical `target_speed_triangular_affine_t2_adapter/v1` specification; parameters reproduced from the exact retained recipe and registry-resolved |
+| `execution_manifest_t2_v1.json` | 3,585 | `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` | final-ready frozen MDP/model/ABI/source/lock/host seal; clean execution HEAD verified as `28067291bf43bb315e1702fc66c649310d4a3c97` |
 | `evaluator_design_t2_v1.json` | 1,808 | `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` | evaluator/report/protected-core source-bound design |
-| `t2_reward_study_expert_hold_v1.json` | 5,908 | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` | pending state; exact common bindings; integrated receipt bound; candidate remains `TBD` |
-| `t2_seal_v1.json` | 1,671 | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` | non-model-facing ledger; `pairing_receipt` is the integrated receipt SHA-256; dispatch awaits a separate verdict |
+| `t2_reward_study_expert_hold_v1.json` | 5,999 | `2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5` | `final_ready`; exact baseline/candidate bindings and final execution binding; integrated receipt unchanged |
+| `t2_seal_v1.json` | 1,684 | `89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624` | final admission ledger; state `candidate_admitted_no_further_initial_dispatch`; cannot authorize another F3 call |
+| `f3_call/ledger_v1.json` | 1,636 | `cacfab1d4f3ad60881a315a388952ab362a4aacef158c18977e599bc61e1221b` | binds the exact proposal, recipe, model-call receipt, derived candidate, and `F3_INITIAL_CALL_RESULT.md`; no raw run bytes committed |
 | `artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` | 1,736 | `6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a` | superseded adapter receipt; report admission refuses it when labeled integrated |
 | `pairing_receipt_v1.json` | 9,770 | `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348` | integrated shared-runtime interface receipt; immutable predecessor study lineage `8e81792a…2d10`; five seeds x four slots |
 | `reward_study/pairing.py` | source | `8bdd0e3b0f2ba0b4c867a1d2be12869c59e7e59d1a584b22f9d093f19490f627` | exact-byte pairing authority bound by the current study and receipt |
@@ -25,7 +27,7 @@
 | `phase_b/report_v2.py` | source | `a3a173c0717a0af8e1693c30e9ffef9e47a3fe876bdbde9132d5d6b2e1a324f2` | bound deterministic-receipt and telemetry schema authority |
 
 The common arm-invariant pairing key is
-`affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19`.
+`ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2`.
 It excludes only reward, arm label, output path, and timestamps. Any common
 field change changes the key and creates a different execution family.
 
@@ -109,6 +111,42 @@ the T2AR2 study hash and pairing key as immutable predecessor lineage. The
 evaluator design was regenerated and remained byte-identical. No run consumed
 the superseded T2AR2 chain.
 
+### T2C1 candidate admission and final-ready re-seal
+
+At clean HEAD `28067291bf43bb315e1702fc66c649310d4a3c97`, T2C1 parsed the
+exact 73-byte retained recipe
+`078fabc83ff3d572789b268c05ccff5a08050e00d0fd104399e2294d3b91ec28`.
+The recipe's parameters—not manually entered values—constructed a
+`TargetSpeedRewardSpec`; its canonical bytes then reloaded through
+`RewardRegistry` without change. Admission regenerated the execution manifest,
+both arm bindings, study manifest, pairing key, and T2 seal as one set.
+
+| identity | T2PAIRR1 pending seal | T2C1 final-ready seal |
+|---|---|---|
+| candidate reward | `TBD` | `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` |
+| execution commit | pending final admission | `28067291bf43bb315e1702fc66c649310d4a3c97` verified as clean HEAD |
+| execution manifest | `7e303034758203612fb62bf5c8193bf93731a5b322303c4a53dacd13f56d8d1c` | `1ce2a4751f4e4149012a1cb0bbc88ee5a2fdaa497b616653d11a6146e0bd5eba` |
+| study manifest | `a839362aad12392612e66cc1c6479e904e5c037e77a37d96d6e9025f2619eecb` | `2fea955d94719e455920fe65eaf017e746313353fd2246a69190ea4db623f6e5` |
+| study pairing key | `affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19` | `ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2` |
+| T2 seal | `6ce006bb983611179ab9fc8bc47b7b01c74d6303a3f7f0a917bd35947d9d5a9d` | `89aff467d05414553439ac5cfed6b5679d94ae08e455d1b687e3b9d685190624` |
+
+The exact superseded T2PAIRR1 study and seal bytes are retained at
+`experiments/004_t2_reward_study/superseded/superseded_t2pairr1_study_manifest_v1.json`
+and
+`experiments/004_t2_reward_study/superseded/superseded_t2pairr1_seal_v1.json`.
+Report regression
+accepts a well-formed synthetic report bound to the published final-ready set
+and still rejects the same report when rebound to the superseded study with
+`study_not_final_ready`. This is admission evidence only, not a baseline or
+candidate measurement.
+
+The committed `f3_call/` ledger contains only the exact proposal
+(`060762c7…e07b`), trusted recipe (`078fabc8…ec28`), and model-call receipt
+(`1a8d0e78…a40c`) JSON plus a binding ledger. It commits none of the retained
+raw run bytes and binds the call records and derived candidate to the 4,793-byte
+`F3_INITIAL_CALL_RESULT.md` at
+`07cbe7eb7a41ca9372226557eecd003ab31c225a3b82abca2055ca8b4aa0f34f`.
+
 ## Frozen protocol `t2_reward_study_expert_hold/v1`
 
 | field | frozen value |
@@ -116,11 +154,11 @@ the superseded T2AR2 chain.
 | Family and authorable factor | Family B; the reward specification only |
 | Task | Stock `Humanoid-v5`; expert start; target COM forward speed `3.0 m/s`; `1,000` steps |
 | Oracle | `expert_hold/v1`; SHA-256 `489b82591cf65034d58d30f921442a84c93c9c98885cb2f5b22dcaf645a77010`; hold expert from verified-chain boundary `0`; no transitions or recovery; expert-reference RSI only. A `medium_hold/v1` route would be a new preregistered study. |
-| Arms | `tracking_only/v1` SHA-256 `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f` versus one admitted `target_speed_triangular_affine_t2_adapter/v1` specification SHA-256 **TBD after the single F3 call** |
-| Candidate timing | The independent evaluator is frozen first; one initial F3 call; admit the candidate and seal both arm manifests before exposing baseline measurements |
+| Arms | `tracking_only/v1` SHA-256 `eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f` versus admitted `target_speed_triangular_affine_t2_adapter/v1` SHA-256 `c09e93dc27f129f0f65ed5be515b114a77673fef95027422f60ddade76dcc123` |
+| Candidate timing | The independent evaluator was frozen first; the one initial F3 call was retained; T2C1 admitted its recipe-derived candidate and sealed both arms before any baseline measurement |
 | Common references and initialization | Corpus `a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090`; library `ad57578dc2ed4fe3707da74a4f86620e758b1aa30064016785d187a5e86d3207`; starting checkpoint `9931750c5015ae5a385ac42202485868b0338530918421234c5aacbfe9b3e3b5`; exact reference bytes, ABI, provenance, E1 actor, and value initialization unchanged |
 | Training | Design SHA-256 `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e`; PPO seeds `121001,121101,121201,121301,121401`; `1,048,576` transitions per seed; four environments, two expert-hold composition and two expert-reference rehearsal; first eight rollouts restricted, then full actor; final checkpoint only; no retries |
-| Pairing | `t2_reward_pairing/v1`; current pending-study `study_pairing_sha256=affe8347f934bcbb5d19ec96cdd71f7bf38f32a5a0f9f83446cb8b661b11ec19`. The runtime accepts it only through exact canonical study bytes plus both exact embedded arm manifests. Action noise is indexed by rollout and environment slot; minibatch permutations by update; composition blocks and reset/RSI block, origin, class, and start by global episode index within each slot; declared evaluation seeds are the actual reset seeds at declared indices. The integrated receipt is exactly `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348`. |
+| Pairing | `t2_reward_pairing/v1`; final-ready `study_pairing_sha256=ccef84c7f05992556183c9ebdacb86945fe3e7832cd1e90a03eb9544096309a2`. The runtime accepts it only through exact canonical study bytes plus both exact embedded arm manifests. Action noise is indexed by rollout and environment slot; minibatch permutations by update; composition blocks and reset/RSI block, origin, class, and start by global episode index within each slot; declared evaluation seeds are the actual reset seeds at declared indices. The integrated receipt remains exactly `1a2b7ece139974117fd5c75e040d9cc52cd51a4e42c9b5afd794a60b02232348`. |
 | Evaluation | Seeds `97001`-`97020`; deterministic actions; expert start; full 1,000-step sufficient traces; direct-state formulas; reward-telemetry separation proven by test; verified library/corpus/index/bundle/payload/row chain; evaluator/report design SHA-256 `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708`; report schema `t2_reward_study_report/v1`; calibration `none` |
 | Primary endpoint | Per checkpoint, mean over 20 episode values; each episode value is the mean of all `1,000` absolute per-step COM speed errors against `3.0 m/s`; no censoring |
 | Arm estimator | Five paired PPO-seed differences `d_s = Y_baseline - Y_candidate`; report every pair, mean, median, range, paired 95% t interval using the five policies, and the exact one-sided sign result; pooled `n = 100` inference is forbidden |
@@ -131,7 +169,7 @@ the superseded T2AR2 chain.
 | Tradeoff | Task, safety, tracking, and all six tracking components remain separate; no weighted aggregate |
 | Secondary endpoints | Six tracking RMSEs; protected task return `sum_t [1 - min(1, abs(v_t - 3) / 3)]`; fraction of steps in `[2.75,3.25] m/s`; speed quantiles and longest out-of-band run; fall-only first-fall step; fall, contact, and invalid-action counts. Stock and candidate reward outputs are diagnostics only in `reward_diagnostics_t2_v1.json`, keyed by the scientific-receipt SHA-256. |
 | Evidence | Both cohorts, if authorized and run, are `exploratory_fine_tuning_cycle`; claim ceiling: the candidate met or did not meet the preregistered T2 criterion in this matched five-seed implementation |
-| Cycles | Pre-cycle freezes artifacts, runs the one F3 call, admits the candidate, and seals both arms. Cycle 0 is baseline; cycle 1 is candidate; cycle 2 prepares a protected-feedback revision under a separately reviewed protocol. Each cohort requires a new reservation and Samuel authorization. |
+| Cycles | Pre-cycle artifacts, the one F3 call, candidate admission, and both arm seals are complete. Cycle 0 is baseline; cycle 1 is candidate; cycle 2 prepares a protected-feedback revision under a separately reviewed protocol. Each cohort requires a new reservation and Samuel authorization. |
 | Risk mitigations | Per-step absolute error; band occupancy and speed quantiles; separate fall, contact, posture, and tracking gates; static and observed reward-stream diagnostics; beta reported separately; expert rehearsal; staged unfreeze; final checkpoint only; evaluator excluded from the initial LLM prompt; actual clean execution commit verified at candidate admission; sequential arms |
 
 ## Pairing integration boundary
@@ -163,9 +201,12 @@ result.
 
 ## Execution gates and claim ceiling
 
-- Do not run F3 from this slice.
-- Do not run a training smoke or cohort until the candidate is admitted and the
-  shared runtime consumes the reviewed pairing key with an integrated receipt.
+- The one initial F3 call is exhausted; the final seal explicitly refuses any
+  further initial dispatch.
+- Do not expose or compute a baseline measurement, run a smoke, or start a
+  cohort until this admission slice is accepted, its exact committed identities
+  are read back, a resource reservation is accepted, and Samuel authorizes the
+  specific runtime action.
 - Every cohort still requires its own mailbox reservation; every full cohort
   requires Samuel's explicit authorization.
 - No artifact or interface test in this package is behavioral evidence.

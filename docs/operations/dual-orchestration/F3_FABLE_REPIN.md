@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | F3PINR2 derives the T2PAIRR1 call identity from committed seal and baseline bytes, pins the six dispatch-facing fields below, and adds document-to-record regression coverage. |
-| bottleneck | Dispatch remains `withheld_pending_dispatch_verdict`; F3PINR2 needs a narrow readback verdict on its exact commit and a separate dispatch verdict. No candidate call or behavioral result exists. |
-| next step | Commit F3PINR2 and obtain narrow readback. Any later dispatch must regenerate and validate `record.json`, copy its identities exactly, and stop on a mismatch before claiming the call identity. |
+| progress | F3PINR2's exact readback and dispatch verdict were accepted; the one initial hypothesis call later completed and its retained result is recorded in `F3_INITIAL_CALL_RESULT.md`. |
+| bottleneck | The one-call allowance is exhausted. No baseline measurement, training, protected evaluation, reward effect, or behavioral result exists. |
+| next step | Review the separate T2C1 candidate-admission/final-ready seal slice, then preserve the resource-reservation and Samuel-authorization gates before cycle 0. |
 
 ## Original F3PIN builder boundary
 
@@ -287,9 +287,16 @@ any difference from this table fails closed before call-identity publication.
 | Repository-wide Ruff lint | passed |
 | Repository-wide Ruff format check | all `408` files formatted |
 | `git diff --check` | passed |
-| Changed-path audit | exactly `README.md`, `docs/operations/CURRENT_RESEARCH_HANDOFF.md`, both F3 protocol documents, and `tests/reward_search/test_t2_model_protocol.py` |
+| Changed-path audit | five builder-authored paths plus two host-verification paths: `README.md`, `docs/operations/CURRENT_RESEARCH_HANDOFF.md`, both F3 protocol documents, and `tests/reward_search/test_t2_model_protocol.py`; the host-verification JSON and retained host-run receipt were added by the host checkpoint |
 | Forbidden call-root audit | no `.orchestration/f3-initial-call-*` path exists |
 | Builder wall time | `37m` from lease acquisition through the validation and handoff audit |
+
+### F3PINR2 readback precision follow-up
+
+- SCI-READBACK-01: the F3PINR2 slice contains "five builder-authored paths plus two host-verification paths"; the T2PAIRR2 slice contains "four builder-authored paths plus two host-verification paths." These counts separate builder scope from files added by the host checkpoint.
+- SCI-READBACK-02: the immutable host-verification JSON retains the abbreviated
+  `f9f032e`; its exact F3PINR2 follow-up commit is
+  `f9f032ea816f6391938fba275168d256b825243e`.
 
 ## Claim ceiling
 
