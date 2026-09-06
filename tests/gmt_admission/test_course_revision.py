@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,9 +23,16 @@ def _write_json(path: Path, value: object) -> tuple[bytes, str]:
     return encoded, _sha256(encoded)
 
 
-def _inputs(root: Path) -> dict[str, object]:
+def _inputs(root: Path, *, factor: str = "reward") -> dict[str, object]:
     root.mkdir()
-    parent_bytes, parent_sha256 = _write_json(root / "parent.json", {"parent": "fixed"})
+    parent_config = {
+        "schema_version": 1,
+        "oracle": {"oracle_id": "parent"},
+        "segments": {"walk": {"start_seconds": 0.0}},
+        "reward": {"speed_weight": 1.0},
+        "frozen": "same",
+    }
+    parent_bytes, parent_sha256 = _write_json(root / "parent.json", parent_config)
     feedback_bytes, feedback_sha256 = _write_json(
         root / "feedback.json",
         {
@@ -37,8 +45,12 @@ def _inputs(root: Path) -> dict[str, object]:
         {
             "schema_version": 1,
             "proposal_id": "revision-1",
-            "factor": "reward",
-            "replacement": {"reward": {"speed_weight": 1.5}},
+            "factor": factor,
+            "replacement": (
+                {"reward": {"speed_weight": 1.5}}
+                if factor == "reward"
+                else {"oracle": {"oracle_id": "revised"}, "segments": parent_config["segments"]}
+            ),
         },
     )
     manifest_bytes, manifest_sha256 = _write_json(
@@ -57,6 +69,7 @@ def _inputs(root: Path) -> dict[str, object]:
         "manifest_path": root / "course_run_manifest.json",
         "manifest_bytes": manifest_bytes,
         "manifest_sha256": manifest_sha256,
+        "factor": factor,
     }
 
 
@@ -70,7 +83,7 @@ def _install_fakes(
     candidate: dict[str, object] | None = None,
 ) -> None:
     parent = SimpleNamespace(
-        raw={"parent": "fixed"},
+        raw=json.loads(inputs["parent_bytes"]),
         encoded=inputs["parent_bytes"],
         sha256=inputs["parent_sha256"],
     )
@@ -121,7 +134,14 @@ def _install_fakes(
         assert parent_value is parent
         assert proposal["proposal_id"] == "revision-1"
         assert feedback == inputs["feedback_bytes"]
-        return candidate or {"schema_version": 1, "candidate": "reward-only"}
+        if candidate is not None:
+            return candidate
+        revised = deepcopy(parent.raw)
+        if inputs["factor"] == "reward":
+            revised["reward"] = {"speed_weight": 1.5}
+        else:
+            revised["oracle"] = {"oracle_id": "revised"}
+        return revised
 
     monkeypatch.setattr(module, "apply_proposal", fake_apply)
 
@@ -155,21 +175,23 @@ def test_revision_retains_exact_inputs_candidate_and_lineage_receipt(
     assert (output / "feedback.input.json").read_bytes() == inputs["feedback_bytes"]
     assert (output / "proposal.input.json").read_bytes() == inputs["proposal_bytes"]
     assert (output / "source_manifest.input.json").read_bytes() == inputs["manifest_bytes"]
-    assert json.loads((output / "candidate_config.json").read_text()) == {
-        "candidate": "reward-only",
-        "schema_version": 1,
-    }
+    candidate = json.loads((output / "candidate_config.json").read_text())
+    assert candidate["reward"] == {"speed_weight": 1.5}
+    assert candidate["frozen"] == "same"
     receipt = json.loads((output / "revision_receipt_v1.json").read_text())
     assert receipt["artifact"] == module.REVISION_RECEIPT_ARTIFACT
     assert receipt["factor"] == "reward"
-    assert receipt["changed_fields"] == ["reward"]
+    assert receipt["actual_changed_fields"] == ["reward"]
+    assert receipt["allowed_changed_fields"] == ["reward"]
     assert receipt["source_run"]["manifest_sha256"] == inputs["manifest_sha256"]
     assert receipt["source_run"]["label"] == "final_policy"
     assert receipt["source_run"]["input_config_sha256"] == inputs["parent_sha256"]
     packet = receipt["source_run"]["feedback_builder_packet"]
     assert packet["artifact"] == module.FEEDBACK_BUILD_RECEIPT_ARTIFACT
-    assert len(packet["sha256"]) == 64
-    assert packet["byte_count"] > 0
+    verification_receipt = (output / "feedback_verification_receipt.json").read_bytes()
+    assert packet["path"] == "feedback_verification_receipt.json"
+    assert packet["sha256"] == _sha256(verification_receipt)
+    assert packet["byte_count"] == len(verification_receipt)
     for name, encoded in (
         ("parent_config", inputs["parent_bytes"]),
         ("feedback", inputs["feedback_bytes"]),
@@ -179,6 +201,21 @@ def test_revision_retains_exact_inputs_candidate_and_lineage_receipt(
         assert receipt["retained_inputs"][name]["sha256"] == _sha256(encoded)
         assert receipt["retained_inputs"][name]["byte_count"] == len(encoded)
     assert "not_trained_or_evaluated" in receipt["claim_limits"]
+
+
+def test_oracle_receipt_separates_actual_from_allowed_changed_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs", factor="oracle")
+    _install_fakes(monkeypatch, inputs)
+    output = tmp_path / "revision"
+
+    _run(inputs, output)
+
+    receipt = json.loads((output / "revision_receipt_v1.json").read_text())
+    assert receipt["factor"] == "oracle"
+    assert receipt["actual_changed_fields"] == ["oracle"]
+    assert receipt["allowed_changed_fields"] == ["oracle", "segments"]
 
 
 @pytest.mark.parametrize(

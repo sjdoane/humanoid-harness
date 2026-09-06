@@ -8,6 +8,7 @@ import stat
 import tempfile
 from pathlib import Path
 
+from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.experiments.artifact_io import (
     PublishedArtifact,
     finite_pretty_json,
@@ -102,7 +103,7 @@ def _verify_current_feedback_packet(
     parent_sha256: str,
     supplied_feedback: bytes,
     supplied_feedback_sha256: str,
-) -> dict[str, object]:
+) -> bytes:
     if label not in _LABELS:
         raise ValueError("source label must be zero_residual or final_policy")
     with tempfile.TemporaryDirectory(prefix="gmt-course-feedback-verification-") as temporary:
@@ -143,11 +144,7 @@ def _verify_current_feedback_packet(
             or output.get("byte_count") != len(supplied_feedback)
         ):
             raise ValueError("rebuilt feedback lineage differs from the requested parent run")
-        return {
-            "artifact": FEEDBACK_BUILD_RECEIPT_ARTIFACT,
-            "sha256": hashlib.sha256(receipt_bytes).hexdigest(),
-            "byte_count": len(receipt_bytes),
-        }
+        return receipt_bytes
 
 
 def revise_g1_course(
@@ -182,7 +179,7 @@ def revise_g1_course(
         raise ValueError("admitted parent config differs from the exact requested bytes")
     proposal, proposal_bytes = _read_exact_json(proposal_path, proposal_sha256, field="proposal")
     _feedback, feedback_bytes = _read_exact_json(feedback_path, feedback_sha256, field="feedback")
-    feedback_build_receipt = _verify_current_feedback_packet(
+    feedback_build_receipt_bytes = _verify_current_feedback_packet(
         manifest_path=source_manifest_path,
         manifest_sha256=manifest_sha256,
         label=source_label,
@@ -203,7 +200,12 @@ def revise_g1_course(
     factor = proposal.get("factor")
     if factor not in {"oracle", "reward"}:
         raise ValueError("proposal factor must be oracle or reward")
-    changed_fields = ["oracle", "segments"] if factor == "oracle" else ["reward"]
+    allowed_changed_fields = ["oracle", "segments"] if factor == "oracle" else ["reward"]
+    actual_changed_fields = sorted(
+        field
+        for field in parent.raw
+        if canonical_json_bytes(candidate[field]) != canonical_json_bytes(parent.raw[field])
+    )
 
     destination.mkdir(mode=0o700, parents=False, exist_ok=False)
     retained = {
@@ -223,6 +225,10 @@ def revise_g1_course(
     candidate_artifact = publish_bytes_without_overwrite(
         destination / "candidate_config.json", candidate_bytes
     )
+    feedback_build_receipt_artifact = publish_bytes_without_overwrite(
+        destination / "feedback_verification_receipt.json",
+        feedback_build_receipt_bytes,
+    )
     source_paths = {
         "parent_config": parent_config_path,
         "feedback": feedback_path,
@@ -236,12 +242,16 @@ def revise_g1_course(
         "operation": "apply_one_authorable_g1_course_proposal",
         "proposal_id": proposal["proposal_id"],
         "factor": factor,
-        "changed_fields": changed_fields,
+        "actual_changed_fields": actual_changed_fields,
+        "allowed_changed_fields": allowed_changed_fields,
         "source_run": {
             "manifest_sha256": manifest_sha256,
             "label": source_label,
             "input_config_sha256": parent_sha256,
-            "feedback_builder_packet": feedback_build_receipt,
+            "feedback_builder_packet": {
+                "artifact": FEEDBACK_BUILD_RECEIPT_ARTIFACT,
+                **_artifact_record(feedback_build_receipt_artifact),
+            },
         },
         "retained_inputs": {
             name: _artifact_record(artifact, source_path=source_paths[name])
