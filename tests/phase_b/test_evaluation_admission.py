@@ -5,6 +5,7 @@ import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -42,6 +43,29 @@ class InjectedConnection:
 
     def close(self) -> None:
         self.closed = True
+
+    def poll(self, _timeout: float) -> bool:
+        return self.inbound is not None
+
+
+class InjectedProcess:
+    pid = PROCESS_ID
+
+    def __init__(self, *, alive: bool) -> None:
+        self.alive = alive
+        self.exitcode = 19
+
+    def is_alive(self) -> bool:
+        return self.alive
+
+    def terminate(self) -> None:
+        self.alive = False
+
+    def kill(self) -> None:
+        self.alive = False
+
+    def join(self, timeout: float = 0.0) -> None:
+        del timeout
 
 
 @pytest.fixture(scope="module")
@@ -108,6 +132,36 @@ def _request(
         evaluation_manifest_sha256=artifact.sha256,
         evaluation_manifest_byte_count=artifact.byte_count,
     )
+
+
+def _slot_dependencies(
+    coordination_root: Path,
+    reservation: dict[str, object],
+) -> tuple[supervision.SupervisionDependencies, list[int], list[tuple[str, str]]]:
+    validations: list[int] = []
+    releases: list[tuple[str, str]] = []
+
+    def validate_slot(
+        root: Path,
+        observed_reservation: object,
+        *,
+        expected_wall_seconds: int,
+    ) -> dict[str, object]:
+        assert root == coordination_root
+        assert observed_reservation == reservation
+        validations.append(expected_wall_seconds)
+        return {"owner": "evaluation-owner", "token_id": "7" * 32}
+
+    def release_slot(root: Path, *, owner: str, token_id: str) -> dict[str, object]:
+        assert root == coordination_root
+        releases.append((owner, token_id))
+        return {"owner": owner, "token_id": token_id}
+
+    dependencies = supervision.SupervisionDependencies(
+        validate_heavy_job_slot=validate_slot,
+        release_heavy_job_slot=release_slot,
+    )
+    return dependencies, validations, releases
 
 
 def _admission(
@@ -420,3 +474,193 @@ def test_evaluation_releases_exact_captured_slot_after_terminal_failure(
         )
     assert validations == 2
     assert releases == [("evaluation-owner", "7" * 32)]
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    (
+        (KeyboardInterrupt, "controlled post-spawn interrupt"),
+        (RuntimeError, "controlled initializer exception"),
+    ),
+)
+def test_evaluation_post_spawn_failure_cleans_before_releasing_slot(
+    failure: type[BaseException],
+    message: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_identity: dict[str, object],
+) -> None:
+    artifact = _publish_manifest(tmp_path, source_identity)
+    request = _request(tmp_path, artifact, source_identity)
+    coordination_root = tmp_path / "coordination"
+    coordination_root.mkdir()
+    reservation = {"owner": "evaluation-owner"}
+    dependencies, validations, releases = _slot_dependencies(
+        coordination_root,
+        reservation,
+    )
+    process = InjectedProcess(alive=True)
+    connection = InjectedConnection(None)
+    cleanup_calls: list[bool] = []
+
+    monkeypatch.setattr(supervision, "_spawn", lambda _request: (process, connection))
+
+    def cleanup(worker: InjectedProcess, *, group_validated: bool) -> None:
+        assert worker is process
+        cleanup_calls.append(group_validated)
+        worker.alive = False
+
+    monkeypatch.setattr(supervision, "_cleanup", cleanup)
+
+    def fail_after_spawn() -> float:
+        raise failure(message)
+
+    monkeypatch.setattr(supervision.time, "perf_counter", fail_after_spawn)
+    with pytest.raises(failure, match=message):
+        supervision.supervise_policy_evaluation(
+            request=request,
+            evaluation_manifest=artifact,
+            validated_reservation=reservation,
+            coordination_root=coordination_root,
+            expected_wall_seconds=1_800,
+            slot_dependencies=dependencies,
+        )
+
+    assert validations == [1_800, 1_800]
+    assert cleanup_calls == [False]
+    assert process.alive is False
+    assert connection.closed is True
+    assert releases == [("evaluation-owner", "7" * 32)]
+
+
+@pytest.mark.parametrize("cleanup_fails", (False, True))
+def test_evaluation_terminal_output_preserved_and_slot_tracks_cleanup(
+    cleanup_fails: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_identity: dict[str, object],
+) -> None:
+    artifact = _publish_manifest(tmp_path, source_identity)
+    request = _request(tmp_path, artifact, source_identity)
+    coordination_root = tmp_path / "coordination"
+    coordination_root.mkdir()
+    reservation = {"owner": "evaluation-owner"}
+    dependencies, validations, releases = _slot_dependencies(
+        coordination_root,
+        reservation,
+    )
+    process = InjectedProcess(alive=False)
+    connection = InjectedConnection(None)
+    cleanup_calls = 0
+
+    monkeypatch.setattr(supervision, "_spawn", lambda _request: (process, connection))
+
+    def cleanup(worker: InjectedProcess, *, group_validated: bool) -> None:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        assert worker is process
+        assert group_validated is False
+        if cleanup_fails:
+            raise ExperimentContractError("controlled evaluation worker survived cleanup")
+
+    monkeypatch.setattr(supervision, "_cleanup", cleanup)
+    result = supervision.supervise_policy_evaluation(
+        request=request,
+        evaluation_manifest=artifact,
+        validated_reservation=reservation,
+        coordination_root=coordination_root,
+        expected_wall_seconds=1_800,
+        slot_dependencies=dependencies,
+    )
+
+    assert result.status is supervision.EvaluationStatus.CRASH
+    assert validations == [1_800, 1_800]
+    assert cleanup_calls == 1
+    assert connection.closed is True
+    if cleanup_fails:
+        assert "survived cleanup" in result.terminal_value["reason"]
+        assert releases == []
+    else:
+        assert releases == [("evaluation-owner", "7" * 32)]
+
+
+@pytest.mark.parametrize("failure_stage", ("start", "child_close"))
+def test_evaluation_partial_spawn_closes_pipes_and_worker(
+    failure_stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def __init__(self, *, fail: bool = False) -> None:
+            self.closed = False
+            self.fail = fail
+
+        def close(self) -> None:
+            self.closed = True
+            if self.fail:
+                raise OSError("controlled child close failure")
+
+    class Process:
+        pid = PROCESS_ID
+
+        def start(self) -> None:
+            if failure_stage == "start":
+                raise RuntimeError("controlled partial start failure")
+
+    parent = Endpoint()
+    child = Endpoint(fail=failure_stage == "child_close")
+    process = Process()
+    context = SimpleNamespace(
+        Pipe=lambda **_kwargs: (parent, child),
+        Process=lambda **_kwargs: process,
+    )
+    cleanup_calls: list[bool] = []
+    monkeypatch.setattr(supervision.multiprocessing, "get_context", lambda _kind: context)
+    monkeypatch.setattr(
+        supervision,
+        "_cleanup",
+        lambda worker, *, group_validated: cleanup_calls.append(group_validated),
+    )
+
+    with pytest.raises((RuntimeError, OSError), match="controlled"):
+        supervision._spawn(SimpleNamespace())
+    assert parent.closed is True
+    assert child.closed is True
+    assert cleanup_calls == [False]
+
+
+def test_evaluation_unverified_partial_spawn_cleanup_retains_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_identity: dict[str, object],
+) -> None:
+    artifact = _publish_manifest(tmp_path, source_identity)
+    request = _request(tmp_path, artifact, source_identity)
+    coordination_root = tmp_path / "coordination"
+    coordination_root.mkdir()
+    reservation = {"owner": "evaluation-owner"}
+    dependencies, validations, releases = _slot_dependencies(
+        coordination_root,
+        reservation,
+    )
+
+    def unverified_spawn(_request: object) -> object:
+        raise supervision._EvaluationSpawnCleanupUnverified(
+            "controlled partial-spawn cleanup failure"
+        )
+
+    monkeypatch.setattr(supervision, "_spawn", unverified_spawn)
+    with pytest.raises(
+        supervision._EvaluationSpawnCleanupUnverified,
+        match="partial-spawn cleanup failure",
+    ):
+        supervision.supervise_policy_evaluation(
+            request=request,
+            evaluation_manifest=artifact,
+            validated_reservation=reservation,
+            coordination_root=coordination_root,
+            expected_wall_seconds=1_800,
+            slot_dependencies=dependencies,
+        )
+
+    assert validations == [1_800, 1_800]
+    assert releases == []

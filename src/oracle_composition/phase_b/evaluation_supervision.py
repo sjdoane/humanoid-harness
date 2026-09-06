@@ -7,7 +7,6 @@ import json
 import math
 import multiprocessing
 import os
-import signal
 import time
 from collections.abc import Mapping
 from contextlib import suppress
@@ -39,6 +38,7 @@ from .report_v2 import ProtectedEpisodeMetrics
 from .supervision import (
     HeavyJobSlotSession,
     SupervisionDependencies,
+    cleanup_worker_process,
     shared_coordination_root,
 )
 
@@ -419,36 +419,68 @@ def _worker(request: EvaluationWorkerRequest, connection: Connection) -> None:
         connection.close()
 
 
+class _EvaluationSpawnCleanupUnverified(RuntimeError):
+    pass
+
+
 def _spawn(request: EvaluationWorkerRequest) -> tuple[multiprocessing.Process, Connection]:
     context = multiprocessing.get_context("spawn")
     parent, child = context.Pipe(duplex=True)
     process = context.Process(target=_worker, args=(request, child), daemon=False)
-    process.start()
-    child.close()
+    try:
+        process.start()
+        child.close()
+    except BaseException as exc:
+        with suppress(BaseException):
+            child.close()
+        with suppress(BaseException):
+            parent.close()
+        if process.pid is not None:
+            try:
+                _cleanup(process, group_validated=False)
+            except BaseException as cleanup_exc:
+                raise _EvaluationSpawnCleanupUnverified(
+                    f"evaluation worker spawn cleanup failed: {cleanup_exc}"
+                ) from exc
+        raise
     return process, parent
 
 
 def _cleanup(process: multiprocessing.Process, *, group_validated: bool) -> None:
-    pid = process.pid
-    if pid is None:
-        return
-    if process.is_alive():
-        if group_validated:
-            with suppress(ProcessLookupError):
-                os.killpg(pid, signal.SIGTERM)
-        else:
-            process.terminate()
-        process.join(timeout=2.0)
-    if process.is_alive():
-        if group_validated:
-            with suppress(ProcessLookupError):
-                os.killpg(pid, signal.SIGKILL)
-        else:
-            process.kill()
-        process.join(timeout=2.0)
-    if process.is_alive():
-        raise ExperimentContractError("evaluation worker survived cleanup")
-    process.join(timeout=0.0)
+    cleanup_worker_process(process, group_validated=group_validated)
+
+
+class _EvaluationWorkerCleanupGuard:
+    def __init__(self, slot_session: HeavyJobSlotSession) -> None:
+        self._slot_session = slot_session
+        self._process: object | None = None
+        self._connection: object | None = None
+        self._group_validated = False
+        self._cleanup_attempted = False
+        self._connection_closed = False
+
+    def retain_for_unverified_spawn(self) -> None:
+        self._slot_session.worker_spawned()
+
+    def attach(self, process: object, connection: object) -> None:
+        self._process = process
+        self._connection = connection
+        self._slot_session.worker_spawned()
+
+    def validate_group(self) -> None:
+        self._group_validated = True
+
+    def cleanup(self) -> None:
+        if self._process is None or self._cleanup_attempted:
+            return
+        self._cleanup_attempted = True
+        try:
+            _cleanup(self._process, group_validated=self._group_validated)
+            self._slot_session.worker_cleanup_verified()
+        finally:
+            if self._connection is not None and not self._connection_closed:
+                self._connection.close()
+                self._connection_closed = True
 
 
 def _read_list_artifact(
@@ -594,6 +626,7 @@ def _supervise_policy_evaluation(
     request: EvaluationWorkerRequest,
     evaluation_manifest: PublishedArtifact,
     slot_session: HeavyJobSlotSession,
+    cleanup_guard: _EvaluationWorkerCleanupGuard,
 ) -> EvaluationSupervisionResult:
     """Run all 160 episodes under one deadline and publish one terminal receipt."""
 
@@ -608,11 +641,15 @@ def _supervise_policy_evaluation(
     manifest_byte_count = len(manifest_bytes)
     output = Path(request.output_directory).resolve(strict=True)
     slot_session.validate_before_spawn()
-    process, connection = _spawn(request)
+    try:
+        process, connection = _spawn(request)
+    except _EvaluationSpawnCleanupUnverified:
+        cleanup_guard.retain_for_unverified_spawn()
+        raise
+    cleanup_guard.attach(process, connection)
     started = time.perf_counter()
     deadline = started + float(dependencies.wall_seconds)
     completed = 0
-    group_validated = False
     status: EvaluationStatus | None = None
     reason = ""
     artifacts: Mapping[str, object] | None = None
@@ -644,7 +681,7 @@ def _supervise_policy_evaluation(
                         reason = "evaluation worker source, manifest, or process group differs"
                         break
                     started_seen = True
-                    group_validated = True
+                    cleanup_guard.validate_group()
                     _send(
                         connection,
                         {
@@ -705,10 +742,9 @@ def _supervise_policy_evaluation(
         reason = f"evaluation supervision failed: {exc}"
     finally:
         try:
-            _cleanup(process, group_validated=group_validated)
+            cleanup_guard.cleanup()
         except Exception as exc:
             cleanup_error = f"evaluation worker cleanup failed: {exc}"
-        connection.close()
 
     status = status or EvaluationStatus.CRASH
     if cleanup_error:
@@ -851,12 +887,17 @@ def supervise_policy_evaluation(
             expected_wall_seconds=expected_wall_seconds,
         )
         session.validate_before_spawn()
+    cleanup_guard = _EvaluationWorkerCleanupGuard(session)
     try:
-        return _supervise_policy_evaluation(
-            request=request,
-            evaluation_manifest=evaluation_manifest,
-            slot_session=session,
-        )
+        try:
+            return _supervise_policy_evaluation(
+                request=request,
+                evaluation_manifest=evaluation_manifest,
+                slot_session=session,
+                cleanup_guard=cleanup_guard,
+            )
+        finally:
+            cleanup_guard.cleanup()
     finally:
         session.release()
 
