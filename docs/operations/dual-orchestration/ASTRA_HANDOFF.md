@@ -2,9 +2,17 @@
 
 | status | current truth |
 |---|---|
-| progress | Native T1 and the first GMT probe have retained failure receipts; both cleaned up and released the shared slot. |
-| bottleneck | Native likelihood cancellation; GMT failed before simulation because its restricted PATH omitted macOS sysctl. No trained checkpoint. |
-| next step | Repair the GMT launcher PATH, verify a real dependency import, then request a fresh bounded baseline. Review the native numerical correction separately. |
+| progress | GMT PATH-repair baseline completed 10 s of supplied-motion tracking; real recorded-state GIF exists. Development feedback and evaluation cleanup are integrated; 42 focused tests pass. |
+| bottleneck | No novel composition or task-reward learning; native numerical repair is awaiting parent/peer review. |
+| next step | Prioritize the G1 reference-sensitivity probe and shared state-triggered/residual runtime; keep the native repair as a separate option. |
+
+- Current evidence and design decision: `../../strategy/astra/GMT_BASELINE_20260906.md`.
+- GIF: sibling `humanoid-harness-probe-runs/gmt_walk_stand_pathfix_20260906_recorded.gif`.
+- Resource slot is free after verified cleanup. No training worker is active.
+- Integrated feedback `ce6a172` as `42331c9`, evaluation cleanup `4369261` as
+  `ab14ff4`. Native likelihood `6666e70` is not yet integrated.
+
+## Earlier attempts (retained)
 
 - GMT attempt: `humanoid-harness-probe-runs/gmt_walk_stand_20260906`, outside
   this worktree; 0.58 s wall, 234 MB peak RSS, no robot steps or trace.
