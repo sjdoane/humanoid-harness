@@ -33,10 +33,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     g1_feedback.add_argument("--manifest", type=Path, required=True)
     g1_feedback.add_argument("--manifest-sha256", required=True)
-    g1_feedback.add_argument(
-        "--label", choices=("final_policy", "zero_residual"), required=True
-    )
+    g1_feedback.add_argument("--label", choices=("final_policy", "zero_residual"), required=True)
     g1_feedback.add_argument("--output", type=Path, required=True)
+    g1_revise = g1_commands.add_parser(
+        "revise", help="verify one feedback packet and publish one data-only candidate"
+    )
+    g1_revise.add_argument("--parent-config", type=Path, required=True)
+    g1_revise.add_argument("--parent-config-sha256", required=True)
+    g1_revise.add_argument("--feedback", type=Path, required=True)
+    g1_revise.add_argument("--feedback-sha256", required=True)
+    g1_revise.add_argument("--proposal", type=Path, required=True)
+    g1_revise.add_argument("--proposal-sha256", required=True)
+    g1_revise.add_argument("--source-manifest", type=Path, required=True)
+    g1_revise.add_argument("--source-manifest-sha256", required=True)
+    g1_revise.add_argument(
+        "--source-label", choices=("final_policy", "zero_residual"), required=True
+    )
+    g1_revise.add_argument("--output", type=Path, required=True)
 
     research = commands.add_parser("research", help="build and query the research graph")
     research_commands = research.add_subparsers(dest="research_command", required=True)
@@ -171,14 +184,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "doctor":
             result = doctor_status()
         elif args.command == "g1":
-            from .feedback.g1_course import build_g1_course_feedback
+            if args.g1_command == "feedback":
+                from .feedback.g1_course import build_g1_course_feedback
 
-            result = build_g1_course_feedback(
-                manifest_path=args.manifest,
-                expected_manifest_sha256=args.manifest_sha256,
-                label=args.label,
-                output=args.output,
-            )
+                result = build_g1_course_feedback(
+                    manifest_path=args.manifest,
+                    expected_manifest_sha256=args.manifest_sha256,
+                    label=args.label,
+                    output=args.output,
+                )
+            else:
+                from .adapters.gmt.course_revision import revise_g1_course
+
+                result = revise_g1_course(
+                    parent_config_path=args.parent_config,
+                    expected_parent_config_sha256=args.parent_config_sha256,
+                    feedback_path=args.feedback,
+                    expected_feedback_sha256=args.feedback_sha256,
+                    proposal_path=args.proposal,
+                    expected_proposal_sha256=args.proposal_sha256,
+                    source_manifest_path=args.source_manifest,
+                    expected_source_manifest_sha256=args.source_manifest_sha256,
+                    source_label=args.source_label,
+                    output=args.output,
+                )
         elif args.command == "research":
             if args.research_command == "build":
                 result = build_index(args.extractions, args.database)
