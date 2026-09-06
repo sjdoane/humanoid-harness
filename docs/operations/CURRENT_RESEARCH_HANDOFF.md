@@ -2,9 +2,63 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2PAIR` implements the accepted `t2_reward_pairing/v1` shared-runtime seam and closes SCI-T2A-04 at the interface layer. Exact study and embedded arm-manifest bytes authorize paired derivation; the generated fake-runtime receipt shows matching primitive streams for 5 seeds and 4 environment slots while retaining distinct arm execution and reward hashes. Focused validation is `75 passed`. |
-| bottleneck | T2 execution remains **NO-GO**. The candidate reward is synthetic only inside the fake-runtime receipt, and the pre-seam T2A execution manifest, study manifest, and F3 seal now require committed-checkpoint regeneration and independent review. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
-| next step | Fable independently reviews and commits this complete interface-only slice, regenerates the T2A execution/study/F3 seals against that commit, binds the accepted receipt, and obtains a new dispatch verdict before any candidate call or training. |
+| progress | `T2AR2` binds the accepted T2PAIR receipt into a re-sealed pending study, adds the fail-closed `final_ready` report gate, and adds one-step deep-metric tamper plus candidate/evaluator/execution/oracle/training/pairing cross-link negatives. Report hashes named files and replays traces; cross-manifest reconciliation is enforced by the final-ready gate. |
+| bottleneck | T2 execution remains **NO-GO**. Baseline is registry-resolved; the candidate resolver is unit-tested and the canonical candidate is TBD. Report admission returns `study_not_final_ready`, and dispatch still lacks an independent verdict. No candidate call, smoke, training, cohort, protected evaluation, or behavioral result exists. |
+| next step | Fable reviews and commits the complete T2AR2 slice, then obtains a separate dispatch verdict. If a candidate is accepted, run the admission step once to registry-resolve both rewards, verify the actual clean execution HEAD, and regenerate the execution manifest, final-ready study, and post-admission seal together. |
+
+T2AR2 completion (2026-09-06): launch base `03a4826` was clean. The builder
+started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2ar2`, model `gpt-5.6-sol`, role `builder`, with the
+declared reward-lane scope. The launcher owns renewal and release; the builder
+performed no Git write.
+
+| artifact | T2AR2 identity |
+|---|---|
+| integrated T2PAIR receipt | 9,770 bytes / `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` |
+| pending execution manifest | 3,554 bytes / `9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368` |
+| evaluator design | 1,808 bytes / `634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708` |
+| pending study manifest | 5,908 bytes / `8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10` |
+| pending study pairing key | `64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7` |
+| F3 seal | 1,671 bytes / `924769fe26bae38e84e244fcbeea89f24b72b2ec881f12a3261ec842f7ea059e` |
+
+The T2PAIR receipt is immutable and was not regenerated. It retains
+`source_study_manifest_sha256=4eb3440b…3627` and pairing key `fd91156a…b3e0`
+as predecessor evidence; the T2AR2 study records the receipt SHA and the new
+common-field lineage. The superseded adapter-only receipt
+`6bd6f5ab…540a` is explicitly refused when labeled integrated.
+
+The pending execution manifest records `ed9f1d3` as launch-base provenance;
+the execution commit is verified at admission. Candidate admission uses the
+existing Phase B isolation helper with dirty-tree refusal, requires exact clean
+HEAD equality, registry-resolves the candidate, sets study state `final_ready`,
+and returns regenerated execution/study/seal bytes as one operation. Its final
+seal cannot authorize another initial F3 dispatch.
+
+The report gate requires exact report-to-manifest equality for all eight common
+artifact bindings and both reward bindings, validates the integrated pairing
+receipt, resolves both rewards through the registry, validates the oracle,
+training design, evaluator, starting checkpoint, and actual execution seal, and
+then replays all 200 indexed traces. Candidate, evaluator, execution, oracle,
+training, and pairing cross-link changes each have a negative. A reported
+one-step COM speed changed while the source trace and index remain unchanged is
+also rejected. Action-bound failure is interface-reachable; no production T2
+trace producer has run.
+
+| T2AR2 verification | result |
+|---|---|
+| T2AR2 artifact/report/pairing/F3 contract tests after final hardening | `136 passed in 127.11s` |
+| Full suite with the named reward-lane receipt test deselected | `1871 passed, 18 skipped, 1 deselected, 44 failed in 357.31s` |
+| Recorded sandbox-ledger replay | all `44` unique expected nodes failed in `1.22s`; with full-suite cardinality `44`, the failure sets are equal |
+| Repository-wide Ruff lint | passed |
+| Repository-wide Ruff format check | all `408` files formatted |
+| `git diff --check` | passed |
+| Forbidden reward-lane receipt | not regenerated; integrated receipt remains 9,770 bytes / `e5351c3b…a259` |
+
+Fable resume: independently review this diff and the final verification record,
+commit the complete slice, and preserve `withheld_pending_dispatch_verdict`.
+Do not call for a candidate from this builder result. A future candidate call
+still requires a separate dispatch verdict; smoke and cohorts remain separately
+gated after final admission.
 
 T2PAIR completion (2026-09-06T10:09Z): launch base `7698256` was clean.
 The builder started only after Astra's executable-scope acceptance

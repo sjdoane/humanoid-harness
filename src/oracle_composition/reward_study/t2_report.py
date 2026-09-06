@@ -1,4 +1,8 @@
-"""T2 scientific report with source resolution, replay, and separate telemetry."""
+"""T2 report admission.
+
+Report hashes named files and replays traces; cross-manifest reconciliation is
+enforced by the final-ready gate.
+"""
 
 from __future__ import annotations
 
@@ -18,19 +22,36 @@ from oracle_composition.experiments.artifact_io import (
     PublishedArtifact,
     publish_bytes_without_overwrite,
 )
+from oracle_composition.phase_b.contracts import (
+    load_phase_b_oracle,
+    load_starting_checkpoint,
+    validate_training_design,
+)
 from oracle_composition.phase_b.protected_metrics import ERROR_NAMES, ERROR_SCALES
 from oracle_composition.phase_b.report_v2 import (
     SCIENTIFIC_RECEIPT_SCHEMA_ID,
     TELEMETRY_SCHEMA_ID,
 )
 
-from .study_manifest import STUDY_CLAIM_CEILING, STUDY_EVIDENCE_CLASS
+from .execution_manifest import validate_t2_execution_manifest
+from .pairing import validate_pairing_receipt
+from .study_manifest import (
+    INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT,
+    INTEGRATED_PAIRING_RECEIPT_PATH,
+    STUDY_CLAIM_CEILING,
+    STUDY_EVIDENCE_CLASS,
+    STUDY_FINAL_READY_STATUS,
+    arm_common_fields,
+    resolve_t2_reward_binding,
+    validate_t2_study_manifest,
+)
 from .t2_evaluator import (
     T2_EVALUATION_SEEDS,
     T2_HORIZON_STEPS,
     T2_REPORT_SCHEMA_ID,
     T2EpisodeMetrics,
     _evaluate_t2_trace_against_reference,
+    load_evaluator_design,
     load_t2_verified_reference,
 )
 
@@ -48,12 +69,27 @@ T2_REPORT_ARTIFACT_INPUTS = frozenset(
         "evaluator_design",
         "execution_manifest",
         "integrated_pairing_receipt",
+        "library",
         "oracle",
+        "pairing_adapter",
+        "reference_corpus",
+        "starting_checkpoint",
         "study_manifest",
         "trace_index",
         "training_design",
     }
 )
+T2_REPORT_REWARD_INPUTS = frozenset({"baseline_reward", "candidate_reward"})
+T2_REPORT_COMMON_BINDINGS = {
+    "evaluator_design": "evaluator",
+    "execution_manifest": "execution_manifest",
+    "library": "library",
+    "oracle": "oracle",
+    "pairing_adapter": "pairing_adapter",
+    "reference_corpus": "reference_corpus",
+    "starting_checkpoint": "starting_checkpoint",
+    "training_design": "training_design",
+}
 
 
 def _sha256(value: object, *, field: str) -> str:
@@ -93,13 +129,33 @@ def _artifact_binding(value: object, *, field: str) -> dict[str, object]:
     return dict(value)
 
 
+def _reward_artifact_binding(value: object, *, field: str) -> dict[str, object]:
+    expected = {"byte_count", "path", "reward_id", "root", "sha256"}
+    if type(value) is not dict or set(value) != expected:
+        raise ValueError(f"T2 report {field} reward binding fields differ")
+    checked = _artifact_binding(
+        {key: value[key] for key in ("byte_count", "path", "root", "sha256")},
+        field=field,
+    )
+    if type(value["reward_id"]) is not str or not value["reward_id"]:
+        raise ValueError(f"T2 report {field} reward identity differs")
+    return {**checked, "reward_id": value["reward_id"]}
+
+
 def _validate_report_inputs(inputs: Mapping[str, object]) -> dict[str, object]:
     if type(inputs) is not dict or set(inputs) != {"artifacts", "study_pairing_sha256"}:
         raise ValueError("T2 report input identities differ")
     artifacts = inputs["artifacts"]
     if type(artifacts) is not dict or set(artifacts) != T2_REPORT_ARTIFACT_INPUTS:
         raise ValueError("T2 report artifact input identities differ")
-    checked = {name: _artifact_binding(binding, field=name) for name, binding in artifacts.items()}
+    checked = {
+        name: (
+            _reward_artifact_binding(binding, field=name)
+            if name in T2_REPORT_REWARD_INPUTS
+            else _artifact_binding(binding, field=name)
+        )
+        for name, binding in artifacts.items()
+    }
     return {
         "artifacts": checked,
         "study_pairing_sha256": _sha256(
@@ -598,7 +654,12 @@ def _resolve_binding(
     field: str,
     maximum: int = 512 * 1024**2,
 ) -> tuple[Path, bytes]:
-    checked = _artifact_binding(binding, field=field)
+    checked_with_metadata = (
+        _reward_artifact_binding(binding, field=field)
+        if field in T2_REPORT_REWARD_INPUTS
+        else _artifact_binding(binding, field=field)
+    )
+    checked = {key: checked_with_metadata[key] for key in ("byte_count", "path", "root", "sha256")}
     root = repository_root if checked["root"] == "repository" else run_root
     path = root / checked["path"]
     try:
@@ -746,37 +807,179 @@ def _replay_reported_traces(
         raise ValueError("T2 trace index does not cover exactly the reported traces")
 
 
+def _canonical_json_object(encoded: bytes, *, field: str) -> dict[str, object]:
+    try:
+        value = json.loads(encoded)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError(f"T2 {field} is not JSON") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise ValueError(f"T2 {field} is not canonical JSON")
+    return value
+
+
+def _report_binding_without_root(binding: Mapping[str, object]) -> dict[str, object]:
+    return {key: binding[key] for key in ("byte_count", "path", "sha256")}
+
+
+def _report_reward_without_file_metadata(
+    binding: Mapping[str, object],
+) -> dict[str, object]:
+    return {key: binding[key] for key in ("path", "reward_id", "sha256")}
+
+
+def _reconcile_report_to_manifest(
+    *,
+    inputs: Mapping[str, object],
+    study: Mapping[str, object],
+) -> None:
+    artifacts = inputs["artifacts"]
+    common = arm_common_fields(study["arms"][0])
+    for report_name, manifest_name in T2_REPORT_COMMON_BINDINGS.items():
+        if _report_binding_without_root(artifacts[report_name]) != common[manifest_name]:
+            raise ValueError(f"T2 report {report_name} binding differs from study manifest")
+    for report_name, arm_index in (("baseline_reward", 0), ("candidate_reward", 1)):
+        if (
+            _report_reward_without_file_metadata(artifacts[report_name])
+            != study["arms"][arm_index]["reward"]
+        ):
+            raise ValueError(f"T2 report {report_name} binding differs from study manifest")
+    pairing = artifacts["integrated_pairing_receipt"]
+    if (
+        pairing["root"] != "repository"
+        or pairing["path"] != INTEGRATED_PAIRING_RECEIPT_PATH
+        or pairing["byte_count"] != INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT
+        or pairing["sha256"] != study["integrated_pairing_receipt_sha256"]
+    ):
+        raise ValueError("T2 report integrated pairing receipt differs from study manifest")
+    if inputs["study_pairing_sha256"] != study["study_pairing_sha256"]:
+        raise ValueError("T2 report and study pairing identities differ")
+
+
+def _validate_final_ready_inputs(
+    *,
+    inputs: Mapping[str, object],
+    resolved: Mapping[str, tuple[Path, bytes]],
+    study: Mapping[str, object],
+    repository_root: Path,
+    run_root: Path,
+) -> None:
+    _reconcile_report_to_manifest(inputs=inputs, study=study)
+    artifacts = inputs["artifacts"]
+
+    pairing_receipt = _canonical_json_object(
+        resolved["integrated_pairing_receipt"][1],
+        field="integrated pairing receipt",
+    )
+    try:
+        validate_pairing_receipt(pairing_receipt)
+    except ValueError as exc:
+        raise ValueError("T2 integrated pairing receipt failed validation") from exc
+
+    training = _canonical_json_object(
+        resolved["training_design"][1],
+        field="training design",
+    )
+    execution = _canonical_json_object(
+        resolved["execution_manifest"][1],
+        field="execution manifest",
+    )
+    try:
+        validate_training_design(training)
+        load_phase_b_oracle(
+            resolved["oracle"][0],
+            available_behaviors=("expert", "medium", "simple"),
+        )
+        load_evaluator_design(
+            resolved["evaluator_design"][0],
+            evaluator_source_path=repository_root
+            / "src/oracle_composition/reward_study/t2_evaluator.py",
+            protected_metrics_source_path=repository_root
+            / "src/oracle_composition/phase_b/protected_metrics.py",
+            report_v2_source_path=repository_root / "src/oracle_composition/phase_b/report_v2.py",
+            report_writer_source_path=repository_root
+            / "src/oracle_composition/reward_study/t2_report.py",
+        )
+        validate_t2_execution_manifest(execution, repository_root=repository_root)
+        starting_root = (
+            repository_root
+            if artifacts["starting_checkpoint"]["root"] == "repository"
+            else run_root
+        )
+        load_starting_checkpoint(
+            resolved["starting_checkpoint"][0],
+            repository_root=starting_root,
+        )
+        resolve_t2_reward_binding(
+            study["arms"][0]["reward"],
+            artifact_root=(
+                repository_root
+                if artifacts["baseline_reward"]["root"] == "repository"
+                else run_root
+            ),
+            candidate=False,
+        )
+        resolve_t2_reward_binding(
+            study["arms"][1]["reward"],
+            artifact_root=(
+                repository_root
+                if artifacts["candidate_reward"]["root"] == "repository"
+                else run_root
+            ),
+            candidate=True,
+        )
+    except ValueError as exc:
+        raise ValueError(f"T2 final-ready input contract is invalid: {exc}") from exc
+
+
 def validate_t2_study_report(
     value: Mapping[str, object],
     *,
     repository_root: Path,
     run_root: Path,
 ) -> dict[str, object]:
-    """Resolve every input and replay every raw trace before accepting a report."""
+    """Enforce the final-ready cross-manifest gate, then replay every raw trace."""
 
-    inputs, baseline, candidate = _validate_t2_study_report_structure(value)
     repository = Path(repository_root).resolve(strict=True)
     run = Path(run_root).resolve(strict=True)
+    raw_inputs = value.get("inputs") if type(value) is dict else None
+    inputs = _validate_report_inputs(raw_inputs)
+    study_path, study_bytes = _resolve_binding(
+        inputs["artifacts"]["study_manifest"],
+        repository_root=repository,
+        run_root=run,
+        field="study_manifest",
+    )
+    study = _canonical_json_object(study_bytes, field="bound study manifest")
+    try:
+        validated_study = validate_t2_study_manifest(study)
+    except ValueError as exc:
+        raise ValueError("T2 bound study manifest contract differs") from exc
+    if validated_study["status"] != STUDY_FINAL_READY_STATUS:
+        raise ValueError("study_not_final_ready")
+
+    structured_inputs, baseline, candidate = _validate_t2_study_report_structure(value)
+    if structured_inputs != inputs:
+        raise ValueError("T2 report inputs changed during final-ready admission")
     resolved = {}
     for name, binding in inputs["artifacts"].items():
-        resolved[name] = _resolve_binding(
-            binding,
-            repository_root=repository,
-            run_root=run,
-            field=name,
-            maximum=512 * 1024 if name == "trace_index" else 512 * 1024**2,
+        resolved[name] = (
+            (study_path, study_bytes)
+            if name == "study_manifest"
+            else _resolve_binding(
+                binding,
+                repository_root=repository,
+                run_root=run,
+                field=name,
+                maximum=512 * 1024 if name == "trace_index" else 512 * 1024**2,
+            )
         )
-    study_bytes = resolved["study_manifest"][1]
-    try:
-        study = json.loads(study_bytes)
-    except (UnicodeError, ValueError) as exc:
-        raise ValueError("T2 bound study manifest is not JSON") from exc
-    if (
-        type(study) is not dict
-        or canonical_json_bytes(study) != study_bytes
-        or study.get("study_pairing_sha256") != inputs["study_pairing_sha256"]
-    ):
-        raise ValueError("T2 report and study pairing identities differ")
+    _validate_final_ready_inputs(
+        inputs=inputs,
+        resolved=resolved,
+        study=validated_study,
+        repository_root=repository,
+        run_root=run,
+    )
     trace_index = _load_trace_index(resolved["trace_index"][1])
     _replay_reported_traces(
         trace_index=trace_index,

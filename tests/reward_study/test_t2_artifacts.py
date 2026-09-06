@@ -21,12 +21,21 @@ from oracle_composition.phase_b.reference_runtime import (
     tracking_state_from_reference_row,
 )
 from oracle_composition.reward_study.execution_manifest import (
+    T2_EXECUTION_FINAL_READY_STATUS,
+    T2_EXECUTION_LAUNCH_BASE_COMMIT,
+    T2_EXECUTION_PENDING_STATUS,
+    final_ready_t2_execution_manifest_contract_value,
     load_t2_execution_manifest,
+    validate_t2_execution_manifest,
 )
+from oracle_composition.reward_study.final_admission import admit_t2_candidate_and_reseal
 from oracle_composition.reward_study.pairing import (
     validate_pairing_receipt,
 )
 from oracle_composition.reward_study.study_manifest import (
+    INTEGRATED_PAIRING_RECEIPT_SHA256,
+    STUDY_FINAL_READY_STATUS,
+    STUDY_STATUS,
     T2StudyManifestError,
     load_t2_study_manifest,
     resolve_t2_reward_binding,
@@ -84,13 +93,13 @@ def test_expert_hold_oracle_is_canonical_and_yields_rows_zero_through_1000() -> 
     assert runtime.transfer_logs == ()
 
 
-def test_pre_seam_execution_manifest_is_canonical_but_requires_pairing_reseal() -> None:
+def test_resealed_execution_manifest_is_canonical_and_records_launch_provenance() -> None:
     manifest_path = EXPERIMENT / "execution_manifest_t2_v1.json"
     encoded = manifest_path.read_bytes()
     value = json.loads(encoded)
     digest = hashlib.sha256(encoded).hexdigest()
     assert encoded == canonical_json_bytes(value)
-    assert digest == "d675b1ac02ad8713d995bd795ce2130acf41bc7a6fcc0a164167b24e3684ab3e"
+    assert digest == "9492cc639cf9eb83f98098944e136b5a9a5e4f581dfeff3034bf2a58b965e368"
     study = json.loads((EXPERIMENT / "t2_reward_study_expert_hold_v1.json").read_bytes())
     expected_binding = {
         "byte_count": manifest_path.stat().st_size,
@@ -100,11 +109,17 @@ def test_pre_seam_execution_manifest_is_canonical_but_requires_pairing_reseal() 
     assert study["arms"][0]["execution_manifest"] == expected_binding
     assert study["arms"][1]["execution_manifest"] == expected_binding
     assert value["execution_manifest_schema_id"] == "t2_execution_manifest_v1"
-    assert value["repository"]["commit"] == ("ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe")
+    assert value["repository"] == {
+        "execution_commit": None,
+        "execution_commit_verification": "pending_final_admission",
+        "execution_tree_clean_at_admission": None,
+        "launch_base_commit": T2_EXECUTION_LAUNCH_BASE_COMMIT,
+        "launch_base_semantics": "provenance_only_not_execution_commit",
+    }
+    assert value["status"] == T2_EXECUTION_PENDING_STATUS
     assert value["tracker"]["external_tracker_checkpoint"] is None
     assert value["normalizers"] == {"observation": None, "reward": None}
-    with pytest.raises(ExperimentContractError, match="semantics or bindings differ"):
-        load_t2_execution_manifest(manifest_path, repository_root=ROOT)
+    assert load_t2_execution_manifest(manifest_path, repository_root=ROOT)[0] == value
 
 
 def test_t2_training_design_is_phase_b_validated_without_changing_t1_bytes() -> None:
@@ -138,28 +153,117 @@ def test_evaluator_design_is_canonical_and_source_bound() -> None:
         report_v2_source_path=ROOT / "src/oracle_composition/phase_b/report_v2.py",
         report_writer_source_path=ROOT / "src/oracle_composition/reward_study/t2_report.py",
     )
-    assert digest == "7ae812d43c524285941cd567ce1663ff023cb6307229d9472a6dfe6577ebf5b3"
+    assert digest == "634ea93e975e5331f9c71c5123a75ca525cc366055312bf4b3a4652dba772708"
     assert value["reward_helpers_imported"] is False
     assert value["calibration"] == "none"
 
 
 def test_study_manifest_verifies_common_files_and_pairing_key() -> None:
     path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
-    value, digest = load_t2_study_manifest(path)
-    assert digest == "4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627"
+    value, digest = load_t2_study_manifest(path, repository_root=ROOT)
+    assert digest == "8e81792ab6b4847776ce4cd352bb4eda6c0f705ceaf9ff644a908508c8982d10"
     assert value["study_pairing_sha256"] == (
-        "fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0"
+        "64529d781ae3fb5030ce6d018504c69e31e6e62307775c8e47cdb8c81996c1e7"
     )
+    assert value["integrated_pairing_receipt_sha256"] == INTEGRATED_PAIRING_RECEIPT_SHA256
+    assert value["status"] == STUDY_STATUS
     assert value["arms"][0]["reward"]["sha256"].startswith("eea2b6a9")
     assert value["arms"][1]["reward"]["sha256"] == "TBD"
     assert (
         value["arms"][0]["pairing_adapter"]["sha256"]
-        != hashlib.sha256(
+        == hashlib.sha256(
             (ROOT / "src/oracle_composition/reward_study/pairing.py").read_bytes()
         ).hexdigest()
     )
-    with pytest.raises(T2StudyManifestError, match="pairing_adapter artifact byte count differs"):
-        load_t2_study_manifest(path, repository_root=ROOT)
+
+
+def test_final_execution_manifest_refuses_wrong_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    expected_commit = "a" * 40
+    value = execution_manifest.t2_execution_manifest_contract_value(
+        ROOT,
+        execution_commit=expected_commit,
+    )
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: "b" * 40,
+    )
+    with pytest.raises(ExperimentContractError, match="HEAD differs from its admission seal"):
+        validate_t2_execution_manifest(value, repository_root=ROOT)
+    with pytest.raises(ExperimentContractError, match="HEAD differs at final admission"):
+        final_ready_t2_execution_manifest_contract_value(
+            ROOT,
+            expected_execution_commit=expected_commit,
+        )
+
+
+def test_final_execution_manifest_refuses_dirty_tree_through_isolation_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse_dirty(_root: Path, *, allow_dirty: bool) -> object:
+        assert allow_dirty is False
+        raise ExperimentContractError("Phase B training requires clean committed sources")
+
+    monkeypatch.setattr(
+        "oracle_composition.phase_b.supervision.inspect_runtime_sources",
+        refuse_dirty,
+    )
+    with pytest.raises(ExperimentContractError, match="requires clean committed sources"):
+        final_ready_t2_execution_manifest_contract_value(
+            ROOT,
+            expected_execution_commit="a" * 40,
+        )
+
+
+def test_candidate_admission_builds_one_final_ready_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import oracle_composition.reward_study.execution_manifest as execution_manifest
+
+    candidate_path = tmp_path / "candidate.json"
+    candidate = TargetSpeedRewardSpec(alpha=1.0, beta=0.0)
+    candidate_path.write_bytes(candidate.canonical_bytes)
+    execution_commit = "a" * 40
+    monkeypatch.setattr(
+        execution_manifest,
+        "_observed_clean_execution_commit",
+        lambda _root: execution_commit,
+    )
+    artifacts = admit_t2_candidate_and_reseal(
+        repository_root=ROOT,
+        pending_study_manifest_path=(EXPERIMENT / "t2_reward_study_expert_hold_v1.json"),
+        candidate_artifact_root=tmp_path,
+        candidate_reward_path=candidate_path,
+        expected_execution_commit=execution_commit,
+    )
+    execution = json.loads(artifacts.execution_manifest_bytes)
+    study = json.loads(artifacts.study_manifest_bytes)
+    seal = json.loads(artifacts.t2_seal_bytes)
+    assert artifacts.execution_commit == execution_commit
+    assert execution["status"] == T2_EXECUTION_FINAL_READY_STATUS
+    assert execution["repository"]["execution_commit"] == execution_commit
+    assert execution["repository"]["execution_tree_clean_at_admission"] is True
+    assert study["status"] == STUDY_FINAL_READY_STATUS
+    assert study["arms"][1]["reward"] == {
+        "path": "candidate.json",
+        "reward_id": "target_speed_triangular_affine_t2_adapter/v1",
+        "sha256": hashlib.sha256(candidate.canonical_bytes).hexdigest(),
+    }
+    assert seal["dispatch_state"] == "candidate_admitted_no_further_initial_dispatch"
+    assert seal["pairing_receipt"] == INTEGRATED_PAIRING_RECEIPT_SHA256
+    assert (
+        seal["execution_manifest"]["sha256"]
+        == hashlib.sha256(artifacts.execution_manifest_bytes).hexdigest()
+    )
+    assert (
+        seal["study_manifest"]["sha256"]
+        == hashlib.sha256(artifacts.study_manifest_bytes).hexdigest()
+    )
 
 
 def test_study_manifest_refuses_common_field_drift_even_with_a_rehashed_key() -> None:

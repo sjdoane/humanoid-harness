@@ -185,8 +185,10 @@ def test_true_baseline_packet_binds_exact_sources_and_visible_identities() -> No
     record_bytes, record = _record()
     prompt = render_initial_t2_prompt(record_bytes)
     seal = parse_model_bytes(T2_SEAL, T2PreDispatchSeal, max_bytes=65_536)
-    assert seal.pairing_receipt == "pending"
-    assert seal.dispatch_state == "withheld_pending_pairing_receipt"
+    assert seal.pairing_receipt == (
+        "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+    )
+    assert seal.dispatch_state == "withheld_pending_dispatch_verdict"
     assert record.schema_version == 4
     assert record.t2_seal.sha256 == hashlib.sha256(T2_SEAL).hexdigest()
     assert record.study_manifest_sha256 == seal.study_manifest.sha256
@@ -317,6 +319,16 @@ def test_preparation_refuses_changed_pairing_key() -> None:
         )
 
 
+def test_preparation_refuses_changed_integrated_pairing_receipt() -> None:
+    payload = json.loads(T2_SEAL)
+    payload["pairing_receipt"] = "0" * 64
+    with pytest.raises(T2ProtocolError, match="sealed T2 artifact identity differs"):
+        prepare_initial_t2_packet(
+            baseline_reward_bytes=BASELINE,
+            t2_seal_bytes=finite_pretty_json(payload),
+        )
+
+
 def test_prompt_bytes_do_not_change_with_a_valid_non_model_facing_seal_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -354,6 +366,7 @@ def test_prompt_bytes_do_not_change_with_a_valid_non_model_facing_seal_change(
         seal_payload["expert_hold_oracle"]["path"],
         seal_payload["training_design"]["path"],
         seal_payload["tracking_only_baseline"]["path"],
+        "experiments/004_t2_reward_study/pairing_receipt_v1.json",
         "src/oracle_composition/rewards/target_speed_formula.py",
         "src/oracle_composition/rewards/target_speed_formula_t2.py",
         "src/oracle_composition/rewards/task_inputs_v2.py",

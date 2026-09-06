@@ -142,8 +142,11 @@ class T2PreDispatchSeal(T2StrictModel):
     study_manifest: T2SealedArtifact
     tracking_only_baseline: T2SealedArtifact
     study_pairing_sha256: str = Field(pattern=SHA256_PATTERN)
-    pairing_receipt: Literal["pending"]
-    dispatch_state: Literal["withheld_pending_pairing_receipt"]
+    pairing_receipt: str = Field(pattern=SHA256_PATTERN)
+    dispatch_state: Literal[
+        "withheld_pending_dispatch_verdict",
+        "candidate_admitted_no_further_initial_dispatch",
+    ]
 
     @model_validator(mode="after")
     def validate_frozen_paths(self) -> T2PreDispatchSeal:

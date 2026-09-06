@@ -21,8 +21,11 @@ from oracle_composition.phase_b.contracts import (
 
 T2_EXECUTION_MANIFEST_SCHEMA_ID = "t2_execution_manifest_v1"
 T2_EXECUTION_MANIFEST_ID = "t2_reward_study_frozen_execution/v1"
-T2_EXECUTION_BASE_COMMIT = "ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe"
-T2_EXECUTION_STATUS = "execution_no_go_candidate_and_pairing_receipt_pending"
+T2_EXECUTION_LAUNCH_BASE_COMMIT = "ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe"
+T2_EXECUTION_BASE_COMMIT = T2_EXECUTION_LAUNCH_BASE_COMMIT
+T2_EXECUTION_PENDING_STATUS = "execution_no_go_candidate_pending"
+T2_EXECUTION_FINAL_READY_STATUS = "final_ready"
+T2_EXECUTION_STATUS = T2_EXECUTION_PENDING_STATUS
 
 _SOURCE_PATHS = {
     "environment_adapter": "src/oracle_composition/envs/reference_corpus.py",
@@ -91,8 +94,34 @@ def t2_host_fingerprint_value() -> dict[str, object]:
     return {**core, "sha256": hashlib.sha256(canonical_json_bytes(core)).hexdigest()}
 
 
-def t2_execution_manifest_contract_value(repository_root: Path) -> dict[str, object]:
-    """Build the exact T2 runtime seal for this checkout and locked host."""
+def _git_commit(value: object, *, field: str) -> str:
+    if (
+        type(value) is not str
+        or len(value) not in {40, 64}
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ExperimentContractError(f"{field} must be a lowercase Git object ID")
+    return value
+
+
+def _observed_clean_execution_commit(repository_root: Path) -> str:
+    """Reuse Phase B source isolation to observe one clean execution checkout."""
+
+    from oracle_composition.phase_b.supervision import inspect_runtime_sources
+
+    snapshot = inspect_runtime_sources(repository_root, allow_dirty=False)
+    git = snapshot.value.get("git")
+    if type(git) is not dict or git.get("clean") is not True:
+        raise ExperimentContractError("T2 execution tree is dirty at final admission")
+    return _git_commit(git.get("commit"), field="observed T2 execution commit")
+
+
+def t2_execution_manifest_contract_value(
+    repository_root: Path,
+    *,
+    execution_commit: str | None = None,
+) -> dict[str, object]:
+    """Record launch-base provenance; the execution commit is verified at admission."""
 
     root = Path(repository_root).resolve(strict=True)
     sources = {name: _binding(root, path) for name, path in sorted(_SOURCE_PATHS.items())}
@@ -128,12 +157,23 @@ def t2_execution_manifest_contract_value(repository_root: Path) -> dict[str, obj
         },
         "normalizers": {"observation": None, "reward": None},
         "repository": {
-            "commit": T2_EXECUTION_BASE_COMMIT,
-            "execution_requires_clean_tree_at_this_commit": True,
+            "execution_commit": execution_commit,
+            "execution_commit_verification": (
+                "pending_final_admission"
+                if execution_commit is None
+                else "verified_clean_head_at_final_admission"
+            ),
+            "execution_tree_clean_at_admission": (None if execution_commit is None else True),
+            "launch_base_commit": T2_EXECUTION_LAUNCH_BASE_COMMIT,
+            "launch_base_semantics": "provenance_only_not_execution_commit",
         },
         "schema_version": 1,
         "sources": sources,
-        "status": T2_EXECUTION_STATUS,
+        "status": (
+            T2_EXECUTION_PENDING_STATUS
+            if execution_commit is None
+            else T2_EXECUTION_FINAL_READY_STATUS
+        ),
         "study_id": "t2_reward_study_expert_hold/v1",
         "tracker": {
             "external_tracker_checkpoint": None,
@@ -144,14 +184,43 @@ def t2_execution_manifest_contract_value(repository_root: Path) -> dict[str, obj
     }
 
 
+def final_ready_t2_execution_manifest_contract_value(
+    repository_root: Path,
+    *,
+    expected_execution_commit: str,
+) -> dict[str, object]:
+    """Bind the actual clean HEAD observed by the Phase B isolation gate."""
+
+    expected = _git_commit(expected_execution_commit, field="expected T2 execution commit")
+    observed = _observed_clean_execution_commit(repository_root)
+    if observed != expected:
+        raise ExperimentContractError("T2 execution HEAD differs at final admission")
+    return t2_execution_manifest_contract_value(
+        repository_root,
+        execution_commit=observed,
+    )
+
+
 def validate_t2_execution_manifest(
     value: Mapping[str, object],
     *,
     repository_root: Path,
 ) -> dict[str, object]:
-    """Recompute every frozen file, model, dependency, ABI, and host binding."""
+    """Recompute bindings and verify a final manifest against the live clean HEAD."""
 
-    expected = t2_execution_manifest_contract_value(repository_root)
+    repository = value.get("repository") if type(value) is dict else None
+    execution_commit = repository.get("execution_commit") if type(repository) is dict else object()
+    if execution_commit is None:
+        expected = t2_execution_manifest_contract_value(repository_root)
+    else:
+        checked_commit = _git_commit(execution_commit, field="bound T2 execution commit")
+        observed = _observed_clean_execution_commit(repository_root)
+        if observed != checked_commit:
+            raise ExperimentContractError("T2 execution HEAD differs from its admission seal")
+        expected = t2_execution_manifest_contract_value(
+            repository_root,
+            execution_commit=checked_commit,
+        )
     if type(value) is not dict or value != expected:
         raise ExperimentContractError("T2 execution manifest semantics or bindings differ")
     canonical_json_bytes(dict(value))
@@ -177,9 +246,13 @@ def load_t2_execution_manifest(
 
 __all__ = [
     "T2_EXECUTION_BASE_COMMIT",
+    "T2_EXECUTION_FINAL_READY_STATUS",
+    "T2_EXECUTION_LAUNCH_BASE_COMMIT",
     "T2_EXECUTION_MANIFEST_ID",
     "T2_EXECUTION_MANIFEST_SCHEMA_ID",
+    "T2_EXECUTION_PENDING_STATUS",
     "T2_EXECUTION_STATUS",
+    "final_ready_t2_execution_manifest_contract_value",
     "load_t2_execution_manifest",
     "t2_execution_manifest_contract_value",
     "t2_host_fingerprint_value",

@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2AR1 re-seals the F3 pre-dispatch ledger with the new T2 execution manifest and repaired evaluator/report chain; the 6,011-byte prompt is unchanged. |
-| bottleneck | Dispatch remains withheld because the integrated pairing receipt and candidate reward remain pending. No candidate call or behavioral result exists. |
-| next step | Fable reviews and commits T2AR1, obtains Astra's accepted `T2PAIR` receipt, and requests a separate dispatch verdict before any canonical call. |
+| progress | T2AR2 binds the accepted T2PAIR receipt into the pending study and F3 seal, adds final-ready report reconciliation and clean-HEAD candidate admission, and preserves the exact 6,011-byte prompt. |
+| bottleneck | Dispatch remains `withheld_pending_dispatch_verdict`; the canonical candidate is TBD and T2AR2 still needs independent review and commit. No candidate call or behavioral result exists. |
+| next step | Fable independently reviews and commits T2AR2, then obtains a separate dispatch verdict. Candidate admission and its execution/study/seal re-seal occur only after an accepted call result. |
 
 ## Original F3PIN builder boundary
 
@@ -161,6 +161,36 @@ No run used either superseded chain. The T2AR1 seal is 1,613 bytes and binds
 the execution manifest as a sixth immutable input. It still records
 `pairing_receipt: pending`; this is a preparation repair, not dispatch
 authority or execution evidence.
+
+### T2AR2 re-seal after T2PAIR
+
+The accepted 9,770-byte pairing receipt at
+`e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`
+is now bound by the pending study and F3 seal. It was not regenerated: its
+`4eb3440b…3627` source-study hash and `fd91156a…b3e0` pairing key remain the
+explicit predecessor lineage. The post-pairing common-field re-seal is:
+
+| identity | T2AR1 | T2AR2 |
+|---|---|---|
+| execution manifest | `d675b1ac…b3e` | `9492cc63…e368` |
+| evaluator design | `7ae812d4…f5b3` | `634ea93e…2708` |
+| study manifest | `4eb3440b…3627` | `8e81792a…2d10` |
+| study pairing key | `fd91156a…b3e0` | `64529d78…c1e7` |
+| F3 seal | `c0edc94a…94ae` | `924769fe…059e` |
+
+The current seal is 1,671 bytes. It records the receipt digest and
+`withheld_pending_dispatch_verdict`; it is preparation evidence, not call
+authority. The updated deterministic packet is 28,461 bytes at
+`6f779d37…d3cc`, with call ID `eeb24a67…4aef` and call-identity digest
+`1ae0e967…892d`; the model-facing prompt remains exactly 6,011 bytes at
+`4d1a2976…2bbc`.
+
+Report hashes named files and replays traces; cross-manifest reconciliation is
+enforced by the final-ready gate. Baseline is registry-resolved; the candidate
+resolver is unit-tested and the canonical candidate is TBD. The execution
+manifest records launch-base provenance; the execution commit is verified at
+admission. Action-bound failure is interface-reachable; no production T2 trace
+producer has run.
 
 A second claim of the canonical call identity is refused; repository state
 cannot prove the absence of an unrecorded external call.

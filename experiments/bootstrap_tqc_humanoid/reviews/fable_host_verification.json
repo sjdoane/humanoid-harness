@@ -217,6 +217,25 @@
       "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
       "started_utc": "2026-09-06T10:11:51Z",
       "tree": "Slice T2PAIR (t2_reward_pairing/v1 seam, integrated pairing receipt)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2AR2 slice: the commit containing this record; follow-up receipt with the exact SHA at the next checkpoint",
+      "finished_utc": "2026-09-06T11:46:01Z",
+      "result": "1 failed, 1917 passed, 16 skipped, 2 warnings in 371.67s (0:06:11); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar2.txt",
+      "retained_scratch_record_sha256": "92df0d9481de2193e4db553c99d1ea83c0db55859c718ad8604c8f88fe5efa8b",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T11:38:13Z",
+      "tree": "Slice T2AR2 (final-ready lineage gate, verified execution seal, re-seal, wording)"
+    },
+    {
+      "commit": "0b4a8a1",
+      "follow_up_receipt_for": "Slice T2PAIR",
+      "note": "binds the exact target SHA to the retained host run record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pair.txt",
+      "retained_scratch_record_sha256": "5211ba6b677819d58fc544b32222eb0b6abc52064cd2553d6607d9c0205d7b7f"
     }
   ],
   "schema_version": 1

@@ -21,11 +21,13 @@ from oracle_composition.reward_study.pairing import (
     derive_evaluation_seed_identities,
     derive_t2_rsi_assignment,
     derive_training_stream_seeds,
-    generate_pairing_receipt_v1,
     pairing_from_study_manifest_bytes,
     validate_pairing_receipt,
 )
-from oracle_composition.reward_study.study_manifest import study_pairing_sha256_from_arm
+from oracle_composition.reward_study.study_manifest import (
+    STUDY_FINAL_READY_STATUS,
+    study_pairing_sha256_from_arm,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = ROOT / "experiments/004_t2_reward_study"
@@ -44,6 +46,7 @@ def _completed_fake_study() -> dict[str, object]:
         "reward_id": "target_speed_triangular_affine_t2_adapter/v1",
         "sha256": hashlib.sha256(b"fake candidate reward bytes").hexdigest(),
     }
+    value["status"] = STUDY_FINAL_READY_STATUS
     return value
 
 
@@ -77,7 +80,7 @@ def test_exact_byte_authority_refuses_schema_shaped_common_field_addition() -> N
 
 
 def test_reward_only_arms_have_identical_integrated_fake_runtime_streams() -> None:
-    receipt = generate_pairing_receipt_v1(STUDY_PATH)
+    receipt = json.loads(RECEIPT_PATH.read_bytes())
     assert validate_pairing_receipt(receipt) == receipt
     assert receipt["reward_sha256"]["baseline"] != receipt["reward_sha256"]["candidate"]
     assert all(row["identical"] is True for row in receipt["per_seed"])
@@ -92,7 +95,7 @@ def test_reward_only_arms_have_identical_integrated_fake_runtime_streams() -> No
 
 @pytest.mark.parametrize("mutation", ["source_path", "stream_digest"])
 def test_pairing_receipt_refuses_rebound_sources_and_non_digests(mutation: str) -> None:
-    receipt = generate_pairing_receipt_v1(STUDY_PATH)
+    receipt = json.loads(RECEIPT_PATH.read_bytes())
     if mutation == "source_path":
         receipt["runtime_sources"]["phase_b_contracts"]["path"] = (
             "src/oracle_composition/phase_b/runtime.py"
@@ -242,8 +245,20 @@ def test_adapter_builds_both_plans_from_the_same_verified_study_bytes() -> None:
     assert plans[0].randomization_sha256 == plans[1].randomization_sha256
 
 
-def test_committed_receipt_is_canonical_and_reproducible() -> None:
+def test_committed_receipt_is_canonical_and_retains_predecessor_lineage() -> None:
     encoded = RECEIPT_PATH.read_bytes()
     value = json.loads(encoded)
     assert encoded == canonical_json_bytes(value)
-    assert value == generate_pairing_receipt_v1(STUDY_PATH)
+    assert hashlib.sha256(encoded).hexdigest() == (
+        "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+    )
+    assert validate_pairing_receipt(value) == value
+    assert value["source_study_manifest_sha256"] == (
+        "4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627"
+    )
+    assert value["study_pairing_sha256"] == (
+        "fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0"
+    )
+    assert (
+        hashlib.sha256(STUDY_PATH.read_bytes()).hexdigest() != value["source_study_manifest_sha256"]
+    )

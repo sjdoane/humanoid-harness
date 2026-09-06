@@ -1,4 +1,8 @@
-"""Fail-closed matched-arm manifest for the expert-hold T2 reward study."""
+"""Fail-closed matched-arm manifest for the expert-hold T2 reward study.
+
+Baseline is registry-resolved; the candidate resolver is unit-tested and the
+canonical candidate is TBD.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +26,11 @@ from oracle_composition.phase_b.contracts import (
 )
 
 from .execution_manifest import load_t2_execution_manifest
-from .pairing import PAIRING_ADAPTER_ID, PAIRING_DERIVATION_ID
+from .pairing import (
+    PAIRING_ADAPTER_ID,
+    PAIRING_DERIVATION_ID,
+    validate_pairing_receipt,
+)
 from .t2_evaluator import (
     T2_EVALUATION_SEEDS,
     T2_EVALUATOR_ID,
@@ -34,7 +42,8 @@ from .t2_evaluator import (
 
 STUDY_ID = "t2_reward_study_expert_hold/v1"
 STUDY_MANIFEST_SCHEMA_ID = "t2_reward_study_manifest/v1"
-STUDY_STATUS = "execution_no_go_until_candidate_and_integrated_pairing_receipt_exist"
+STUDY_STATUS = "execution_no_go_until_candidate_is_admitted"
+STUDY_FINAL_READY_STATUS = "final_ready"
 STUDY_EVIDENCE_CLASS = "exploratory_fine_tuning_cycle"
 STUDY_CLAIM_CEILING = (
     "candidate_met_or_did_not_meet_the_preregistered_t2_criterion_in_this_matched_"
@@ -44,6 +53,11 @@ STUDY_CLAIM_CEILING = (
 BASELINE_REWARD_ID = "tracking_only/v1"
 BASELINE_REWARD_SHA256 = "eea2b6a9893e6e4ca5aea5d6787580f12062084e758cc9c27db2f1376bcb1c5f"
 CANDIDATE_REWARD_ID = "target_speed_triangular_affine_t2_adapter/v1"
+INTEGRATED_PAIRING_RECEIPT_PATH = "experiments/004_t2_reward_study/pairing_receipt_v1.json"
+INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT = 9_770
+INTEGRATED_PAIRING_RECEIPT_SHA256 = (
+    "e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259"
+)
 PAIRING_EXCLUDED_ARM_FIELDS = frozenset({"arm_label", "output_path", "reward", "timestamps"})
 _COMMON_ARM_FIELDS = {
     "calibration",
@@ -100,13 +114,19 @@ def _reward_binding(value: object, *, field: str, candidate: bool) -> dict[str, 
     expected_id = CANDIDATE_REWARD_ID if candidate else BASELINE_REWARD_ID
     if value["reward_id"] != expected_id:
         raise T2StudyManifestError(f"{field} reward identity differs")
+    path = Path(value["path"]) if type(value["path"]) is str else Path("/")
+    if value["path"] != "TBD" and (
+        path.is_absolute()
+        or str(path) != value["path"]
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or "\\" in value["path"]
+    ):
+        raise T2StudyManifestError(f"{field} reward path is not canonical relative text")
     if candidate:
         _sha256(value["sha256"], field=f"{field}.sha256", allow_tbd=True)
         if (value["path"] == "TBD") is not (value["sha256"] == "TBD"):
             raise T2StudyManifestError("candidate reward path and digest readiness differ")
-        if value["path"] != "TBD" and (
-            type(value["path"]) is not str or not value["path"] or len(value["path"]) > 512
-        ):
+        if value["path"] != "TBD" and len(value["path"]) > 512:
             raise T2StudyManifestError("candidate reward path is invalid")
     else:
         if (
@@ -224,14 +244,17 @@ def validate_t2_study_manifest(value: Mapping[str, object]) -> dict[str, object]
         value["schema_version"] != 1
         or value["study_id"] != STUDY_ID
         or value["study_manifest_schema_id"] != STUDY_MANIFEST_SCHEMA_ID
-        or value["status"] != STUDY_STATUS
-        or value["integrated_pairing_receipt_sha256"] != "TBD"
+        or value["status"] not in {STUDY_STATUS, STUDY_FINAL_READY_STATUS}
+        or value["integrated_pairing_receipt_sha256"] != INTEGRATED_PAIRING_RECEIPT_SHA256
     ):
         raise T2StudyManifestError("study manifest identity or status differs")
     arms = value["arms"]
     if type(arms) is not list or len(arms) != 2 or any(type(arm) is not dict for arm in arms):
         raise T2StudyManifestError("study manifest requires exactly two arm slots")
     common = validate_t2_study_arm_pair(arms[0], arms[1])
+    candidate_ready = arms[1]["reward"]["sha256"] != "TBD"
+    if (value["status"] == STUDY_FINAL_READY_STATUS) is not candidate_ready:
+        raise T2StudyManifestError("study final-ready state and candidate readiness differ")
     expected_pairing = hashlib.sha256(canonical_json_bytes(common)).hexdigest()
     _sha256(value["study_pairing_sha256"], field="study_pairing_sha256")
     if value["study_pairing_sha256"] != expected_pairing:
@@ -330,6 +353,15 @@ def load_t2_study_manifest(
                 "training_design",
             )
         }
+        pairing_receipt_path = _verify_artifact(
+            root,
+            {
+                "byte_count": INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT,
+                "path": INTEGRATED_PAIRING_RECEIPT_PATH,
+                "sha256": validated["integrated_pairing_receipt_sha256"],
+            },
+            field="integrated pairing receipt",
+        )
         training_encoded = verified["training_design"].read_bytes()
         try:
             training_value = json.loads(training_encoded)
@@ -339,6 +371,14 @@ def load_t2_study_manifest(
             raise T2StudyManifestError("T2 training design is not canonical JSON")
         try:
             validate_training_design(training_value)
+            pairing_receipt_bytes = pairing_receipt_path.read_bytes()
+            try:
+                pairing_receipt_value = json.loads(pairing_receipt_bytes)
+            except (UnicodeError, ValueError) as exc:
+                raise T2StudyManifestError("integrated pairing receipt is not JSON") from exc
+            if canonical_json_bytes(pairing_receipt_value) != pairing_receipt_bytes:
+                raise T2StudyManifestError("integrated pairing receipt is not canonical JSON")
+            validate_pairing_receipt(pairing_receipt_value)
             _oracle, oracle_sha256 = load_phase_b_oracle(
                 verified["oracle"],
                 available_behaviors=("expert", "medium", "simple"),
@@ -399,9 +439,13 @@ __all__ = [
     "BASELINE_REWARD_ID",
     "BASELINE_REWARD_SHA256",
     "CANDIDATE_REWARD_ID",
+    "INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT",
+    "INTEGRATED_PAIRING_RECEIPT_PATH",
+    "INTEGRATED_PAIRING_RECEIPT_SHA256",
     "PAIRING_EXCLUDED_ARM_FIELDS",
     "STUDY_CLAIM_CEILING",
     "STUDY_EVIDENCE_CLASS",
+    "STUDY_FINAL_READY_STATUS",
     "STUDY_ID",
     "STUDY_MANIFEST_SCHEMA_ID",
     "STUDY_STATUS",

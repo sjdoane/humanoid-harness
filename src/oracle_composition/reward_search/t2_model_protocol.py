@@ -16,6 +16,13 @@ from pathlib import Path
 from pydantic import BaseModel
 
 import oracle_composition
+from oracle_composition.reward_study.pairing import validate_pairing_receipt
+from oracle_composition.reward_study.study_manifest import (
+    INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT,
+    INTEGRATED_PAIRING_RECEIPT_PATH,
+    STUDY_STATUS,
+    validate_t2_study_manifest,
+)
 from oracle_composition.rewards.target_speed_formula import (
     FORMULA_ID,
     parse_target_speed_formula_recipe,
@@ -299,6 +306,22 @@ def _validate_t2_seal(encoded: bytes, *, baseline_reward_bytes: bytes) -> T2PreD
     if contents["tracking_only_baseline"] != baseline_reward_bytes:
         raise T2ProtocolError("seal and supplied tracking-only baseline bytes differ")
 
+    pairing_receipt_bytes = _read_sealed_t2_artifact(
+        INTEGRATED_PAIRING_RECEIPT_PATH,
+        byte_count=INTEGRATED_PAIRING_RECEIPT_BYTE_COUNT,
+        sha256=seal.pairing_receipt,
+    )
+    try:
+        pairing_receipt = json.loads(pairing_receipt_bytes)
+    except (UnicodeError, ValueError) as exc:
+        raise T2ProtocolError("sealed T2 pairing receipt is not JSON") from exc
+    if type(pairing_receipt) is not dict or _compact_json(pairing_receipt) != pairing_receipt_bytes:
+        raise T2ProtocolError("sealed T2 pairing receipt is not canonical JSON")
+    try:
+        validate_pairing_receipt(pairing_receipt)
+    except ValueError as exc:
+        raise T2ProtocolError("sealed T2 integrated pairing receipt is invalid") from exc
+
     manifest_bytes = contents["study_manifest"]
     try:
         manifest = json.loads(manifest_bytes)
@@ -306,14 +329,20 @@ def _validate_t2_seal(encoded: bytes, *, baseline_reward_bytes: bytes) -> T2PreD
         raise T2ProtocolError("sealed T2 study manifest is not JSON") from exc
     if type(manifest) is not dict or _compact_json(manifest) != manifest_bytes:
         raise T2ProtocolError("sealed T2 study manifest is not canonical JSON")
+    try:
+        validate_t2_study_manifest(manifest)
+    except ValueError as exc:
+        raise T2ProtocolError("sealed T2 study manifest contract differs") from exc
+    candidate_reward = manifest["arms"][1].get("reward")
     if (
-        manifest.get("schema_version") != 1
-        or manifest.get("study_id") != seal.study_id
-        or manifest.get("study_manifest_schema_id") != "t2_reward_study_manifest/v1"
-        or manifest.get("status")
-        != "execution_no_go_until_candidate_and_integrated_pairing_receipt_exist"
-        or manifest.get("integrated_pairing_receipt_sha256") != "TBD"
+        manifest.get("study_id") != seal.study_id
+        or manifest.get("status") != STUDY_STATUS
+        or manifest.get("integrated_pairing_receipt_sha256") != seal.pairing_receipt
         or manifest.get("study_pairing_sha256") != seal.study_pairing_sha256
+        or type(candidate_reward) is not dict
+        or candidate_reward.get("path") != "TBD"
+        or candidate_reward.get("sha256") != "TBD"
+        or seal.dispatch_state != "withheld_pending_dispatch_verdict"
     ):
         raise T2ProtocolError("sealed T2 study manifest identity or pending state differs")
     arms = manifest.get("arms")
