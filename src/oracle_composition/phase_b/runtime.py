@@ -57,7 +57,7 @@ from .policy import (
     load_full_authority_actor,
 )
 from .reference_runtime import ComposedReferenceRuntime, load_v2_reference_clip
-from .reward import compose_tracking_only_reward
+from .reward import compose_registered_reward
 from .task_input_admission import MEASUREMENT_ORIGIN, admit_task_inputs_v2
 from .training import (
     BEHAVIORS,
@@ -522,7 +522,7 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
             control_period_s=0.015,
         )
         state = tracking_state(self.base, self.abi)
-        reward = compose_tracking_only_reward(
+        reward = compose_registered_reward(
             state=state,
             hidden_reference_target=target,
             ignored_stock_reward=float(stock_reward),

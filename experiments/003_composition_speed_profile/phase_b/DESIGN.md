@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | FT2R1 closes the FT1/E003R1 training-admission findings: live-source E1 replay, exact optimizer receipts, certified task inputs, a reviewed execution seal, bounded actor reload, trace-derived protected metrics, strict designer provenance, and an executable disjoint calibration contract. No training ran. |
-| bottleneck | No calibration receipt, disposable smoke, cohort, or protected utility evaluation exists. Interface checks do not establish numeric-reference use, transition success, oracle or reward improvement, or humanoid competence. |
-| next step | Fable reviews and commits FT2R1. Calibration data must be collected and frozen before task-success evaluation; any later smoke still requires its own accepted mailbox reservation. |
+| progress | FT2R2 closes the FT2 scientific-integrity findings: evaluator-owned trace replay, full evaluation lineage and supervision, non-scoring uncalibrated endpoints, rollout-time likelihood audit, complete report-v2 semantics, mailbox-bound reservations, bounded loaders, production-only cohort authority, and the reviewed F2 registry entry. No training ran. |
+| bottleneck | FT2R3 still owns runtime isolation, bounded training IPC, RSI-ledger fail-closed behavior, and mechanism-level resource and cleanup negatives. No calibration receipt, disposable smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
+| next step | Fable reviews and commits FT2R2, then runs FT2R3 and the combined re-review. Do not run the smoke before both repair slices and re-review; calibration remains required for scoring task success. |
 
 ## Frozen artifacts
 
@@ -67,7 +67,7 @@ This is a reference-row comparison, not evidence that the simulator survives eit
 | Training reward | `r_train = r_track + r_task`; baseline `r_task = +0.0` |
 | Stock Humanoid reward | named telemetry only; never added to training reward |
 | CandidateTaskInputsV2 | adapter-certified built-in float from the stock body-mass-weighted COM-x delta, inclusive `[-25,25] m/s`, and exact `0.015 s` cadence; Astra's reviewed `task_inputs_v2.py` bytes remain unchanged |
-| Registry | exact schema, formula, parser, bounds, and compositor hashes; only `tracking_only/v1` admitted in FT1 |
+| Registry | exact schema, formula, parser, bounds, and compositor hashes; `tracking_only/v1` remains the baseline and the reviewed F2 T2 adapter is registered for later bounded reward candidates |
 | Report | `humanoid_composition_cycle_report/v2`, a backward-shaped report-v1 superset with separate input, policy, training, reference, reward, episode, summary, and integrity evidence |
 
 ## Claim ceiling
@@ -84,10 +84,10 @@ or reward candidate ran.
 |---|---|
 | Worker | CPU PPO with the frozen recipe, tanh-corrected likelihood, four `DummyVecEnv` environments, exact final-transition counting, eight-rollout reference-column/value-only stage, and full-actor unfreeze thereafter |
 | Streams | Environment indices `0,1` are composition and `2,3` are rehearsal, giving exact `50/50` counted transitions; the shared SHA-ranked RSI scheduler covers the 27 block-origin cells and executes uncounted predecessor restoration |
-| Supervision | Source/runtime inspection, FT1 and E003R1 manifest bindings, two-phase construction ACK, serial seeds, wall/RSS/disk/output/throughput gates, process-group cleanup, and one immutable success or failure receipt per seed |
-| Persistence | One final full checkpoint and strict actor export per successful seed, no-overwrite publication, strict canonical reload, frozen-fixture bitwise inference, checkpoint/export equivalence, and a five-seed cohort index |
-| Report v2 | Deterministic scientific receipt chained to E003R1; separate host/wall/resource telemetry; per-seed training facts; protected speed, tracking, safety, switch, resynchronization, task-success, and utility-gate fields |
-| CLI | `train` performs complete preflight before construction; `evaluate-policy` runs the three hold cells and fixed round trip for a stored checkpoint and the step-0 actor on the same 20 blocks |
+| Supervision | Source/runtime inspection, FT1 and E003R1 manifest bindings, authoritative mailbox acceptance plus acknowledgment, exact canonical argv, reservation-derived deadlines, two-phase construction ACK, serial seeds, wall/RSS/disk/output/throughput gates, process-group cleanup, and one immutable success or failure receipt per seed |
+| Persistence | One final full checkpoint and strict actor export per successful seed; fixed member sets and order, manual NPY-v1 schema checks before allocation, per-member and total expansion caps, no-overwrite publication, frozen-fixture bitwise inference, checkpoint/export equivalence, and a production-only five-seed cohort index |
+| Report v2 | Deterministic scientific receipt chained to E003R1; manifest- and RSI-byte-bound training-facts validation; explicit missing evidence; side-by-side trained and step-zero summaries; reload-time summary recomputation; separate host/wall/resource telemetry |
+| CLI | `train` performs complete preflight before construction; `evaluate-policy` first validates all five cohort chains and executed evaluator sources, then runs the three hold cells and fixed round trip for a stored checkpoint and the step-0 actor under bounded worker supervision |
 
 Training admission replays E1 and semantically parses the task, library,
 reference corpus, evaluator, training design, oracle, reward, and starting
@@ -101,10 +101,46 @@ the exact Cartesian split of blocks `120201`-`120220` and policy seeds
 `122001,122101,122201,122301,122401`, disjoint from training and evaluation.
 It freezes higher empirical 95th-percentile segment bands, two censored
 transition-latency caps, and a settled-state band with declared margins. The
-evaluator rejects a missing or mismatched receipt before loading a checkpoint.
-Reports retain a 20-episode exact binomial interval per checkpoint and paired
-candidate-minus-step-zero effects by PPO seed; they never report pooled
-`n = 100` task success.
+evaluator validates a supplied receipt before loading a checkpoint. Without a
+frozen calibration receipt, task-success successes, total, proportion, and
+interval are all `null` and explicitly non-scoring. With one, an episode
+succeeds only when safety, all three segment tolerances, and both transition
+latency bounds pass. Reports retain a 20-episode exact binomial interval per
+checkpoint and paired candidate-minus-step-zero effects by PPO seed; they never
+pool episodes across checkpoints or report pooled `n = 100` task success.
+
+## FT2R2 integrity boundary
+
+| finding | implemented repair |
+|---|---|
+| FT2-SCI-01 | Evaluator-owned pure calculations consume direct simulator state and exact reference rows. A canonical sufficient trace binds state fields, reference-row identity, and actions; every protected metric is recomputed from that trace without importing reward helpers. |
+| FT2-SCI-02, ADV-05 | `evaluate-policy` validates the complete five-checkpoint production chain, current preflight, execution manifest, RSI ledger, receipts, and actual evaluator source realpaths and digests before output or model/environment construction. A bounded worker accounts atomically for all 160 planned episodes. |
+| FT2-SCI-03 | Missing calibration is explicit non-scoring evidence. Calibrated success is conjunctive over safety, three segment tolerances, and two latency bounds, with checkpoint-level exact intervals and PPO-seed-paired effects only. |
+| FT2-SCI-04 | Every PPO update first audits sampled rollout `old_log_prob` values against the stored rollout-time distribution snapshot. The receipt binds sample identity and snapshot; staged unfreeze and truncation/termination GAE semantics have positive and negative regressions. |
+| FT2-SCI-05, ADV-08 | Report v2 validates manifest- and ledger-bound training facts, labels absent evidence as missing, preserves the interface-only claim, shows trained and step-zero summaries side by side, and recomputes both report and production-cohort summaries on reload. |
+| FT2-SCI-06, ADV-01 | A reservation is accepted only through a digest-bound native mailbox acceptance record and acknowledgment. Owner, canonical argv, mode, commit, input hashes, output, proposal, authorizer, validity window, and derived deadline are checked before output creation and again immediately before spawn. |
+| FT2-SCI-08, ADV-06 | Actor and full-checkpoint loaders accept fixed member sets and order only, validate NPY-v1 headers manually before allocation, and enforce member-count, per-member, and aggregate expansion caps with bounded streaming. |
+
+The F2 registry entry binds
+`target_speed_triangular_affine_t2_adapter/v1` to evaluator SHA-256
+`064393887bb4a7157d614981cc2000940252e12c31ad0aabc13109737fd94301`,
+`target_speed_triangular_affine_recipe/v1` and
+`parse_target_speed_formula_recipe` to parser SHA-256
+`c60dea03e6f0e71b81875fea59c84bd8fe00ce39f94ac7c54ca6e2a57360dccb`,
+the exact 137-byte canonical bounds object to SHA-256
+`2c6030264231a52320a44fe0f4d4ed519bc2e635b892f1b9c0d8929166106933`,
+task-input source SHA-256
+`9607f2d56a54922eac06ec7fcc740b79e68d4ed9e88b192602aae2900fb3f0d2`,
+output envelope `[-10, 15]`, compositor
+`tracking_plus_task_stock_telemetry/v1`, and mandatory consumption of the FT2R1
+velocity-admission certificate. Candidate specifications carry flat `alpha`
+and `beta` parameters within those bounds and evidence class
+`exploratory_fine_tuning_cycle`; registering F2 is not evidence that a candidate
+ran.
+
+Handoff edits are committed in Fable's integration commits by design. FT2R2
+therefore changes the handoff record but makes no code change for FT2-SCI-09
+beyond documenting that integration boundary.
 
 The fake runtime exercises the real worker process, supervisor, persistence,
 report writer, and CLI. It is controlled software evidence, not simulator or
@@ -112,7 +148,7 @@ policy-performance evidence. The real checks are limited to the FT1 200-step
 step-0 path and one certified predecessor reconstruction followed by one
 counted step.
 
-## Commands (documented, not executed by FT2)
+## Commands (documented, not executed by FT2R2)
 
 Disposable interface-check smoke:
 
@@ -181,11 +217,13 @@ conflict_check=no other heavy repository job
 authorization=<accepted proposal id plus Samuel authorization id>
 ```
 
-The CLI consumes a canonical JSON translation with separate `hard_wall` and
-`per_seed_wall` fields, `schema_version: 1`, `accepted: true`, and
-`proposal_id`. It verifies the exact source/input ledger and clean commit,
-requires the output and work declaration to match the selected smoke or cohort,
-and seals the accepted reservation into the execution manifest. The smoke uses
-`work=1 seed; 196,608 counted transitions; 4 DummyVecEnv`,
-`expected_wall=3m`, and `hard_wall=20m`; all other fixed resource declarations
-remain unchanged.
+The CLI consumes reservation schema v2, whose digest binds the authoritative
+native-mailbox acceptance message and its acknowledgment. It compares owner,
+exact canonical argv, mode, clean commit, source/input hashes, fresh absolute
+output, proposal ID, and required authorizer field by field; rejects stale or
+unrecognized records; and repeats conflict and validity checks immediately
+before worker spawn. The accepted reservation supplies the enforced deadlines:
+the smoke uses `work=1 seed; 196,608 counted transitions; 4 DummyVecEnv`,
+`expected_wall=3m`, and a hard total and per-seed wall of `20m`, never the
+cohort's `22m` per-seed default. All other fixed resource declarations remain
+unchanged.

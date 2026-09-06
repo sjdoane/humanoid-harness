@@ -7,14 +7,17 @@ import json
 import multiprocessing
 import os
 import platform
+import re
 import resource
 import shutil
 import signal
+import stat
 import subprocess
 import time
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from enum import StrEnum
 from multiprocessing.connection import Connection
 from pathlib import Path
@@ -75,6 +78,9 @@ WORKER_ACK_TIMEOUT_SECONDS = 30.0
 POLL_SECONDS = 0.05
 TERMINATION_GRACE_SECONDS = 2.0
 KILL_GRACE_SECONDS = 2.0
+MAILBOX_MESSAGE_ID = re.compile(r"^\d{8}T\d{6}\.\d{6}Z-[0-9a-f]{32}$")
+MAILBOX_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$")
+MAILBOX_AGENTS = frozenset(("astra", "fable"))
 
 
 class SupervisorStatus(StrEnum):
@@ -375,8 +381,14 @@ def validate_reservation(
     smoke: bool,
     output_directory: Path,
     test_only: bool,
+    repository_root: Path | None = None,
+    canonical_argv: Sequence[str] | None = None,
+    current_commit: str | None = None,
+    expected_inputs: Mapping[str, object] | None = None,
+    now: datetime | None = None,
+    mailbox_root: Path | None = None,
 ) -> dict[str, object]:
-    """Require an explicit accepted reservation before a training worker exists."""
+    """Bind a reservation to its authoritative mailbox acceptance and acknowledgment."""
 
     if test_only:
         if reservation is None:
@@ -386,61 +398,238 @@ def validate_reservation(
         raise ExperimentContractError("training requires an accepted mailbox reservation")
     required = {
         "accepted",
-        "authorization",
-        "command",
+        "acceptance_message",
+        "accepted_until_utc",
+        "acknowledgment",
+        "canonical_argv",
         "commit",
         "conflict_check",
-        "disk_free_preflight",
-        "expected_wall",
-        "hard_wall",
+        "hard_wall_seconds",
         "inputs",
+        "mode",
         "output",
-        "output_cap",
         "owner",
-        "per_seed_wall",
         "proposal_id",
-        "rss_hard",
+        "required_authorizer",
         "schema_version",
-        "throughput_floor",
-        "work",
     }
     if (
         set(reservation) != required
-        or reservation["schema_version"] != 1
+        or reservation["schema_version"] != 2
         or reservation["accepted"] is not True
+        or type(reservation["accepted_until_utc"]) is not str
+        or MAILBOX_TIMESTAMP.fullmatch(reservation["accepted_until_utc"]) is None
     ):
         raise ExperimentContractError("mailbox reservation is missing or not accepted")
-    if reservation["conflict_check"] != "no other heavy repository job":
-        raise ExperimentContractError("mailbox reservation conflict check differs")
     if Path(str(reservation["output"])).resolve() != Path(output_directory).resolve():
         raise ExperimentContractError("mailbox reservation output differs")
-    expected_work = (
-        "1 seed; 196,608 counted transitions; 4 DummyVecEnv"
-        if smoke
-        else ("5 seeds; 5,242,880 counted transitions; serial seeds; 4 DummyVecEnv")
-    )
-    if reservation["work"] != expected_work:
-        raise ExperimentContractError("mailbox reservation work declaration differs")
-    expected_limits = {
-        "disk_free_preflight": "20GiB",
-        "output_cap": "8GiB",
-        "per_seed_wall": "22m",
-        "rss_hard": "8GiB",
-        "throughput_floor": "800 steps/s after 65,536 transitions",
-    }
-    if any(reservation[name] != value for name, value in expected_limits.items()):
-        raise ExperimentContractError("mailbox reservation resource declaration differs")
-    if reservation["expected_wall"] != ("3m" if smoke else "106m") or reservation["hard_wall"] != (
-        "20m" if smoke else "120m"
-    ):
-        raise ExperimentContractError("mailbox reservation wall declaration differs")
-    for name in ("owner", "command", "commit", "proposal_id", "authorization"):
+    if reservation["mode"] != ("smoke" if smoke else "cohort"):
+        raise ExperimentContractError("mailbox reservation mode differs")
+    if reservation["hard_wall_seconds"] != (1_200 if smoke else 7_200):
+        raise ExperimentContractError("mailbox reservation hard deadline differs")
+    if reservation["conflict_check"] != "no_other_heavy_repository_job":
+        raise ExperimentContractError("mailbox reservation conflict declaration differs")
+    for name in ("owner", "commit", "proposal_id", "required_authorizer"):
         if type(reservation[name]) is not str or not reservation[name].strip():
             raise ExperimentContractError(f"mailbox reservation {name} is empty")
     inputs = reservation["inputs"]
     if type(inputs) is not dict or not inputs:
         raise ExperimentContractError("mailbox reservation input ledger is empty")
+    argv = reservation["canonical_argv"]
+    if (
+        type(argv) is not list
+        or not argv
+        or any(type(item) is not str or not item for item in argv)
+    ):
+        raise ExperimentContractError("mailbox reservation canonical argv is malformed")
+    if canonical_argv is not None and argv != list(canonical_argv):
+        raise ExperimentContractError("mailbox reservation command differs")
+    if current_commit is not None and reservation["commit"] != current_commit:
+        raise ExperimentContractError("mailbox reservation commit differs")
+    if expected_inputs is not None and inputs != dict(expected_inputs):
+        raise ExperimentContractError("mailbox reservation input ledger differs")
+
+    root = (
+        Path(repository_root).resolve(strict=True)
+        if repository_root is not None
+        else Path(__file__).resolve().parents[3]
+    )
+    if mailbox_root is None:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        mailbox = Path(common).resolve(strict=True) / "harness-coordination"
+    else:
+        mailbox = Path(mailbox_root).resolve(strict=True)
+
+    def authority_file(record: object, directory: str) -> tuple[Path, dict[str, object], bytes]:
+        if type(record) is not dict or set(record) != {"path", "sha256"}:
+            raise ExperimentContractError("mailbox authority binding is malformed")
+        raw_path = Path(str(record["path"]))
+        path = raw_path if raw_path.is_absolute() else mailbox / raw_path
+        path = Path(os.path.abspath(path))
+        try:
+            relative = path.relative_to(mailbox)
+            before = path.lstat()
+        except (OSError, ValueError) as exc:
+            raise ExperimentContractError("mailbox authority artifact is unavailable") from exc
+        if relative.parent.as_posix() != directory or path.suffix != ".json":
+            raise ExperimentContractError("mailbox authority path differs")
+        if (
+            stat.S_ISLNK(before.st_mode)
+            or not stat.S_ISREG(before.st_mode)
+            or before.st_size > 64 * 1024
+        ):
+            raise ExperimentContractError("mailbox authority artifact is not bounded regular data")
+        encoded = path.read_bytes()
+        after = path.lstat()
+        if any(
+            getattr(before, field) != getattr(after, field)
+            for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        ):
+            raise ExperimentContractError("mailbox authority artifact changed while read")
+        if hashlib.sha256(encoded).hexdigest() != record["sha256"]:
+            raise ExperimentContractError("mailbox authority artifact digest differs")
+        try:
+            value = json.loads(encoded)
+        except (UnicodeError, ValueError) as exc:
+            raise ExperimentContractError("mailbox authority artifact is malformed") from exc
+        if type(value) is not dict:
+            raise ExperimentContractError("mailbox authority artifact is malformed")
+        return path, value, encoded
+
+    message_path, message, _message_bytes = authority_file(
+        reservation["acceptance_message"], "messages"
+    )
+    ack_path, acknowledgment, _ack_bytes = authority_file(reservation["acknowledgment"], "acks")
+    message_id = message_path.stem
+    message_fields = {
+        "body",
+        "from",
+        "id",
+        "kind",
+        "reply_to",
+        "schema_version",
+        "sent_at",
+        "subject",
+        "to",
+    }
+    if (
+        set(message) != message_fields
+        or message.get("schema_version") != 1
+        or MAILBOX_MESSAGE_ID.fullmatch(message_id) is None
+        or MAILBOX_MESSAGE_ID.fullmatch(str(reservation["proposal_id"])) is None
+        or message.get("id") != message_id
+        or message.get("kind") != "acceptance"
+        or message.get("reply_to") != reservation["proposal_id"]
+        or message.get("from") != reservation["required_authorizer"]
+        or message.get("from") not in MAILBOX_AGENTS
+        or message.get("to") not in MAILBOX_AGENTS
+        or message.get("from") == message.get("to")
+        or type(message.get("subject")) is not str
+        or not message["subject"]
+        or type(message.get("body")) is not str
+        or len(message["body"].encode("utf-8")) > 32 * 1024
+        or type(message.get("sent_at")) is not str
+        or MAILBOX_TIMESTAMP.fullmatch(message["sent_at"]) is None
+    ):
+        raise ExperimentContractError("reservation acceptance authorizer or message differs")
+    authoritative = {
+        field: reservation[field]
+        for field in (
+            "accepted_until_utc",
+            "canonical_argv",
+            "commit",
+            "conflict_check",
+            "hard_wall_seconds",
+            "inputs",
+            "mode",
+            "output",
+            "owner",
+            "proposal_id",
+            "required_authorizer",
+        )
+    }
+    try:
+        body_value = json.loads(message["body"])
+    except (TypeError, ValueError) as exc:
+        raise ExperimentContractError("reservation acceptance body is not JSON") from exc
+    if (
+        type(body_value) is not dict
+        or body_value != authoritative
+        or canonical_json_bytes(body_value).decode("utf-8") != message["body"]
+    ):
+        raise ExperimentContractError("reservation and authoritative acceptance differ")
+    if (
+        set(acknowledgment)
+        != {"acknowledged_at", "meaning", "message_id", "recipient", "schema_version"}
+        or acknowledgment.get("schema_version") != 1
+        or ack_path.name != f"{message_id}.json"
+        or acknowledgment.get("message_id") != message_id
+        or acknowledgment.get("recipient") != message.get("to")
+        or acknowledgment.get("meaning") != "read_not_agreement"
+        or type(acknowledgment.get("acknowledged_at")) is not str
+        or MAILBOX_TIMESTAMP.fullmatch(acknowledgment["acknowledged_at"]) is None
+    ):
+        raise ExperimentContractError("reservation acknowledgment differs")
+    try:
+        expiry = datetime.fromisoformat(
+            str(reservation["accepted_until_utc"]).replace("Z", "+00:00")
+        )
+        sent_at = datetime.fromisoformat(message["sent_at"].replace("Z", "+00:00"))
+        acknowledged_at = datetime.fromisoformat(
+            acknowledgment["acknowledged_at"].replace("Z", "+00:00")
+        )
+    except ValueError as exc:
+        raise ExperimentContractError("reservation deadline is malformed") from exc
+    current = now or datetime.now(UTC)
+    if (
+        expiry.tzinfo is None
+        or current.tzinfo is None
+        or not sent_at <= acknowledged_at <= current < expiry
+        or expiry <= sent_at
+    ):
+        raise ExperimentContractError("mailbox reservation is stale")
     return dict(reservation)
+
+
+def limits_bound_by_reservation(
+    limits: ResourceLimits,
+    reservation: Mapping[str, object],
+) -> ResourceLimits:
+    """Derive all wall limits from the authoritative reservation hard deadline."""
+
+    hard = reservation.get("hard_wall_seconds")
+    if type(hard) not in {int, float} or hard <= 0:
+        raise ExperimentContractError("reservation hard deadline is invalid")
+    deadline = float(hard)
+    return replace(
+        limits,
+        per_seed_wall_seconds=min(limits.per_seed_wall_seconds, deadline),
+        cohort_wall_seconds=min(limits.cohort_wall_seconds, deadline),
+        job_wall_seconds=min(limits.job_wall_seconds, deadline),
+    )
+
+
+def _assert_no_conflicting_training_process() -> None:
+    result = subprocess.run(
+        ["ps", "-axo", "pid=,command="],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    own_pid = os.getpid()
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(maxsplit=1)
+        if len(fields) != 2 or not fields[0].isdigit() or int(fields[0]) == own_pid:
+            continue
+        command = fields[1]
+        if "oracle_composition.harness.cycle_cli" in command and " train " in f" {command} ":
+            raise ExperimentContractError("another heavy Phase B training process is active")
 
 
 def _fresh_output(path: Path) -> Path:
@@ -467,7 +656,9 @@ def _execution_manifest_value(
     return {
         "checkpoint_selection": "final_transition_only",
         "e003_execution_manifest_sha256": preflight.e003_execution_manifest_sha256,
-        "evidence_class": "interface_check" if smoke else "exploratory_fine_tuning_cycle",
+        "evidence_class": (
+            "interface_check" if smoke or test_only else "exploratory_fine_tuning_cycle"
+        ),
         "execution_manifest_schema_id": EXECUTION_MANIFEST_SCHEMA_ID,
         "ft1_run_manifest_sha256": preflight.template_manifest_sha256,
         "inputs": dict(preflight.report_inputs),
@@ -737,6 +928,7 @@ def _failure_receipt(
     value = {
         "cleanup_succeeded": cleanup_succeeded,
         "evidence_class": plan.evidence_class,
+        "execution_manifest_sha256": plan.manifest_sha256,
         "failure_receipt_id": SEED_FAILURE_RECEIPT_ID,
         "last_acknowledged_stage": last_stage,
         "outcome": "failure",
@@ -744,6 +936,7 @@ def _failure_receipt(
         "ppo_seed": plan.seed,
         "reason": reason[:1000],
         "schema_version": 1,
+        "smoke": plan.smoke,
         "status": status.value,
         "success_receipt_present": False,
     }
@@ -767,14 +960,17 @@ def _success_receipt(
             "training_facts": payload["training_facts"],
         },
         "evidence_class": plan.evidence_class,
+        "execution_manifest_sha256": plan.manifest_sha256,
         "failure_receipt_present": False,
         "outcome": "success",
         "planned_transitions": plan.transitions,
         "ppo_seed": plan.seed,
         "promotable": plan.promotable,
         "schema_version": 1,
+        "smoke": plan.smoke,
         "status": SupervisorStatus.SUCCEEDED.value,
         "success_receipt_id": SEED_SUCCESS_RECEIPT_ID,
+        "test_only": plan.test_only,
     }
     artifact = publish_bytes_without_overwrite(
         directory / "success_receipt_v1.json",
@@ -1149,6 +1345,8 @@ def _supervise_seed(
         strict_export_sha256=persistence.strict_export.sha256,
         training=MappingProxyType(dict(terminal_payload["training_facts_value"])),
         step_zero_comparator=MappingProxyType(dict(terminal_payload["step_zero_comparator"])),
+        execution_manifest_bytes=execution_manifest_bytes,
+        rsi_ledger_bytes=(seed_directory / "rsi_ledger_v1.json").read_bytes(),
     )
     return SeedOutcome(
         plan.seed,
@@ -1196,6 +1394,7 @@ def supervise_training_job(
     test_batch_size: int = 512,
     test_n_epochs: int = 10,
     failure_mode: str | None = None,
+    canonical_argv: Sequence[str] | None = None,
 ) -> SupervisionResult:
     """Supervise serial seeds and account for every declared unit on failure."""
 
@@ -1236,26 +1435,28 @@ def supervise_training_job(
         for seed in declared
     )
     output_path = Path(os.path.abspath(output_directory))
+    expected_reservation_inputs = {
+        **dict(preflight.report_inputs),
+        "e003_execution_manifest_sha256": preflight.e003_execution_manifest_sha256,
+        "ft1_run_manifest_sha256": preflight.template_manifest_sha256,
+        "prior_scientific_receipt_sha256": preflight.prior_scientific_receipt_sha256,
+        "runtime_source_snapshot_sha256": preflight.source_snapshot.sha256,
+    }
+    git_value = preflight.source_snapshot.value["git"]
+    if not test_only and canonical_argv is None:
+        raise ExperimentContractError("production training requires canonical argv authority")
     accepted = validate_reservation(
         reservation,
         smoke=smoke,
         output_directory=output_path,
         test_only=test_only,
+        repository_root=preflight.repository_root,
+        canonical_argv=canonical_argv,
+        current_commit=str(git_value["commit"]),
+        expected_inputs=expected_reservation_inputs,
     )
     if not test_only:
-        expected_reservation_inputs = {
-            **dict(preflight.report_inputs),
-            "e003_execution_manifest_sha256": preflight.e003_execution_manifest_sha256,
-            "ft1_run_manifest_sha256": preflight.template_manifest_sha256,
-            "prior_scientific_receipt_sha256": preflight.prior_scientific_receipt_sha256,
-            "runtime_source_snapshot_sha256": preflight.source_snapshot.sha256,
-        }
-        git_value = preflight.source_snapshot.value["git"]
-        if (
-            accepted["inputs"] != expected_reservation_inputs
-            or accepted["commit"] != git_value["commit"]
-        ):
-            raise ExperimentContractError("mailbox reservation source or input ledger differs")
+        selected_limits = limits_bound_by_reservation(selected_limits, accepted)
     if shutil.disk_usage(output_path.parent).free < selected_limits.free_disk_bytes:
         raise ExperimentContractError("free disk is below the 20 GiB preflight gate")
     output = _fresh_output(output_path)
@@ -1320,6 +1521,18 @@ def supervise_training_job(
                 )
             )
             continue
+        if not test_only:
+            validate_reservation(
+                accepted,
+                smoke=smoke,
+                output_directory=output_path,
+                test_only=False,
+                repository_root=preflight.repository_root,
+                canonical_argv=canonical_argv,
+                current_commit=str(git_value["commit"]),
+                expected_inputs=expected_reservation_inputs,
+            )
+            _assert_no_conflicting_training_process()
         outcome = _supervise_seed(
             plan=plan,
             seed_directory=output / f"seed_{seed}",
@@ -1344,15 +1557,8 @@ def supervise_training_job(
         )
     )
     persistence = [outcome.persistence for outcome in outcomes if outcome.persistence is not None]
-    checkpoint_index = (
-        publish_checkpoint_index(output_directory=output, entries=persistence)
-        if overall == SupervisorStatus.SUCCEEDED and not smoke and not test_only
-        else None
-    )
     job_value = {
-        "checkpoint_index": (
-            _artifact_record(checkpoint_index) if checkpoint_index is not None else None
-        ),
+        "checkpoint_index": None,
         "execution_manifest_sha256": manifest.sha256,
         "job_result_schema_id": JOB_RESULT_SCHEMA_ID,
         "outcomes": [
@@ -1370,6 +1576,17 @@ def supervise_training_job(
         output / "job_result_v1.json",
         canonical_json_bytes(job_value),
     )
+    checkpoint_index = (
+        publish_checkpoint_index(
+            output_directory=output,
+            entries=persistence,
+            success_receipts=[outcome.receipt for outcome in outcomes],
+            execution_manifest=manifest,
+            job_result=job_result,
+        )
+        if overall == SupervisorStatus.SUCCEEDED and not smoke and not test_only
+        else None
+    )
     return SupervisionResult(overall, tuple(outcomes), job_result, checkpoint_index, manifest)
 
 
@@ -1382,6 +1599,7 @@ __all__ = [
     "TrainingPreflight",
     "cleanup_worker_process",
     "inspect_runtime_sources",
+    "limits_bound_by_reservation",
     "supervise_training_job",
     "validate_reservation",
     "validate_training_preflight",

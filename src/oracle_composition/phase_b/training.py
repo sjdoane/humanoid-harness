@@ -40,7 +40,7 @@ TRAINING_WORKER_ID = "humanoid_phase_b_ppo_worker/v2"
 PPO_RECIPE_ID = "humanoid_phase_b_ppo_recipe/v1"
 RSI_SCHEDULER_ID = "sha256_balanced_predecessor_rsi/v1"
 UNFREEZE_SCHEDULE_ID = "reference_columns_and_value_first_8_rollouts/v1"
-LIKELIHOOD_AUDIT_ID = "tanh_corrected_rollout_likelihood_audit/v1"
+LIKELIHOOD_AUDIT_ID = "tanh_corrected_rollout_likelihood_audit/v2"
 
 COHORT_SEEDS = (121001, 121101, 121201, 121301, 121401)
 SMOKE_SEED = 121901
@@ -472,6 +472,8 @@ class _Rollout:
     observations: np.ndarray
     pre_tanh: np.ndarray
     old_log_prob: np.ndarray
+    rollout_mean: np.ndarray
+    rollout_log_std: np.ndarray
     rewards: np.ndarray
     dones: np.ndarray
     values: np.ndarray
@@ -481,18 +483,102 @@ class _Rollout:
 
 @dataclass(frozen=True, slots=True)
 class LikelihoodAudit:
+    rollout_index: int
     sample_count: int
+    sample_indices_sha256: str
+    observation_sample_sha256: str
+    pre_tanh_sample_sha256: str
+    old_log_prob_sample_sha256: str
+    distribution_snapshot_sha256: str
     maximum_absolute_difference: float
     passed: bool
 
     def to_dict(self) -> dict[str, object]:
         return {
             "audit_id": LIKELIHOOD_AUDIT_ID,
+            "audit_stage": "before_any_update_for_rollout",
+            "distribution_snapshot_sha256": self.distribution_snapshot_sha256,
             "maximum_absolute_difference": self.maximum_absolute_difference,
+            "observation_sample_sha256": self.observation_sample_sha256,
+            "old_log_prob_sample_sha256": self.old_log_prob_sample_sha256,
             "passed": self.passed,
+            "pre_tanh_sample_sha256": self.pre_tanh_sample_sha256,
+            "rollout_index": self.rollout_index,
             "sample_count": self.sample_count,
+            "sample_indices_sha256": self.sample_indices_sha256,
             "tolerance": LIKELIHOOD_TOLERANCE,
         }
+
+
+def compute_truncation_aware_gae(
+    *,
+    rewards: np.ndarray,
+    dones: np.ndarray,
+    truncations: np.ndarray,
+    terminal_values: np.ndarray,
+    values: np.ndarray,
+    last_values: np.ndarray,
+    gamma: float,
+    gae_lambda: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute GAE with terminal values used only for time-limit truncations."""
+
+    raw_rewards = np.asarray(rewards)
+    done_flags = np.asarray(dones)
+    truncation_flags = np.asarray(truncations)
+    terminal = np.asarray(terminal_values)
+    estimates = np.asarray(values)
+    final_estimates = np.asarray(last_values)
+    if (
+        raw_rewards.dtype.str != "<f4"
+        or estimates.dtype.str != "<f4"
+        or terminal.dtype.str != "<f4"
+        or done_flags.dtype != np.dtype(np.bool_)
+        or truncation_flags.dtype != np.dtype(np.bool_)
+        or raw_rewards.ndim != 2
+        or estimates.shape != raw_rewards.shape
+        or terminal.shape != raw_rewards.shape
+        or done_flags.shape != raw_rewards.shape
+        or truncation_flags.shape != raw_rewards.shape
+        or final_estimates.dtype.str != "<f4"
+        or final_estimates.shape != (raw_rewards.shape[1],)
+        or not all(
+            np.isfinite(value).all()
+            for value in (raw_rewards, terminal, estimates, final_estimates)
+        )
+        or np.any(truncation_flags & ~done_flags)
+        or type(gamma) is not float
+        or type(gae_lambda) is not float
+        or not 0.0 < gamma <= 1.0
+        or not 0.0 < gae_lambda <= 1.0
+    ):
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "truncation-aware GAE inputs differ from the rollout contract",
+        )
+    adjusted_rewards = np.ascontiguousarray(
+        raw_rewards + np.float32(gamma) * terminal * truncation_flags.astype("<f4"),
+        dtype="<f4",
+    )
+    advantages = np.zeros_like(adjusted_rewards, dtype="<f4")
+    last_gae = np.zeros(raw_rewards.shape[1], dtype="<f4")
+    for index in reversed(range(raw_rewards.shape[0])):
+        next_nonterminal = np.float32(1.0) - done_flags[index].astype("<f4")
+        next_value = final_estimates if index == raw_rewards.shape[0] - 1 else estimates[index + 1]
+        delta = (
+            adjusted_rewards[index]
+            + np.float32(gamma) * next_value * next_nonterminal
+            - estimates[index]
+        )
+        last_gae = delta + (np.float32(gamma * gae_lambda) * next_nonterminal * last_gae)
+        advantages[index] = last_gae
+    returns = np.ascontiguousarray(advantages + estimates, dtype="<f4")
+    if not all(np.isfinite(value).all() for value in (adjusted_rewards, advantages, returns)):
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.NON_FINITE,
+            "truncation-aware GAE became NaN or Inf",
+        )
+    return adjusted_rewards, advantages, returns
 
 
 @dataclass(slots=True)
@@ -589,8 +675,12 @@ def _collect_rollout(
     observation_rows: list[np.ndarray] = []
     pre_tanh_rows: list[np.ndarray] = []
     log_prob_rows: list[np.ndarray] = []
+    mean_rows: list[np.ndarray] = []
+    log_std_rows: list[np.ndarray] = []
     reward_rows: list[np.ndarray] = []
     done_rows: list[np.ndarray] = []
+    truncation_rows: list[np.ndarray] = []
+    terminal_value_rows: list[np.ndarray] = []
     value_rows: list[np.ndarray] = []
     current = np.ascontiguousarray(observations, dtype="<f4")
     for _step in range(plan.steps_per_environment):
@@ -617,6 +707,8 @@ def _collect_rollout(
         next_value = np.ascontiguousarray(next_observations, dtype="<f4")
         rewards_value = np.ascontiguousarray(rewards, dtype="<f4")
         dones_value = np.ascontiguousarray(dones, dtype=np.bool_)
+        truncations_value = np.zeros(plan.n_envs, dtype=np.bool_)
+        terminal_values = np.zeros(plan.n_envs, dtype="<f4")
         if (
             next_value.shape != (plan.n_envs, POLICY_INPUT_WIDTH)
             or rewards_value.shape != (plan.n_envs,)
@@ -655,18 +747,18 @@ def _collect_rollout(
                         TrainingFailureStatus.NON_FINITE,
                         "time-limit bootstrap value became NaN or Inf",
                     )
-                rewards_value[environment_index] += np.float32(plan.recipe.gamma * terminal_value)
+                truncations_value[environment_index] = True
+                terminal_values[environment_index] = np.float32(terminal_value)
                 reward_totals["time_limit_bootstrap_count"] += 1
-        if not np.isfinite(rewards_value).all():
-            raise PhaseBTrainingError(
-                TrainingFailureStatus.NON_FINITE,
-                "time-limit bootstrap reward became NaN or Inf",
-            )
         observation_rows.append(current.copy())
         pre_tanh_rows.append(action.pre_tanh.copy())
         log_prob_rows.append(log_prob.copy())
+        mean_rows.append(action.mean.copy())
+        log_std_rows.append(action.log_std.copy())
         reward_rows.append(rewards_value.copy())
         done_rows.append(dones_value.copy())
+        truncation_rows.append(truncations_value)
+        terminal_value_rows.append(terminal_values)
         value_rows.append(np.ascontiguousarray(value, dtype="<f4"))
         current = next_value
 
@@ -674,29 +766,28 @@ def _collect_rollout(
         last_values = (
             policy.value_estimate(_policy_input(current)).squeeze(-1).detach().cpu().numpy()
         )
-    rewards = np.ascontiguousarray(np.stack(reward_rows), dtype="<f4")
+    raw_rewards = np.ascontiguousarray(np.stack(reward_rows), dtype="<f4")
     dones = np.ascontiguousarray(np.stack(done_rows), dtype=np.bool_)
+    truncations = np.ascontiguousarray(np.stack(truncation_rows), dtype=np.bool_)
+    terminal_values = np.ascontiguousarray(np.stack(terminal_value_rows), dtype="<f4")
     values = np.ascontiguousarray(np.stack(value_rows), dtype="<f4")
-    advantages = np.zeros_like(rewards, dtype="<f4")
-    last_gae = np.zeros(plan.n_envs, dtype="<f4")
-    for index in reversed(range(plan.steps_per_environment)):
-        next_nonterminal = np.float32(1.0) - dones[index].astype("<f4")
-        next_value = last_values if index == plan.steps_per_environment - 1 else values[index + 1]
-        delta = (
-            rewards[index]
-            + np.float32(plan.recipe.gamma) * next_value * next_nonterminal
-            - values[index]
-        )
-        last_gae = delta + (
-            np.float32(plan.recipe.gamma * plan.recipe.gae_lambda) * next_nonterminal * last_gae
-        )
-        advantages[index] = last_gae
-    returns = np.ascontiguousarray(advantages + values, dtype="<f4")
+    rewards, advantages, returns = compute_truncation_aware_gae(
+        rewards=raw_rewards,
+        dones=dones,
+        truncations=truncations,
+        terminal_values=terminal_values,
+        values=values,
+        last_values=np.ascontiguousarray(last_values, dtype="<f4"),
+        gamma=plan.recipe.gamma,
+        gae_lambda=plan.recipe.gae_lambda,
+    )
     return (
         _Rollout(
             observations=np.ascontiguousarray(np.stack(observation_rows), dtype="<f4"),
             pre_tanh=np.ascontiguousarray(np.stack(pre_tanh_rows), dtype="<f4"),
             old_log_prob=np.ascontiguousarray(np.stack(log_prob_rows), dtype="<f4"),
+            rollout_mean=np.ascontiguousarray(np.stack(mean_rows), dtype="<f4"),
+            rollout_log_std=np.ascontiguousarray(np.stack(log_std_rows), dtype="<f4"),
             rewards=rewards,
             dones=dones,
             values=values,
@@ -769,7 +860,7 @@ def _ppo_update(
         expected_learning_rate=plan.recipe.learning_rate,
         stage=f"before_{stage}",
     )
-    actor_before = _actor_snapshot(policy) if initial_stage else {}
+    actor_before = _actor_snapshot(policy)
     totals = Counter[str]()
     updates = 0
     for _epoch in range(plan.recipe.n_epochs):
@@ -848,8 +939,22 @@ def _ppo_update(
             updates += 1
     if initial_stage:
         _verify_initial_mask(actor_before, policy)
+    state_before = np.frombuffer(actor_before["latent_0.weight"], dtype="<f4").reshape(
+        policy.actor.latent_0.weight.shape
+    )[:, :OBSERVATION_WIDTH]
     reference = policy.actor.latent_0.weight.detach().cpu().numpy()[:, OBSERVATION_WIDTH:]
     state = policy.actor.latent_0.weight.detach().cpu().numpy()[:, :OBSERVATION_WIDTH]
+    state_columns_changed = not np.array_equal(state_before, state)
+    if initial_stage and state_columns_changed:
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "state columns changed during the reference-only stage",
+        )
+    if rollout_index == REFERENCE_ONLY_ROLLOUTS and not state_columns_changed:
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.COUNTER_DRIFT,
+            "the first full-actor update did not change state columns",
+        )
     receipt = {
         "actor_stage": stage,
         "optimizer_authority_after": verify_optimizer_authority(
@@ -861,6 +966,7 @@ def _ppo_update(
         "optimizer_authority_before": optimizer_before,
         "reference_columns_sha256": array_sha256(np.ascontiguousarray(reference, dtype="<f4")),
         "rollout_index": rollout_index,
+        "state_columns_changed": state_columns_changed,
         "state_columns_sha256": array_sha256(np.ascontiguousarray(state, dtype="<f4")),
         "unfreeze_schedule_id": UNFREEZE_SCHEDULE_ID,
         "value_network_trainable": True,
@@ -879,21 +985,32 @@ def _ppo_update(
     return losses, updates, receipt
 
 
-def likelihood_audit(policy: FullAuthorityPolicy, rollout: _Rollout) -> LikelihoodAudit:
+def audit_rollout_likelihood(rollout: _Rollout, *, rollout_index: int) -> LikelihoodAudit:
+    """Replay stored rollout likelihoods from the rollout-time distribution snapshot."""
+
     observations = rollout.observations.reshape(-1, POLICY_INPUT_WIDTH)
     pre_tanh = rollout.pre_tanh.reshape(-1, ACTION_WIDTH)
+    old_log_prob = rollout.old_log_prob.reshape(-1)
+    means = rollout.rollout_mean.reshape(-1, ACTION_WIDTH)
+    log_stds = rollout.rollout_log_std.reshape(-1, ACTION_WIDTH)
+    if not (len(observations) == len(pre_tanh) == len(old_log_prob) == len(means) == len(log_stds)):
+        raise PhaseBTrainingError(
+            TrainingFailureStatus.LIKELIHOOD_FAILURE,
+            "rollout likelihood snapshot lengths differ",
+        )
     sample_count = min(len(observations), 64)
-    selected_observations = np.ascontiguousarray(observations[:sample_count], dtype="<f4")
-    selected_pre_tanh = np.ascontiguousarray(pre_tanh[:sample_count], dtype="<f4")
-    strict_input = _policy_input(selected_observations)
-    distribution = policy.actor.distribution(strict_input)
-    observed = policy.actor.log_likelihood(strict_input, selected_pre_tanh).astype(np.float64)
+    indices = np.linspace(0, len(observations) - 1, num=sample_count, dtype="<i8")
+    selected_observations = np.ascontiguousarray(observations[indices], dtype="<f4")
+    selected_pre_tanh = np.ascontiguousarray(pre_tanh[indices], dtype="<f4")
+    selected_old = np.ascontiguousarray(old_log_prob[indices], dtype="<f4")
+    selected_mean = np.ascontiguousarray(means[indices], dtype="<f4")
+    selected_log_std = np.ascontiguousarray(log_stds[indices], dtype="<f4")
     independent = numpy_log_likelihood(
         selected_pre_tanh,
-        distribution.mean,
-        distribution.log_std,
+        selected_mean,
+        selected_log_std,
     )
-    maximum = float(np.max(np.abs(observed - independent), initial=0.0))
+    maximum = float(np.max(np.abs(selected_old.astype(np.float64) - independent), initial=0.0))
     passed = math.isfinite(maximum) and maximum <= LIKELIHOOD_TOLERANCE
     if not passed:
         raise PhaseBTrainingError(
@@ -901,7 +1018,22 @@ def likelihood_audit(policy: FullAuthorityPolicy, rollout: _Rollout) -> Likeliho
             f"tanh-corrected likelihood audit differs by {maximum}",
         )
     return LikelihoodAudit(
-        sample_count=sample_count, maximum_absolute_difference=maximum, passed=True
+        rollout_index=rollout_index,
+        sample_count=sample_count,
+        sample_indices_sha256=array_sha256(indices),
+        observation_sample_sha256=array_sha256(selected_observations),
+        pre_tanh_sample_sha256=array_sha256(selected_pre_tanh),
+        old_log_prob_sample_sha256=array_sha256(selected_old),
+        distribution_snapshot_sha256=hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "log_std_sha256": array_sha256(selected_log_std),
+                    "mean_sha256": array_sha256(selected_mean),
+                }
+            )
+        ).hexdigest(),
+        maximum_absolute_difference=maximum,
+        passed=True,
     )
 
 
@@ -999,6 +1131,7 @@ def run_ppo_training(
     reward_totals: Counter[str] = Counter()
     progress_windows: list[Mapping[str, object]] = []
     rollout_receipts: list[dict[str, object]] = []
+    likelihood_audits: list[dict[str, object]] = []
     losses: list[dict[str, object]] = []
     update_count = 0
     observed_transitions = 0
@@ -1031,6 +1164,11 @@ def run_ppo_training(
                     TrainingFailureStatus.COUNTER_DRIFT,
                     "worker transition counter drifted",
                 )
+            likelihood = audit_rollout_likelihood(
+                rollout,
+                rollout_index=rollout_index,
+            )
+            likelihood_audits.append(likelihood.to_dict())
             rollout_loss, updates, unfreeze = _ppo_update(
                 rollout=rollout,
                 policy=policy,
@@ -1041,7 +1179,7 @@ def run_ppo_training(
             )
             update_count += updates
             losses.append({"rollout_index": rollout_index, **rollout_loss})
-            rollout_receipts.append(unfreeze)
+            rollout_receipts.append({**unfreeze, "rollout_likelihood_audit": likelihood.to_dict()})
             last_rollout = rollout
             progress = MappingProxyType(
                 {
@@ -1068,7 +1206,6 @@ def run_ppo_training(
             )
         if last_rollout is None:
             raise AssertionError("validated training plan produced no rollout")
-        audit = likelihood_audit(policy, last_rollout)
         rsi_ledger = _runtime_rsi_ledger(vector_environment)
         rsi_bytes = canonical_json_bytes([dict(item) for item in rsi_ledger])
         unfreeze_bytes = canonical_json_bytes(rollout_receipts)
@@ -1076,7 +1213,16 @@ def run_ppo_training(
             "device": "cpu",
             "evidence_class": plan.evidence_class,
             "execution_manifest_sha256": plan.manifest_sha256,
-            "likelihood_audit": audit.to_dict(),
+            "likelihood_audit": {
+                "all_passed": all(item["passed"] is True for item in likelihood_audits),
+                "audit_id": LIKELIHOOD_AUDIT_ID,
+                "audit_stage": "before_any_update_for_each_rollout",
+                "receipt_sha256": hashlib.sha256(
+                    canonical_json_bytes(likelihood_audits)
+                ).hexdigest(),
+                "rollout_audits": likelihood_audits,
+                "rollout_count": len(likelihood_audits),
+            },
             "losses": losses,
             "normalization": {"observation": False, "reward": False},
             "observed_transitions": observed_transitions,
@@ -1181,8 +1327,9 @@ __all__ = [
     "TrainingFailureStatus",
     "TrainingPlan",
     "TrainingResult",
+    "audit_rollout_likelihood",
+    "compute_truncation_aware_gae",
     "domain_separated_seed",
-    "likelihood_audit",
     "run_ppo_training",
     "validate_rsi_restoration_receipt",
     "verify_step_zero_worker_action_path",

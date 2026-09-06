@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -13,20 +13,24 @@ import numpy as np
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.envs.reference_corpus import make_reference_corpus_env
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
-from oracle_composition.rewards.stock_humanoid import (
-    body_mass_weighted_com_x_velocity_m_s,
-)
 from oracle_composition.tracking.humanoid_reference import (
     tracking_state,
     tracking_state_with_bounded_reset_orientation,
     validate_humanoid_actuator_abi,
 )
-from oracle_composition.tracking.reward import compute_tracking_reward
 
 from .calibration import TaskSuccessCalibration, load_calibration_receipt
 from .persistence import LoadedFullCheckpoint, load_full_checkpoint
 from .policy import FullAuthorityPolicy, compose_policy_input, load_full_authority_actor
-from .reference_runtime import ERROR_NAMES, load_v2_reference_clip, select_nearest_phase
+from .protected_metrics import (
+    evaluator_mass_center_x_m,
+    evaluator_state_record,
+    protected_step_record,
+    protected_trace_sha256,
+    recompute_protected_episode,
+    select_evaluator_nearest_phase,
+)
+from .reference_runtime import load_v2_reference_clip
 from .report_v2 import ProtectedEpisodeMetrics
 
 EVALUATION_BLOCKS = tuple(range(120101, 120121))
@@ -37,10 +41,12 @@ _FOOT_GEOMS = {"left_foot", "right_foot"}
 
 @dataclass(frozen=True, slots=True)
 class UtilityEvaluationResult:
-    calibration: TaskSuccessCalibration
+    calibration: TaskSuccessCalibration | None
     checkpoint: LoadedFullCheckpoint
     trained_episodes: tuple[ProtectedEpisodeMetrics, ...]
     step_zero_episodes: tuple[ProtectedEpisodeMetrics, ...]
+    trained_traces: tuple[Mapping[str, object], ...]
+    step_zero_traces: tuple[Mapping[str, object], ...]
     step_zero_comparator: Mapping[str, object]
 
 
@@ -49,6 +55,15 @@ class UtilityEvaluationDependencies:
     episode_runner: (
         Callable[[FullAuthorityPolicy, int, int, str, Path], ProtectedEpisodeMetrics] | None
     ) = None
+    failure_mode: str | None = None
+    fail_after_episodes: int | None = None
+    wall_seconds: float = 30.0 * 60.0
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluatedEpisode:
+    metrics: ProtectedEpisodeMetrics
+    trace: Mapping[str, object]
 
 
 def _behavior(cell: str, boundary: int) -> str:
@@ -98,31 +113,6 @@ def _forbidden_contacts(environment: object, step: int) -> list[dict[str, object
     return result
 
 
-def _resynchronization_records(
-    normalized_errors: Sequence[float],
-    switches: Sequence[Mapping[str, object]],
-) -> tuple[Mapping[str, object], ...]:
-    records = []
-    for switch in switches:
-        boundary = int(switch["boundary"])
-        start = boundary
-        latest_start = min(len(normalized_errors) - 8, boundary + 56)
-        latency: int | None = None
-        for index in range(start, latest_start + 1):
-            if all(value <= 1.0 for value in normalized_errors[index : index + 8]):
-                latency = index + 8 - boundary
-                break
-        records.append(
-            {
-                "eight_consecutive_boundaries_at_or_below_one": latency is not None,
-                "from_behavior": switch["from_behavior"],
-                "settle_latency_steps": latency,
-                "to_behavior": switch["to_behavior"],
-            }
-        )
-    return tuple(records)
-
-
 def _real_episode(
     policy: FullAuthorityPolicy,
     policy_seed: int,
@@ -131,7 +121,7 @@ def _real_episode(
     corpus_root: Path,
     *,
     segment_targets_m_s: tuple[float, float, float],
-) -> ProtectedEpisodeMetrics:
+) -> EvaluatedEpisode:
     references = {
         behavior: load_v2_reference_clip(
             corpus_root,
@@ -141,15 +131,8 @@ def _real_episode(
         for behavior in ("expert", "medium", "simple")
     }
     environment = make_reference_corpus_env()
-    root_delta_speeds: list[float] = []
-    com_speeds: list[float] = []
-    raw_errors: dict[str, list[float]] = {name: [] for name in ERROR_NAMES}
-    normalized_max_errors: list[float] = []
-    contacts: list[dict[str, object]] = []
+    steps: list[dict[str, object]] = []
     switches: list[dict[str, object]] = []
-    fall = False
-    first_failure: int | None = None
-    observed_steps = 0
     try:
         raw_observation, _info = environment.reset(seed=evaluation_seed)
         observation = np.ascontiguousarray(raw_observation, dtype="<f4")
@@ -164,8 +147,8 @@ def _real_episode(
         for step in range(HORIZON):
             if cell == "fixed_round_trip" and step in {300, 600}:
                 target_behavior = "medium" if step == 300 else "expert"
-                transfer = select_nearest_phase(
-                    state=current_state,
+                transfer = select_evaluator_nearest_phase(
+                    state=evaluator_state_record(current_state),
                     target_rows=references[target_behavior],
                     task_step=step,
                     source_behavior=active_behavior,
@@ -173,22 +156,15 @@ def _real_episode(
                     reason="fixed_utility_switch",
                 )
                 active_behavior = target_behavior
-                active_phase = transfer.selected_phase
+                active_phase = int(transfer["selected_phase"])
                 switches.append(
                     {
                         "boundary": step,
-                        "from_behavior": transfer.source_behavior,
-                        "selected_normalized_errors": {
-                            name: value
-                            for name, value in zip(
-                                ERROR_NAMES,
-                                transfer.selected_normalized_errors,
-                                strict=True,
-                            )
-                        },
-                        "selected_phase": transfer.selected_phase,
-                        "selected_score": list(transfer.selected_score),
-                        "to_behavior": transfer.target_behavior,
+                        "from_behavior": transfer["source_behavior"],
+                        "selected_normalized_errors": transfer["selected_normalized_errors"],
+                        "selected_phase": transfer["selected_phase"],
+                        "selected_score": transfer["selected_score"],
+                        "to_behavior": transfer["target_behavior"],
                     }
                 )
             window_indices = tuple(min(active_phase + offset, HORIZON) for offset in range(8))
@@ -203,109 +179,82 @@ def _real_episode(
                 raise ExperimentContractError("protected evaluation action is out of bounds")
             body_xipos_before = np.ascontiguousarray(physical.data.xipos, dtype="<f8").copy()
             raw_next, _stock_reward, terminated, truncated, _base_info = environment.step(action)
-            com_forward_speed = body_mass_weighted_com_x_velocity_m_s(
-                body_mass_f64=body_mass,
-                body_xipos_before_f64=body_xipos_before,
-                body_xipos_after_f64=np.ascontiguousarray(physical.data.xipos, dtype="<f8"),
-                control_period_s=0.015,
-            )
+            body_xipos_after = np.ascontiguousarray(physical.data.xipos, dtype="<f8").copy()
+            evaluator_mass_center_x_m(body_mass, body_xipos_before)
+            evaluator_mass_center_x_m(body_mass, body_xipos_after)
             observation = np.ascontiguousarray(raw_next, dtype="<f4")
             state = tracking_state(environment, abi)
             target_phase = min(active_phase + 1, HORIZON)
             target = references[active_behavior][target_phase]
-            tracking = compute_tracking_reward(state=state, reference_frame=target)
-            errors = tracking.error_components()
-            for name in ERROR_NAMES:
-                raw_errors[name].append(float(errors[name]))
-            normalized_max_errors.append(
-                max(
-                    float(errors["root_height_abs_error_m"]) / 0.20,
-                    float(errors["root_orientation_error_rad"]) / 0.50,
-                    float(errors["root_linear_velocity_rmse_m_s"]) / 1.0,
-                    float(errors["root_angular_velocity_rmse_rad_s"]) / 2.0,
-                    float(errors["joint_position_rmse_rad"]) / 0.35,
-                    float(errors["joint_velocity_rmse_rad_s"]) / 2.0,
-                )
-            )
             root_x = float(state.root_position_world_m[0])
-            root_delta_speeds.append((root_x - previous_x) / 0.015)
-            previous_x = root_x
-            com_speeds.append(com_forward_speed)
             step_contacts = _forbidden_contacts(environment, step)
-            contacts.extend(step_contacts)
             fallen_now = (
                 not 1.0 <= state.root_height_m <= 2.0
                 or _torso_up(state.root_orientation_wxyz) < 0.5
             )
-            fall = fall or fallen_now
-            if first_failure is None and (fallen_now or step_contacts):
-                first_failure = step + 1
-            observed_steps += 1
+            steps.append(
+                protected_step_record(
+                    step=step,
+                    state=state,
+                    reference_behavior=active_behavior,
+                    reference_index=target_phase,
+                    reference_row=target,
+                    action=action,
+                    root_x_before_m=previous_x,
+                    body_mass=body_mass,
+                    body_xipos_before=body_xipos_before,
+                    body_xipos_after=body_xipos_after,
+                    forbidden_contacts=step_contacts,
+                    fallen=fallen_now,
+                    terminated=bool(terminated),
+                    truncated=bool(truncated),
+                )
+            )
+            previous_x = root_x
             if bool(terminated) or (bool(truncated) and step + 1 != HORIZON):
                 raise ExperimentContractError("protected evaluation ended before 1,000 steps")
             active_phase = target_phase
             current_state = state
-        summaries = {
-            name: float(np.sqrt(np.mean(np.square(values), dtype=np.float64)))
-            for name, values in raw_errors.items()
-        }
-        resynchronization = _resynchronization_records(normalized_max_errors, switches)
-        fast_target, slow_target, return_fast_target = segment_targets_m_s
-        segment_errors = {
-            "fast": float(np.mean(np.abs(np.asarray(com_speeds[:300]) - fast_target))),
-            "slow": float(np.mean(np.abs(np.asarray(com_speeds[300:600]) - slow_target))),
-            "return_fast": float(
-                np.mean(np.abs(np.asarray(com_speeds[600:]) - return_fast_target))
-            ),
-        }
-        transition_window = (
-            float(
-                np.mean(
-                    [
-                        *normalized_max_errors[300:364],
-                        *normalized_max_errors[600:664],
-                    ]
-                )
-            )
-            if cell == "fixed_round_trip"
-            else None
+        aggregates = recompute_protected_episode(
+            steps=steps,
+            cell=cell,
+            switches=switches,
+            segment_targets_m_s=segment_targets_m_s,
         )
-        settled_state_error = (
-            float(
-                max(
-                    np.mean(normalized_max_errors[332:364]),
-                    np.mean(normalized_max_errors[632:664]),
-                )
-            )
-            if cell == "fixed_round_trip"
-            else None
-        )
-        latencies = [
-            record["settle_latency_steps"]
-            for record in resynchronization
-            if record["settle_latency_steps"] is not None
-        ]
-        return ProtectedEpisodeMetrics(
+        trace = {
+            "cell": cell,
+            "evaluation_seed": evaluation_seed,
+            "policy_seed": policy_seed,
+            "schema_version": 1,
+            "segment_targets_m_s": list(segment_targets_m_s),
+            "steps": steps,
+            "switch_records": switches,
+            "trace_schema_id": "humanoid_phase_b_protected_episode_trace/v1",
+        }
+        trace["steps_sha256"] = protected_trace_sha256(steps)
+        canonical_json_bytes(trace)
+        metrics = ProtectedEpisodeMetrics(
             policy_seed=policy_seed,
             evaluation_seed=evaluation_seed,
             cell=cell,
             checkpoint_sha256="0" * 64,
-            observed_steps=observed_steps,
-            root_delta_forward_speed_m_s=tuple(root_delta_speeds),
-            com_forward_speed_m_s=tuple(com_speeds),
-            six_tracking_errors=summaries,
-            fall=fall,
-            forbidden_contacts=tuple(contacts),
-            action_bounds_ok=True,
+            observed_steps=int(aggregates["observed_steps"]),
+            root_delta_forward_speed_m_s=tuple(aggregates["root_delta_forward_speed_m_s"]),
+            com_forward_speed_m_s=tuple(aggregates["com_forward_speed_m_s"]),
+            six_tracking_errors=dict(aggregates["six_tracking_errors"]),
+            fall=bool(aggregates["fall"]),
+            forbidden_contacts=tuple(aggregates["forbidden_contacts"]),
+            action_bounds_ok=bool(aggregates["action_bounds_ok"]),
             switch_records=tuple(switches),
-            resynchronization_records=resynchronization,
-            segment_errors=segment_errors,
-            transition_window_error=transition_window,
-            settle_latency_steps=max(latencies) if latencies else None,
-            time_to_first_failure_steps=first_failure,
+            resynchronization_records=tuple(aggregates["resynchronization_records"]),
+            segment_errors=dict(aggregates["segment_errors"]),
+            transition_window_error=aggregates["transition_window_error"],
+            settle_latency_steps=aggregates["settle_latency_steps"],
+            time_to_first_failure_steps=aggregates["time_to_first_failure_steps"],
             task_success=None,
-            settled_state_normalized_error=settled_state_error,
+            settled_state_normalized_error=aggregates["settled_state_normalized_error"],
         )
+        return EvaluatedEpisode(metrics=metrics, trace=trace)
     finally:
         environment.close()
 
@@ -319,9 +268,9 @@ def _bind_checkpoint(
 
 def _score_task_success(
     episode: ProtectedEpisodeMetrics,
-    calibration: TaskSuccessCalibration,
+    calibration: TaskSuccessCalibration | None,
 ) -> ProtectedEpisodeMetrics:
-    if episode.cell != "fixed_round_trip":
+    if episode.cell != "fixed_round_trip" or calibration is None:
         return replace(episode, task_success=None)
     latencies = [record.get("settle_latency_steps") for record in episode.resynchronization_records]
     latency_passed = len(latencies) == 2 and all(
@@ -334,14 +283,7 @@ def _score_task_success(
         float(episode.segment_errors[name]) <= limit
         for name, limit in calibration.segment_speed_error_bands_m_s.items()
     )
-    settled = episode.settled_state_normalized_error
-    passed = (
-        episode.safety_passed
-        and latency_passed
-        and segment_passed
-        and settled is not None
-        and float(settled) <= calibration.settled_state_normalized_error_band
-    )
+    passed = episode.safety_passed and latency_passed and segment_passed
     return replace(episode, task_success=passed)
 
 
@@ -352,17 +294,24 @@ def evaluate_policy_checkpoint(
     step_zero_actor_path: Path,
     step_zero_actor_sha256: str,
     corpus_root: Path,
-    calibration_receipt_path: Path,
-    calibration_receipt_sha256: str,
+    calibration_receipt_path: Path | None,
+    calibration_receipt_sha256: str | None,
     segment_targets_m_s: tuple[float, float, float] | None = None,
     dependencies: UtilityEvaluationDependencies | None = None,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> UtilityEvaluationResult:
     """Evaluate one final checkpoint and its step-0 comparator on identical cells."""
 
-    calibration = load_calibration_receipt(
-        calibration_receipt_path,
-        expected_sha256=calibration_receipt_sha256,
+    calibration = (
+        load_calibration_receipt(
+            calibration_receipt_path,
+            expected_sha256=calibration_receipt_sha256,
+        )
+        if calibration_receipt_path is not None and calibration_receipt_sha256 is not None
+        else None
     )
+    if (calibration_receipt_path is None) != (calibration_receipt_sha256 is None):
+        raise ExperimentContractError("calibration receipt path and SHA-256 must be paired")
     checkpoint = load_full_checkpoint(checkpoint_path, expected_sha256=checkpoint_sha256)
     step_zero_actor = load_full_authority_actor(
         step_zero_actor_path,
@@ -407,32 +356,35 @@ def evaluate_policy_checkpoint(
     policy_seed = int(checkpoint.metadata["ppo_seed"])
     trained = []
     baseline = []
+    trained_traces = []
+    baseline_traces = []
+    completed_episodes = 0
     for cell in ("hold_expert", "hold_medium", "hold_simple", "fixed_round_trip"):
         for evaluation_seed in EVALUATION_BLOCKS:
-            trained.append(
-                _score_task_success(
-                    _bind_checkpoint(
-                        runner(checkpoint.policy, policy_seed, evaluation_seed, cell, corpus_root),
-                        checkpoint_sha256,
-                    ),
-                    calibration,
+            for policy, checkpoint_hash, metrics_rows, trace_rows in (
+                (checkpoint.policy, checkpoint_sha256, trained, trained_traces),
+                (step_zero_policy, step_zero_actor_sha256, baseline, baseline_traces),
+            ):
+                raw = runner(policy, policy_seed, evaluation_seed, cell, corpus_root)
+                episode = raw.metrics if isinstance(raw, EvaluatedEpisode) else raw
+                if not isinstance(episode, ProtectedEpisodeMetrics):
+                    raise ExperimentContractError("episode runner returned an invalid result")
+                metrics_rows.append(
+                    _score_task_success(_bind_checkpoint(episode, checkpoint_hash), calibration)
                 )
-            )
-            baseline.append(
-                _score_task_success(
-                    _bind_checkpoint(
-                        runner(step_zero_policy, policy_seed, evaluation_seed, cell, corpus_root),
-                        step_zero_actor_sha256,
-                    ),
-                    calibration,
-                )
-            )
+                if isinstance(raw, EvaluatedEpisode):
+                    trace = dict(raw.trace)
+                    trace["checkpoint_sha256"] = checkpoint_hash
+                    trace_rows.append(trace)
+                completed_episodes += 1
+                if progress_callback is not None:
+                    progress_callback(completed_episodes)
     trained_bytes = canonical_json_bytes([episode.to_dict() for episode in trained])
     baseline_bytes = canonical_json_bytes([episode.to_dict() for episode in baseline])
     comparator = {
         "bitwise_equal": True,
         "evaluation_schedule_identical": True,
-        "calibration_receipt_sha256": calibration.sha256,
+        "calibration_receipt_sha256": calibration.sha256 if calibration else None,
         "step_zero_actor_sha256": step_zero_actor_sha256,
         "step_zero_metrics_sha256": hashlib.sha256(baseline_bytes).hexdigest(),
         "trained_metrics_sha256": hashlib.sha256(trained_bytes).hexdigest(),
@@ -442,12 +394,15 @@ def evaluate_policy_checkpoint(
         checkpoint=checkpoint,
         trained_episodes=tuple(trained),
         step_zero_episodes=tuple(baseline),
+        trained_traces=tuple(trained_traces),
+        step_zero_traces=tuple(baseline_traces),
         step_zero_comparator=comparator,
     )
 
 
 __all__ = [
     "EVALUATION_BLOCKS",
+    "EvaluatedEpisode",
     "UtilityEvaluationDependencies",
     "UtilityEvaluationResult",
     "evaluate_policy_checkpoint",

@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
+from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 from oracle_composition.harness.cycle_cli import (
     CycleCliError,
@@ -29,6 +32,7 @@ from oracle_composition.phase_b.report_v2 import (
     exact_binomial_interval,
     task_success_endpoint,
     utility_gate,
+    validate_report_summary_recomputation,
 )
 from oracle_composition.phase_b.runtime import fake_environment_factories, fake_policy_factory
 from oracle_composition.phase_b.supervision import ResourceLimits
@@ -240,6 +244,22 @@ def test_cli_fake_runtime_end_to_end_writes_deterministic_report_v2(tmp_path: Pa
     }
     assert report["training"]["wall_time_seconds"] is None
     assert len(report["policy"]["checkpoints"]) == 2
+    assert report["evaluation"]["evidence_statement"] == (
+        "interface/training receipt; no utility or behavioral evidence"
+    )
+    assert report["integrity"]["explicit_missing_fields"] == [
+        "evaluation.trained_per_episode",
+        "evaluation.step_zero_per_episode",
+        "reference_runtime.records",
+    ]
+    changed = json.loads(json.dumps(report))
+    changed["summary"]["hard_gates"]["utility_gate"]["family_passed"] = True
+    with pytest.raises(ValueError, match="summary differs"):
+        validate_report_summary_recomputation(changed)
+    mixed_manifest = json.loads(json.dumps(report))
+    mixed_manifest["training"]["seed_facts"][1]["execution_manifest_sha256"] = "f" * 64
+    with pytest.raises(ValueError, match="training and cohort authority"):
+        validate_report_summary_recomputation(mixed_manifest)
     trace_index = json.loads((first / "trace_index_v2.json").read_bytes())
     assert trace_index["entry_count"] == 14
     assert not any("telemetry" in entry["role"] for entry in trace_index["entries"])
@@ -262,7 +282,9 @@ def test_smoke_mode_refuses_promotion_before_preflight(tmp_path: Path) -> None:
         main(args, repository_root=ROOT, training_dependencies=_dependencies())
 
 
-def test_five_entry_checkpoint_index_binds_each_seed_artifact(tmp_path: Path) -> None:
+def test_checkpoint_index_refuses_five_test_only_sixteen_transition_entries(
+    tmp_path: Path,
+) -> None:
     output = tmp_path.resolve()
     entries = []
     for seed in COHORT_SEEDS:
@@ -293,15 +315,97 @@ def test_five_entry_checkpoint_index_binds_each_seed_artifact(tmp_path: Path) ->
         )
         assert entries[-1].receipt_value["checkpoint_reload_bitwise_deterministic"] is True
         assert entries[-1].receipt_value["checkpoint_to_export_bitwise_equivalent"] is True
-    index = publish_checkpoint_index(output_directory=output, entries=entries)
-    value = json.loads(index.path.read_bytes())
-    assert value["checkpoint_count"] == 5
-    assert [row["ppo_seed"] for row in value["entries"]] == list(COHORT_SEEDS)
-    assert all(row["checkpoint"]["path"].startswith("seed_") for row in value["entries"])
+    with pytest.raises(ExperimentContractError, match="success and job authority"):
+        publish_checkpoint_index(output_directory=output, entries=entries)
+    execution_manifest = publish_bytes_without_overwrite(
+        output / "execution_manifest_v2.json",
+        canonical_json_bytes(
+            {
+                "checkpoint_selection": "final_transition_only",
+                "seeds": list(COHORT_SEEDS),
+                "smoke": False,
+                "test_only": False,
+                "transitions_per_seed": 1_048_576,
+            }
+        ),
+    )
+    successes = []
+    for seed in COHORT_SEEDS:
+        successes.append(
+            publish_bytes_without_overwrite(
+                output / f"seed_{seed}/success_receipt_v1.json",
+                canonical_json_bytes(
+                    {
+                        "evidence_class": "exploratory_fine_tuning_cycle",
+                        "execution_manifest_sha256": execution_manifest.sha256,
+                        "outcome": "success",
+                        "planned_transitions": 1_048_576,
+                        "ppo_seed": seed,
+                        "promotable": True,
+                        "smoke": False,
+                        "status": "succeeded",
+                        "test_only": False,
+                    }
+                ),
+            )
+        )
+    job_result = publish_bytes_without_overwrite(
+        output / "job_result_v1.json",
+        canonical_json_bytes(
+            {
+                "execution_manifest_sha256": execution_manifest.sha256,
+                "outcomes": [
+                    {
+                        "receipt": {
+                            "byte_count": item.byte_count,
+                            "filename": item.path.name,
+                            "sha256": item.sha256,
+                        },
+                        "seed": seed,
+                        "status": "succeeded",
+                    }
+                    for seed, item in zip(COHORT_SEEDS, successes, strict=True)
+                ],
+                "status": "succeeded",
+            }
+        ),
+    )
+    with pytest.raises(ExperimentContractError, match="smoke or test-only"):
+        publish_checkpoint_index(
+            output_directory=output,
+            entries=entries,
+            success_receipts=successes,
+            execution_manifest=execution_manifest,
+            job_result=job_result,
+        )
+    smoke_entries = [
+        replace(
+            entry,
+            receipt_value=MappingProxyType(
+                {
+                    **dict(entry.receipt_value),
+                    "evidence_class": "interface_check",
+                    "promotable": False,
+                    "smoke": True,
+                    "test_only": False,
+                }
+            ),
+        )
+        for entry in entries
+    ]
+    with pytest.raises(ExperimentContractError, match="smoke or test-only"):
+        publish_checkpoint_index(
+            output_directory=output,
+            entries=smoke_entries,
+            success_receipts=successes,
+            execution_manifest=execution_manifest,
+            job_result=job_result,
+        )
 
 
-def test_cli_evaluate_policy_runs_hold_and_transition_cells_with_step_zero(
+def test_cli_evaluate_policy_refuses_test_only_checkpoint_before_output_or_worker(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     trained = (tmp_path / "trained").resolve()
     assert (
@@ -315,6 +419,16 @@ def test_cli_evaluate_policy_runs_hold_and_transition_cells_with_step_zero(
     checkpoint = trained / "seed_11/checkpoint_seed_11_final.npz"
     output = (tmp_path / "evaluation").resolve()
     utility_dependencies = UtilityEvaluationDependencies(episode_runner=_fake_episode_runner)
+    from oracle_composition.phase_b import evaluation_supervision
+
+    spawned = False
+
+    def spawn_sentinel(*_args: object, **_kwargs: object) -> object:
+        nonlocal spawned
+        spawned = True
+        raise AssertionError("evaluation worker spawned before lineage admission")
+
+    monkeypatch.setattr(evaluation_supervision, "_spawn", spawn_sentinel)
     calibration_path, calibration_sha256, _calibration_contract = _calibration(
         tmp_path / "calibration.json"
     )
@@ -337,20 +451,14 @@ def test_cli_evaluate_policy_runs_hold_and_transition_cells_with_step_zero(
         "--output",
         str(output),
     ]
-    assert (
+    with pytest.raises(ExperimentContractError, match=r"lineage artifact|promotable full-budget"):
         main(
             args,
             repository_root=ROOT,
             training_dependencies=_dependencies(utility=utility_dependencies),
         )
-        == 0
-    )
-    report = json.loads((output / "scientific_receipt_v2.json").read_bytes())
-    checkpoint_gate = report["summary"]["hard_gates"]["utility_gate"]["checkpoint_results"][0]
-    assert all(cell["cell_passed"] for cell in checkpoint_gate["cells"].values())
-    assert report["summary"]["hard_gates"]["utility_gate"]["family_passed"] is False
-    assert len(json.loads((output / "trained_policy_metrics_v1.json").read_bytes())) == 80
-    assert len(json.loads((output / "step_zero_metrics_v1.json").read_bytes())) == 80
+    assert spawned is False
+    assert not output.exists()
 
 
 def _seed_facts(seed: int) -> SeedReportFacts:
@@ -416,15 +524,34 @@ def test_task_success_endpoint_uses_per_checkpoint_exact_interval_and_paired_eff
     tmp_path: Path,
 ) -> None:
     episodes = [
-        _episode(
-            policy_seed=11,
-            evaluation_seed=120101 + index,
-            cell="fixed_round_trip",
-            task_success=index < 16,
+        replace(
+            _episode(
+                policy_seed=11,
+                evaluation_seed=120101 + index,
+                cell="fixed_round_trip",
+                task_success=index >= 16,
+            ),
+            segment_errors={
+                "fast": 0.1 if index < 16 else 0.3,
+                "return_fast": 0.1,
+                "slow": 0.1,
+            },
         )
         for index in range(20)
     ]
-    baseline = [replace(episode, task_success=index < 10) for index, episode in enumerate(episodes)]
+    baseline = [
+        replace(
+            episode,
+            checkpoint_sha256="1" * 64,
+            task_success=index >= 10,
+            segment_errors={
+                "fast": 0.1 if index < 10 else 0.3,
+                "return_fast": 0.1,
+                "slow": 0.1,
+            },
+        )
+        for index, episode in enumerate(episodes)
+    ]
     _path, _sha, calibration = _calibration(tmp_path / "calibration.json")
     endpoint = task_success_endpoint(episodes, step_zero_episodes=baseline, calibration=calibration)
     checkpoint = endpoint["primary_endpoint"]["checkpoint_results"][0]
@@ -435,6 +562,27 @@ def test_task_success_endpoint_uses_per_checkpoint_exact_interval_and_paired_eff
         "effect_candidate_minus_step_zero"
     ] == pytest.approx(0.3)
     assert endpoint["unsafe_arm_may_outrank_safe_arm"] is False
+
+
+def test_task_success_without_calibration_is_explicitly_non_scoring() -> None:
+    episodes = [
+        _episode(
+            policy_seed=11,
+            evaluation_seed=120101 + index,
+            cell="fixed_round_trip",
+            task_success=True,
+        )
+        for index in range(20)
+    ]
+    endpoint = task_success_endpoint(
+        episodes,
+        step_zero_episodes=[replace(item, checkpoint_sha256="1" * 64) for item in episodes],
+        calibration=None,
+    )
+    row = endpoint["primary_endpoint"]["checkpoint_results"][0]
+    assert endpoint["primary_endpoint"]["scoring_status"] == "non_scoring_missing_calibration"
+    assert {row[name] for name in ("successes", "total", "proportion")} == {None}
+    assert row["exact_binomial_95_interval"] is None
 
 
 def test_task_success_endpoint_rejects_mixed_checkpoint_identity() -> None:
@@ -462,18 +610,34 @@ def test_task_success_endpoint_rejects_mixed_checkpoint_identity() -> None:
 
 def test_task_success_endpoint_reports_paired_effects_across_five_ppo_seeds() -> None:
     episodes = [
-        _episode(
-            policy_seed=policy_seed,
-            evaluation_seed=120101 + index,
-            cell="fixed_round_trip",
-            checkpoint_sha256=f"{policy_seed:064x}",
-            task_success=index < 16,
+        replace(
+            _episode(
+                policy_seed=policy_seed,
+                evaluation_seed=120101 + index,
+                cell="fixed_round_trip",
+                checkpoint_sha256=f"{policy_seed:064x}",
+                task_success=index >= 16,
+            ),
+            segment_errors={
+                "fast": 0.1 if index < 16 else 1.1,
+                "return_fast": 0.1,
+                "slow": 0.1,
+            },
         )
         for policy_seed in COHORT_SEEDS
         for index in range(20)
     ]
     baseline = [
-        replace(episode, checkpoint_sha256="1" * 64, task_success=index % 20 < 10)
+        replace(
+            episode,
+            checkpoint_sha256="1" * 64,
+            task_success=index % 20 >= 10,
+            segment_errors={
+                "fast": 0.1 if index % 20 < 10 else 1.1,
+                "return_fast": 0.1,
+                "slow": 0.1,
+            },
+        )
         for index, episode in enumerate(episodes)
     ]
     calibration = TaskSuccessCalibration(

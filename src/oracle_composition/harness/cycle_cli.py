@@ -6,8 +6,9 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
@@ -360,6 +361,7 @@ def _train_command(
         supervise_training_job,
         validate_training_preflight,
     )
+    from oracle_composition.phase_b.training import COHORT_SEEDS
 
     experiment = _resolve(root, args.experiment)
     oracle = _resolve(root, args.oracle)
@@ -384,6 +386,32 @@ def _train_command(
         limits = ResourceLimits()
     if not isinstance(limits, ResourceLimits):
         raise CycleCliError("training resource-limit dependency differs")
+    canonical_argv = [
+        str(Path(sys.executable).resolve()),
+        "-m",
+        "oracle_composition.harness.cycle_cli",
+        "train",
+        "--experiment",
+        str(experiment.resolve()),
+        "--cycle",
+        str(args.cycle),
+        "--oracle",
+        str(oracle.resolve()),
+        "--reward",
+        str(reward.resolve()),
+        "--output",
+        str(output.resolve()),
+        "--seeds",
+        ",".join(str(seed) for seed in args.seeds),
+        "--transitions",
+        str(args.transitions),
+    ]
+    if args.reservation is not None:
+        canonical_argv.extend(("--reservation", str(_resolve(root, args.reservation).resolve())))
+    if args.smoke:
+        canonical_argv.append("--smoke")
+    if args.promote:
+        canonical_argv.append("--promote")
     result = supervise_training_job(
         preflight=preflight,
         output_directory=output,
@@ -398,6 +426,7 @@ def _train_command(
         test_batch_size=selected.test_batch_size,
         test_n_epochs=selected.test_n_epochs,
         failure_mode=selected.failure_mode,
+        canonical_argv=canonical_argv,
     )
     if result.status != SupervisorStatus.SUCCEEDED:
         print(
@@ -477,7 +506,23 @@ def _train_command(
     report_inputs = dict(preflight.report_inputs)
     report_inputs["execution_manifest_sha256"] = result.execution_manifest.sha256
     seed_facts = [
-        outcome.report_facts for outcome in result.outcomes if outcome.report_facts is not None
+        replace(
+            outcome.report_facts,
+            cohort_authority=(
+                {
+                    "cohort_seeds": list(COHORT_SEEDS),
+                    "checkpoint_index_sha256": result.checkpoint_index.sha256,
+                    "execution_manifest_sha256": result.execution_manifest.sha256,
+                    "job_result_sha256": result.job_result.sha256,
+                    "status": "successful_non_smoke_full_budget_promotable",
+                    "success_receipt_sha256": outcome.receipt.sha256,
+                }
+                if result.checkpoint_index is not None
+                else {"status": "not_applicable_interface_or_smoke"}
+            ),
+        )
+        for outcome in result.outcomes
+        if outcome.report_facts is not None
     ]
     reward_totals: dict[str, object] = {
         field: sum(float(seed.training["reward_totals"][field]) for seed in seed_facts)
@@ -527,23 +572,6 @@ def _train_command(
     return 0
 
 
-def _checkpoint_hash(checkpoint: Path, explicit: str | None) -> str:
-    if explicit is not None:
-        if len(explicit) != 64 or any(
-            character not in "0123456789abcdef" for character in explicit
-        ):
-            raise CycleCliError("checkpoint SHA-256 is invalid")
-        return explicit
-    receipt_path = checkpoint.parent / "persistence_seed_{}_v1.json".format(
-        checkpoint.name.removeprefix("checkpoint_seed_").removesuffix("_final.npz")
-    )
-    receipt = _canonical_mapping(receipt_path)
-    binding = receipt.get("checkpoint")
-    if type(binding) is not dict or binding.get("filename") != checkpoint.name:
-        raise CycleCliError("checkpoint requires its persistence receipt or an explicit hash")
-    return str(binding["sha256"])
-
-
 def _evaluate_policy_command(
     args: argparse.Namespace,
     *,
@@ -551,9 +579,16 @@ def _evaluate_policy_command(
     selected: TrainingCliDependencies,
 ) -> int:
     from oracle_composition.experiments.artifact_io import publish_bytes_without_overwrite
-    from oracle_composition.phase_b.evaluation import (
-        UtilityEvaluationDependencies,
-        evaluate_policy_checkpoint,
+    from oracle_composition.phase_b.calibration import load_calibration_receipt
+    from oracle_composition.phase_b.evaluation import UtilityEvaluationDependencies
+    from oracle_composition.phase_b.evaluation_lineage import (
+        evaluator_source_identity,
+        validate_evaluation_lineage,
+    )
+    from oracle_composition.phase_b.evaluation_supervision import (
+        EvaluationStatus,
+        EvaluationWorkerRequest,
+        supervise_policy_evaluation,
     )
     from oracle_composition.phase_b.report_v2 import (
         SeedReportFacts,
@@ -567,6 +602,10 @@ def _evaluate_policy_command(
     reward = _resolve(root, args.reward)
     checkpoint = _resolve(root, args.checkpoint)
     output = _resolve(root, args.output)
+    if args.checkpoint_sha256 is not None:
+        raise CycleCliError(
+            "explicit checkpoint SHA-256 bypass is forbidden; use the stored lineage chain"
+        )
     preflight = validate_training_preflight(
         repository_root=root,
         experiment=experiment,
@@ -574,7 +613,18 @@ def _evaluate_policy_command(
         reward_path=reward,
         allow_dirty=selected.allow_dirty or selected.test_only,
     )
-    expected_checkpoint_sha = _checkpoint_hash(checkpoint, args.checkpoint_sha256)
+    lineage = validate_evaluation_lineage(checkpoint_path=checkpoint, preflight=preflight)
+    source_identity = evaluator_source_identity(root)
+    calibration_path = (
+        _resolve(root, args.calibration_receipt) if args.calibration_receipt is not None else None
+    )
+    if (calibration_path is None) != (args.calibration_receipt_sha256 is None):
+        raise CycleCliError("calibration receipt and SHA-256 must be supplied together")
+    if calibration_path is not None:
+        load_calibration_receipt(
+            calibration_path,
+            expected_sha256=args.calibration_receipt_sha256,
+        )
     if output.exists() or output.is_symlink():
         raise CycleCliError("evaluate-policy output must be fresh and no-overwrite")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -582,81 +632,108 @@ def _evaluate_policy_command(
     dependencies = selected.utility_dependencies
     if dependencies is not None and not isinstance(dependencies, UtilityEvaluationDependencies):
         raise CycleCliError("utility evaluation dependency differs")
-    evaluation = evaluate_policy_checkpoint(
-        checkpoint_path=checkpoint,
-        checkpoint_sha256=expected_checkpoint_sha,
-        step_zero_actor_path=preflight.runtime_config.starting_actor_path,
-        step_zero_actor_sha256=preflight.runtime_config.starting_actor_sha256,
-        corpus_root=root / "artifacts/reference_corpus_v2",
-        calibration_receipt_path=_resolve(root, args.calibration_receipt),
-        calibration_receipt_sha256=args.calibration_receipt_sha256,
-        segment_targets_m_s=tuple(
-            float(segment.target_m_s) for segment in load_frozen_inputs(experiment)[1].schedule
+    dependencies = dependencies or UtilityEvaluationDependencies()
+    targets = tuple(
+        float(segment.target_m_s) for segment in load_frozen_inputs(experiment)[1].schedule
+    )
+    evaluation_manifest_value = {
+        "checkpoint_lineage": lineage.manifest_record(),
+        "evaluation_manifest_schema_id": "humanoid_phase_b_evaluation_manifest/v1",
+        "evaluator_sources": source_identity,
+        "planned_cells": ["hold_expert", "hold_medium", "hold_simple", "fixed_round_trip"],
+        "planned_episode_count": 160,
+        "planned_evaluation_seeds": list(range(120101, 120121)),
+        "schema_version": 1,
+        "segment_targets_m_s": list(targets),
+        "step_zero_actor_sha256": preflight.runtime_config.starting_actor_sha256,
+    }
+    evaluation_manifest = publish_bytes_without_overwrite(
+        output / "evaluation_manifest_v1.json",
+        canonical_json_bytes(evaluation_manifest_value),
+    )
+    evaluation = supervise_policy_evaluation(
+        request=EvaluationWorkerRequest(
+            checkpoint_path=str(checkpoint),
+            checkpoint_sha256=lineage.checkpoint_sha256,
+            step_zero_actor_path=str(preflight.runtime_config.starting_actor_path),
+            step_zero_actor_sha256=preflight.runtime_config.starting_actor_sha256,
+            corpus_root=str(root / "artifacts/reference_corpus_v2"),
+            calibration_receipt_path=(str(calibration_path) if calibration_path else None),
+            calibration_receipt_sha256=args.calibration_receipt_sha256,
+            segment_targets_m_s=targets,
+            dependencies=dependencies,
+            output_directory=str(output),
+            evaluator_source_sha256=str(source_identity["sha256"]),
+            repository_root=str(root),
         ),
-        dependencies=dependencies,
+        evaluation_manifest=evaluation_manifest,
     )
-    trained_value = [episode.to_dict() for episode in evaluation.trained_episodes]
-    baseline_value = [episode.to_dict() for episode in evaluation.step_zero_episodes]
-    trained = publish_bytes_without_overwrite(
-        output / "trained_policy_metrics_v1.json", canonical_json_bytes(trained_value)
+    if evaluation.status is not EvaluationStatus.SUCCEEDED:
+        print(
+            json.dumps(
+                {
+                    "evaluation_receipt": str(evaluation.terminal_receipt.path),
+                    "status": evaluation.status.value,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+    required_artifacts = (
+        evaluation.trained_metrics,
+        evaluation.step_zero_metrics,
+        evaluation.trained_traces,
+        evaluation.step_zero_traces,
     )
-    baseline = publish_bytes_without_overwrite(
-        output / "step_zero_metrics_v1.json", canonical_json_bytes(baseline_value)
+    if any(artifact is None for artifact in required_artifacts):
+        raise CycleCliError("successful evaluation omitted a protected artifact")
+    trained, baseline, trained_traces, baseline_traces = required_artifacts
+    trace_artifacts = (
+        (evaluation_manifest, "evaluation_manifest"),
+        (evaluation.terminal_receipt, "evaluation_success_receipt"),
+        (trained, "trained_policy_metrics"),
+        (baseline, "step_zero_metrics"),
+        (trained_traces, "trained_policy_protected_traces"),
+        (baseline_traces, "step_zero_protected_traces"),
     )
     trace_index_value = {
         "entries": [
-            {
-                "byte_count": trained.byte_count,
-                "path": trained.path.name,
-                "role": "trained_policy_metrics",
-                "sha256": trained.sha256,
-            },
-            {
-                "byte_count": baseline.byte_count,
-                "path": baseline.path.name,
-                "role": "step_zero_metrics",
-                "sha256": baseline.sha256,
-            },
+            _trace_record(artifact.path, output=output, role=role)
+            for artifact, role in trace_artifacts
         ],
-        "entry_count": 2,
+        "entry_count": len(trace_artifacts),
         "schema_version": 2,
         "trace_index_schema_id": "humanoid_phase_b_trace_index/v2",
     }
     trace_index = publish_bytes_without_overwrite(
         output / "trace_index_v2.json", canonical_json_bytes(trace_index_value)
     )
-    metadata = evaluation.checkpoint.metadata
-    training_facts_path = checkpoint.parent / "training_facts_v1.json"
-    if not training_facts_path.is_file() or training_facts_path.is_symlink():
-        raise CycleCliError("checkpoint training facts are unavailable")
-    training = _canonical_mapping(training_facts_path)
-    if (
-        training.get("execution_manifest_sha256") != metadata["execution_manifest_sha256"]
-        or training.get("ppo_seed") != metadata["ppo_seed"]
-        or _sha256(training_facts_path.read_bytes()) != metadata["training_facts_sha256"]
-    ):
-        raise CycleCliError("checkpoint and training facts differ")
-    persistence_receipt = _canonical_mapping(
-        checkpoint.parent / "persistence_seed_{}_v1.json".format(metadata["ppo_seed"])
-    )
-    if persistence_receipt.get("training_facts_sha256") != metadata["training_facts_sha256"]:
-        raise CycleCliError("persistence and training facts differ")
+    metadata = lineage.checkpoint_metadata
+    training = lineage.training_facts
+    persistence_receipt = lineage.persistence_receipt
     worker_step_zero = training.get("step_zero_comparator")
     if type(worker_step_zero) is not dict or worker_step_zero.get("bitwise_equal") is not True:
         raise CycleCliError("stored checkpoint omitted its worker step-0 comparator")
-    step_zero_comparator = {
-        **worker_step_zero,
-        **dict(evaluation.step_zero_comparator),
-    }
+    step_zero_comparator = {**worker_step_zero, **dict(evaluation.step_zero_comparator)}
     seed = SeedReportFacts(
         ppo_seed=int(metadata["ppo_seed"]),
-        checkpoint_sha256=expected_checkpoint_sha,
-        strict_export_sha256=(persistence_receipt["strict_export"]["sha256"]),
+        checkpoint_sha256=lineage.checkpoint_sha256,
+        strict_export_sha256=persistence_receipt["strict_export"]["sha256"],
         training=training,
         step_zero_comparator=step_zero_comparator,
+        execution_manifest_bytes=lineage.execution_manifest_bytes,
+        rsi_ledger_bytes=lineage.rsi_ledger_bytes,
+        cohort_authority={
+            "cohort_seeds": list(lineage.checkpoint_index["cohort_seeds"]),
+            "checkpoint_index_sha256": lineage.bindings["checkpoint_index"]["sha256"],
+            "execution_manifest_sha256": lineage.execution_manifest_sha256,
+            "job_result_sha256": lineage.bindings["job_result"]["sha256"],
+            "status": "successful_non_smoke_full_budget_promotable",
+            "success_receipt_sha256": lineage.bindings["success_receipt"]["sha256"],
+        },
     )
     report_inputs = dict(preflight.report_inputs)
-    report_inputs["execution_manifest_sha256"] = metadata["execution_manifest_sha256"]
+    report_inputs["execution_manifest_sha256"] = lineage.execution_manifest_sha256
     stored_reward_totals = training["reward_totals"]
     reward_totals: dict[str, object] = {
         field: float(stored_reward_totals[field])
@@ -683,6 +760,7 @@ def _evaluate_policy_command(
     print(
         json.dumps(
             {
+                "evaluation_receipt": str(evaluation.terminal_receipt.path),
                 "scientific_receipt": str(reports.scientific_receipt.path),
                 "step_zero_metrics": str(baseline.path),
                 "trained_metrics": str(trained.path),
@@ -722,8 +800,8 @@ def _parser() -> argparse.ArgumentParser:
     policy.add_argument("--reward", type=Path, required=True)
     policy.add_argument("--checkpoint", type=Path, required=True)
     policy.add_argument("--checkpoint-sha256")
-    policy.add_argument("--calibration-receipt", type=Path, required=True)
-    policy.add_argument("--calibration-receipt-sha256", required=True)
+    policy.add_argument("--calibration-receipt", type=Path)
+    policy.add_argument("--calibration-receipt-sha256")
     policy.add_argument("--output", type=Path, required=True)
     return parser
 

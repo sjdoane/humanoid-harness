@@ -12,6 +12,9 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.phase_b import contracts as contracts_module
 from oracle_composition.phase_b.contracts import (
     PHASE_POLICY,
+    TARGET_SPEED_BOUNDS_BYTES,
+    TARGET_SPEED_BOUNDS_SHA256,
+    TARGET_SPEED_FORMULA_SHA256,
     TASK_INPUTS_V2_SCHEMA_SHA256,
     TASK_INPUTS_V2_SOURCE_SHA256,
     FineTuningRunManifest,
@@ -19,6 +22,7 @@ from oracle_composition.phase_b.contracts import (
     PhaseBOracleProgram,
     RewardRegistry,
     StartingCheckpointContract,
+    TargetSpeedRewardSpec,
     TrackingOnlyRewardSpec,
     load_fine_tuning_run_manifest,
     load_phase_b_oracle,
@@ -169,6 +173,42 @@ def test_reward_registry_binds_the_authoritative_task_input_v2_module() -> None:
     assert hashlib.sha256(source).hexdigest() == TASK_INPUTS_V2_SOURCE_SHA256
 
 
+def test_reward_registry_admits_exact_f2_t2_binding_and_flat_parameters() -> None:
+    spec = TargetSpeedRewardSpec(alpha=4.0, beta=-10.0)
+    value = spec.to_dict()
+    assert RewardRegistry().resolve(value) == spec
+    assert value["formula_id"] == "target_speed_triangular_affine_t2_adapter/v1"
+    assert value["formula_sha256"] == TARGET_SPEED_FORMULA_SHA256
+    assert value["parser_id"] == "target_speed_triangular_affine_recipe/v1"
+    assert value["parameters"] == {"alpha": 4.0, "beta": -10.0}
+    assert canonical_json_bytes(value["parameter_bounds"]) == TARGET_SPEED_BOUNDS_BYTES
+    assert hashlib.sha256(TARGET_SPEED_BOUNDS_BYTES).hexdigest() == TARGET_SPEED_BOUNDS_SHA256
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("parameters", {"alpha": 4.0001, "beta": 0.0}, "alpha"),
+        ("formula_sha256", "0" * 64, "formula source"),
+        ("parameter_bounds", {"parameters": {}, "r_task": {}}, "bounds bytes"),
+    ],
+)
+def test_f2_registry_refuses_parameter_or_identity_drift(
+    field: str, value: object, message: str
+) -> None:
+    raw = TargetSpeedRewardSpec(alpha=1.0, beta=0.0).to_dict()
+    raw[field] = value
+    with pytest.raises(PhaseBContractError, match=message):
+        RewardRegistry().resolve(raw)
+
+
+def test_f2_registry_requires_ft2r1_consumption_certificate() -> None:
+    raw = TargetSpeedRewardSpec(alpha=1.0, beta=0.0).to_dict()
+    del raw["required_consumption_step"]
+    with pytest.raises(PhaseBContractError, match="admission certificate"):
+        RewardRegistry().resolve(raw)
+
+
 def test_phase_b_numeric_parsers_normalize_out_of_representation_integers() -> None:
     starting = json.loads((PHASE_B / "starting_checkpoint_v1.json").read_bytes())
     starting["value_initialization_seed"] = 10**1000
@@ -194,6 +234,12 @@ def _minimal_v2_report() -> dict[str, object]:
                 "no_causal_reference_use_oracle_improvement_reward_improvement_"
                 "generalization_naturalness_or_humanoid_competence_claim"
             ),
+            "evaluation": {
+                **v1["evaluation"],
+                "evidence_statement": "interface/training receipt; no utility or behavioral evidence",
+                "step_zero_per_episode": v1["per_episode"],
+                "trained_per_episode": v1["per_episode"],
+            },
             "inputs": {
                 "evaluator_sha256": "0" * 64,
                 "library_sha256": "0" * 64,
@@ -264,6 +310,7 @@ def _minimal_v2_report() -> dict[str, object]:
         {
             "distributions_by_arm": {},
             "distributions_by_cell": {},
+            "episode_summaries": {"step_zero": {}, "trained": {}},
             "hard_gates": {},
             "policy_seeds": [121901],
             "step_zero_comparator": {},

@@ -3,9 +3,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from oracle_composition.phase_b.contracts import PhaseBContractError, TrackingOnlyRewardSpec
+from oracle_composition.phase_b.contracts import (
+    PhaseBContractError,
+    TargetSpeedRewardSpec,
+    TrackingOnlyRewardSpec,
+)
 from oracle_composition.phase_b.reference_runtime import tracking_state_from_reference_row
-from oracle_composition.phase_b.reward import compose_tracking_only_reward
+from oracle_composition.phase_b.reward import (
+    compose_registered_reward,
+    compose_tracking_only_reward,
+)
 from oracle_composition.phase_b.task_input_admission import (
     MEASUREMENT_ORIGIN,
     admit_task_inputs_v2,
@@ -148,4 +155,31 @@ def test_reward_consumption_rejects_forged_task_input_certificate(
             ignored_stock_reward=0.0,
             task_inputs=admitted,
             specification=TrackingOnlyRewardSpec(),
+        )
+
+
+def test_f2_registered_formula_consumes_certified_t2_input() -> None:
+    target = _row()
+    result = compose_registered_reward(
+        state=tracking_state_from_reference_row(target),
+        hidden_reference_target=target,
+        ignored_stock_reward=500.0,
+        task_inputs=_task_inputs(3.0),
+        specification=TargetSpeedRewardSpec(alpha=4.0, beta=-10.0),
+    )
+    assert result.r_track == pytest.approx(1.0)
+    assert result.r_task == pytest.approx(-5.0)
+    assert result.r_train == pytest.approx(-4.0)
+    assert result.ignored_stock_reward == 500.0
+
+
+def test_f2_registered_formula_refuses_missing_consumption_certificate() -> None:
+    target = _row()
+    with pytest.raises(PhaseBContractError, match="admission"):
+        compose_registered_reward(
+            state=tracking_state_from_reference_row(target),
+            hidden_reference_target=target,
+            ignored_stock_reward=0.0,
+            task_inputs=object(),
+            specification=TargetSpeedRewardSpec(alpha=1.0, beta=0.0),
         )

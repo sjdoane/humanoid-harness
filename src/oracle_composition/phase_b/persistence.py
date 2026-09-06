@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import math
+import re
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -40,7 +41,7 @@ from .policy import (
     compose_policy_input,
     encode_full_authority_actor,
 )
-from .strict_npz import decode_strict_npz
+from .strict_npz import MAX_NPY_HEADER_BYTES, decode_strict_npy_member, decode_strict_npz
 from .training import COHORT_SEEDS, TrainingPlan, TrainingResult
 
 CHECKPOINT_SCHEMA_ID = "humanoid_phase_b_full_checkpoint/v1"
@@ -49,6 +50,10 @@ PERSISTENCE_RECEIPT_ID = "humanoid_phase_b_final_persistence/v1"
 CHECKPOINT_INDEX_SCHEMA_ID = "humanoid_phase_b_checkpoint_index/v1"
 MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
 MAX_ACTOR_EXPORT_BYTES = 4 * 1024 * 1024
+MAX_CHECKPOINT_MANIFEST_BYTES = 256 * 1024
+MAX_CHECKPOINT_MEMBER_BYTES = 4 * 1024 * 1024
+MAX_CHECKPOINT_EXPANDED_BYTES = 32 * 1024 * 1024
+MAX_CHECKPOINT_MEMBERS = 59
 
 _STRICT_EXPORT_SCHEMA: Mapping[str, tuple[tuple[int, ...], np.dtype[object]]] = {
     "latent_pi.0.weight": ((HIDDEN_WIDTH, POLICY_INPUT_WIDTH), np.dtype("<f4")),
@@ -77,6 +82,42 @@ _ACTOR_CHECKPOINT_TO_EXPORT = {
     "actor.log_std.weight": "log_std.weight",
     "actor.log_std.bias": "log_std.bias",
 }
+
+_CHECKPOINT_POLICY_SCHEMA: Mapping[str, tuple[tuple[int, ...], np.dtype[object]]] = {
+    "policy:actor.action_high": ((ACTION_WIDTH,), np.dtype("<f4")),
+    "policy:actor.action_low": ((ACTION_WIDTH,), np.dtype("<f4")),
+    "policy:actor.latent_0.bias": ((HIDDEN_WIDTH,), np.dtype("<f4")),
+    "policy:actor.latent_0.weight": ((HIDDEN_WIDTH, POLICY_INPUT_WIDTH), np.dtype("<f4")),
+    "policy:actor.latent_2.bias": ((HIDDEN_WIDTH,), np.dtype("<f4")),
+    "policy:actor.latent_2.weight": ((HIDDEN_WIDTH, HIDDEN_WIDTH), np.dtype("<f4")),
+    "policy:actor.log_std.bias": ((ACTION_WIDTH,), np.dtype("<f4")),
+    "policy:actor.log_std.weight": ((ACTION_WIDTH, HIDDEN_WIDTH), np.dtype("<f4")),
+    "policy:actor.mu.bias": ((ACTION_WIDTH,), np.dtype("<f4")),
+    "policy:actor.mu.weight": ((ACTION_WIDTH, HIDDEN_WIDTH), np.dtype("<f4")),
+    "policy:value.0.bias": ((HIDDEN_WIDTH,), np.dtype("<f4")),
+    "policy:value.0.weight": ((HIDDEN_WIDTH, POLICY_INPUT_WIDTH), np.dtype("<f4")),
+    "policy:value.2.bias": ((HIDDEN_WIDTH,), np.dtype("<f4")),
+    "policy:value.2.weight": ((HIDDEN_WIDTH, HIDDEN_WIDTH), np.dtype("<f4")),
+    "policy:value.4.bias": ((1,), np.dtype("<f4")),
+    "policy:value.4.weight": ((1, HIDDEN_WIDTH), np.dtype("<f4")),
+}
+_OPTIMIZER_PARAMETER_SHAPES = (
+    (HIDDEN_WIDTH, POLICY_INPUT_WIDTH),
+    (HIDDEN_WIDTH,),
+    (HIDDEN_WIDTH, HIDDEN_WIDTH),
+    (HIDDEN_WIDTH,),
+    (ACTION_WIDTH, HIDDEN_WIDTH),
+    (ACTION_WIDTH,),
+    (ACTION_WIDTH, HIDDEN_WIDTH),
+    (ACTION_WIDTH,),
+    (HIDDEN_WIDTH, POLICY_INPUT_WIDTH),
+    (HIDDEN_WIDTH,),
+    (HIDDEN_WIDTH, HIDDEN_WIDTH),
+    (HIDDEN_WIDTH,),
+    (1, HIDDEN_WIDTH),
+    (1,),
+)
+_OPTIMIZER_ARRAY_KEY = re.compile(r"^optimizer:(\d+):(exp_avg|exp_avg_sq|step)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,6 +348,7 @@ def encode_full_checkpoint(
         "rollouts": plan.rollout_count,
         "schema_version": 1,
         "smoke": plan.smoke,
+        "test_only": plan.test_only,
         "training_facts_sha256": hashlib.sha256(canonical_json_bytes(facts)).hexdigest(),
         "transitions": plan.transitions,
         "value_initialization_seed": result.policy.value_seed,
@@ -340,66 +382,19 @@ def _read_bounded_regular(path: Path, *, expected_sha256: str, maximum: int) -> 
     return encoded
 
 
-def _decode_full_checkpoint(encoded: bytes) -> tuple[dict[str, object], dict[str, np.ndarray]]:
-    try:
-        with ZipFile(io.BytesIO(encoded), "r") as archive:
-            infos = archive.infolist()
-            if not infos or infos[0].filename != "manifest.json":
-                raise ExperimentContractError("checkpoint manifest must be the first member")
-            for info in infos:
-                if (
-                    info.date_time != (1980, 1, 1, 0, 0, 0)
-                    or info.compress_type != ZIP_DEFLATED
-                    or info.create_system != 3
-                    or ((info.external_attr >> 16) & 0xFFFF) != 0o100600
-                    or info.flag_bits != 0
-                    or info.extra
-                    or info.comment
-                    or info.is_dir()
-                ):
-                    raise ExperimentContractError("checkpoint ZIP metadata differs")
-            manifest_bytes = archive.read(infos[0])
-            manifest = json.loads(manifest_bytes.decode("utf-8"))
-            if canonical_json_bytes(manifest) != manifest_bytes:
-                raise ExperimentContractError("checkpoint manifest is not canonical JSON")
-            records = manifest.get("array_records")
-            if type(records) is not list or tuple(info.filename for info in infos[1:]) != tuple(
-                record.get("member") for record in records if type(record) is dict
-            ):
-                raise ExperimentContractError("checkpoint array member order differs")
-            arrays: dict[str, np.ndarray] = {}
-            for info, record in zip(infos[1:], records, strict=True):
-                if type(record) is not dict or set(record) != {
-                    "array_sha256",
-                    "dtype",
-                    "key",
-                    "member",
-                    "npy_sha256",
-                    "shape",
-                }:
-                    raise ExperimentContractError("checkpoint array record differs")
-                payload = archive.read(info)
-                if hashlib.sha256(payload).hexdigest() != record["npy_sha256"]:
-                    raise ExperimentContractError("checkpoint NPY identity differs")
-                with io.BytesIO(payload) as member:
-                    value = np.ascontiguousarray(
-                        np.lib.format.read_array(member, allow_pickle=False)
-                    )
-                if (
-                    value.dtype.str != record["dtype"]
-                    or list(value.shape) != record["shape"]
-                    or array_sha256(value) != record["array_sha256"]
-                    or (value.dtype.kind == "f" and not np.isfinite(value).all())
-                ):
-                    raise ExperimentContractError("checkpoint array content differs")
-                key = record["key"]
-                if type(key) is not str or key in arrays:
-                    raise ExperimentContractError("checkpoint array key is invalid or duplicated")
-                arrays[key] = value
-    except ExperimentContractError:
-        raise
-    except (BadZipFile, EOFError, KeyError, OSError, UnicodeError, ValueError) as exc:
-        raise ExperimentContractError(f"full checkpoint is invalid: {exc}") from exc
+def _bounded_zip_read(archive: ZipFile, info: ZipInfo, *, maximum: int) -> bytes:
+    if not 0 < info.file_size <= maximum:
+        raise ExperimentContractError("checkpoint member expansion is outside its bound")
+    with archive.open(info, "r") as member:
+        payload = member.read(info.file_size + 1)
+    if len(payload) != info.file_size:
+        raise ExperimentContractError("checkpoint bounded member read differs")
+    return payload
+
+
+def _validate_checkpoint_manifest(manifest: object) -> dict[str, object]:
+    if type(manifest) is not dict:
+        raise ExperimentContractError("full checkpoint manifest must be an object")
     required = {
         "actor_source_sha256",
         "array_records",
@@ -414,6 +409,7 @@ def _decode_full_checkpoint(encoded: bytes) -> tuple[dict[str, object], dict[str
         "rollouts",
         "schema_version",
         "smoke",
+        "test_only",
         "training_facts_sha256",
         "transitions",
         "value_initialization_seed",
@@ -437,6 +433,180 @@ def _decode_full_checkpoint(encoded: bytes) -> tuple[dict[str, object], dict[str
         for name, (minimum, maximum) in bounded_integers.items()
     ):
         raise ExperimentContractError("full checkpoint integer field lies outside its bound")
+    for name in ("promotable", "smoke", "test_only"):
+        if type(manifest[name]) is not bool:
+            raise ExperimentContractError("full checkpoint boolean field differs")
+    for name in (
+        "actor_source_sha256",
+        "execution_manifest_sha256",
+        "training_facts_sha256",
+    ):
+        value = manifest[name]
+        if (
+            type(value) is not str
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise ExperimentContractError("full checkpoint identity field differs")
+    return manifest
+
+
+def _checkpoint_array_schema(
+    record: Mapping[str, object],
+) -> tuple[tuple[int, ...], np.dtype[object]]:
+    key = record.get("key")
+    if type(key) is not str:
+        raise ExperimentContractError("checkpoint array key is invalid")
+    if key in _CHECKPOINT_POLICY_SCHEMA:
+        return _CHECKPOINT_POLICY_SCHEMA[key]
+    match = _OPTIMIZER_ARRAY_KEY.fullmatch(key)
+    if match is None:
+        raise ExperimentContractError("checkpoint contains an unknown array key")
+    parameter_index = int(match.group(1))
+    if parameter_index >= len(_OPTIMIZER_PARAMETER_SHAPES):
+        raise ExperimentContractError("checkpoint optimizer parameter index is invalid")
+    shape = (1,) if match.group(2) == "step" else _OPTIMIZER_PARAMETER_SHAPES[parameter_index]
+    return shape, np.dtype("<f4")
+
+
+def _decode_full_checkpoint(encoded: bytes) -> tuple[dict[str, object], dict[str, np.ndarray]]:
+    if (
+        type(encoded) is not bytes
+        or not encoded.startswith(b"PK\x03\x04")
+        or len(encoded) < 22
+        or encoded[-22:-18] != b"PK\x05\x06"
+        or encoded[-2:] != b"\x00\x00"
+    ):
+        raise ExperimentContractError("full checkpoint is not an uncommented NPZ archive")
+    try:
+        with ZipFile(io.BytesIO(encoded), "r") as archive:
+            infos = archive.infolist()
+            if (
+                len(infos) not in {38, MAX_CHECKPOINT_MEMBERS}
+                or len({info.filename for info in infos}) != len(infos)
+                or infos[0].filename != "manifest.json"
+            ):
+                raise ExperimentContractError("checkpoint member count, set, or order differs")
+            if (
+                archive.comment
+                or sum(info.file_size for info in infos) > MAX_CHECKPOINT_EXPANDED_BYTES
+            ):
+                raise ExperimentContractError("checkpoint total expansion exceeds its bound")
+            for info in infos:
+                if (
+                    info.date_time != (1980, 1, 1, 0, 0, 0)
+                    or info.compress_type != ZIP_DEFLATED
+                    or info.create_system != 3
+                    or ((info.external_attr >> 16) & 0xFFFF) != 0o100600
+                    or info.flag_bits != 0
+                    or info.extra
+                    or info.comment
+                    or info.is_dir()
+                ):
+                    raise ExperimentContractError("checkpoint ZIP metadata differs")
+            manifest_bytes = _bounded_zip_read(
+                archive,
+                infos[0],
+                maximum=MAX_CHECKPOINT_MANIFEST_BYTES,
+            )
+            manifest = _validate_checkpoint_manifest(json.loads(manifest_bytes.decode("utf-8")))
+            if canonical_json_bytes(manifest) != manifest_bytes:
+                raise ExperimentContractError("checkpoint manifest is not canonical JSON")
+            records = manifest["array_records"]
+            expected_optimizer_indices = (
+                {0, 8, 9, 10, 11, 12, 13}
+                if int(manifest["rollouts"]) <= 8
+                else set(range(len(_OPTIMIZER_PARAMETER_SHAPES)))
+            )
+            expected_member_count = (
+                1 + len(_CHECKPOINT_POLICY_SCHEMA) + 3 * len(expected_optimizer_indices)
+            )
+            if (
+                type(records) is not list
+                or len(infos) != expected_member_count
+                or len(records) != expected_member_count - 1
+                or tuple(info.filename for info in infos[1:])
+                != tuple(record.get("member") for record in records if type(record) is dict)
+            ):
+                raise ExperimentContractError("checkpoint array member order differs")
+            arrays: dict[str, np.ndarray] = {}
+            for index, (info, record) in enumerate(zip(infos[1:], records, strict=True)):
+                if type(record) is not dict or set(record) != {
+                    "array_sha256",
+                    "dtype",
+                    "key",
+                    "member",
+                    "npy_sha256",
+                    "shape",
+                }:
+                    raise ExperimentContractError("checkpoint array record differs")
+                expected_member = f"arrays/{index:04d}.npy"
+                shape, dtype = _checkpoint_array_schema(record)
+                if (
+                    record["member"] != expected_member
+                    or info.filename != expected_member
+                    or record["dtype"] != dtype.str
+                    or record["shape"] != list(shape)
+                    or type(record["array_sha256"]) is not str
+                    or type(record["npy_sha256"]) is not str
+                    or len(record["array_sha256"]) != 64
+                    or len(record["npy_sha256"]) != 64
+                    or any(
+                        character not in "0123456789abcdef"
+                        for digest in (record["array_sha256"], record["npy_sha256"])
+                        for character in digest
+                    )
+                ):
+                    raise ExperimentContractError("checkpoint array schema differs")
+                expected_data_bytes = int(np.prod(shape, dtype=np.int64)) * dtype.itemsize
+                if (
+                    not expected_data_bytes < info.file_size <= MAX_CHECKPOINT_MEMBER_BYTES
+                    or info.file_size > expected_data_bytes + MAX_NPY_HEADER_BYTES
+                ):
+                    raise ExperimentContractError(
+                        "checkpoint member expansion differs from its array schema"
+                    )
+                payload = _bounded_zip_read(
+                    archive,
+                    info,
+                    maximum=MAX_CHECKPOINT_MEMBER_BYTES,
+                )
+                if hashlib.sha256(payload).hexdigest() != record["npy_sha256"]:
+                    raise ExperimentContractError("checkpoint NPY identity differs")
+                value = decode_strict_npy_member(
+                    payload,
+                    name=str(record["key"]),
+                    shape=shape,
+                    dtype=dtype,
+                    archive_label="full checkpoint",
+                )
+                if array_sha256(value) != record["array_sha256"]:
+                    raise ExperimentContractError("checkpoint array content differs")
+                key = str(record["key"])
+                if key in arrays:
+                    raise ExperimentContractError("checkpoint array key is duplicated")
+                arrays[key] = value
+            expected_array_keys = set(_CHECKPOINT_POLICY_SCHEMA) | {
+                f"optimizer:{index}:{field}"
+                for index in expected_optimizer_indices
+                for field in ("exp_avg", "exp_avg_sq", "step")
+            }
+            if set(arrays) != expected_array_keys:
+                raise ExperimentContractError("checkpoint array member set is incomplete")
+    except ExperimentContractError:
+        raise
+    except (
+        BadZipFile,
+        EOFError,
+        KeyError,
+        MemoryError,
+        OSError,
+        OverflowError,
+        RecursionError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        raise ExperimentContractError(f"full checkpoint is invalid: {exc}") from exc
     return manifest, arrays
 
 
@@ -505,6 +675,20 @@ def load_full_checkpoint(path: Path, *, expected_sha256: str) -> LoadedFullCheck
         sha256=expected_sha256,
         byte_count=len(encoded),
     )
+
+
+def load_full_checkpoint_metadata(
+    path: Path,
+    *,
+    expected_sha256: str,
+) -> Mapping[str, object]:
+    """Validate a bounded checkpoint and return metadata without constructing a model."""
+
+    encoded = _read_bounded_regular(
+        Path(path), expected_sha256=expected_sha256, maximum=MAX_CHECKPOINT_BYTES
+    )
+    manifest, _arrays = _decode_full_checkpoint(encoded)
+    return MappingProxyType(dict(manifest))
 
 
 def encode_full_checkpoint_from_loaded(
@@ -617,11 +801,13 @@ def publish_final_persistence(
         "ppo_seed": plan.seed,
         "promotable": plan.promotable,
         "schema_version": 1,
+        "smoke": plan.smoke,
         "strict_export": {
             "byte_count": strict_export.byte_count,
             "filename": strict_export.path.name,
             "sha256": strict_export.sha256,
         },
+        "test_only": plan.test_only,
         "transitions": plan.transitions,
         "training_facts_sha256": hashlib.sha256(
             canonical_json_bytes(dict(result.scientific_facts))
@@ -643,17 +829,109 @@ def publish_checkpoint_index(
     *,
     output_directory: Path,
     entries: Sequence[PersistenceResult],
+    success_receipts: Sequence[PublishedArtifact] | None = None,
+    execution_manifest: PublishedArtifact | None = None,
+    job_result: PublishedArtifact | None = None,
 ) -> PublishedArtifact:
     """Publish a complete five-checkpoint cohort index; partial cohorts are refused."""
 
     if len(entries) != 5:
         raise ExperimentContractError("checkpoint index requires exactly five entries")
+    if (
+        success_receipts is None
+        or len(success_receipts) != 5
+        or execution_manifest is None
+        or job_result is None
+    ):
+        raise ExperimentContractError("checkpoint index requires success and job authority")
     output = Path(output_directory).resolve()
+    manifest_payload = _read_bounded_regular(
+        execution_manifest.path,
+        expected_sha256=execution_manifest.sha256,
+        maximum=2 * 1024 * 1024,
+    )
+    job_payload = _read_bounded_regular(
+        job_result.path,
+        expected_sha256=job_result.sha256,
+        maximum=256 * 1024,
+    )
+    try:
+        manifest_value = json.loads(manifest_payload)
+        job_value = json.loads(job_payload)
+    except (UnicodeError, ValueError) as exc:
+        raise ExperimentContractError("checkpoint cohort authority is malformed") from exc
+    if (
+        type(manifest_value) is not dict
+        or type(job_value) is not dict
+        or canonical_json_bytes(manifest_value) != manifest_payload
+        or canonical_json_bytes(job_value) != job_payload
+        or manifest_value.get("seeds") != list(COHORT_SEEDS)
+        or manifest_value.get("transitions_per_seed") != 1_048_576
+        or manifest_value.get("checkpoint_selection") != "final_transition_only"
+        or manifest_value.get("smoke") is not False
+        or manifest_value.get("test_only") is not False
+        or job_value.get("status") != "succeeded"
+        or job_value.get("execution_manifest_sha256") != execution_manifest.sha256
+    ):
+        raise ExperimentContractError("checkpoint cohort execution authority differs")
+    success_by_seed: dict[int, tuple[PublishedArtifact, dict[str, object]]] = {}
+    for artifact in success_receipts:
+        payload = _read_bounded_regular(
+            artifact.path,
+            expected_sha256=artifact.sha256,
+            maximum=64 * 1024,
+        )
+        try:
+            success = json.loads(payload)
+        except (UnicodeError, ValueError) as exc:
+            raise ExperimentContractError("checkpoint success receipt is malformed") from exc
+        seed = success.get("ppo_seed") if type(success) is dict else None
+        if (
+            type(seed) is not int
+            or seed in success_by_seed
+            or canonical_json_bytes(success) != payload
+            or success.get("outcome") != "success"
+            or success.get("status") != "succeeded"
+            or success.get("evidence_class") != "exploratory_fine_tuning_cycle"
+            or success.get("planned_transitions") != 1_048_576
+            or success.get("promotable") is not True
+            or success.get("smoke") is not False
+            or success.get("test_only") is not False
+            or success.get("execution_manifest_sha256") != execution_manifest.sha256
+        ):
+            raise ExperimentContractError("checkpoint success receipt lacks cohort authority")
+        job_binding = {
+            "byte_count": artifact.byte_count,
+            "filename": artifact.path.name,
+            "sha256": artifact.sha256,
+        }
+        if not any(
+            type(row) is dict
+            and row.get("seed") == seed
+            and row.get("status") == "succeeded"
+            and row.get("receipt") == job_binding
+            for row in job_value.get("outcomes", [])
+        ):
+            raise ExperimentContractError("job result omits a cohort success receipt")
+        success_by_seed[seed] = (artifact, success)
+    if tuple(sorted(success_by_seed)) != COHORT_SEEDS:
+        raise ExperimentContractError("checkpoint success receipt seed set differs")
     rows = []
     for entry in entries:
         if type(entry) is not PersistenceResult:
             raise ExperimentContractError("checkpoint index entry authority differs")
         value = dict(entry.receipt_value)
+        expected = {
+            "evidence_class": "exploratory_fine_tuning_cycle",
+            "execution_manifest_sha256": execution_manifest.sha256,
+            "planned_transitions": 1_048_576,
+            "promotable": True,
+            "smoke": False,
+            "test_only": False,
+            "transitions": 1_048_576,
+        }
+        if any(value.get(field) != expected_value for field, expected_value in expected.items()):
+            raise ExperimentContractError("checkpoint index refuses smoke or test-only outcomes")
         _read_bounded_regular(
             entry.checkpoint.path,
             expected_sha256=entry.checkpoint.sha256,
@@ -677,6 +955,8 @@ def publish_checkpoint_index(
             entry.strict_export.path,
             expected_sha256=entry.strict_export.sha256,
         )
+        success_artifact, success_value = success_by_seed[int(value["ppo_seed"])]
+        success_artifacts = success_value.get("artifacts")
         if (
             value.get("checkpoint")
             != {
@@ -692,8 +972,18 @@ def publish_checkpoint_index(
             }
             or receipt_payload != canonical_json_bytes(value)
             or loaded_checkpoint.metadata.get("ppo_seed") != value.get("ppo_seed")
+            or loaded_checkpoint.metadata.get("execution_manifest_sha256")
+            != execution_manifest.sha256
+            or loaded_checkpoint.metadata.get("planned_transitions") != 1_048_576
+            or loaded_checkpoint.metadata.get("transitions") != 1_048_576
+            or loaded_checkpoint.metadata.get("promotable") is not True
+            or loaded_checkpoint.metadata.get("smoke") is not False
+            or loaded_checkpoint.metadata.get("test_only") is not False
             or loaded_export.actor.source_actor_sha256
             != loaded_checkpoint.policy.actor.source_actor_sha256
+            or type(success_artifacts) is not dict
+            or type(success_artifacts.get("persistence")) is not dict
+            or success_artifacts.get("persistence", {}).get("sha256") != entry.receipt.sha256
         ):
             raise ExperimentContractError("checkpoint index entry binding differs")
 
@@ -714,17 +1004,25 @@ def publish_checkpoint_index(
                 "persistence_receipt": indexed(entry.receipt),
                 "ppo_seed": value["ppo_seed"],
                 "strict_export": indexed(entry.strict_export),
+                "success_receipt": indexed(success_artifact),
             }
         )
     rows.sort(key=lambda item: int(item["ppo_seed"]))
     if tuple(int(row["ppo_seed"]) for row in rows) != COHORT_SEEDS:
         raise ExperimentContractError("checkpoint index seed set differs from the frozen cohort")
     value = {
+        "cohort_seeds": list(COHORT_SEEDS),
         "checkpoint_count": 5,
         "checkpoint_index_schema_id": CHECKPOINT_INDEX_SCHEMA_ID,
         "entries": rows,
+        "execution_manifest_sha256": execution_manifest.sha256,
+        "job_result_sha256": job_result.sha256,
         "schema_version": 1,
         "selection_rule": "final_transition_only_no_replacement",
+        "summary": {
+            "full_budget_success_count": len(rows),
+            "promotable_checkpoint_count": len(rows),
+        },
     }
     return publish_bytes_without_overwrite(
         output / "checkpoint_index_v1.json",
@@ -740,6 +1038,7 @@ __all__ = [
     "encode_full_checkpoint",
     "frozen_inference_fixtures",
     "load_full_checkpoint",
+    "load_full_checkpoint_metadata",
     "load_trained_full_authority_actor",
     "publish_checkpoint_index",
     "publish_final_persistence",

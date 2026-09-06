@@ -7,6 +7,18 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.rewards.target_speed_formula import (
+    FORMULA_ID as TARGET_SPEED_RECIPE_ID,
+)
+from oracle_composition.rewards.target_speed_formula import (
+    TargetSpeedFormulaError,
+    parse_target_speed_formula_recipe,
+)
+from oracle_composition.rewards.target_speed_formula_t2 import (
+    TargetSpeedFormulaT2Error,
+    evaluate_target_speed_formula_t2,
+)
 from oracle_composition.tracking.humanoid_reference import HumanoidTrackingState
 from oracle_composition.tracking.reward import (
     TrackingRewardConfig,
@@ -17,6 +29,7 @@ from oracle_composition.tracking.reward import (
 from .contracts import (
     FROZEN_TRACKING_REWARD_CONFIG,
     PhaseBContractError,
+    TargetSpeedRewardSpec,
     TrackingOnlyRewardSpec,
 )
 from .task_input_admission import AdmittedTaskInputsV2, validate_admitted_task_inputs_v2
@@ -100,9 +113,75 @@ def compose_tracking_only_reward(
     )
 
 
+def compose_registered_reward(
+    *,
+    state: HumanoidTrackingState,
+    hidden_reference_target: np.ndarray,
+    ignored_stock_reward: float,
+    task_inputs: AdmittedTaskInputsV2,
+    specification: TrackingOnlyRewardSpec | TargetSpeedRewardSpec,
+    config: TrackingRewardConfig | None = None,
+) -> TrainingRewardStreams:
+    """Consume only an exact registered reward after task-input certification."""
+
+    if type(specification) is TrackingOnlyRewardSpec:
+        return compose_tracking_only_reward(
+            state=state,
+            hidden_reference_target=hidden_reference_target,
+            ignored_stock_reward=ignored_stock_reward,
+            task_inputs=task_inputs,
+            specification=specification,
+            config=config,
+        )
+    if type(specification) is not TargetSpeedRewardSpec:
+        raise PhaseBContractError("reward compositor requires an exact registered specification")
+    certified_inputs = validate_admitted_task_inputs_v2(task_inputs)
+    stock = float(ignored_stock_reward)
+    if not math.isfinite(stock):
+        raise PhaseBContractError("stock reward telemetry must be finite")
+    target = np.asarray(hidden_reference_target)
+    if (
+        type(hidden_reference_target) is not np.ndarray
+        or target.dtype.str != "<f8"
+        or target.shape != (45,)
+        or not target.flags.c_contiguous
+        or not np.isfinite(target).all()
+    ):
+        raise PhaseBContractError("hidden tracking target must be finite float64[45]")
+    tracking = compute_tracking_reward(
+        state=state,
+        reference_frame=target,
+        config=require_frozen_tracking_reward_config(config),
+    )
+    recipe_bytes = canonical_json_bytes(
+        {
+            "alpha": specification.alpha,
+            "beta": specification.beta,
+            "formula_id": TARGET_SPEED_RECIPE_ID,
+        }
+    )
+    try:
+        recipe = parse_target_speed_formula_recipe(recipe_bytes)
+        r_task = evaluate_target_speed_formula_t2(recipe, certified_inputs)
+    except (TargetSpeedFormulaError, TargetSpeedFormulaT2Error) as exc:
+        raise PhaseBContractError("registered target-speed formula evaluation failed") from exc
+    r_track = float(tracking.total)
+    r_train = r_track + r_task
+    if not all(math.isfinite(value) for value in (r_track, r_task, r_train)):
+        raise PhaseBContractError("training reward stream became non-finite")
+    return TrainingRewardStreams(
+        r_track=r_track,
+        r_task=r_task,
+        r_train=r_train,
+        ignored_stock_reward=stock,
+        tracking=tracking,
+    )
+
+
 __all__ = [
     "FROZEN_TRACKING_REWARD_CONFIG",
     "TrainingRewardStreams",
+    "compose_registered_reward",
     "compose_tracking_only_reward",
     "require_frozen_tracking_reward_config",
 ]

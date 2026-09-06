@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
+from oracle_composition.phase_b import training as training_module
 from oracle_composition.phase_b.policy import FullAuthorityPolicy, load_full_authority_actor
 from oracle_composition.phase_b.runtime import (
     fake_environment_factories,
@@ -24,6 +25,8 @@ from oracle_composition.phase_b.training import (
     PPORecipe,
     RSIRestorationReceipt,
     TrainingPlan,
+    audit_rollout_likelihood,
+    compute_truncation_aware_gae,
     domain_separated_seed,
     run_ppo_training,
     validate_rsi_restoration_receipt,
@@ -96,6 +99,7 @@ def test_first_eight_rollouts_change_only_reference_columns_and_value() -> None:
     receipts = result.scientific_facts["unfreeze_rollouts"]
     assert len(receipts) == REFERENCE_ONLY_ROLLOUTS
     assert {receipt["actor_stage"] for receipt in receipts} == {"reference_columns_only"}
+    assert all(receipt["state_columns_changed"] is False for receipt in receipts)
     initialization = result.scientific_facts["optimizer_initialization"]
     assert initialization["state_empty"] is True
     assert initialization["parameter_membership_unique"] is True
@@ -124,9 +128,10 @@ def test_worker_counts_streams_exactly_half_and_orders_global_rsi_resets() -> No
     assert [entry["global_episode_index"] for entry in result.rsi_ledger] == list(
         range(len(result.rsi_ledger))
     )
-    assert result.scientific_facts["likelihood_audit"]["passed"] is True
+    assert result.scientific_facts["likelihood_audit"]["all_passed"] is True
     assert result.scientific_facts["unfreeze_rollouts"][-1]["actor_stage"] == "full_actor"
     final_receipt = result.scientific_facts["unfreeze_rollouts"][-1]
+    assert final_receipt["state_columns_changed"] is True
     assert (
         final_receipt["optimizer_authority_before"]["membership_sha256"]
         == (final_receipt["optimizer_authority_after"]["membership_sha256"])
@@ -146,6 +151,53 @@ def test_time_limit_transitions_use_value_bootstrap_without_changing_step_count(
         "composition": 8,
         "rehearsal": 8,
     }
+
+
+def test_rollout_likelihood_audit_rejects_old_log_prob_only_mutation() -> None:
+    observations = np.zeros((1, 2, 708), dtype="<f4")
+    pre_tanh = np.zeros((1, 2, 17), dtype="<f4")
+    means = np.zeros_like(pre_tanh)
+    log_stds = np.zeros_like(pre_tanh)
+    from oracle_composition.phase_b.policy import numpy_log_likelihood
+
+    old = numpy_log_likelihood(
+        pre_tanh.reshape(2, 17), means.reshape(2, 17), log_stds.reshape(2, 17)
+    )
+    rollout = training_module._Rollout(
+        observations=observations,
+        pre_tanh=pre_tanh,
+        old_log_prob=np.ascontiguousarray(old.reshape(1, 2), dtype="<f4"),
+        rollout_mean=means,
+        rollout_log_std=log_stds,
+        rewards=np.zeros((1, 2), dtype="<f4"),
+        dones=np.zeros((1, 2), dtype=np.bool_),
+        values=np.zeros((1, 2), dtype="<f4"),
+        advantages=np.zeros((1, 2), dtype="<f4"),
+        returns=np.zeros((1, 2), dtype="<f4"),
+    )
+    receipt = audit_rollout_likelihood(rollout, rollout_index=0).to_dict()
+    assert receipt["passed"] is True
+    assert receipt["audit_stage"] == "before_any_update_for_rollout"
+    mutated = replace(rollout, old_log_prob=rollout.old_log_prob.copy())
+    mutated.old_log_prob[0, 0] += np.float32(0.1)
+    with pytest.raises(PhaseBTrainingError, match="likelihood audit"):
+        audit_rollout_likelihood(mutated, rollout_index=0)
+
+
+def test_truncation_gae_uses_terminal_value_only_and_never_reset_value() -> None:
+    adjusted, advantages, returns = compute_truncation_aware_gae(
+        rewards=np.asarray([[1.0, 1.0, 1.0]], dtype="<f4"),
+        dones=np.asarray([[True, True, True]], dtype=np.bool_),
+        truncations=np.asarray([[True, False, False]], dtype=np.bool_),
+        terminal_values=np.asarray([[5.0, 9.0, 0.0]], dtype="<f4"),
+        values=np.asarray([[2.0, 2.0, 2.0]], dtype="<f4"),
+        last_values=np.asarray([99.0, 99.0, 99.0], dtype="<f4"),
+        gamma=0.9,
+        gae_lambda=0.95,
+    )
+    assert adjusted[0].tolist() == pytest.approx([5.5, 1.0, 1.0])
+    assert advantages[0].tolist() == pytest.approx([3.5, -1.0, -1.0])
+    assert returns[0].tolist() == pytest.approx([5.5, 1.0, 1.0])
 
 
 def test_scheduler_balances_cells_classes_and_rng_domains() -> None:

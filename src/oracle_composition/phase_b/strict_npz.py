@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import io
+import struct
 from collections.abc import Mapping
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 
@@ -13,7 +15,7 @@ from oracle_composition.experiments.fixed_reference import ExperimentContractErr
 MAX_NPY_HEADER_BYTES = 1_024
 
 
-def _parse_npy_member(
+def decode_strict_npy_member(
     payload: bytes,
     *,
     name: str,
@@ -21,18 +23,46 @@ def _parse_npy_member(
     dtype: np.dtype[object],
     archive_label: str,
 ) -> np.ndarray:
-    stream = io.BytesIO(payload)
+    if (
+        type(payload) is not bytes
+        or len(payload) < 11
+        or payload[:6] != b"\x93NUMPY"
+        or payload[6:8] != b"\x01\x00"
+    ):
+        raise ExperimentContractError(f"{archive_label} member {name} must use NPY 1.0")
+    header_length = struct.unpack("<H", payload[8:10])[0]
+    header_start = 10
+    header_stop = header_start + header_length
+    if (
+        not 1 <= header_length <= MAX_NPY_HEADER_BYTES
+        or header_stop > len(payload)
+        or payload[header_stop - 1 : header_stop] != b"\n"
+    ):
+        raise ExperimentContractError(f"{archive_label} member {name} has an invalid NPY header")
     try:
-        version = np.lib.format.read_magic(stream)
-        if version != (1, 0):
-            raise ExperimentContractError(f"{archive_label} member {name} must use NPY 1.0")
-        observed_shape, fortran_order, observed_dtype = np.lib.format.read_array_header_1_0(stream)
-    except ExperimentContractError:
-        raise
-    except (EOFError, MemoryError, OSError, OverflowError, TypeError, ValueError) as exc:
+        header = ast.literal_eval(payload[header_start:header_stop].decode("latin1").strip())
+    except (MemoryError, RecursionError, SyntaxError, UnicodeError, ValueError) as exc:
         raise ExperimentContractError(
             f"{archive_label} member {name} has an invalid NPY header"
         ) from exc
+    if type(header) is not dict or set(header) != {"descr", "fortran_order", "shape"}:
+        raise ExperimentContractError(f"{archive_label} member {name} has an invalid NPY header")
+    if (
+        type(header["descr"]) is not str
+        or len(header["descr"]) > 32
+        or type(header["fortran_order"]) is not bool
+        or type(header["shape"]) is not tuple
+        or any(type(item) is not int or item < 0 for item in header["shape"])
+    ):
+        raise ExperimentContractError(f"{archive_label} member {name} has an invalid NPY header")
+    try:
+        observed_dtype = np.dtype(header["descr"])
+    except (MemoryError, TypeError, ValueError) as exc:
+        raise ExperimentContractError(
+            f"{archive_label} member {name} has an invalid NPY dtype"
+        ) from exc
+    observed_shape = header["shape"]
+    fortran_order = header["fortran_order"]
     if observed_dtype.hasobject:
         raise ExperimentContractError(f"{archive_label} member {name} has an object dtype")
     if tuple(observed_shape) != shape or observed_dtype != dtype or observed_dtype.str != dtype.str:
@@ -42,14 +72,14 @@ def _parse_npy_member(
     if fortran_order:
         raise ExperimentContractError(f"{archive_label} member {name} must use C order")
     data_bytes = int(np.prod(shape, dtype=np.int64)) * dtype.itemsize
-    if len(payload) - stream.tell() != data_bytes:
+    if len(payload) - header_stop != data_bytes:
         raise ExperimentContractError(f"{archive_label} member {name} payload byte count differs")
     try:
         value = np.frombuffer(
             payload,
             dtype=dtype,
             count=data_bytes // dtype.itemsize,
-            offset=stream.tell(),
+            offset=header_stop,
         ).reshape(shape)
         if dtype.kind == "f" and not np.isfinite(value).all():
             raise ExperimentContractError(
@@ -114,7 +144,7 @@ def decode_strict_npz(
                     raise ExperimentContractError(
                         f"{archive_label} member {name} bounded read differs"
                     )
-                arrays[name] = _parse_npy_member(
+                arrays[name] = decode_strict_npy_member(
                     member_payload,
                     name=name,
                     shape=shape,
@@ -136,4 +166,4 @@ def decode_strict_npz(
         raise ExperimentContractError(f"{archive_label} is invalid") from exc
 
 
-__all__ = ["decode_strict_npz"]
+__all__ = ["decode_strict_npy_member", "decode_strict_npz"]

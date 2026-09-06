@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import platform
 from collections import defaultdict
@@ -22,7 +23,7 @@ from oracle_composition.harness.evidence import current_authority_identities
 from .calibration import TaskSuccessCalibration
 from .contracts import CLAIM_CEILING, REPORT_V2_SCHEMA_ID, validate_cycle_report
 from .reference_runtime import ERROR_NAMES
-from .training import COHORT_SEEDS
+from .training import COHORT_SEEDS, PPORecipe, domain_separated_seed
 
 SCIENTIFIC_RECEIPT_SCHEMA_ID = "humanoid_phase_b_scientific_receipt/v2"
 TELEMETRY_SCHEMA_ID = "humanoid_phase_b_telemetry/v1"
@@ -205,6 +206,61 @@ class ProtectedEpisodeMetrics:
             "cell": self.cell,
         }
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> ProtectedEpisodeMetrics:
+        if type(value) is not dict:
+            raise ValueError("protected episode row must be an object")
+        expected = {
+            "action_bounds_ok",
+            "cell",
+            "checkpoint_sha256",
+            "com_forward_speed_m_s",
+            "contacts",
+            "evaluation_seed",
+            "fall",
+            "observed_steps",
+            "policy_seed",
+            "resynchronization_records",
+            "root_delta_forward_speed_m_s",
+            "segment_errors",
+            "settled_state_normalized_error",
+            "settle_latency_steps",
+            "six_tracking_errors",
+            "switch_records",
+            "task_success",
+            "time_to_first_failure_steps",
+            "transition_window_error",
+            "utility_passed",
+        }
+        if set(value) != expected:
+            raise ValueError("protected episode row fields differ")
+        result = cls(
+            policy_seed=value["policy_seed"],
+            evaluation_seed=value["evaluation_seed"],
+            cell=value["cell"],
+            checkpoint_sha256=value["checkpoint_sha256"],
+            observed_steps=value["observed_steps"],
+            root_delta_forward_speed_m_s=tuple(value["root_delta_forward_speed_m_s"]),
+            com_forward_speed_m_s=tuple(value["com_forward_speed_m_s"]),
+            six_tracking_errors=dict(value["six_tracking_errors"]),
+            fall=value["fall"],
+            forbidden_contacts=tuple(dict(item) for item in value["contacts"]),
+            action_bounds_ok=value["action_bounds_ok"],
+            switch_records=tuple(dict(item) for item in value["switch_records"]),
+            resynchronization_records=tuple(
+                dict(item) for item in value["resynchronization_records"]
+            ),
+            segment_errors=dict(value["segment_errors"]),
+            transition_window_error=value["transition_window_error"],
+            settle_latency_steps=value["settle_latency_steps"],
+            time_to_first_failure_steps=value["time_to_first_failure_steps"],
+            task_success=value["task_success"],
+            settled_state_normalized_error=value["settled_state_normalized_error"],
+        )
+        if value["utility_passed"] is not result.utility_passed:
+            raise ValueError("protected episode utility summary differs from its row")
+        return result
+
 
 @dataclass(frozen=True, slots=True)
 class SeedReportFacts:
@@ -213,6 +269,9 @@ class SeedReportFacts:
     strict_export_sha256: str
     training: Mapping[str, object]
     step_zero_comparator: Mapping[str, object]
+    execution_manifest_bytes: bytes | None = None
+    rsi_ledger_bytes: bytes | None = None
+    cohort_authority: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if type(self.ppo_seed) is not int or not 0 < self.ppo_seed <= MAX_SIGNED_32:
@@ -256,6 +315,254 @@ class SeedReportFacts:
         _require_sha(self.training["execution_manifest_sha256"], "training manifest SHA-256")
         _require_sha(self.training["rsi_ledger_sha256"], "RSI ledger SHA-256")
         _require_sha(self.training["unfreeze_receipt_sha256"], "unfreeze receipt SHA-256")
+
+
+def validate_training_facts(facts: SeedReportFacts) -> dict[str, object]:
+    """Validate report training facts against the executed manifest and RSI bytes."""
+
+    if (
+        type(facts.execution_manifest_bytes) is not bytes
+        or type(facts.rsi_ledger_bytes) is not bytes
+    ):
+        raise ValueError("training facts require execution-manifest and RSI-ledger bytes")
+    try:
+        manifest = json.loads(facts.execution_manifest_bytes)
+        ledger = json.loads(facts.rsi_ledger_bytes)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError("training-facts authority is not JSON") from exc
+    if (
+        type(manifest) is not dict
+        or type(ledger) is not list
+        or canonical_json_bytes(manifest) != facts.execution_manifest_bytes
+        or canonical_json_bytes(ledger) != facts.rsi_ledger_bytes
+    ):
+        raise ValueError("training-facts authority is not canonical")
+    training = facts.training
+    manifest_sha = hashlib.sha256(facts.execution_manifest_bytes).hexdigest()
+    ledger_sha = hashlib.sha256(facts.rsi_ledger_bytes).hexdigest()
+    if (
+        training.get("execution_manifest_sha256") != manifest_sha
+        or training.get("rsi_ledger_sha256") != ledger_sha
+        or facts.ppo_seed not in manifest.get("seeds", [])
+        or training.get("planned_transitions") != manifest.get("transitions_per_seed")
+        or training.get("smoke") is not manifest.get("smoke")
+        or training.get("evidence_class") != manifest.get("evidence_class")
+        or training.get("promotable")
+        is not (not manifest.get("smoke") and not manifest.get("test_only"))
+    ):
+        raise ValueError("training facts differ from manifest or RSI ledger bytes")
+    required = {
+        "device",
+        "likelihood_audit",
+        "normalization",
+        "optimizer_updates",
+        "ppo_recipe",
+        "ppo_recipe_id",
+        "rng_substreams",
+        "rollouts",
+        "thread_counts",
+        "unfreeze_rollouts",
+    }
+    if not required.issubset(training):
+        raise ValueError("training facts omit recipe, audit, RNG, thread, or unfreeze evidence")
+    if training["device"] != "cpu" or training["normalization"] != {
+        "observation": False,
+        "reward": False,
+    }:
+        raise ValueError("training device or normalization contract differs")
+    recipe = training["ppo_recipe"]
+    if type(recipe) is not dict or training["ppo_recipe_id"] != "humanoid_phase_b_ppo_recipe/v1":
+        raise ValueError("training PPO recipe authority differs")
+    expected_recipe_fields = {
+        "batch_size",
+        "clip_range",
+        "clip_range_vf",
+        "ent_coef",
+        "gae_lambda",
+        "gamma",
+        "learning_rate",
+        "max_grad_norm",
+        "n_epochs",
+        "normalize_advantage",
+        "target_kl",
+        "vf_coef",
+    }
+    if set(recipe) != expected_recipe_fields:
+        raise ValueError("training PPO recipe fields differ")
+    rollouts = training["rollouts"]
+    observed = training["observed_transitions"]
+    batch_size = recipe["batch_size"]
+    epochs = recipe["n_epochs"]
+    if (
+        type(rollouts) is not int
+        or type(observed) is not int
+        or type(batch_size) is not int
+        or type(epochs) is not int
+        or observed % rollouts
+        or (observed // rollouts) % batch_size
+    ):
+        raise ValueError("training rollout or batch counters differ")
+    expected_updates = rollouts * epochs * ((observed // rollouts) // batch_size)
+    if training["optimizer_updates"] != expected_updates:
+        raise ValueError("training optimizer update count differs from the exact recipe")
+    stream_counts = training.get("stream_counts")
+    losses = training.get("losses")
+    reward_totals = training.get("reward_totals")
+    loss_fields = {
+        "approximate_kl",
+        "clip_fraction",
+        "entropy_loss",
+        "explained_variance",
+        "policy_loss",
+        "rollout_index",
+        "total_loss",
+        "value_loss",
+    }
+    if (
+        stream_counts != {"composition": observed // 2, "rehearsal": observed // 2}
+        or type(losses) is not list
+        or len(losses) != rollouts
+        or any(
+            type(row) is not dict
+            or set(row) != loss_fields
+            or row.get("rollout_index") != index
+            or any(
+                type(value) not in {int, float} or not math.isfinite(float(value))
+                for name, value in row.items()
+                if name != "rollout_index"
+            )
+            for index, row in enumerate(losses)
+        )
+        or type(reward_totals) is not dict
+        or set(reward_totals) != {"ignored_stock_reward", "r_task", "r_track", "r_train"}
+        or any(
+            type(value) not in {int, float} or not math.isfinite(float(value))
+            for value in reward_totals.values()
+        )
+    ):
+        raise ValueError("training stream, loss, or reward accounting differs")
+    expected_production_rollouts = 24 if manifest.get("smoke") is True else 128
+    if manifest.get("test_only") is False and (
+        recipe != PPORecipe().to_dict()
+        or rollouts != expected_production_rollouts
+        or expected_updates != expected_production_rollouts * 160
+    ):
+        raise ValueError("production training recipe, rollout, or update count differs")
+    audit = training["likelihood_audit"]
+    audits = audit.get("rollout_audits") if type(audit) is dict else None
+    expected_likelihood_sample_count = min(observed // rollouts, 64)
+    if (
+        type(audits) is not list
+        or audit.get("audit_id") != "tanh_corrected_rollout_likelihood_audit/v2"
+        or audit.get("audit_stage") != "before_any_update_for_each_rollout"
+        or audit.get("all_passed") is not True
+        or audit.get("rollout_count") != rollouts
+        or len(audits) != rollouts
+        or audit.get("receipt_sha256") != hashlib.sha256(canonical_json_bytes(audits)).hexdigest()
+        or any(
+            type(row) is not dict
+            or set(row)
+            != {
+                "audit_id",
+                "audit_stage",
+                "distribution_snapshot_sha256",
+                "maximum_absolute_difference",
+                "observation_sample_sha256",
+                "old_log_prob_sample_sha256",
+                "passed",
+                "pre_tanh_sample_sha256",
+                "rollout_index",
+                "sample_count",
+                "sample_indices_sha256",
+                "tolerance",
+            }
+            or row.get("audit_id") != "tanh_corrected_rollout_likelihood_audit/v2"
+            or row.get("rollout_index") != index
+            or row.get("passed") is not True
+            or row.get("audit_stage") != "before_any_update_for_rollout"
+            or row.get("sample_count") != expected_likelihood_sample_count
+            or row.get("tolerance") != 1e-5
+            or type(row.get("maximum_absolute_difference")) not in {int, float}
+            or not math.isfinite(float(row["maximum_absolute_difference"]))
+            or not 0.0 <= float(row["maximum_absolute_difference"]) <= 1e-5
+            or any(
+                type(row.get(field)) is not str
+                or len(row[field]) != 64
+                or any(character not in "0123456789abcdef" for character in row[field])
+                for field in (
+                    "distribution_snapshot_sha256",
+                    "observation_sample_sha256",
+                    "old_log_prob_sample_sha256",
+                    "pre_tanh_sample_sha256",
+                    "sample_indices_sha256",
+                )
+            )
+            for index, row in enumerate(audits)
+        )
+    ):
+        raise ValueError("training rollout-likelihood audit differs")
+    rng = training["rng_substreams"]
+    threads = training["thread_counts"]
+    expected_rng = {
+        "action_sampling": domain_separated_seed(manifest_sha, facts.ppo_seed, "actions"),
+        "environment_order": [
+            domain_separated_seed(
+                manifest_sha,
+                facts.ppo_seed,
+                "vector-environment",
+                index,
+            )
+            for index in range(4)
+        ],
+        "minibatches": domain_separated_seed(manifest_sha, facts.ppo_seed, "minibatches"),
+        "numpy_global": facts.ppo_seed,
+        "python_global": facts.ppo_seed,
+        "scheduler": domain_separated_seed(
+            manifest_sha,
+            facts.ppo_seed,
+            "scheduler-construction",
+        ),
+        "torch_global": facts.ppo_seed,
+    }
+    if (
+        type(rng) is not dict
+        or rng != expected_rng
+        or type(threads) is not dict
+        or set(threads) != {"torch_interop", "torch_intraop"}
+        or any(type(value) is not int or not 1 <= value <= 4_096 for value in threads.values())
+    ):
+        raise ValueError("training RNG or thread binding differs")
+    unfreeze = training["unfreeze_rollouts"]
+    if (
+        type(unfreeze) is not list
+        or len(unfreeze) != rollouts
+        or training.get("unfreeze_receipt_sha256")
+        != hashlib.sha256(canonical_json_bytes(unfreeze)).hexdigest()
+        or any(
+            type(row) is not dict
+            or row.get("rollout_index") != index
+            or row.get("actor_stage") != ("reference_columns_only" if index < 8 else "full_actor")
+            or type(row.get("state_columns_changed")) is not bool
+            or (index < 8 and row.get("state_columns_changed") is not False)
+            or (index == 8 and row.get("state_columns_changed") is not True)
+            or row.get("rollout_likelihood_audit") != audits[index]
+            for index, row in enumerate(unfreeze)
+        )
+    ):
+        raise ValueError("training unfreeze semantics differ")
+    return {
+        "execution_manifest_sha256": manifest_sha,
+        "likelihood_audit_sha256": audit["receipt_sha256"],
+        "normalization_absent": True,
+        "optimizer_updates": expected_updates,
+        "ppo_seed": facts.ppo_seed,
+        "rng_substreams": dict(rng),
+        "rollouts": rollouts,
+        "rsi_ledger_sha256": ledger_sha,
+        "thread_counts": dict(threads),
+        "training_facts_validator_id": "humanoid_phase_b_training_facts_validator/v1",
+        "unfreeze_receipt_sha256": training["unfreeze_receipt_sha256"],
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,18 +702,10 @@ def task_success_endpoint(
     episodes: Sequence[ProtectedEpisodeMetrics],
     *,
     step_zero_episodes: Sequence[ProtectedEpisodeMetrics],
-    calibration: TaskSuccessCalibration,
+    calibration: TaskSuccessCalibration | None,
 ) -> dict[str, object]:
-    calibrated = [
-        episode
-        for episode in episodes
-        if episode.cell == "fixed_round_trip" and episode.task_success is not None
-    ]
-    comparators = [
-        episode
-        for episode in step_zero_episodes
-        if episode.cell == "fixed_round_trip" and episode.task_success is not None
-    ]
+    calibrated = [episode for episode in episodes if episode.cell == "fixed_round_trip"]
+    comparators = [episode for episode in step_zero_episodes if episode.cell == "fixed_round_trip"]
     candidate_by_seed: dict[int, list[ProtectedEpisodeMetrics]] = defaultdict(list)
     comparator_by_seed: dict[int, list[ProtectedEpisodeMetrics]] = defaultdict(list)
     for episode in calibrated:
@@ -429,27 +728,43 @@ def task_success_endpoint(
         comparator_checkpoint_hashes = {item.checkpoint_sha256 for item in comparator_rows}
         if len(candidate_checkpoint_hashes) != 1 or len(comparator_checkpoint_hashes) != 1:
             raise ValueError("task-success checkpoint identity differs within a policy seed")
-        candidate_successes = sum(item.task_success is True for item in candidate_rows)
-        comparator_successes = sum(item.task_success is True for item in comparator_rows)
-        candidate_proportion = candidate_successes / 20
-        comparator_proportion = comparator_successes / 20
+        candidate_successes = (
+            sum(_derived_task_success(item, calibration) for item in candidate_rows)
+            if calibration is not None
+            else None
+        )
+        comparator_successes = (
+            sum(_derived_task_success(item, calibration) for item in comparator_rows)
+            if calibration is not None
+            else None
+        )
+        candidate_proportion = candidate_successes / 20 if candidate_successes is not None else None
+        comparator_proportion = (
+            comparator_successes / 20 if comparator_successes is not None else None
+        )
         checkpoint_results.append(
             {
                 "checkpoint_sha256": next(iter(candidate_checkpoint_hashes)),
-                "exact_binomial_95_interval": list(
-                    exact_binomial_interval(candidate_successes, 20)
+                "exact_binomial_95_interval": (
+                    list(exact_binomial_interval(candidate_successes, 20))
+                    if candidate_successes is not None
+                    else None
                 ),
                 "policy_seed": seed,
                 "proportion": candidate_proportion,
                 "successes": candidate_successes,
-                "total": 20,
+                "total": 20 if calibration is not None else None,
             }
         )
         paired_effects.append(
             {
                 "candidate_proportion": candidate_proportion,
-                "effect_candidate_minus_step_zero": candidate_proportion - comparator_proportion,
-                "paired_evaluation_seed_count": 20,
+                "effect_candidate_minus_step_zero": (
+                    candidate_proportion - comparator_proportion
+                    if candidate_proportion is not None and comparator_proportion is not None
+                    else None
+                ),
+                "paired_evaluation_seed_count": 20 if calibration is not None else None,
                 "policy_seed": seed,
                 "step_zero_proportion": comparator_proportion,
             }
@@ -488,14 +803,19 @@ def task_success_endpoint(
         ],
     }
     return {
-        "calibration": {
-            "receipt_sha256": calibration.sha256,
-            "segment_speed_error_bands_m_s": dict(calibration.segment_speed_error_bands_m_s),
-            "settled_state_normalized_error_band": (
-                calibration.settled_state_normalized_error_band
-            ),
-            "transition_latency_caps_steps": list(calibration.transition_latency_caps_steps),
-        },
+        "calibration": (
+            {
+                "receipt_sha256": calibration.sha256,
+                "censoring_latency_steps": calibration.censoring_latency_steps,
+                "segment_speed_error_bands_m_s": dict(calibration.segment_speed_error_bands_m_s),
+                "settled_state_normalized_error_band": (
+                    calibration.settled_state_normalized_error_band
+                ),
+                "transition_latency_caps_steps": list(calibration.transition_latency_caps_steps),
+            }
+            if calibration is not None
+            else None
+        ),
         "endpoint_id": TASK_SUCCESS_ENDPOINT_ID,
         "ordering": [
             "safety_gate",
@@ -508,6 +828,11 @@ def task_success_endpoint(
             "five_seed_cohort_complete": tuple(sorted(candidate_by_seed)) == COHORT_SEEDS,
             "pooled_episode_estimate": None,
             "rule": "20_episode_exact_binomial_interval_per_checkpoint_no_pooled_n_100",
+            "scoring_status": (
+                "calibrated_scoring"
+                if calibration is not None
+                else "non_scoring_missing_calibration"
+            ),
         },
         "safety_gate": {
             "all_1000_steps_completed": all(item.observed_steps == 1_000 for item in episodes),
@@ -522,13 +847,37 @@ def task_success_endpoint(
             "five_seed_cohort_complete": tuple(sorted(candidate_by_seed)) == COHORT_SEEDS,
             "mean_effect_across_policy_seeds": (
                 fmean(row["effect_candidate_minus_step_zero"] for row in paired_effects)
-                if tuple(sorted(candidate_by_seed)) == COHORT_SEEDS
+                if calibration is not None and tuple(sorted(candidate_by_seed)) == COHORT_SEEDS
                 else None
             ),
             "required_policy_seeds": list(COHORT_SEEDS),
         },
         "unsafe_arm_may_outrank_safe_arm": False,
     }
+
+
+def _derived_task_success(
+    episode: ProtectedEpisodeMetrics,
+    calibration: TaskSuccessCalibration,
+) -> bool:
+    latencies = [record.get("settle_latency_steps") for record in episode.resynchronization_records]
+    return (
+        episode.safety_passed
+        and set(episode.segment_errors) == set(calibration.segment_speed_error_bands_m_s)
+        and all(
+            float(episode.segment_errors[name]) <= bound
+            for name, bound in calibration.segment_speed_error_bands_m_s.items()
+        )
+        and len(latencies) == 2
+        and all(
+            type(latency) is int and 0 <= latency <= cap
+            for latency, cap in zip(
+                latencies,
+                calibration.transition_latency_caps_steps,
+                strict=True,
+            )
+        )
+    )
 
 
 def _source_identity() -> dict[str, object]:
@@ -546,6 +895,60 @@ def _episode_rows(episodes: Sequence[ProtectedEpisodeMetrics]) -> list[dict[str,
             key=lambda item: (item.policy_seed, item.cell, item.evaluation_seed),
         )
     ]
+
+
+def _episode_summary(
+    episodes: Sequence[ProtectedEpisodeMetrics],
+    *,
+    calibrated: bool,
+) -> dict[str, object]:
+    return {
+        "episode_count": len(episodes),
+        "episodes_by_cell": {
+            cell: sum(item.cell == cell for item in episodes) for cell in UTILITY_CELLS
+        },
+        "safety_pass_count": sum(item.safety_passed for item in episodes),
+        "task_success_count": (
+            sum(item.task_success is True for item in episodes)
+            if calibrated
+            and episodes
+            and all(
+                item.task_success is not None
+                for item in episodes
+                if item.cell == "fixed_round_trip"
+            )
+            else None
+        ),
+        "utility_pass_count": sum(item.utility_passed for item in episodes),
+    }
+
+
+def _validated_cohort_authority(seed: SeedReportFacts) -> dict[str, object]:
+    authority = seed.cohort_authority
+    if seed.training.get("evidence_class") == "exploratory_fine_tuning_cycle":
+        expected = {
+            "cohort_seeds",
+            "checkpoint_index_sha256",
+            "execution_manifest_sha256",
+            "job_result_sha256",
+            "status",
+            "success_receipt_sha256",
+        }
+        if type(authority) is not dict or set(authority) != expected:
+            raise ValueError("production report entry requires complete cohort authority")
+        if authority["status"] != "successful_non_smoke_full_budget_promotable":
+            raise ValueError("production report cohort status differs")
+        if authority["cohort_seeds"] != list(COHORT_SEEDS):
+            raise ValueError("production report cohort seed authority differs")
+        for field in expected - {"cohort_seeds", "status"}:
+            _require_sha(authority[field], field)
+        if authority["execution_manifest_sha256"] != seed.training["execution_manifest_sha256"]:
+            raise ValueError("report cohort and training manifest identities differ")
+        return dict(authority)
+    expected_interface = {"status": "not_applicable_interface_or_smoke"}
+    if authority != expected_interface:
+        raise ValueError("interface report entry must disclaim cohort authority")
+    return expected_interface
 
 
 def build_scientific_receipt(
@@ -592,8 +995,14 @@ def build_scientific_receipt(
         _require_sha(inputs[name], name)
     _require_sha(trace_index_sha256, "trace index SHA-256")
     training_facts = [dict(seed.training) for seed in sorted(seeds, key=lambda item: item.ppo_seed)]
+    training_validation = [
+        validate_training_facts(seed) for seed in sorted(seeds, key=lambda item: item.ppo_seed)
+    ]
     evidence_classes = {value.get("evidence_class") for value in training_facts}
-    if len(evidence_classes) != 1:
+    if len(evidence_classes) != 1 or any(
+        value.get("execution_manifest_sha256") != inputs["execution_manifest_sha256"]
+        for value in training_facts
+    ):
         raise ValueError("per-seed evidence classes differ")
     planned = sum(int(value["planned_transitions"]) for value in training_facts)
     observed = sum(int(value["observed_transitions"]) for value in training_facts)
@@ -610,10 +1019,9 @@ def build_scientific_receipt(
         canonical_json_bytes([value["unfreeze_receipt_sha256"] for value in training_facts])
     ).hexdigest()
     episode_rows = _episode_rows(episodes)
+    step_zero_rows = _episode_rows(step_zero_episodes)
     utility = utility_gate(checkpoints=seeds, episodes=episodes)
     if episodes:
-        if calibration is None:
-            raise ValueError("evaluation evidence requires a bound calibration receipt")
         endpoint = task_success_endpoint(
             episodes,
             step_zero_episodes=step_zero_episodes,
@@ -622,12 +1030,10 @@ def build_scientific_receipt(
     else:
         if step_zero_episodes or calibration is not None:
             raise ValueError("training-only receipt cannot contain calibration evaluation")
-        endpoint = {
-            "endpoint_id": TASK_SUCCESS_ENDPOINT_ID,
-            "status": "not_scored_training_only_receipt",
-        }
+        endpoint = task_success_endpoint((), step_zero_episodes=(), calibration=None)
     policy_rows = [
         {
+            "cohort_authority": _validated_cohort_authority(seed),
             "checkpoint_sha256": seed.checkpoint_sha256,
             "ppo_seed": seed.ppo_seed,
             "step_zero_comparator": dict(seed.step_zero_comparator),
@@ -665,8 +1071,15 @@ def build_scientific_receipt(
         "evaluation": {
             "episode_steps": 1_000,
             "evaluation_blocks": list(range(120101, 120121)),
+            "evidence_statement": (
+                "protected utility evaluation; no causal or competence claim"
+                if episode_rows
+                else "interface/training receipt; no utility or behavioral evidence"
+            ),
             "failure_denominator": "all_predeclared_episodes",
             "protected_metrics_grade_candidate_reward": False,
+            "step_zero_per_episode": step_zero_rows,
+            "trained_per_episode": episode_rows,
             "utility_cells": list(UTILITY_CELLS),
         },
         "evidence_class": str(training_facts[0]["evidence_class"]),
@@ -694,7 +1107,15 @@ def build_scientific_receipt(
         },
         "integrity": {
             "deterministic_reload": True,
-            "explicit_missing_fields": [],
+            "explicit_missing_fields": [
+                name
+                for name, missing in (
+                    ("evaluation.trained_per_episode", not episode_rows),
+                    ("evaluation.step_zero_per_episode", not step_zero_rows),
+                    ("reference_runtime.records", not reference_records),
+                )
+                if missing
+            ],
             "failure_receipt": None,
             "trace_index_sha256": trace_index_sha256,
         },
@@ -725,9 +1146,24 @@ def build_scientific_receipt(
         "scientific_receipt_schema_id": SCIENTIFIC_RECEIPT_SCHEMA_ID,
         "summary": {
             "arms": policy_rows,
-            "distributions_by_arm": {},
+            "distributions_by_arm": {
+                str(seed.ppo_seed): [
+                    row for row in episode_rows if row["policy_seed"] == seed.ppo_seed
+                ]
+                for seed in sorted(seeds, key=lambda item: item.ppo_seed)
+            },
             "distributions_by_cell": {
                 cell: [row for row in episode_rows if row["cell"] == cell] for cell in UTILITY_CELLS
+            },
+            "episode_summaries": {
+                "step_zero": _episode_summary(
+                    step_zero_episodes,
+                    calibrated=calibration is not None,
+                ),
+                "trained": _episode_summary(
+                    episodes,
+                    calibrated=calibration is not None,
+                ),
             },
             "hard_gates": {
                 "task_success_endpoint": endpoint,
@@ -756,6 +1192,7 @@ def build_scientific_receipt(
             "telemetry_location": "telemetry_v1.json",
             "unfreeze_receipt_sha256": unfreeze_sha,
             "updates": updates,
+            "validation": training_validation,
             "wall_time_seconds": None,
         },
         "wall_time_seconds": None,
@@ -763,6 +1200,134 @@ def build_scientific_receipt(
     validate_cycle_report(report)
     canonical_json_bytes(report)
     return report
+
+
+def validate_report_summary_recomputation(report: Mapping[str, object]) -> dict[str, object]:
+    """Rebuild every row-derived report summary and reject cached-value drift."""
+
+    validated = validate_cycle_report(report)
+    evaluation = validated["evaluation"]
+    trained = tuple(
+        ProtectedEpisodeMetrics.from_dict(row) for row in evaluation["trained_per_episode"]
+    )
+    step_zero = tuple(
+        ProtectedEpisodeMetrics.from_dict(row) for row in evaluation["step_zero_per_episode"]
+    )
+    training_rows = validated["training"]["seed_facts"]
+    policy_rows = validated["policy"]["checkpoints"]
+    training_by_seed = {int(row["ppo_seed"]): row for row in training_rows}
+    policy_seeds = [int(row["ppo_seed"]) for row in policy_rows]
+    if (
+        len(training_by_seed) != len(training_rows)
+        or len(set(policy_seeds)) != len(policy_seeds)
+        or set(training_by_seed) != set(policy_seeds)
+        or any(
+            row.get("execution_manifest_sha256") != validated["execution_manifest_sha256"]
+            for row in training_rows
+        )
+        or any(
+            row.get("evidence_class") == "exploratory_fine_tuning_cycle"
+            and (
+                row.get("planned_transitions") != 1_048_576
+                or row.get("observed_transitions") != 1_048_576
+                or row.get("rollouts") != 128
+                or row.get("promotable") is not True
+                or row.get("smoke") is not False
+            )
+            for row in training_rows
+        )
+    ):
+        raise ValueError("report reload training and cohort authority differs")
+    facts = []
+    for row in policy_rows:
+        seed = int(row["ppo_seed"])
+        facts.append(
+            SeedReportFacts(
+                ppo_seed=seed,
+                checkpoint_sha256=row["checkpoint_sha256"],
+                strict_export_sha256=row["strict_export_sha256"],
+                training=training_by_seed[seed],
+                step_zero_comparator=row["step_zero_comparator"],
+                cohort_authority=row["cohort_authority"],
+            )
+        )
+    endpoint_value = validated["summary"]["hard_gates"]["task_success_endpoint"]
+    calibration_value = endpoint_value.get("calibration")
+    calibration = None
+    if calibration_value is not None:
+        calibration = TaskSuccessCalibration(
+            sha256=calibration_value["receipt_sha256"],
+            segment_speed_error_bands_m_s=dict(calibration_value["segment_speed_error_bands_m_s"]),
+            transition_latency_caps_steps=tuple(calibration_value["transition_latency_caps_steps"]),
+            settled_state_normalized_error_band=calibration_value[
+                "settled_state_normalized_error_band"
+            ],
+            censoring_latency_steps=calibration_value["censoring_latency_steps"],
+        )
+    expected_hard_gates = {
+        "task_success_endpoint": task_success_endpoint(
+            trained,
+            step_zero_episodes=step_zero,
+            calibration=calibration,
+        ),
+        "utility_gate": utility_gate(checkpoints=facts, episodes=trained),
+    }
+    expected = {
+        "arms": [
+            {
+                "cohort_authority": _validated_cohort_authority(fact),
+                "checkpoint_sha256": fact.checkpoint_sha256,
+                "ppo_seed": fact.ppo_seed,
+                "step_zero_comparator": dict(fact.step_zero_comparator),
+                "strict_export_sha256": fact.strict_export_sha256,
+            }
+            for fact in sorted(facts, key=lambda item: item.ppo_seed)
+        ],
+        "distributions_by_arm": {
+            str(fact.ppo_seed): [
+                row
+                for row in evaluation["trained_per_episode"]
+                if row["policy_seed"] == fact.ppo_seed
+            ]
+            for fact in sorted(facts, key=lambda item: item.ppo_seed)
+        },
+        "distributions_by_cell": {
+            cell: [row for row in evaluation["trained_per_episode"] if row["cell"] == cell]
+            for cell in UTILITY_CELLS
+        },
+        "episode_summaries": {
+            "step_zero": _episode_summary(step_zero, calibrated=calibration is not None),
+            "trained": _episode_summary(trained, calibrated=calibration is not None),
+        },
+        "hard_gates": expected_hard_gates,
+        "policy_seeds": [fact.ppo_seed for fact in sorted(facts, key=lambda item: item.ppo_seed)],
+        "step_zero_comparator": {
+            str(fact.ppo_seed): dict(fact.step_zero_comparator) for fact in facts
+        },
+    }
+    if validated["summary"] != expected:
+        raise ValueError("report summary differs from recomputed episode and training rows")
+    return validated
+
+
+def load_report_v2(path: Path) -> dict[str, object]:
+    """Reload canonical report bytes and recompute all cached summaries."""
+
+    candidate = Path(path)
+    if (
+        candidate.is_symlink()
+        or not candidate.is_file()
+        or candidate.stat().st_size > 512 * 1024**2
+    ):
+        raise ValueError("report v2 artifact is unavailable or outside its byte bound")
+    encoded = candidate.read_bytes()
+    try:
+        value = json.loads(encoded)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError("report v2 artifact is not JSON") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise ValueError("report v2 artifact is not canonical JSON")
+    return validate_report_summary_recomputation(value)
 
 
 def _render_markdown(report: Mapping[str, object]) -> bytes:
@@ -774,7 +1339,7 @@ def _render_markdown(report: Mapping[str, object]) -> bytes:
         "| status | current truth |",
         "|---|---|",
         f"| progress | {len(report['policy']['checkpoints'])} final checkpoint(s) recorded. |",
-        "| bottleneck | This report is bounded utility evidence only; it does not establish causal reference use or humanoid competence. |",
+        f"| bottleneck | {report['evaluation']['evidence_statement']} |",
         "| next step | Apply the frozen safety, task-success, and utility gates without post-hoc tuning. |",
         "",
         "| endpoint | value |",
@@ -782,6 +1347,7 @@ def _render_markdown(report: Mapping[str, object]) -> bytes:
         f"| safety gate | {endpoint.get('safety_gate', {}).get('passed', 'not scored')} |",
         f"| task-success checkpoints | {len(endpoint.get('primary_endpoint', {}).get('checkpoint_results', []))} |",
         f"| utility family | {utility['family_passed']} |",
+        f"| evidence class | {report['evidence_class']} |",
         "",
         f"Claim ceiling: `{report['claim_ceiling']}`",
         "",
@@ -797,7 +1363,7 @@ def publish_report_v2(
 ) -> ReportArtifacts:
     """Publish deterministic science first, then wall/host telemetry bound to it."""
 
-    validated = validate_cycle_report(report)
+    validated = validate_report_summary_recomputation(report)
     scientific_bytes = canonical_json_bytes(validated)
     output = Path(output_directory)
     scientific = publish_bytes_without_overwrite(
@@ -817,6 +1383,7 @@ def publish_report_v2(
         output / "telemetry_v1.json", canonical_json_bytes(telemetry_value)
     )
     markdown = publish_bytes_without_overwrite(output / "report_v2.md", _render_markdown(validated))
+    load_report_v2(scientific.path)
     return ReportArtifacts(scientific, telemetry_artifact, markdown)
 
 

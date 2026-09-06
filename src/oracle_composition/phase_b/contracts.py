@@ -24,7 +24,14 @@ from oracle_composition.harness.contract import (
     oracle_program_from_dict,
     read_json_object,
 )
+from oracle_composition.rewards import target_speed_formula as target_speed_formula_module
+from oracle_composition.rewards import target_speed_formula_t2 as target_speed_formula_t2_module
 from oracle_composition.rewards import task_inputs_v2 as task_inputs_v2_module
+from oracle_composition.rewards.target_speed_formula import FORMULA_ID as TARGET_SPEED_RECIPE_ID
+from oracle_composition.rewards.target_speed_formula_t2 import (
+    FORMULA_RUNTIME_ID as TARGET_SPEED_FORMULA_ID,
+)
+from oracle_composition.rewards.target_speed_formula_t2 import PARSER_ID as TARGET_SPEED_PARSER_ID
 from oracle_composition.rewards.task_inputs_v2 import (
     TASK_INPUTS_V2_SCHEMA_ID,
     task_input_contract_v2,
@@ -33,6 +40,7 @@ from oracle_composition.tracking.reward import TrackingRewardConfig
 
 ORACLE_SCHEMA_ID = "humanoid_reference_composition_oracle/v1"
 REWARD_SCHEMA_ID = "reward_specification/tracking_only/v1"
+TARGET_SPEED_REWARD_SCHEMA_ID = "reward_specification/target_speed_triangular_affine_t2/v1"
 REPORT_V1_SCHEMA_ID = "humanoid_composition_cycle_report/v1"
 REPORT_V2_SCHEMA_ID = "humanoid_composition_cycle_report/v2"
 STARTING_CHECKPOINT_SCHEMA_ID = "humanoid_fine_tuning_starting_checkpoint/v1"
@@ -146,6 +154,45 @@ TRACKING_ONLY_PARSER_SHA256 = sha256_json(
 )
 TRACKING_ONLY_BOUNDS_SHA256 = sha256_json(
     {"parameters": {}, "r_task": {"maximum": 0.0, "minimum": 0.0}}
+)
+TARGET_SPEED_FORMULA_SHA256 = "064393887bb4a7157d614981cc2000940252e12c31ad0aabc13109737fd94301"
+TARGET_SPEED_PARSER_SHA256 = "c60dea03e6f0e71b81875fea59c84bd8fe00ce39f94ac7c54ca6e2a57360dccb"
+TARGET_SPEED_BOUNDS_BYTES = (
+    b'{"parameters":{"alpha":{"maximum":4.0,"minimum":0.25},'
+    b'"beta":{"maximum":10.0,"minimum":-10.0}},'
+    b'"r_task":{"maximum":15.0,"minimum":-10.0}}'
+)
+TARGET_SPEED_BOUNDS_SHA256 = "2c6030264231a52320a44fe0f4d4ed519bc2e635b892f1b9c0d8929166106933"
+TARGET_SPEED_REWARD_SCHEMA_SHA256 = sha256_json(
+    {
+        "required_fields": [
+            "compositor_id",
+            "compositor_sha256",
+            "evidence_class",
+            "formula_id",
+            "formula_sha256",
+            "internal_recipe_id",
+            "output_envelope",
+            "parameter_bounds",
+            "parameter_bounds_sha256",
+            "parameters",
+            "parser_callable",
+            "parser_id",
+            "parser_sha256",
+            "required_consumption_step",
+            "reward_schema_id",
+            "schema_sha256",
+            "schema_version",
+            "stock_reward",
+            "task_inputs_schema_id",
+            "task_inputs_schema_sha256",
+            "task_inputs_source_sha256",
+            "tracking_reward_config_sha256",
+            "tracking_reward_id",
+        ],
+        "reward_schema_id": TARGET_SPEED_REWARD_SCHEMA_ID,
+        "schema_version": 1,
+    }
 )
 REWARD_COMPOSITOR_SHA256 = sha256_json(
     {
@@ -372,6 +419,110 @@ class TrackingOnlyRewardSpec:
         return cls()
 
 
+@dataclass(frozen=True, slots=True)
+class TargetSpeedRewardSpec:
+    """Reviewed F2 formula binding with flat, bounded candidate parameters."""
+
+    alpha: float
+    beta: float
+
+    def __post_init__(self) -> None:
+        alpha = _finite(self.alpha, field="parameters.alpha")
+        beta = _finite(self.beta, field="parameters.beta")
+        if not 0.25 <= alpha <= 4.0:
+            raise PhaseBContractError("target-speed alpha is outside [0.25, 4.0]")
+        if not -10.0 <= beta <= 10.0:
+            raise PhaseBContractError("target-speed beta is outside [-10.0, 10.0]")
+        object.__setattr__(self, "alpha", alpha)
+        object.__setattr__(self, "beta", beta)
+
+    @property
+    def registry_key(self) -> tuple[str, ...]:
+        return (
+            TARGET_SPEED_REWARD_SCHEMA_SHA256,
+            TARGET_SPEED_FORMULA_SHA256,
+            TARGET_SPEED_PARSER_SHA256,
+            TARGET_SPEED_BOUNDS_SHA256,
+            REWARD_COMPOSITOR_SHA256,
+            TASK_INPUTS_V2_SOURCE_SHA256,
+            TASK_INPUTS_V2_SCHEMA_SHA256,
+            TASK_INPUT_ADMISSION_SOURCE_SHA256,
+            TASK_INPUT_ADMISSION_SCHEMA_SHA256,
+        )
+
+    @property
+    def canonical_bytes(self) -> bytes:
+        return canonical_json_bytes(self.to_dict())
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(self.canonical_bytes).hexdigest()
+
+    def to_dict(self) -> dict[str, object]:
+        from .task_input_admission import task_input_admission_contract
+
+        bounds = {
+            "parameters": {
+                "alpha": {"maximum": 4.0, "minimum": 0.25},
+                "beta": {"maximum": 10.0, "minimum": -10.0},
+            },
+            "r_task": {"maximum": 15.0, "minimum": -10.0},
+        }
+        return {
+            "compositor_id": REWARD_COMPOSITOR_ID,
+            "compositor_sha256": REWARD_COMPOSITOR_SHA256,
+            "evidence_class": "exploratory_fine_tuning_cycle",
+            "formula_id": TARGET_SPEED_FORMULA_ID,
+            "formula_sha256": TARGET_SPEED_FORMULA_SHA256,
+            "internal_recipe_id": TARGET_SPEED_RECIPE_ID,
+            "output_envelope": [-10.0, 15.0],
+            "parameter_bounds": bounds,
+            "parameter_bounds_sha256": TARGET_SPEED_BOUNDS_SHA256,
+            "parameters": {"alpha": self.alpha, "beta": self.beta},
+            "parser_callable": "parse_target_speed_formula_recipe",
+            "parser_id": TARGET_SPEED_PARSER_ID,
+            "parser_sha256": TARGET_SPEED_PARSER_SHA256,
+            "required_consumption_step": {
+                "contract": task_input_admission_contract(),
+                "schema_sha256": TASK_INPUT_ADMISSION_SCHEMA_SHA256,
+                "source_sha256": TASK_INPUT_ADMISSION_SOURCE_SHA256,
+                "validator": "validate_admitted_task_inputs_v2",
+            },
+            "reward_schema_id": TARGET_SPEED_REWARD_SCHEMA_ID,
+            "schema_sha256": TARGET_SPEED_REWARD_SCHEMA_SHA256,
+            "schema_version": 1,
+            "stock_reward": "telemetry_only",
+            "task_inputs_schema_id": TASK_INPUTS_V2_SCHEMA_ID,
+            "task_inputs_schema_sha256": TASK_INPUTS_V2_SCHEMA_SHA256,
+            "task_inputs_source_sha256": TASK_INPUTS_V2_SOURCE_SHA256,
+            "tracking_reward_config_sha256": TRACKING_REWARD_CONFIG_SHA256,
+            "tracking_reward_id": TRACKING_REWARD_ID,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> TargetSpeedRewardSpec:
+        if type(value) is not dict or type(value.get("parameters")) is not dict:
+            raise PhaseBContractError("target-speed reward specification differs")
+        parameters = value["parameters"]
+        if set(parameters) != {"alpha", "beta"}:
+            raise PhaseBContractError("target-speed parameters must be flat alpha and beta")
+        spec = cls(alpha=parameters["alpha"], beta=parameters["beta"])
+        expected = spec.to_dict()
+        if value != expected:
+            if value.get("formula_sha256") != TARGET_SPEED_FORMULA_SHA256:
+                raise PhaseBContractError("target-speed formula source identity differs")
+            if canonical_json_bytes(value.get("parameter_bounds")) != TARGET_SPEED_BOUNDS_BYTES:
+                raise PhaseBContractError("target-speed canonical bounds bytes differ")
+            if "required_consumption_step" not in value:
+                raise PhaseBContractError(
+                    "target-speed task-input admission certificate is missing"
+                )
+            raise PhaseBContractError("target-speed reward specification differs")
+        if canonical_json_bytes(expected["parameter_bounds"]) != TARGET_SPEED_BOUNDS_BYTES:
+            raise PhaseBContractError("target-speed canonical bounds bytes differ")
+        return spec
+
+
 class RewardRegistry:
     """Immutable exact-key registry; unknown reward identities abort."""
 
@@ -400,16 +551,51 @@ class RewardRegistry:
         ):
             raise PhaseBContractError("task-input admission schema identity differs")
         baseline = TrackingOnlyRewardSpec()
-        self._entries = MappingProxyType({baseline.registry_key: baseline})
+        for module, expected, field in (
+            (target_speed_formula_t2_module, TARGET_SPEED_FORMULA_SHA256, "formula"),
+            (target_speed_formula_module, TARGET_SPEED_PARSER_SHA256, "parser"),
+        ):
+            source = Path(module.__file__ or "")
+            try:
+                observed = hashlib.sha256(source.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise PhaseBContractError(f"target-speed {field} source is unavailable") from exc
+            if observed != expected:
+                raise PhaseBContractError(f"target-speed {field} source identity differs")
+        if (
+            len(TARGET_SPEED_BOUNDS_BYTES) != 137
+            or hashlib.sha256(TARGET_SPEED_BOUNDS_BYTES).hexdigest() != TARGET_SPEED_BOUNDS_SHA256
+        ):
+            raise PhaseBContractError("target-speed bounds authority differs")
+        target = TargetSpeedRewardSpec(alpha=1.0, beta=0.0)
+        self._entries = MappingProxyType(
+            {
+                baseline.registry_key: TrackingOnlyRewardSpec,
+                target.registry_key: TargetSpeedRewardSpec,
+            }
+        )
 
-    def resolve(self, value: Mapping[str, object]) -> TrackingOnlyRewardSpec:
-        spec = TrackingOnlyRewardSpec.from_dict(value)
+    def resolve(
+        self, value: Mapping[str, object]
+    ) -> TrackingOnlyRewardSpec | TargetSpeedRewardSpec:
+        formula_id = value.get("formula_id") if type(value) is dict else None
+        if formula_id == TRACKING_ONLY_FORMULA_ID:
+            spec: TrackingOnlyRewardSpec | TargetSpeedRewardSpec = TrackingOnlyRewardSpec.from_dict(
+                value
+            )
+        elif formula_id == TARGET_SPEED_FORMULA_ID:
+            spec = TargetSpeedRewardSpec.from_dict(value)
+        else:
+            raise PhaseBContractError(f"unknown reward formula_id: {formula_id!r}")
         try:
-            return self._entries[spec.registry_key]
+            expected_type = self._entries[spec.registry_key]
         except KeyError as exc:  # pragma: no cover - exact parser makes this defensive
             raise PhaseBContractError("reward registry key is unknown") from exc
+        if type(spec) is not expected_type:
+            raise PhaseBContractError("reward registry entry type differs")
+        return spec
 
-    def load(self, path: Path) -> tuple[TrackingOnlyRewardSpec, str]:
+    def load(self, path: Path) -> tuple[TrackingOnlyRewardSpec | TargetSpeedRewardSpec, str]:
         value, encoded = _require_canonical_file(path)
         spec = self.resolve(value)
         if spec.canonical_bytes != encoded:
@@ -825,6 +1011,11 @@ _REPORT_V1_REQUIRED = {
 }
 
 _REPORT_V2_GROUPS = {
+    "evaluation": {
+        "evidence_statement",
+        "step_zero_per_episode",
+        "trained_per_episode",
+    },
     "inputs": {
         "evaluator_sha256",
         "library_sha256",
@@ -890,6 +1081,7 @@ _REPORT_V2_SUMMARY_FIELDS = {
     "arms",
     "distributions_by_arm",
     "distributions_by_cell",
+    "episode_summaries",
     "hard_gates",
     "policy_seeds",
     "step_zero_comparator",
@@ -966,8 +1158,15 @@ def validate_cycle_report(value: Mapping[str, object]) -> dict[str, object]:
     failure = integrity["failure_receipt"]
     if type(missing) is not list or any(type(item) is not str or not item for item in missing):
         raise PhaseBContractError("explicit_missing_fields must be a string list")
-    if bool(missing) != (failure is not None):
-        raise PhaseBContractError("incomplete reports require exactly one failure receipt")
+    if failure is not None and type(failure) is not dict:
+        raise PhaseBContractError("report failure receipt must be an object when present")
+    evaluation = value["evaluation"]
+    if (
+        type(evaluation["trained_per_episode"]) is not list
+        or type(evaluation["step_zero_per_episode"]) is not list
+        or evaluation["trained_per_episode"] != episodes
+    ):
+        raise PhaseBContractError("report trained and step-zero episode evidence differs")
     reward = value["reward_runtime"]
     for field in ("r_track", "r_task", "r_train", "ignored_stock_reward"):
         _finite(reward[field], field=f"reward_runtime.{field}")
@@ -994,6 +1193,14 @@ __all__ = [
     "REWARD_SCHEMA_SHA256",
     "RUN_MANIFEST_SCHEMA_ID",
     "STARTING_CHECKPOINT_SCHEMA_ID",
+    "TARGET_SPEED_BOUNDS_BYTES",
+    "TARGET_SPEED_BOUNDS_SHA256",
+    "TARGET_SPEED_FORMULA_ID",
+    "TARGET_SPEED_FORMULA_SHA256",
+    "TARGET_SPEED_PARSER_ID",
+    "TARGET_SPEED_PARSER_SHA256",
+    "TARGET_SPEED_REWARD_SCHEMA_ID",
+    "TARGET_SPEED_REWARD_SCHEMA_SHA256",
     "TASK_INPUTS_V2_SCHEMA_SHA256",
     "TASK_INPUTS_V2_SOURCE_SHA256",
     "TASK_INPUT_ADMISSION_SCHEMA_SHA256",
@@ -1010,6 +1217,7 @@ __all__ = [
     "PhaseBOracleProgram",
     "RewardRegistry",
     "StartingCheckpointContract",
+    "TargetSpeedRewardSpec",
     "TrackingOnlyRewardSpec",
     "load_fine_tuning_run_manifest",
     "load_phase_b_oracle",
