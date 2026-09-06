@@ -32,7 +32,7 @@
   24 rollouts, no promotion. Preserve it rather than using the strategy's looser
   45-minute upper cap to extend the run.
 
-## Parent live preflight: 2026-09-06, 12:32 UTC
+## Parent live preflight: 2026-09-06, 12:29 UTC continuity turn
 
 - Clean checkout at `fba2f09`; source unchanged from the reviewed `2c2a32b`.
 - Own import origin verified inside `humanoid-harness-astra/src/`.
