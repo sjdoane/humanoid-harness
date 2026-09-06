@@ -234,6 +234,9 @@ def test_builds_exact_feedback_and_input_receipt(tmp_path, monkeypatch) -> None:
     assert feedback["evaluation"]["task_sha256"] == config.task.sha256
     assert feedback["evaluation"]["episode_success"] is None
     assert "actual-minus-reference bias" in feedback["diagnosis"]
+    assert "Inside-region speed: mean" in feedback["diagnosis"]
+    assert "Executed reference phase at actual region boundaries" in feedback["diagnosis"]
+    assert "Transient substep failures remain producer-recorded evidence" in feedback["diagnosis"]
     assert "not held-out or task-success evidence" in feedback["diagnosis"]
     receipt = json.loads((tmp_path / "feedback/feedback_receipt_v1.json").read_text())
     assert receipt["inputs"]["source_manifest_sha256"] == digest
@@ -266,6 +269,36 @@ def test_rejects_stored_objective_that_differs_from_recomputation(tmp_path, monk
     digest = _write_json(manifest_path, manifest)
 
     with pytest.raises(ValueError, match="exact recomputation"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
+
+
+def test_rejects_internally_consistent_metrics_forged_against_trajectory(
+    tmp_path, monkeypatch
+) -> None:
+    manifest_path, _, config = _run_fixture(tmp_path / "run", monkeypatch)
+    frames_path = tmp_path / "run/final_policy_frames.jsonl"
+    rows = [json.loads(line) for line in frames_path.read_text().splitlines()]
+    forged = rows[0]["metrics"]
+    forged["root_height_m"] += 0.01
+    forged["root_height_abs_error_m"] = abs(
+        forged["root_height_m"] - rows[0]["trajectory"]["current_reference"][0]
+    )
+    score = evaluate_episode(spec=config.task, frames=rows)
+    report_path = tmp_path / "run/final_policy_evaluation.json"
+    report = json.loads(report_path.read_text())
+    report["objective_evaluation"] = score
+    manifest = json.loads(manifest_path.read_text())
+    manifest["final_policy"] = report
+    manifest["outputs"][frames_path.name] = _write_frames(frames_path, rows)
+    manifest["outputs"][report_path.name] = _write_json(report_path, report)
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="root_height_m differs from retained trajectory"):
         module.build_g1_course_feedback(
             manifest_path=manifest_path,
             expected_manifest_sha256=digest,

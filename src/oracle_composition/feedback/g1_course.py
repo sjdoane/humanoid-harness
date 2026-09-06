@@ -24,6 +24,7 @@ from oracle_composition.adapters.gmt.course_proposal import (
     COURSE_FEEDBACK_EVIDENCE_CLASS,
     MAX_DIAGNOSIS_CHARACTERS,
 )
+from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
 from oracle_composition.adapters.gmt.io import validate_zip_members
 from oracle_composition.experiments.artifact_io import publish_json_without_overwrite
 from oracle_composition.harness.contract import decode_json_object
@@ -86,6 +87,25 @@ _NPZ_DTYPES = {
     "current_reference": "<f4",
     "composite_raw_action": "<f4",
 }
+_BOUNDARY_METRIC_FIELDS = (
+    "progress_m",
+    "lateral_m",
+    "heading_error_signed_rad",
+    "root_height_m",
+    "torso_up",
+    "forward_speed_m_s",
+    "target_speed_m_s",
+    "speed_error_m_s",
+    "posture_band_error_m",
+    "lateral_error_m",
+    "heading_error_rad",
+    "inside_posture_region",
+    "finish_condition_met",
+    "horizon_reached",
+    "joint_position_rmse_rad",
+    "root_height_abs_error_m",
+    "roll_pitch_rmse_rad",
+)
 _MAX_MANIFEST_BYTES = 1024 * 1024
 _MAX_JSON_BYTES = 256 * 1024
 _MAX_FRAMES_BYTES = 128 * 1024 * 1024
@@ -191,6 +211,41 @@ def _verify_frame_crosslinks(
                 raise ValueError(f"course frame and trajectory {name} differ")
 
 
+def _verify_boundary_metrics(
+    *,
+    spec: CourseTaskSpec,
+    frames: list[dict[str, Any]],
+    trajectory: dict[str, np.ndarray],
+) -> None:
+    task_frame = TaskFrame.initialize(trajectory["qpos"][0, :2], trajectory["qpos"][0, 3:7])
+    for offset, row in enumerate(frames):
+        recomputed = evaluate_step(
+            spec=spec,
+            frame=task_frame,
+            before_qpos=trajectory["qpos"][offset],
+            after_qpos=trajectory["qpos"][offset + 1],
+            ground_contact_bodies=(),
+            current_reference=np.asarray(
+                row["trajectory"]["current_reference"], dtype=np.float64
+            ),
+            control_step=offset + 1,
+        ).to_dict()
+        observed = row["metrics"]
+        for name in _BOUNDARY_METRIC_FIELDS:
+            if observed[name] != recomputed[name]:
+                raise ValueError(f"course metric {name} differs from retained trajectory")
+        # A transient/contact failure can only add producer evidence. When no
+        # such evidence exists, posture compliance is boundary-recomputable.
+        if (
+            not observed["fallen"]
+            and observed["posture_success"] != recomputed["posture_success"]
+        ):
+            raise ValueError("course metric posture_success differs from retained trajectory")
+        boundary_reasons = set(recomputed["failure_reasons"])
+        if not boundary_reasons <= set(observed["failure_reasons"]):
+            raise ValueError("course boundary failure evidence differs from retained trajectory")
+
+
 def _diagnosis(
     *,
     label: str,
@@ -231,6 +286,11 @@ def _diagnosis(
                 f"actual minimum {actual_heights[minimum_offset]:.3f} m at step "
                 f"{minimum_step}; reference {reference_heights[minimum_offset]:.3f} m "
                 "at that step.",
+                "Inside-region speed: mean "
+                f"{objective['speed']['inside_mean_forward_speed_m_s']:.3f} m/s; "
+                f"target {objective['speed']['inside_target_speed_m_s']:.3f} m/s; "
+                "mean absolute error "
+                f"{objective['speed']['inside_mean_absolute_error_m_s']:.3f} m/s.",
             )
         )
     else:
@@ -239,6 +299,24 @@ def _diagnosis(
             "Posture region: 0 actual-region samples; actual/reference compliance and "
             "height-bias comparisons are unavailable."
         )
+        lines.append("Inside-region speed: mean and mean absolute error are unavailable.")
+    region = objective["region"]
+    entry_step = region["first_entry_step"]
+    exit_step = region["first_exit_step"]
+    entry_phase = (
+        f"step {entry_step}, {frames[entry_step - 1]['executed_phase_seconds']:.3f} s"
+        if entry_step is not None
+        else "unavailable"
+    )
+    exit_phase = (
+        f"step {exit_step}, {frames[exit_step - 1]['executed_phase_seconds']:.3f} s"
+        if exit_step is not None
+        else "unavailable"
+    )
+    lines.append(
+        "Executed reference phase at actual region boundaries: "
+        f"entry {entry_phase}; exit {exit_phase}."
+    )
     mode_counts = Counter(frame["executed_mode"] for frame in frames)
     lines.append(
         "Executed-mode durations: "
@@ -273,7 +351,8 @@ def _diagnosis(
     gates = objective["development_gate_results"]
     lines.append(
         f"Development gates: {sum(gates.values())}/{len(gates)} passed. "
-        "These are fixed in-sample measurements, not held-out or task-success evidence."
+        "These are fixed in-sample measurements, not held-out or task-success evidence. "
+        "Transient substep failures remain producer-recorded evidence."
     )
     diagnosis = "\n".join(lines)
     if not diagnosis or len(diagnosis) > MAX_DIAGNOSIS_CHARACTERS:
@@ -356,6 +435,7 @@ def build_g1_course_feedback(
     frames = _load_frames(retained[f"{label}_frames.jsonl"])
     trajectory = _load_trajectory(retained[f"{label}_trajectory.npz"], len(frames))
     _verify_frame_crosslinks(frames, trajectory)
+    _verify_boundary_metrics(spec=config.task, frames=frames, trajectory=trajectory)
     objective = evaluate_episode(spec=config.task, frames=frames)
     report = _json(
         retained[f"{label}_evaluation.json"], source=f"{label} course evaluation"
@@ -409,6 +489,7 @@ def build_g1_course_feedback(
             "development_only",
             "no_causal_inference",
             "no_heldout_or_task_success_promotion",
+            "transient_substep_failures_remain_producer_evidence",
         ],
     }
     receipt_artifact = publish_json_without_overwrite(
