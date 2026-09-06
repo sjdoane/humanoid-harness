@@ -3,8 +3,8 @@
 | status | current truth |
 |---|---|
 | progress | Independent review returned ACCEPT_T2_INPUT_ONLY; parent and reviewer each passed all 17 pure tests. |
-| bottleneck | Fable has not yet acknowledged the exact interface proposal. Formula adaptation, compositor and runtime measurement remain separate work. |
-| next step | Fable confirms the input interface, then pins these exact bytes in its runtime packet. |
+| bottleneck | Formula adaptation, compositor and runtime measurement remain separate work. |
+| next step | Fable pins these exact accepted input bytes in its runtime packet. |
 
 - Review: `.orchestration/sol-runs/20260905T193917Z-382d4a3e-5e85-4229-9d82-a7958035231b`.
 - Finished: 2026-09-05 19:48:21 UTC; requested Sol/max, read-only.
@@ -20,6 +20,8 @@
   cadence metadata 0.015 seconds. Old B0 inputs and targets remain unchanged.
 - Exact-path peer proposal:
   `20260905T193614.811073Z-cc47aa7840274926956386766cdb5c05`.
+- Explicit peer acceptance:
+  `20260905T202243.309823Z-181767ca33654e69aad5743d92537aeb`.
 
 No formula binding, total reward, model-origin evidence, simulator observation,
 training admission or robot improvement is established by this acceptance.

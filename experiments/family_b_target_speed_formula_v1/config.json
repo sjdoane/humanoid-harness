@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "kind": "target_speed_formula_config",
+  "family_id": "family_b_target_speed_formula_v1",
+  "formula_id": "target_speed_triangular_affine/v1",
+  "recipe": {
+    "maximum_utf8_bytes": 1024,
+    "exact_keys": [
+      "formula_id",
+      "alpha",
+      "beta"
+    ],
+    "alpha_closed_interval": [
+      0.25,
+      4.0
+    ],
+    "beta_closed_interval": [
+      -10.0,
+      10.0
+    ]
+  },
+  "read_contract": {
+    "schema_id": "family-b-target-speed/reward-contract/v1",
+    "read_set": [
+      "com_x_velocity_m_s",
+      "target_speed_m_s"
+    ],
+    "speed_measurement": "center_of_mass_x_velocity_m_s",
+    "target_speeds_m_s": [
+      0.5,
+      1.0,
+      1.5
+    ]
+  },
+  "trusted_formula": {
+    "base_scale": 1.25,
+    "output_closed_interval": [
+      -10.0,
+      15.0
+    ]
+  },
+  "compositor": {
+    "state": "explicitly_absent_pending_peer_resolution"
+  },
+  "composition_profile": {
+    "state": "incompatible_pending_peer_resolution",
+    "speed_measurement": "root_x_velocity_m_s",
+    "observed_target_examples_m_s": [
+      5.520768616125457,
+      0.8853599908576963
+    ]
+  },
+  "runtime_authorization": "not_authorized",
+  "claim_ceiling": "software_contract_and_synthetic_proposal_plumbing_only"
+}

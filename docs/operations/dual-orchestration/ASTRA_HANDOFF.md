@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | M1 merge accepted and handed to Fable. F1 builder finished; parent reproduced 203 passed/16 deferred and added 17 passing isolated T2 input tests. |
-| bottleneck | F1/T2 are unreviewed, uncommitted and not connected. Compositor, actual-model ingestion, frozen training protocol and resources remain absent. |
-| next step | Collect the exact F1/T2 independent review in the active pointer; repair only verified findings and confirm T2 interface with Fable. |
+| progress | F2 static review accepts the pure evaluator; all 13 hashes match and parent repeated 73 focused passes. Fable accepted the ID/parser interface. |
+| bottleneck | Exact bounds and adapter admission must be bound at promotion; no T2-aware model packet or trained reward cycle exists. |
+| next step | Send the reviewed F2 handoff, then prepare the minimal T2-aware model protocol while Fable owns registry integration. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-05, 19:31 UTC heartbeat; M1 accepted, F1 collected, T2 input proposed.
+- Last checkpoint: 2026-09-05, 23:11 UTC heartbeat; F2 acceptance collected, snapshot reverified and peer conditional agreement read.
 - Workspace: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra`.
 - Branch: `astra/reward-loop`.
 - Orchestrator role: Astra, this Codex task
@@ -45,8 +45,45 @@
 | Cycle-first convergence | Astra + Fable | explicit proposal/acceptance exchanged | `MAIN_INTEGRATION_20260905.md`; one runner/report, exploratory boundary, JSON first |
 | Minimum reward path review | read-only Sol/max | completed 18:28:40Z; chose JSON formula family | Existing Python execution gates remain unchanged |
 | Pinned-main integration | Astra + Sol reviewer | ACCEPT_INTEGRATION at 19:06:56Z; handed to Fable | `8a48f32`; excludes later uncommitted F1 files |
-| F1 formula core | Sol builder | finished 19:20:13Z; parent 203 passed/16 deferred | `F1_RESULT.md`, `F1_PARENT_CHECKPOINT.md`; independent review next |
-| T2 input module | Astra | 17 pure tests pass; exact interface proposal pending | New COM/3.0 input only; not wired into F1 or simulator |
+| F1 formula core | Sol builder + reviewer | REJECT_F1 at 19:48:21Z; three lineage defects | `F1_REVIEW_FINDINGS.md`; numerical core/input gates accepted within static scope |
+| T2 input module | Astra + reviewer | ACCEPT_T2_INPUT_ONLY at 19:48:21Z; 17 tests pass | `T2_INPUT_ACCEPTANCE.md`; not wired into formula or simulator |
+| F1 lineage repair | Sol writer + Astra | finished 20:34:23Z; parent 232 passed/16 deferred | `F1_REPAIR_PARENT_CHECKPOINT.md`; includes one FIFO-open regression fix |
+| F1 closure review | read-only Sol/max | ACCEPT_F1_STATIC_ONLY at 20:59:48Z | `F1_ACCEPTANCE.md`; three findings and FIFO follow-up closed |
+| F2 T2/runtime interface plan | read-only Sol/max | completed 21:40:31Z | `F2_PLAN_RESULT.md`; additive adapter, no duplicate F1 loop |
+| F2 T2 evaluator | Sol/max builder + Astra | finished 22:14:39Z; parent 73 focused passes | `F2_PARENT_CHECKPOINT.md`; three authorized new files, uncommitted |
+| F2 independent review | read-only Sol/max | ACCEPT_T2_EVALUATOR_ONLY at 22:45:28Z | `F2_ACCEPTANCE.md`; static review, reviewer pytest 0 due temp-directory boundary |
+
+- F2 builder: `20260905T220615Z-651f932a-0627-4e28-a7cb-0719bdf94475`;
+  terminal success and lease release verified; watcher observed completion.
+- Fable accepted interface proposal
+  `20260905T220539.436910Z-95e3e2a4b5954edc81e2bfe32f171cd7` via
+  `20260905T230846.027071Z-a969235f97034a998d56358ecec842a6`.
+  The exact canonical bounds hash still needs promotion confirmation because
+  the reply used interval-array shorthand. The proposed physical input range
+  belongs in Fable's reviewed adapter certificate, not an unreviewed V2.1.
+- Current F2 acceptance and handoff identities: `F2_ACCEPTANCE.md`.
+  No raw response may be relabeled T2-aware while its packet still binds F1's
+  old target set and absent compositor.
+
+- Accepted F1 commit: `27330eb4f50feae27df3ab118e8c9c0d165112a8` (local only).
+- Completed F2 plan: `20260905T212913Z-cb25bab9-c2f9-4809-ac32-4d68072ab70e`;
+  exact next builder run and deadline are retained in the active pointer.
+- Peer registry reply `20260905T214217.711948Z-79bbaa69ff38402fa4a0cea559a8cba0`
+  is acknowledged as read. New formula IDs and promotion still need explicit
+  agreement; Astra-only evaluator work does not modify the shared interface.
+- Current peer object inspected: `10d477b5726fb674fa2a057419501faee8043d9d`.
+  The duplicate phase-B T2 class is removed; input source/schema are registry-bound.
+
+- Current acceptance: `F1_ACCEPTANCE.md`. Its retained negative records an
+  accidentally selected simulator test failing on missing `gymnasium`; no
+  simulator started. Use `-m 'not gym'` for this dev-only checkout's pure suite.
+- Peer main observed at committed `8d91a811680599631779892a2c2bedf2127a3a74`:
+  reviewed M1 merge and accepted T2 module integrated. No peer dirty files read
+  or edited. Phase B registry/compositor remains Fable-owned.
+
+- T2 exact interface accepted by Fable in
+  `20260905T202243.309823Z-181767ca33654e69aad5743d92537aeb`.
+  No duplicate phase-B input source was adopted; Fable owns removing its copy.
 
 - Current checkpoint and exact receipts: `F1_PARENT_CHECKPOINT.md`.
 - Fable selected new T2 COM speed target 3.0, not phase-A root speed; the old
