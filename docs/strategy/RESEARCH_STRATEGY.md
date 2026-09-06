@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | The harness loop now runs end to end on stock `Humanoid-v5` as a CLI: task T1 (speed profile), a frozen three-gait library, cycle 0 with four predeclared arms, a prompt-only LLM-designed cycle-1 oracle, and canonical cycle reports (`50fd60c`, `2fb31dc`, cycle 1 pending commit). |
-| bottleneck | None of the three tested step-300 running-speed handovers survived (`60/60` switching episodes fell: playback switched expert to simple and fell `20`-`25` steps later; handwritten and the cycle-1 candidate switched expert to medium and fell `23`-`60` and `22`-`57` steps later). Alternative phases, timings, and state-conditioned handovers remain untested, so this is not evidence of general handover infeasibility. Composition still needs a tracker that learns transitions from a composed reference, which is the block under construction. |
-| next step | Commit FT2 (training worker, supervision, persistence, report v2, CLI `train` with a non-promotable smoke mode; no training ran); run repair slice `FT2R1` for the FT1 and E003R1 review findings (E1 admission binding, phase B execution seal, V2 velocity admission certificate, bounded actor reload, trace-grounded metrics, portable provenance, endpoint calibration plan); then the disposable 20-minute smoke under a mailbox reservation; the five-seed cohort needs Samuel's authorization. |
+| progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |
+| bottleneck | Neither lane has a trained result. Both wait on the combined re-review of FT2R1 to FT2R3, the disposable smoke under a mailbox reservation, and Samuel's authorization for any five-seed cohort. |
+| next step | Fable: re-pin the F3 one-call protocol to the reward lane, lock the T2 reward-study protocol (oracle variant, matched controls, endpoint), and run reward cycle 0 and 1 once compute is authorized. Astra: re-reviews, smoke reservation, next composition packet. |
 
 ## Fable's authority
 
@@ -324,6 +324,24 @@ Frozen by strategy authority; the builder packets bind them.
 | Labels | `interface_check` for no-learning checks and the disposable smoke; `exploratory_fine_tuning_cycle` for trained cycles; claim ceiling: exploratory reference-conditioned fine-tuning utility only, no causal reference use, oracle or reward improvement, generalization, naturalness, or competence claim. |
 | Compute and gates | Disposable smoke seed `121901`, `196,608` transitions, expected `3 min`, hard `20 min`, mailbox acceptance required; one five-seed arm about `106 min` (hard `120`), which needs a mailbox reservation and Samuel's explicit authorization; a matched two-arm reward comparison about `186 min` as two sequential reservations. |
 
+## Reward lane under Fable (2026-09-06T04:09Z)
+
+Inherited from Astra at the swap (ADR 0009): the A1 proposal and ingestion loop
+(`reward_search` package: `prepare`, `ingest-sol`, `prepare-revision`),
+static-only B0 validation (R1 accepted; R2 containment and R3 provenance still
+gate any generated Python), the F1 target-speed formula lineage, the F2 T2
+evaluator (registered in `main` by FT2R2), and the F3 one-call protocol
+(`ACCEPT_F3_STATIC_ONLY`, conditional `APPROVE_F3_ONE_CALL_PROTOCOL`, zero calls
+made). The reward knob has never been executed against a trained policy.
+
+| item | decision |
+|---|---|
+| First milestone | One executed reward cycle on the fine-tuning runtime for task T2 (hold `3.0 m/s` COM forward speed for `1,000` steps from the expert start, seeds `97001`-`97020`): a tracking-only baseline cohort (`r_task = +0.0`), one LLM alpha and beta hypothesis through the accepted F3 one-call protocol re-pinned to this lane, a matched candidate cohort under the same frozen oracle, initialization, budget, seeds, and evaluator, protected evaluation that measures the tradeoff against tracking rather than relaxing it, and one revision prepared from measured feedback. |
+| Oracle variant for T2 | To be locked in a reviewed protocol before any cohort: fixed expert-reference hold (`expert_hold/v1`) is the candidate variant because it is the collaborator's steer-the-speed example and gives the task reward real work; the survey's medium-hold variant is the alternative. The headroom of either is unknown until the baseline cohort measures COM speed; corpus medians (`5.52`, `3.07 m/s`) are root-delta quantities and do not measure COM-speed task error. |
+| Matched controls | A cohort counts as the reward study's baseline only if its oracle, task, initialization, training design, seeds, and evaluator match the candidate arm and were declared before running; the tracker lane's composition cohort is a separate study unless every condition matches. |
+| Route | Data-only formula family first (F2, bounded alpha and beta); generated Python stays behind R2 and R3. |
+| Compute | The disposable smoke and every cohort follow the shared gates: mailbox reservation, one heavy job at a time, Samuel's authorization for cohorts. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -403,6 +421,7 @@ goal ID.
 | 2026-09-05 | `LG-02`, `LG-05`, `LG-16` | Fold the Experiment 003 reviews: correct the steering and infeasibility record, freeze the phase B task-success endpoint, and run repair slice `E003R1` (evaluator and schema identities, deterministic scientific receipts, prior-report chain validation, sealed execution manifest, designer provenance receipts, recovery semantics, non-vacuous negatives) before the training-worker slice. | reviews `sol-review-sci-20260905-e003` (ACCEPT-WITH-REPAIRS, 6 P1) and `sol-review-adv-20260905-e003` (ACCEPT-WITH-REPAIRS, 9 P1, 1 P2) | repair slice passes its negatives; identical reruns give identical scientific receipts | recorded 2026-09-05T20:23Z |
 | 2026-09-05 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT1 scientific review (ACCEPT-WITH-REPAIRS, 4 P1, 1 P2) and the E003R1 robustness review (ACCEPT-WITH-REPAIRS, 4 P1, 3 P2) into repair slice `FT2R1` before any training smoke; clarify the phase B endpoint's independent unit and calibration split; accept Astra's F2 formula interface with an adapter-owned velocity admission certificate. | reviews `sol-review-sci-20260905-ft1`, `sol-review-adv-20260905-e003r1`; Astra proposal `20260905T220539` | FT2R1 negatives pass; no smoke before the reservation | recorded 2026-09-05T23:08Z |
 | 2026-09-06 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT2 reviews (scientific ACCEPT-WITH-REPAIRS, 8 P1, 1 P2; robustness ACCEPT-WITH-REPAIRS, 9 P1) into two repair slices, `FT2R2` (evaluator independence, evaluation lineage, non-scoring endpoint, rollout likelihood audit, report completeness, reservation binding, bounded loaders, cohort authority, the F2 registry entry) and `FT2R3` (sealed-input lineage in the worker, clean-environment and resource isolation, bounded IPC frames, fail-closed RSI evidence, mechanism-level negatives); the disposable smoke waits for both. FT2R1 committed as `5965f0c`. | reviews `sol-review-sci-20260905-ft2`, `sol-review-adv-20260905-ft2`; FT2R1 final | repair negatives pass; a combined re-review before the smoke | recorded 2026-09-06T00:32Z |
+| 2026-09-06 | `LG-03`, `LG-05`, `LG-11`, `LG-15` | Lane swap on Samuel's instruction: Fable takes the reward and feedback lane, Astra the oracle and tracker lane; tracker lane handed over at FT2R3 (`docs/operations/TRACKER_LANE_HANDOFF.md`); reward-lane first milestone defined. | Samuel's instruction to both orchestrators; Astra proposal `20260906T023515`; ADR 0009 | reward cycle 0 and 1 executed on T2 with a matched baseline | recorded 2026-09-06T04:09Z |
 
 ## Known strategy inconsistencies
 
