@@ -41,15 +41,17 @@ from oracle_composition.phase_b.supervision import (
 )
 
 ACCEPTED_SMOKE_WALL_SECONDS = 1_200
-EFFECTIVE_WALL_SECONDS = 120
-CPU_TIME_SECONDS = 120
-RSS_BYTES = 8 * 1024**3
-OUTPUT_BYTES = 128 * 1024**2
-CHILD_OUTPUT_BYTES = OUTPUT_BYTES - 512 * 1024
-FREE_DISK_BYTES = 20 * 1024**3
+MAX_DEVELOPMENT_WALL_SECONDS = 1_200
+MAX_DEVELOPMENT_CPU_SECONDS = 1_200
+MAX_DEVELOPMENT_OUTPUT_BYTES = 1 * 1024**3
+MAX_RSS_BYTES = 8 * 1024**3
+MIN_FREE_DISK_BYTES = 20 * 1024**3
+RECEIPT_RESERVE_BYTES = 512 * 1024
 POLL_SECONDS = 0.05
 GROUP_VALIDATION_SECONDS = 2.0
 OFFICIAL_ACTOR_SHA256 = "bc444fbd56ba4a582d7c6367504f2093ccb081c6956fcee8f30f2e85ced28686"
+BASELINE_ARTIFACT_LABEL = "gmt_reconstructed_baseline_probe_resource_receipt"
+BASELINE_EVIDENCE_CLASS = "exploratory_baseline_no_learning_not_jit_equivalence_or_task_success"
 TRACE_FILENAME = "gmt_reconstructed_baseline_10s.npz"
 RECEIPT_FILENAME = "gmt_probe_resource_receipt_v1.json"
 STDOUT_FILENAME = "child_stdout.json"
@@ -86,6 +88,61 @@ THREAD_ENVIRONMENT = {
 
 class ProbeError(RuntimeError):
     """A probe precondition, resource gate, or terminal check failed."""
+
+
+@dataclass(frozen=True)
+class ProbeLimits:
+    """Validated process ceilings for one immutable trusted plan."""
+
+    wall_seconds: int = 120
+    cpu_seconds: int = 120
+    rss_bytes: int = 8 * 1024**3
+    free_disk_bytes: int = 20 * 1024**3
+    output_bytes: int = 128 * 1024**2
+
+    def __post_init__(self) -> None:
+        fields = {
+            "wall_seconds": self.wall_seconds,
+            "cpu_seconds": self.cpu_seconds,
+            "rss_bytes": self.rss_bytes,
+            "free_disk_bytes": self.free_disk_bytes,
+            "output_bytes": self.output_bytes,
+        }
+        if any(type(value) is not int or value <= 0 for value in fields.values()):
+            raise ValueError("probe limits must be positive integers")
+        if self.wall_seconds > MAX_DEVELOPMENT_WALL_SECONDS:
+            raise ValueError("probe wall limit exceeds the 1200-second development maximum")
+        if self.cpu_seconds > MAX_DEVELOPMENT_CPU_SECONDS:
+            raise ValueError("probe CPU limit exceeds the 1200-second development maximum")
+        if self.rss_bytes > MAX_RSS_BYTES:
+            raise ValueError("probe RSS limit exceeds 8 GiB")
+        if self.free_disk_bytes < MIN_FREE_DISK_BYTES:
+            raise ValueError("probe free-disk floor cannot be lower than 20 GiB")
+        if not RECEIPT_RESERVE_BYTES < self.output_bytes <= MAX_DEVELOPMENT_OUTPUT_BYTES:
+            raise ValueError("probe output limit must reserve a receipt and cannot exceed 1 GiB")
+
+    @property
+    def child_output_bytes(self) -> int:
+        return self.output_bytes - RECEIPT_RESERVE_BYTES
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "wall_seconds": self.wall_seconds,
+            "cpu_seconds": self.cpu_seconds,
+            "rss_bytes": self.rss_bytes,
+            "free_disk_bytes": self.free_disk_bytes,
+            "output_bytes": self.output_bytes,
+            "child_output_bytes": self.child_output_bytes,
+        }
+
+
+DEFAULT_PROBE_LIMITS = ProbeLimits()
+EFFECTIVE_WALL_SECONDS = DEFAULT_PROBE_LIMITS.wall_seconds
+CPU_TIME_SECONDS = DEFAULT_PROBE_LIMITS.cpu_seconds
+RSS_BYTES = DEFAULT_PROBE_LIMITS.rss_bytes
+FREE_DISK_BYTES = DEFAULT_PROBE_LIMITS.free_disk_bytes
+OUTPUT_BYTES = DEFAULT_PROBE_LIMITS.output_bytes
+CHILD_OUTPUT_BYTES = DEFAULT_PROBE_LIMITS.child_output_bytes
 
 
 class ProcessLike(Protocol):
@@ -144,14 +201,56 @@ class ProbePlan:
     commit: str
     canonical_argv: tuple[str, ...]
     inputs: dict[str, object]
+    limits: ProbeLimits = DEFAULT_PROBE_LIMITS
+    artifact_label: str = BASELINE_ARTIFACT_LABEL
+    evidence_class: str = BASELINE_EVIDENCE_CLASS
+
+    def __post_init__(self) -> None:
+        if type(self.limits) is not ProbeLimits:
+            raise ValueError("probe plan limits must be a validated ProbeLimits")
+        for label, value in (
+            ("artifact label", self.artifact_label),
+            ("evidence class", self.evidence_class),
+        ):
+            if (
+                type(value) is not str
+                or value != value.strip()
+                or not value
+                or len(value.encode("utf-8")) > 256
+                or any(ord(character) < 32 for character in value)
+            ):
+                raise ValueError(f"probe {label} is empty, unbounded, or contains controls")
+        if "process_supervision" in self.inputs:
+            raise ValueError("probe inputs reserve process_supervision for accepted binding")
+        baseline_artifact = self.artifact_label == BASELINE_ARTIFACT_LABEL
+        baseline_evidence = self.evidence_class == BASELINE_EVIDENCE_CLASS
+        if baseline_artifact != baseline_evidence:
+            raise ValueError("baseline artifact and evidence labels must change together")
+        if self.limits != DEFAULT_PROBE_LIMITS and baseline_artifact:
+            raise ValueError("nondefault limits require explicit nonbaseline evidence labels")
+
+    def supervision_binding(self) -> dict[str, object]:
+        return {
+            "artifact_label": self.artifact_label,
+            "evidence_class": self.evidence_class,
+            "limits": self.limits.as_dict(),
+        }
 
     def accepted_fields(self) -> dict[str, object]:
+        baseline_binding = {
+            "artifact_label": BASELINE_ARTIFACT_LABEL,
+            "evidence_class": BASELINE_EVIDENCE_CLASS,
+            "limits": DEFAULT_PROBE_LIMITS.as_dict(),
+        }
+        inputs = self.inputs
+        if self.supervision_binding() != baseline_binding:
+            inputs = {**self.inputs, "process_supervision": self.supervision_binding()}
         return {
             "canonical_argv": list(self.canonical_argv),
             "commit": self.commit,
             "conflict_check": "no_other_heavy_repository_job",
             "hard_wall_seconds": ACCEPTED_SMOKE_WALL_SECONDS,
-            "inputs": self.inputs,
+            "inputs": inputs,
             "mode": "smoke",
             "output": str(self.config.output_directory),
             "owner": self.config.owner,
@@ -171,6 +270,9 @@ class ProbeDependencies:
     validate_slot: Callable[..., dict[str, object]] = validate_slot_for_reservation
     release: Callable[..., dict[str, object]] = release_slot
     validate_plan: Callable[[ProbePlan], None] = lambda plan: _plan_unchanged(plan)
+    verify_completed: Callable[[ProbePlan], dict[str, object]] = lambda plan: (
+        _verify_completed_probe(plan)
+    )
     validate_group: Callable[[int], bool] = lambda pid: (
         os.getpgid(pid) == pid and os.getsid(pid) == pid
     )
@@ -347,9 +449,9 @@ def _child_environment(plan: ProbePlan) -> dict[str, str]:
     }
 
 
-def _apply_child_limits() -> None:
-    resource.setrlimit(resource.RLIMIT_CPU, (CPU_TIME_SECONDS, CPU_TIME_SECONDS))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (OUTPUT_BYTES, OUTPUT_BYTES))
+def _apply_child_limits(limits: ProbeLimits = DEFAULT_PROBE_LIMITS) -> None:
+    resource.setrlimit(resource.RLIMIT_CPU, (limits.cpu_seconds, limits.cpu_seconds))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (limits.output_bytes, limits.output_bytes))
 
 
 def _spawn_child(
@@ -359,6 +461,9 @@ def _spawn_child(
     stderr: Any,
     dependencies: ProbeDependencies,
 ) -> ProcessLike:
+    def apply_child_limits() -> None:
+        _apply_child_limits(plan.limits)
+
     return dependencies.spawn(
         list(plan.canonical_argv),
         cwd=plan.config.repository_root,
@@ -368,7 +473,7 @@ def _spawn_child(
         stderr=stderr,
         start_new_session=True,
         close_fds=True,
-        preexec_fn=_apply_child_limits,
+        preexec_fn=apply_child_limits,
     )
 
 
@@ -516,13 +621,13 @@ def _terminal_receipt(
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
-        "artifact": "gmt_reconstructed_baseline_probe_resource_receipt",
-        "evidence_class": "exploratory_baseline_no_learning_not_jit_equivalence_or_task_success",
+        "artifact": plan.artifact_label,
+        "evidence_class": plan.evidence_class,
         "status": status,
         "reason": reason,
         "commit": plan.commit,
         "canonical_argv": list(plan.canonical_argv),
-        "inputs": plan.inputs,
+        "inputs": plan.accepted_fields()["inputs"],
         "reservation_sha256": hashlib.sha256(canonical_json_bytes(dict(reservation))).hexdigest(),
         "slot": {
             "owner": token["owner"],
@@ -531,11 +636,12 @@ def _terminal_receipt(
         },
         "resources": {
             "accepted_schema_wall_seconds": ACCEPTED_SMOKE_WALL_SECONDS,
-            "effective_outer_wall_seconds": EFFECTIVE_WALL_SECONDS,
-            "cpu_time_seconds": CPU_TIME_SECONDS,
-            "rss_bytes": RSS_BYTES,
-            "free_disk_bytes": FREE_DISK_BYTES,
-            "output_bytes": OUTPUT_BYTES,
+            "effective_outer_wall_seconds": plan.limits.wall_seconds,
+            "cpu_time_seconds": plan.limits.cpu_seconds,
+            "rss_bytes": plan.limits.rss_bytes,
+            "free_disk_bytes": plan.limits.free_disk_bytes,
+            "output_bytes": plan.limits.output_bytes,
+            "child_output_bytes": plan.limits.child_output_bytes,
             "one_thread_environment": THREAD_ENVIRONMENT,
             "observed_wall_seconds": wall_seconds,
             "observed_peak_rss_bytes": peak_rss_bytes,
@@ -561,13 +667,14 @@ def supervise_probe(
 ) -> dict[str, object]:
     dependencies = dependencies or ProbeDependencies()
     validate_reservation_binding(plan, reservation)
-    if dependencies.free_disk_bytes(plan.config.output_directory.parent) < FREE_DISK_BYTES:
-        raise ProbeError("free disk is below the 20 GiB pre-spawn minimum")
+    limits = plan.limits
+    if dependencies.free_disk_bytes(plan.config.output_directory.parent) < limits.free_disk_bytes:
+        raise ProbeError("free disk is below the plan's pre-spawn minimum")
     token = dependencies.reserve(
         coordination_root,
         owner=plan.config.owner,
         reservation_path=reservation_path,
-        expected_wall_seconds=EFFECTIVE_WALL_SECONDS,
+        expected_wall_seconds=limits.wall_seconds,
     )
     process: ProcessLike | None = None
     group_validated = False
@@ -584,7 +691,7 @@ def supervise_probe(
         validated_token = dependencies.validate_slot(
             coordination_root,
             reservation,
-            expected_wall_seconds=EFFECTIVE_WALL_SECONDS,
+            expected_wall_seconds=limits.wall_seconds,
         )
         if validated_token != token:
             raise ProbeError("pre-spawn slot validation returned a different token")
@@ -605,23 +712,26 @@ def supervise_probe(
                 output = dependencies.directory_bytes(plan.config.output_directory)
                 minimum_disk = min(minimum_disk, free)
                 maximum_output = max(maximum_output, output)
-                if wall >= EFFECTIVE_WALL_SECONDS:
-                    status, reason = "timeout", "effective 120-second outer wall exceeded"
+                if wall >= limits.wall_seconds:
+                    status, reason = (
+                        "timeout",
+                        f"effective {limits.wall_seconds}-second outer wall exceeded",
+                    )
                     break
                 if rss is None or type(rss) is not int or rss < 0:
                     status, reason = "resource_breach", "process-tree RSS observation unavailable"
                     break
                 peak_rss = max(peak_rss, rss)
-                if rss > RSS_BYTES:
-                    status, reason = "resource_breach", "process-tree RSS exceeded 8 GiB"
+                if rss > limits.rss_bytes:
+                    status, reason = "resource_breach", "process-tree RSS exceeded its plan limit"
                     break
-                if free < FREE_DISK_BYTES:
-                    status, reason = "resource_breach", "free disk fell below 20 GiB"
+                if free < limits.free_disk_bytes:
+                    status, reason = "resource_breach", "free disk fell below its plan minimum"
                     break
-                if output > CHILD_OUTPUT_BYTES:
+                if output > limits.child_output_bytes:
                     status, reason = (
                         "resource_breach",
-                        "child output exhausted the receipt-reserved 128 MiB allowance",
+                        "child output exhausted its receipt-reserved plan allowance",
                     )
                     break
                 dependencies.sleep(POLL_SECONDS)
@@ -657,10 +767,10 @@ def supervise_probe(
             maximum_output,
             dependencies.directory_bytes(plan.config.output_directory),
         )
-    if cleanup_succeeded and maximum_output > CHILD_OUTPUT_BYTES:
+    if cleanup_succeeded and maximum_output > limits.child_output_bytes:
         status, reason = "resource_breach", "final child output exceeded its bounded allowance"
-    if cleanup_succeeded and minimum_disk < FREE_DISK_BYTES:
-        status, reason = "resource_breach", "final free disk fell below 20 GiB"
+    if cleanup_succeeded and minimum_disk < limits.free_disk_bytes:
+        status, reason = "resource_breach", "final free disk fell below its plan minimum"
     if (
         cleanup_succeeded
         and process is not None
@@ -669,7 +779,11 @@ def supervise_probe(
     ):
         try:
             dependencies.validate_plan(plan)
-            artifacts = _verify_completed_probe(plan)
+            verified = dependencies.verify_completed(plan)
+            if type(verified) is not dict:
+                raise ProbeError("terminal verifier must return an artifact object")
+            canonical_json_bytes(verified)
+            artifacts = verified
             status = "succeeded"
             reason = None
         except BaseException as exc:
@@ -772,12 +886,12 @@ def main() -> int:
                 "schema_version": 1,
                 "exact_probe_binding": plan.accepted_fields(),
                 "effective_limits": {
-                    "outer_wall_seconds": EFFECTIVE_WALL_SECONDS,
-                    "cpu_seconds": CPU_TIME_SECONDS,
-                    "rss_bytes": RSS_BYTES,
-                    "free_disk_bytes": FREE_DISK_BYTES,
-                    "output_bytes": OUTPUT_BYTES,
-                    "child_output_bytes": CHILD_OUTPUT_BYTES,
+                    "outer_wall_seconds": plan.limits.wall_seconds,
+                    "cpu_seconds": plan.limits.cpu_seconds,
+                    "rss_bytes": plan.limits.rss_bytes,
+                    "free_disk_bytes": plan.limits.free_disk_bytes,
+                    "output_bytes": plan.limits.output_bytes,
+                    "child_output_bytes": plan.limits.child_output_bytes,
                 },
                 "reservation_v2_dynamic_fields_required": [
                     "accepted_until_utc",
