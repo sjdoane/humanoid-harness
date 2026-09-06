@@ -374,6 +374,25 @@ design, T2 protected evaluator and report fields, study manifest with the
 pairing key seam, negatives), a targeted review of the F3 re-pin, the single
 F3 call, candidate admission and sealing.
 
+## First-principles challenge and the reward lane's position (2026-09-06T08:36Z)
+
+Samuel, through Astra, asked whether explicit closed-loop oracle and reward
+design is needed at all given emergent composability from scale (GEN-1.5 and
+related demonstration-conditioned policies) and why a harness rather than
+in-context learning. Astra's advisory review is in its checkout under
+`docs/strategy/astra/FIRST_PRINCIPLES_20260906.md`. Fable's independent
+position, formed from the transcript anchors and the evidence this project has
+produced:
+
+| question | position |
+|---|---|
+| Necessity | Dropped as a claim. Nothing here shows that scaled or demonstration-conditioned policies cannot compose humanoid behaviors. The claim of record becomes conditional: given a fixed controller family, reference library, MDP, and adaptation budget, does LLM-driven revision of the oracle or the task reward improve held-out task success and recovery over fixed-schedule, handwritten state-aware, and, where an interface exists, prompt or demonstration-conditioned alternatives, at what cost. This is also the collaborator's own frame: the harness automates two design steps a person now does by hand for each task; the measured quantity is design cost and outcome, not a proof against scale. |
+| Harness versus in-context learning | Not a dichotomy. Policy-level in-context learning needs a demonstration-conditioned policy for the embodiment; none exists for stock `Humanoid-v5` on this hardware, and if one is supplied it is a different policy-training block behind the same two inputs, which the harness is designed to be agnostic to. Design-level in-context learning, an LLM revising oracle and reward artifacts from measured feedback, is what the harness is; it should be named that and compared against a prompt-only baseline wherever a compatible interface exists. |
+| Vision | An optional factor. Structured state, contact, and phase metrics first; a visual judge is added only where it supplies evidence the metrics lack, and it is compared against the same pipeline without it. |
+| Custom tracker bootstrapping | The phase B fine-tuning runtime is a stand-in that exists so the loop can run on this machine now. It is not the research contribution. Stop rule, agreed with Astra: one capped mechanism smoke on the existing T1 schedule (at most `196,608` transitions or `45` minutes, non-promotable, under a reservation); if the local runtime cannot demonstrate numeric-reference consumption and trainable tracking within that cap, adopt a supplied or existing compatible tracker for the joint task rather than continuing custom tracker engineering. |
+| Cheapest joint demonstration | Two stages. Stage 1 needs no cross-gait tracking: the reward study T2 on the expert-hold oracle (baseline cohort, one LLM reward hypothesis, candidate cohort), which exercises the reward knob with the lowest risk and gives the first measured adaptation effect. Stage 2, only after the mechanism smoke passes, is Astra's straight-course speed-zone task with both knobs in the four locked arms plus a handwritten state-aware composer, on whichever tracker survives the stop rule. Each stage's cohorts follow the existing gates: reservation, one heavy job, Samuel's authorization. |
+| Claim ceiling | "Under these fixed conditions the revised oracle or reward met or did not meet the preregistered criterion in a matched five-seed implementation, at this cost." No generalization or scale claim in either direction. |
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -455,6 +474,7 @@ goal ID.
 | 2026-09-06 | `LG-01`, `LG-03`, `LG-04`, `LG-13` | Fold the FT2 reviews (scientific ACCEPT-WITH-REPAIRS, 8 P1, 1 P2; robustness ACCEPT-WITH-REPAIRS, 9 P1) into two repair slices, `FT2R2` (evaluator independence, evaluation lineage, non-scoring endpoint, rollout likelihood audit, report completeness, reservation binding, bounded loaders, cohort authority, the F2 registry entry) and `FT2R3` (sealed-input lineage in the worker, clean-environment and resource isolation, bounded IPC frames, fail-closed RSI evidence, mechanism-level negatives); the disposable smoke waits for both. FT2R1 committed as `5965f0c`. | reviews `sol-review-sci-20260905-ft2`, `sol-review-adv-20260905-ft2`; FT2R1 final | repair negatives pass; a combined re-review before the smoke | recorded 2026-09-06T00:32Z |
 | 2026-09-06 | `LG-03`, `LG-05`, `LG-11`, `LG-15` | Lane swap on Samuel's instruction: Fable takes the reward and feedback lane, Astra the oracle and tracker lane; tracker lane handed over at FT2R3 (`docs/operations/TRACKER_LANE_HANDOFF.md`); reward-lane first milestone defined. | Samuel's instruction to both orchestrators; Astra proposal `20260906T023515`; ADR 0009 | reward cycle 0 and 1 executed on T2 with a matched baseline | recorded 2026-09-06T04:09Z |
 | 2026-09-06 | `LG-03`, `LG-11`, `LG-15` | Freeze the T2 reward-study protocol `t2_reward_study_expert_hold/v1` (expert-hold oracle, paired five-seed arms, reward-independent evaluator, preregistered `0.25 m/s` rule, separate safety and tracking gates); propose the arm-invariant pairing key to Astra as a shared-runtime change. | survey `sol-survey-20260906-t2proto` | every TBD hash exists and the pairing receipt verifies identical streams before cycle 0 | recorded 2026-09-06T04:38Z |
+| 2026-09-06 | `LG-01`, `LG-02`, `LG-03`, `LG-05`, `LG-13` | Answer the first-principles challenge: drop the necessity claim, frame the harness as design-level in-context learning measured as conditional adaptation benefit and cost against fixed-schedule, handwritten, and prompt-conditioned baselines; adopt the tracker stop rule (capped mechanism smoke, then a supplied or existing tracker); stage the joint demonstration after the reward study. | Samuel's challenge via Astra `20260906T073336`; Astra advisory `d47f528`; project evidence (switching failures, authority gap, failed screen) | mechanism smoke result and T2 cycle 0 and 1 | recorded 2026-09-06T08:36Z |
 
 ## Known strategy inconsistencies
 
