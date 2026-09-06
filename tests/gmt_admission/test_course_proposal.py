@@ -175,6 +175,8 @@ def _oracle_replacement() -> dict:
                 "motion_name": "crouchwalk_stand",
                 "start_seconds": 0.1,
                 "end_seconds": 9.9,
+                "entry_phase_end_seconds": 0.5,
+                "boundary": "hold_last_pose_zero_velocity",
             },
         },
     }
@@ -223,6 +225,13 @@ def test_oracle_proposal_changes_only_oracle_and_segments() -> None:
 
     assert candidate["oracle"]["oracle_id"] == "revised"
     assert candidate["segments"]["crouch"]["start_seconds"] == 0.1
+    assert candidate["segments"]["crouch"]["entry_phase_end_seconds"] == 0.5
+    assert candidate["segments"]["crouch"]["boundary"] == "hold_last_pose_zero_velocity"
+    assert set(candidate["segments"]["walk"]) == {
+        "motion_name",
+        "start_seconds",
+        "end_seconds",
+    }
     for field in CONFIG_KEYS - {"oracle", "segments"}:
         assert canonical_json_bytes(candidate[field]) == canonical_json_bytes(parent.raw[field])
 
@@ -285,6 +294,26 @@ def test_wrong_factor_payload_and_unadmitted_motion_fail_closed() -> None:
     proposal = _proposal(parent, feedback, factor="oracle")
     proposal["replacement"]["segments"]["crouch"]["motion_name"] = "dance"
     with pytest.raises(ValueError, match="unadmitted motion"):
+        apply_proposal(parent, proposal, feedback)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("entry_phase_end_seconds", 10.0, "entry phase"),
+        ("entry_phase_end_seconds", True, "entry phase"),
+        ("boundary", "wrap_then_hold", "boundary"),
+    ],
+)
+def test_invalid_entry_window_or_boundary_fails_closed(
+    field: str, value: object, message: str
+) -> None:
+    parent = _parent()
+    feedback = _feedback(parent)
+    proposal = _proposal(parent, feedback, factor="oracle")
+    proposal["replacement"]["segments"]["crouch"][field] = value
+
+    with pytest.raises(ValueError, match=message):
         apply_proposal(parent, proposal, feedback)
 
 
