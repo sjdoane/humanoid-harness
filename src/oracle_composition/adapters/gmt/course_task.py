@@ -35,7 +35,7 @@ TASK_FEATURE_NAMES = (
     "remaining_horizon_fraction",
 )
 
-_TASK_SCALES = (1.0, 0.20, 1.0, math.pi)
+_TASK_SCALES = (0.30, 0.20, 1.0, 0.50)
 _TRACKING_SCALES = (0.35, 0.15, 0.35)
 _TRACKING_WEIGHTS = (0.50, 0.25, 0.25)
 _SPEC_FLOAT_FIELDS = (
