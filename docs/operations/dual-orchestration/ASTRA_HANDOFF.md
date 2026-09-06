@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | Resource-token diff retained; parent reproduced 28 focused passes after the builder stopped at its hard deadline. |
-| bottleneck | Independent source review is pending; no supervisor integration or accepted smoke slot. |
-| next step | Collect the bounded review in the active-run pointer. Fable owns supervisor integration and PAIR-02 repair. No training. |
+| progress | Slot review passed core behavior and found two path/error defects; parent repaired them, with 37 focused passes. |
+| bottleneck | Independent repair closure and Fable supervisor integration are pending; no accepted smoke slot. |
+| next step | Collect the two-finding closure in the active-run pointer, then hand reviewed source to Fable. No training. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 14:42 UTC; token builder collected, parent checks pass.
+- Last checkpoint: 2026-09-06, 15:21 UTC; slot findings repaired and closure prepared.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,17 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- Current result: `RESOURCE_SLOT_01_REVIEW_RESULT.md`; original independent
+  verdict `REPAIRS_RESOURCE_SLOT_01`, terminal 14:54:15 UTC, watcher observed
+  completion. Parent reproduced 8 failing new cases before repair; final
+  two-file suite has 37 passes. Exact repaired hashes are retained for closure.
+- Current packet: `TASK-RESOURCE-SLOT-01-CLOSURE.md`. Use active-run pointer;
+  do not duplicate a live review or edit its five frozen implementation files.
+- Fable reports its own combined readback of T2PAIRR2 and F3PINR2. Handoff
+  acknowledged; no duplicate pairing review or reward dispatch from Astra.
+
+### Original builder and first review (retained)
 
 - Current checkpoint: `RESOURCE_SLOT_01_PARENT_RESULT.md`. The builder is
   terminal `INTERRUPTED_TERM`, exit 143 at 14:21:51 UTC, lease released; exact
