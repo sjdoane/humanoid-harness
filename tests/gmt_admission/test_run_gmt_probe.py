@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -240,3 +241,34 @@ def test_reservation_binding_rejects_argv_or_input_drift(tmp_path: Path) -> None
     reservation["inputs"] = {"weights": "different"}
     with pytest.raises(PROBE.ProbeError, match="exact GMT probe plan"):
         PROBE.validate_reservation_binding(plan, reservation)
+
+
+@pytest.mark.parametrize("breach", ["timeout", "rss", "rss_unavailable", "output"])
+def test_resource_breach_stops_and_cleans_before_release(tmp_path: Path, breach: str) -> None:
+    plan = _plan(tmp_path)
+    events: list[str] = []
+    dependencies = _dependencies(plan, events)
+    expected_status = "resource_breach"
+    if breach == "timeout":
+        times = iter((0.0, 0.0, 0.0, 121.0, 121.0))
+        dependencies = replace(dependencies, clock=lambda: next(times))
+        expected_status = "timeout"
+    elif breach == "rss":
+        dependencies = replace(dependencies, rss_bytes=lambda _: PROBE.RSS_BYTES + 1)
+    elif breach == "rss_unavailable":
+        dependencies = replace(dependencies, rss_bytes=lambda _: None)
+    else:
+        dependencies = replace(dependencies, directory_bytes=lambda _: PROBE.CHILD_OUTPUT_BYTES + 1)
+
+    result = PROBE.supervise_probe(
+        plan,
+        coordination_root=tmp_path,
+        reservation=_reservation(plan),
+        reservation_path=tmp_path / "reservation.json",
+        dependencies=dependencies,
+    )
+
+    assert result["status"] == expected_status
+    assert result["ok"] is False
+    assert events.index("cleanup") < events.index("release")
+    assert result["slot"] == {"released": True, "retained": False}
