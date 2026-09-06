@@ -6,6 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+)
+from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.ui import g1_learning as module
 
 
@@ -23,10 +29,13 @@ def _sha(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
+def _fixture(root: Path, *, scaled: bool = False) -> tuple[Path, Path, dict[str, object]]:
     run = root / "runs" / "o2-seed7"
     run.mkdir(parents=True)
     config = {"mode": "train", "seed": 7, "training_steps": 512}
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    if trainer is not None:
+        config["trainer"] = trainer.to_dict()
     config_bytes = _json(config)
     (run / "input_config.json").write_bytes(config_bytes)
     evaluation_bytes = _json({"retained": True})
@@ -73,18 +82,7 @@ def _fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
             "reward": "3" * 64,
             "segments": {"walk": "4" * 64},
         },
-        "frozen_runtime": {
-            "trainer": {
-                "algorithm": "stable_baselines3.PPO",
-                "observation_normalization": "none",
-                "reward_normalization": "none",
-                "trainer": {
-                    "schema_id": "static_total_reward_scale/v1",
-                    "schema_version": 1,
-                    "total_training_reward_scale": 0.015625,
-                },
-            }
-        },
+        "frozen_runtime": {"trainer": effective_training_contract(trainer)},
         "training": {"completed_transitions": 512},
         "zero_residual": None,
         "final_policy": {"objective_evaluation": objective},
@@ -141,10 +139,11 @@ def _install_validator(
     return calls
 
 
-def test_registered_run_uses_existing_validator_and_returns_path_free_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("scaled", [False, True], ids=["raw", "scaled-v2"])
+def test_registered_raw_and_v2_runs_use_authoritative_trainer_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scaled: bool
 ) -> None:
-    registry_path, manifest_path, objective = _fixture(tmp_path)
+    registry_path, manifest_path, objective = _fixture(tmp_path, scaled=scaled)
     calls = _install_validator(monkeypatch, objective)
 
     payload = module.g1_learning_status(tmp_path)
@@ -171,11 +170,20 @@ def test_registered_run_uses_existing_validator_and_returns_path_free_snapshot(
     assert run["training"]["requested_transitions"] == 512
     assert run["training"]["completed_transitions"] == 512
     assert run["training"]["seed"] == 7
-    assert run["training"]["producer_recorded_trainer"]["trainer"] == {
-        "schema_id": "static_total_reward_scale/v1",
-        "schema_version": 1,
-        "total_training_reward_scale": 0.015625,
-    }
+    expected = effective_training_contract(
+        CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    )
+    training = run["training"]
+    assert training["algorithm"] == "stable_baselines3.PPO"
+    assert training["producer_recorded_trainer"] == expected
+    assert training["full_trainer_contract_sha256"] == _sha(canonical_json_bytes(expected))
+    if scaled:
+        assert training["trainer_variant"] == "gmt_g1_ppo_training_contract/v2"
+        assert training["trainer_payload_identity_sha256"] == expected["identity_sha256"]
+        assert training["full_trainer_contract_sha256"] != expected["identity_sha256"]
+    else:
+        assert training["trainer_variant"] == "legacy_raw_training_reward"
+        assert training["trainer_payload_identity_sha256"] is None
     serialized = json.dumps(payload)
     assert str(tmp_path) not in serialized
     assert str(manifest_path) not in serialized
@@ -221,14 +229,29 @@ def test_registry_rejects_symlinks_duplicates_and_excess_source_bytes(
     target.write_bytes(registry.read_bytes())
     registry.unlink()
     registry.symlink_to(target)
-    assert module.g1_learning_status(tmp_path / "linked")["detail"] == "registry_unavailable"
+    assert (
+        module.g1_learning_status(tmp_path / "linked")["detail"] == "registry_path_escapes_project"
+    )
 
-    duplicate_root = tmp_path / "duplicate"
-    duplicate_registry, _manifest, _objective = _fixture(duplicate_root)
-    value = json.loads(duplicate_registry.read_bytes())
-    value["runs"].append(dict(value["runs"][0]))
-    duplicate_registry.write_bytes(_json(value))
-    assert module.g1_learning_status(duplicate_root)["detail"] == "registry_duplicate_run_invalid"
+    escape_root = tmp_path / "escape"
+    escape_root.mkdir()
+    outside = tmp_path / "outside-artifacts" / "gmt"
+    outside.mkdir(parents=True)
+    (outside / "g1_learning_registry.json").write_bytes(_json({"schema_version": 1, "runs": []}))
+    (escape_root / "artifacts").symlink_to(outside.parent, target_is_directory=True)
+    assert module.g1_learning_status(escape_root)["detail"] == "registry_path_escapes_project"
+
+    alias_root = tmp_path / "alias"
+    alias_registry, manifest, _objective = _fixture(alias_root)
+    alias_parent = alias_root / "same-run-alias"
+    alias_parent.symlink_to(manifest.parent, target_is_directory=True)
+    value = json.loads(alias_registry.read_bytes())
+    alias_entry = dict(value["runs"][0])
+    alias_entry["run_id"] = "o2-seed7-alias"
+    alias_entry["manifest_path"] = str(alias_parent / manifest.name)
+    value["runs"].append(alias_entry)
+    alias_registry.write_bytes(_json(value))
+    assert module.g1_learning_status(alias_root)["detail"] == "registry_duplicate_run_invalid"
 
     bounded_root = tmp_path / "bounded"
     _registry, _manifest, _objective = _fixture(bounded_root)
@@ -276,6 +299,11 @@ def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None
     assert "Protected evaluation must not steer candidate authoring." in html
     assert "The protected evaluator feeds the next iteration." not in html
     assert 'loadJson("/api/g1-learning")' in script
+    assert "row.training.algorithm" in script
+    assert "contract.algorithm" not in script
+    assert "full_contract_sha256" in script
+    assert "payload_identity_sha256" in script
+    assert 'appendG1Line(source, "manifest"' not in script
     assert "setInterval" not in script
     assert 'request.path == "/api/g1-learning"' in server
     assert "g1_learning_validation_lock.acquire(blocking=False)" in server

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import stat
 import tempfile
@@ -12,6 +11,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+)
+from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.harness.contract import OracleContractError, read_json_object
 
 REGISTRY_RELATIVE_PATH = Path("artifacts/gmt/g1_learning_registry.json")
@@ -83,11 +88,19 @@ def _read_json(path: Path, expected: str | None, field: str) -> tuple[dict[str, 
 
 
 def _load_registry(root: Path) -> tuple[list[_Registration], bytes] | None:
-    path = root.resolve() / REGISTRY_RELATIVE_PATH
+    resolved_root = root.resolve()
+    path = resolved_root / REGISTRY_RELATIVE_PATH
     try:
         path.lstat()
     except FileNotFoundError:
         return None
+    except OSError as exc:
+        raise G1LearningError("registry_unavailable") from exc
+    try:
+        if not path.resolve(strict=True).is_relative_to(resolved_root):
+            raise G1LearningError("registry_path_escapes_project")
+    except G1LearningError:
+        raise
     except OSError as exc:
         raise G1LearningError("registry_unavailable") from exc
     registry, encoded = _read_json(path, None, "registry")
@@ -116,10 +129,17 @@ def _load_registry(root: Path) -> tuple[list[_Registration], bytes] | None:
         manifest_path = Path(manifest_text)
         if not manifest_path.is_absolute() or manifest_path.name != "course_run_manifest.json":
             raise G1LearningError(f"registry_entry_{index}_manifest_path_invalid")
+        try:
+            metadata = manifest_path.lstat()
+            resolved_manifest = manifest_path.resolve(strict=True)
+        except OSError as exc:
+            raise G1LearningError(f"registry_entry_{index}_manifest_unavailable") from exc
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise G1LearningError(f"registry_entry_{index}_manifest_not_regular")
         entries.append(
             _Registration(
                 run_id,
-                manifest_path,
+                resolved_manifest,
                 _digest(row["manifest_sha256"], f"entry_{index}_manifest"),
                 label,
             )
@@ -240,12 +260,20 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
 
     frozen = manifest.get("frozen_runtime")
     trainer = frozen.get("trainer") if type(frozen) is dict else None
-    if type(trainer) is not dict or type(trainer.get("algorithm")) is not str:
+    raw_contract = effective_training_contract(None)
+    scaled_contract = effective_training_contract(CourseTrainerSpec(TRAINING_REWARD_SCALE))
+    if trainer == raw_contract:
+        base_contract = trainer
+        trainer_variant = "legacy_raw_training_reward"
+        payload_identity = None
+    elif trainer == scaled_contract:
+        base_contract = trainer["base_ppo_contract"]
+        trainer_variant = trainer["schema_id"]
+        payload_identity = _digest(trainer["identity_sha256"], "trainer_payload_identity")
+    else:
         raise G1LearningError("trainer_contract_invalid")
-    trainer_bytes = json.dumps(
-        trainer, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()
-    if not 0 < len(trainer_bytes) <= 16 * 1024:
+    trainer_bytes = canonical_json_bytes(trainer)
+    if len(trainer_bytes) > 16 * 1024:
         raise G1LearningError("trainer_contract_size_invalid")
     identities = manifest.get("identities")
     if type(identities) is not dict:
@@ -291,8 +319,11 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
             "requested_transitions": budget,
             "completed_transitions": completed,
             "seed": seed,
+            "algorithm": base_contract["algorithm"],
+            "trainer_variant": trainer_variant,
             "producer_recorded_trainer": trainer,
-            "trainer_contract_sha256": hashlib.sha256(trainer_bytes).hexdigest(),
+            "full_trainer_contract_sha256": hashlib.sha256(trainer_bytes).hexdigest(),
+            "trainer_payload_identity_sha256": payload_identity,
         },
         "receipts": {
             "manifest_sha256": entry.manifest_sha256,

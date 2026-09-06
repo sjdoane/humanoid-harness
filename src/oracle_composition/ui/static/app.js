@@ -601,12 +601,6 @@ function appendG1Run(row) {
   runId.textContent = g1Text(row.run_id, "run ID");
   source.append(runId);
   appendG1Line(source, "selected", g1Text(row.selected_label, "selected label"));
-  appendG1Line(source, "manifest", g1Text(row.receipts.manifest_sha256, "manifest hash"));
-  appendG1Line(
-    source,
-    "evaluation",
-    g1Text(row.receipts.selected_evaluation_sha256, "evaluation hash"),
-  );
 
   const gate = document.createElement("td");
   const passed = row.full_task_development_gate_passed;
@@ -664,26 +658,43 @@ function appendG1Run(row) {
   if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
     throw new Error("G1 trainer contract is invalid.");
   }
-  appendG1Line(training, "algorithm", g1Text(contract.algorithm, "trainer algorithm"));
+  appendG1Line(
+    training,
+    "algorithm",
+    g1Text(row.training.algorithm, "normalized trainer algorithm"),
+  );
+  appendG1Line(
+    training,
+    "variant",
+    g1Text(row.training.trainer_variant, "trainer variant"),
+  );
   appendG1Line(
     training,
     "budget",
     `${g1Count(row.training.completed_transitions, "completed budget").toLocaleString("en-US")} / ${g1Count(row.training.requested_transitions, "requested budget").toLocaleString("en-US")} transitions`,
   );
   appendG1Line(training, "seed", String(g1Count(row.training.seed, "seed")));
-  appendG1Line(
-    training,
-    "trainer contract",
-    g1Text(row.training.trainer_contract_sha256, "trainer hash"),
-  );
   const details = document.createElement("details");
-  details.className = "trainer-details";
+  details.className = "row-receipts";
   const summary = document.createElement("summary");
-  summary.textContent = "Exact producer-recorded trainer";
+  summary.textContent = "Source + trainer receipt";
   const encoded = document.createElement("pre");
-  encoded.textContent = JSON.stringify(contract, null, 2);
+  encoded.textContent = JSON.stringify(
+    {
+      source_receipts: row.receipts,
+      evaluator: row.evaluator,
+      trainer: {
+        full_contract_sha256: row.training.full_trainer_contract_sha256,
+        payload_identity_sha256: row.training.trainer_payload_identity_sha256,
+        producer_recorded_contract: contract,
+      },
+      claim_limits: row.limitations,
+    },
+    null,
+    2,
+  );
   details.append(summary, encoded);
-  training.append(details);
+  source.append(details);
 
   tableRow.append(source, gate, metrics, training);
   document.querySelector("#g1-learning-body").append(tableRow);

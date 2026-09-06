@@ -410,9 +410,9 @@ h2 { font-size: 20px; font-weight: 620; }
 .g1-table small > span { color: var(--muted); }
 .run-id { display: block; margin-bottom: 7px; font-family: var(--mono); }
 .metric-stack > small { max-width: none; }
-.trainer-details { margin-top: 9px; color: var(--muted); font-size: 10px; }
-.trainer-details summary { cursor: pointer; }
-.trainer-details pre {
+.row-receipts { margin-top: 10px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.row-receipts summary { cursor: pointer; }
+.row-receipts pre {
   max-width: 340px;
   max-height: 190px;
   margin: 8px 0 0;
