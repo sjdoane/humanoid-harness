@@ -131,6 +131,7 @@ _EXPECTED_SOURCE_HASHES = {
     TASK_INPUTS_SOURCE_ID: TASK_INPUTS_SOURCE_SHA256,
 }
 _T2_SEAL_FIELDS = (
+    "execution_manifest",
     "expert_hold_oracle",
     "training_design",
     "evaluator_design",
@@ -329,6 +330,7 @@ def _validate_t2_seal(encoded: bytes, *, baseline_reward_bytes: bytes) -> T2PreD
     ):
         raise T2ProtocolError("sealed T2 study pairing key differs from common arm fields")
     expected_common = {
+        "execution_manifest": seal.execution_manifest.model_dump(mode="json"),
         "oracle": seal.expert_hold_oracle.model_dump(mode="json"),
         "training_design": seal.training_design.model_dump(mode="json"),
         "evaluator": seal.evaluator_design.model_dump(mode="json"),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from pathlib import Path
 
 import pytest
 
@@ -25,9 +26,15 @@ from oracle_composition.reward_study.study_manifest import (
     validate_t2_study_arm_pair,
 )
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 def _binding(name: str) -> dict[str, object]:
-    return {"byte_count": 1, "path": f"{name}.json", "sha256": name[0] * 64}
+    return {
+        "byte_count": 1,
+        "path": f"{name}.json",
+        "sha256": hashlib.sha256(name.encode()).hexdigest(),
+    }
 
 
 def _arm(label: str) -> dict[str, object]:
@@ -51,13 +58,14 @@ def _arm(label: str) -> dict[str, object]:
         "evaluation": {
             "deterministic_actions": True,
             "evaluation_seeds": list(range(97001, 97021)),
-            "evaluator_id": "t2_protected_reward_independent_evaluator/v1",
+            "evaluator_id": "t2_direct_state_reward_telemetry_separated_evaluator/v1",
             "expert_start": True,
             "horizon_steps": 1_000,
             "report_schema_id": "t2_reward_study_report/v1",
         },
         "evaluator": _binding("a-evaluator"),
         "evidence_class": STUDY_EVIDENCE_CLASS,
+        "execution_manifest": _binding("g-execution"),
         "library": _binding("b-library"),
         "oracle": _binding("c-oracle"),
         "output_path": "TBD",
@@ -218,7 +226,9 @@ def test_pairing_receipt_validator_separates_adapter_from_runtime_receipt() -> N
     )
     value = {
         "adapter_id": PAIRING_ADAPTER_ID,
-        "adapter_source_sha256": "f" * 64,
+        "adapter_source_sha256": hashlib.sha256(
+            (ROOT / "src/oracle_composition/reward_study/pairing.py").read_bytes()
+        ).hexdigest(),
         "arms_differ_only_in_reward": True,
         "baseline_stream_receipt": stream,
         "candidate_stream_receipt": copy.deepcopy(stream),
@@ -239,3 +249,6 @@ def test_pairing_receipt_validator_separates_adapter_from_runtime_receipt() -> N
         "study_pairing_sha256": pairing,
     }
     assert validate_pairing_receipt(value) == value
+    value["adapter_source_sha256"] = "f" * 64
+    with pytest.raises(ValueError, match="adapter source SHA-256 differs"):
+        validate_pairing_receipt(value)

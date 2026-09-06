@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | The Fable re-pin is repaired with a canonical call identity, intent-required/replay-safe ingestion, and a verified non-model-facing T2 seal; the 6,011-byte prompt is unchanged. |
-| bottleneck | Dispatch remains withheld because the integrated pairing receipt is pending and this repair has not received independent acceptance. No candidate call or behavioral result exists. |
-| next step | Fable independently reviews and commits F3PINR1 with this handoff update; only a later verdict after pairing acceptance may authorize the canonical call. |
+| progress | T2AR1 re-seals the F3 pre-dispatch ledger with the new T2 execution manifest and repaired evaluator/report chain; the 6,011-byte prompt is unchanged. |
+| bottleneck | Dispatch remains withheld because the integrated pairing receipt and candidate reward remain pending. No candidate call or behavioral result exists. |
+| next step | Fable reviews and commits T2AR1, obtains Astra's accepted `T2PAIR` receipt, and requests a separate dispatch verdict before any canonical call. |
 
 ## Original F3PIN builder boundary
 
@@ -122,6 +122,45 @@ Those hashes describe the reviewed F3PIN target, not the later repair below.
 | F3PIN-SCI-02 | New `t2_seal_v1.json` binds and re-verifies the expert-hold oracle, T2 training design, evaluator design, study manifest, recomputed pairing key, and tracking-only baseline before prompt rendering. The seal is non-model-facing; the prompt remains exactly 6,011 bytes / `4d1a2976…e2bbc`. It honestly records `pairing_receipt: pending`, so dispatch is withheld. |
 | F3PIN-SCI-03 | The commit-bound table above distinguishes launch base, target parent, target, and all six target paths; this handoff is in the repair slice. |
 | F3PIN-SCI-04 | The unchanged `uv.lock` SHA-256 is recorded above. |
+
+### Re-seal after Astra scoring integration
+
+Main merged Astra's accepted settling-band scoring change (`3406bb5`) as
+`ed9f1d3`. Because the F3 seal transitively binds `phase_b/report_v2.py`, the
+pre-merge identities were intentionally invalidated and re-sealed before the
+T2AR1 repairs:
+
+| identity | superseded | re-sealed at `ed9f1d3` |
+|---|---|---|
+| evaluator design | `d8f54f80051e4e3e58a540fc1414e9a971c9e299d903c2a00162bfebaa64a04b` | `7339b06f271fdb053ae0c53d287b92c8b6cbd05fb67f18a33a8ab01cdfb4dbd7` |
+| study manifest | `7aefaafcef6d319dfd991b6a16eccc5f5578651d6ac8ebb3573358cc307f0738` | `55b0b6e60216806ff873b21010a8a8eacd1c27570da24dace611fa1c389e1cd4` |
+| study pairing key | `4af9c9539bb2c7f9720f3e98a3f195c2b297d6bfe6adc51a1d63e7a8e4ad2464` | `fb2fff65ef5cdbc95a52d88c90a4ec9f22d62d1ba7092abd37b0bff956adb053` |
+| adapter receipt | `01c591c566554c386fbfa38cdfc1019579e20af4a3c9a3e72dca958b09fed1f1` | `a3b5baa94fbdb818e02d77f84c775a5a2c647754d65b9570d166401ab377d27d` |
+| F3 seal | `8c04f0c2bc9222f9918829f1e5d922c948583ea03da0eb0174a03e2dfcb314eb` | `38dcab8d4f6b52c47c1981a4b2347f1c15d66a1f2ff17729832a25678bbda448` |
+
+No candidate call, smoke, training, or evaluation run used the superseded
+seal chain.
+
+### T2AR1 re-seal
+
+T2AR1 adds `t2_execution_manifest_v1`, verified-chain trace lineage,
+reward-telemetry separation, reachable invalid-action scoring, and raw-trace
+report replay. Those source-bound changes intentionally supersede the
+post-Astra seal chain:
+
+| identity | post-Astra seal | T2AR1 seal |
+|---|---|---|
+| execution manifest | absent | `d675b1ac02ad8713d995bd795ce2130acf41bc7a6fcc0a164167b24e3684ab3e` |
+| evaluator design | `7339b06f271fdb053ae0c53d287b92c8b6cbd05fb67f18a33a8ab01cdfb4dbd7` | `7ae812d43c524285941cd567ce1663ff023cb6307229d9472a6dfe6577ebf5b3` |
+| study manifest | `55b0b6e60216806ff873b21010a8a8eacd1c27570da24dace611fa1c389e1cd4` | `4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627` |
+| study pairing key | `fb2fff65ef5cdbc95a52d88c90a4ec9f22d62d1ba7092abd37b0bff956adb053` | `fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0` |
+| adapter receipt | `a3b5baa94fbdb818e02d77f84c775a5a2c647754d65b9570d166401ab377d27d` | `6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a` |
+| F3 seal | `38dcab8d4f6b52c47c1981a4b2347f1c15d66a1f2ff17729832a25678bbda448` | `c0edc94a71d7e7cd23723e0e58b352568c2610d064db170a47a83869f02394ae` |
+
+No run used either superseded chain. The T2AR1 seal is 1,613 bytes and binds
+the execution manifest as a sixth immutable input. It still records
+`pairing_receipt: pending`; this is a preparation repair, not dispatch
+authority or execution evidence.
 
 A second claim of the canonical call identity is refused; repository state
 cannot prove the absence of an unrecorded external call.

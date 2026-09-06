@@ -159,6 +159,17 @@
       "scratch_record_sha256": "f081b83d70ae7b4d5cb000a1872cda16c7da9ed07b46c97d6cbffdf47022f601",
       "started_utc": "2026-09-06T06:49:35Z",
       "tree": "Slice F3PINR1 (one-call identity, T2 seal, record repairs)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2AR1 slice: the commit containing this record",
+      "finished_utc": "2026-09-06T08:41:49Z",
+      "result": "1 failed, 1874 passed, 16 skipped, 2 warnings in 330.62s (0:05:30); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt; host run has no sandbox failures",
+      "scratch_record_sha256": "d2627d0235205e921819dc4bfd57c84037b4be229ab3ae658e844e604d6006b1",
+      "started_utc": "2026-09-06T08:34:39Z",
+      "tree": "Slice T2AR1 (T2 evaluator independence, safety endpoint, verified-chain lineage, execution manifest, tests, re-seal after the Astra merge)"
     }
   ],
   "schema_version": 1

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 from oracle_composition.phase_b.contracts import T2_TRAINING_BLOCKS
@@ -344,7 +345,9 @@ def validate_pairing_receipt(value: Mapping[str, object]) -> dict[str, object]:
         or value["integrated_runtime_receipt"] != "TBD_pending_astra_acceptance"
     ):
         raise ValueError("pairing receipt identity or evidence boundary differs")
-    _sha256(value["adapter_source_sha256"], field="adapter_source_sha256")
+    adapter_source_sha256 = _sha256(value["adapter_source_sha256"], field="adapter_source_sha256")
+    if adapter_source_sha256 != hashlib.sha256(Path(__file__).read_bytes()).hexdigest():
+        raise ValueError("pairing adapter source SHA-256 differs")
     pairing = _sha256(value["study_pairing_sha256"], field="study_pairing_sha256")
     changed = _sha256(
         value["changed_common_pairing_sha256"],

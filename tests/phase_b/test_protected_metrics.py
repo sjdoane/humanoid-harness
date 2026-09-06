@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -163,3 +164,23 @@ def test_all_protected_metrics_recompute_from_canonical_sufficient_trace(
         "root_orientation_error_rad",
     }
     assert len(protected_trace_sha256(sufficient_steps)) == 64
+
+
+@pytest.mark.parametrize(
+    ("action_value", "expected"),
+    [(-0.4, True), (0.4, True), (0.4001, False)],
+)
+def test_protected_action_bounds_are_independently_reachable(
+    sufficient_steps: list[dict[str, object]],
+    action_value: float,
+    expected: bool,
+) -> None:
+    steps = copy.deepcopy(sufficient_steps)
+    steps[0]["action"] = np.full(17, action_value, dtype="<f4").tolist()
+    result = recompute_protected_episode(
+        steps=steps,
+        cell="hold_expert",
+        switches=(),
+        segment_targets_m_s=(0.1, 0.1, 0.1),
+    )
+    assert result["action_bounds_ok"] is expected

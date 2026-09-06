@@ -50,6 +50,7 @@ PINNED_BASELINE_BYTE_COUNT = 1_773
 
 _CALL_IDENTITY_SCOPE_MARKER = ";call_identity_sha256="
 _T2_SEALED_PATHS = {
+    "execution_manifest": "experiments/004_t2_reward_study/execution_manifest_t2_v1.json",
     "expert_hold_oracle": "experiments/004_t2_reward_study/oracle_expert_hold_v1.json",
     "training_design": "experiments/004_t2_reward_study/training_design_t2_v1.json",
     "evaluator_design": "experiments/004_t2_reward_study/evaluator_design_t2_v1.json",
@@ -134,6 +135,7 @@ class T2PreDispatchSeal(T2StrictModel):
     kind: Literal["t2_pre_dispatch_seal"]
     seal_id: Literal["f3_t2_pre_dispatch_seal/v1"]
     study_id: Literal["t2_reward_study_expert_hold/v1"]
+    execution_manifest: T2SealedArtifact
     expert_hold_oracle: T2SealedArtifact
     training_design: T2SealedArtifact
     evaluator_design: T2SealedArtifact
@@ -146,6 +148,7 @@ class T2PreDispatchSeal(T2StrictModel):
     @model_validator(mode="after")
     def validate_frozen_paths(self) -> T2PreDispatchSeal:
         artifacts = {
+            "execution_manifest": self.execution_manifest,
             "expert_hold_oracle": self.expert_hold_oracle,
             "training_design": self.training_design,
             "evaluator_design": self.evaluator_design,

@@ -2,9 +2,62 @@
 
 | status | current truth |
 |---|---|
-| progress | F3PINR1 repairs the Fable F3 protocol with one canonical call identity, intent-required/replay-safe ingestion, and a non-model-facing seal over the committed T2A artifacts; 136 focused tests pass and the 6,011-byte prompt is unchanged. |
-| bottleneck | Dispatch and T2 execution remain **NO-GO**. The seal records `pairing_receipt: pending`; F3PINR1 needs independent acceptance, and the candidate reward SHA-256 is TBD. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
-| next step | Fable reviews and commits this complete repair and handoff together, then obtains Astra's accepted integrated pairing receipt and a separate dispatch verdict. Cohorts still require reservation and Samuel authorization. |
+| progress | T2AR1 closes assigned review findings SCI-T2A-01, 02, 03, 05, and 06: protected science excludes reward telemetry; the independent action-bounds endpoint is reachable; reference rows use a verified block/clip/bundle/corpus/row chain; reports re-resolve every binding and replay every raw trace; and a content-addressed execution manifest seals both arms. Focused validation is `131 passed`. |
+| bottleneck | T2 execution remains **NO-GO**. The candidate reward path and SHA-256 and the accepted integrated pairing receipt are still TBD; SCI-T2A-04 remains in `T2PAIR`. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
+| next step | Fable reviews and commits this complete T2AR1 slice, preserves the NO-GO, and routes composition-reset derivation through `T2PAIR`; only a registry-resolved candidate and accepted integrated pairing receipt can make a later dispatch verdict possible. |
+
+T2AR1 completion (2026-09-06T08:33Z): launch base
+`ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe` was clean. The first action was
+to re-seal T2A after the accepted Astra settling-band merge changed
+`phase_b/evaluation.py` and `report_v2.py`; the final repaired artifacts then
+superseded that intermediate seal. Current immutable identities are execution
+manifest `d675b1ac…b3e`, evaluator design `7ae812d4…f5b3`, matched-arm study
+manifest `4eb3440b…3627`, fake-runtime pairing adapter receipt
+`6bd6f5ab…540a`, and non-model-facing F3 seal `c0edc94a…94ae`.
+
+The protected trace, its digest, episode metrics, and scientific receipt contain
+no stock-reward value. Reward telemetry is emitted only as a separately keyed
+diagnostics artifact; missing, non-finite, and malformed telemetry produce the
+same protected bytes and scientific receipt. Finite raw actions survive long
+enough for the evaluator to accept inclusive float32 bounds at `-0.4` and
+`0.4` and reject an out-of-bounds episode through the safety report. Each trace
+binds verified block, clip, bundle, payload, corpus, library, index, full-row,
+and selected-row identities. Report admission requires an exact 200-trace
+index, re-resolves each input binding, reopens every raw trace, and reproduces
+each episode metric; forged indexes, missing traces, and fabricated metrics are
+rejected.
+
+The `t2_execution_manifest_v1` binds the frozen MDP and Humanoid model, action
+and observation/reference ABI, absent tracker checkpoint and normalizers,
+tracking reward, strict checkpoint loader, trainer, dependency lock, launch
+base commit, and host fingerprint. Both study arms carry the identical binding.
+Baseline and candidate specifications resolve through `RewardRegistry`; the
+canonical candidate remains TBD, while tests exercise a dummy in-bounds
+candidate and reject candidate bytes, digest, and registry-result tampering.
+Additional negatives cover arbitrary pairing-adapter source digests, reference
+lineage, trace replay, protected-metric formulas and clipping, inclusive bands,
+non-zero paired standard error with exact sign result, and the `15/20` versus
+`16/20` and `3/5` versus `4/5` tracking gates.
+
+Focused T2 validation is `131 passed` in `97.72s`. Repository-wide Ruff lint
+passes and `ruff format --check .` reports all `400` files formatted. The full
+suite, explicitly deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1828 passed, 18 skipped, 1 deselected, 44 failed` in `321.17s`; the current
+failed-node set contains exactly `44` entries and equals
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt` with no
+set difference. `git diff --check` passes. No Git write, candidate call,
+standalone simulator command, smoke, training, cohort, or behavioral evaluation
+occurred; simulator use was limited to bounded no-learning tests. The forbidden
+`experiments/family_b_target_speed_v1/receipts/builder_runtime_no_learning_smoke.json`
+receipt was neither tested nor regenerated. Builder wall time was `74m` from
+lease acquisition through release-byte reconciliation and the static audit.
+
+Fable resume: independently review T2AR1, commit the complete slice including
+the ignored T2 pairing-adapter receipt, keep execution and dispatch NO-GO, and
+send SCI-T2A-04 to `T2PAIR`. Do not call for a candidate or run training until
+the registry-resolved candidate, accepted integrated pairing receipt, and a
+separate dispatch verdict all exist.
 
 F3PINR1 completion (2026-09-06T06:48Z): launch base `c969009` was clean.
 The repaired provenance records `builder_launch_base=8d617e3`,
@@ -58,7 +111,8 @@ key `4af9c953…2464`, and adapter receipt `01c591c5…1f1` all reload from
 canonical bytes and their source/artifact bindings. The unchanged T1 training
 design remains `1d104a52…c69e`, and `src/oracle_composition/phase_b/training.py`
 is byte-untouched. The evaluator recomputes COM speed and six tracking errors
-from direct state and authoritative expert rows; the deterministic report keeps
+from direct state and then-caller-supplied expert rows (superseded by T2AR1's
+verified reference chain); the deterministic report keeps
 reward diagnostics and host/wall telemetry outside protected endpoints, uses
 five final checkpoints as the independent units, and reports incomplete traces
 as safety failures without pooled inference.

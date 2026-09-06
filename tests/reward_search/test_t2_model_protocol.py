@@ -286,6 +286,7 @@ def test_rendered_prompt_is_deterministic_hash_bound_and_minimal() -> None:
 @pytest.mark.parametrize(
     "field",
     [
+        "execution_manifest",
         "expert_hold_oracle",
         "training_design",
         "evaluator_design",
@@ -349,6 +350,7 @@ def test_prompt_bytes_do_not_change_with_a_valid_non_model_facing_seal_change(
     alternate_seal = finite_pretty_json(seal_payload)
 
     copied_paths = [
+        seal_payload["execution_manifest"]["path"],
         seal_payload["expert_hold_oracle"]["path"],
         seal_payload["training_design"]["path"],
         seal_payload["tracking_only_baseline"]["path"],

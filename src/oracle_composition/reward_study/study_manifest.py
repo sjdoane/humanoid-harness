@@ -14,11 +14,14 @@ from oracle_composition.phase_b.contracts import (
     COHORT_TRANSITIONS,
     FINAL_CHECKPOINT_RULE,
     RewardRegistry,
+    TargetSpeedRewardSpec,
+    TrackingOnlyRewardSpec,
     load_phase_b_oracle,
     load_starting_checkpoint,
     validate_training_design,
 )
 
+from .execution_manifest import load_t2_execution_manifest
 from .pairing import PAIRING_ADAPTER_ID, PAIRING_DERIVATION_ID
 from .t2_evaluator import (
     T2_EVALUATION_SEEDS,
@@ -48,6 +51,7 @@ _COMMON_ARM_FIELDS = {
     "evaluation",
     "evaluator",
     "evidence_class",
+    "execution_manifest",
     "library",
     "oracle",
     "pairing",
@@ -165,6 +169,7 @@ def _validate_common_fields(common: Mapping[str, object]) -> None:
         raise T2StudyManifestError("study claim ceiling differs")
     for field in (
         "evaluator",
+        "execution_manifest",
         "library",
         "oracle",
         "pairing_adapter",
@@ -261,10 +266,40 @@ def _verify_artifact(root: Path, binding: Mapping[str, object], *, field: str) -
     return path
 
 
+def resolve_t2_reward_binding(
+    binding: Mapping[str, object],
+    *,
+    artifact_root: Path,
+    candidate: bool,
+) -> tuple[object, str, Path]:
+    """Resolve either T2 arm through the immutable Phase B reward registry."""
+
+    checked = _reward_binding(
+        binding,
+        field="candidate" if candidate else "baseline",
+        candidate=candidate,
+    )
+    if checked["sha256"] == "TBD":
+        raise T2StudyManifestError("candidate reward is not ready for registry resolution")
+    root = Path(artifact_root).resolve(strict=True)
+    path = _verify_artifact(
+        root, checked, field="candidate reward" if candidate else "baseline reward"
+    )
+    try:
+        spec, digest = RewardRegistry().load(path)
+    except ValueError as exc:
+        raise T2StudyManifestError(f"T2 reward registry refused the bound artifact: {exc}") from exc
+    expected_type = TargetSpeedRewardSpec if candidate else TrackingOnlyRewardSpec
+    if digest != checked["sha256"] or type(spec) is not expected_type:
+        raise T2StudyManifestError("T2 reward registry digest differs")
+    return spec, digest, path
+
+
 def load_t2_study_manifest(
     path: Path,
     *,
     repository_root: Path | None = None,
+    candidate_artifact_root: Path | None = None,
 ) -> tuple[dict[str, object], str]:
     """Load canonical bytes and optionally verify every currently frozen file."""
 
@@ -286,6 +321,7 @@ def load_t2_study_manifest(
             field: _verify_artifact(root, common[field], field=field)
             for field in (
                 "evaluator",
+                "execution_manifest",
                 "library",
                 "oracle",
                 "pairing_adapter",
@@ -294,11 +330,6 @@ def load_t2_study_manifest(
                 "training_design",
             )
         }
-        baseline_reward_path = _verify_artifact(
-            root,
-            validated["arms"][0]["reward"],
-            field="baseline reward",
-        )
         training_encoded = verified["training_design"].read_bytes()
         try:
             training_value = json.loads(training_encoded)
@@ -321,7 +352,24 @@ def load_t2_study_manifest(
                 report_v2_source_path=root / "src/oracle_composition/phase_b/report_v2.py",
                 report_writer_source_path=root / "src/oracle_composition/reward_study/t2_report.py",
             )
-            _reward, reward_sha256 = RewardRegistry().load(baseline_reward_path)
+            _execution, execution_sha256 = load_t2_execution_manifest(
+                verified["execution_manifest"],
+                repository_root=root,
+            )
+            _reward, reward_sha256, _baseline_reward_path = resolve_t2_reward_binding(
+                validated["arms"][0]["reward"],
+                artifact_root=root,
+                candidate=False,
+            )
+            candidate_reward_sha256 = validated["arms"][1]["reward"]["sha256"]
+            if candidate_reward_sha256 != "TBD":
+                _candidate, resolved_candidate_sha256, _candidate_path = resolve_t2_reward_binding(
+                    validated["arms"][1]["reward"],
+                    artifact_root=(candidate_artifact_root or root),
+                    candidate=True,
+                )
+                if resolved_candidate_sha256 != candidate_reward_sha256:
+                    raise T2StudyManifestError("candidate reward registry digest differs")
             _starting, starting_sha256 = load_starting_checkpoint(
                 verified["starting_checkpoint"],
                 repository_root=root,
@@ -330,12 +378,14 @@ def load_t2_study_manifest(
             raise T2StudyManifestError(f"T2 bound contract is invalid: {exc}") from exc
         expected_hashes = {
             "evaluator": evaluator_sha256,
+            "execution_manifest": execution_sha256,
             "oracle": oracle_sha256,
             "reward": reward_sha256,
             "starting_checkpoint": starting_sha256,
         }
         observed_hashes = {
             "evaluator": common["evaluator"]["sha256"],
+            "execution_manifest": common["execution_manifest"]["sha256"],
             "oracle": common["oracle"]["sha256"],
             "reward": validated["arms"][0]["reward"]["sha256"],
             "starting_checkpoint": common["starting_checkpoint"]["sha256"],
@@ -358,6 +408,7 @@ __all__ = [
     "T2StudyManifestError",
     "arm_common_fields",
     "load_t2_study_manifest",
+    "resolve_t2_reward_binding",
     "study_pairing_sha256_from_arm",
     "validate_t2_study_arm_pair",
     "validate_t2_study_manifest",

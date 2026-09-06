@@ -1,10 +1,12 @@
-"""Deterministic paired T2 report with telemetry kept in a separate artifact."""
+"""T2 scientific report with source resolution, replay, and separate telemetry."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import platform
+import stat
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -28,13 +30,30 @@ from .t2_evaluator import (
     T2_HORIZON_STEPS,
     T2_REPORT_SCHEMA_ID,
     T2EpisodeMetrics,
+    _evaluate_t2_trace_against_reference,
+    load_t2_verified_reference,
 )
 
 T2_REPORT_WRITER_ID = "t2_reward_study_report_writer/v1"
 T2_PAIRED_ENDPOINT_ID = "t2_paired_checkpoint_com_speed_mae/v1"
+T2_TRACE_INDEX_SCHEMA_ID = "t2_protected_trace_index/v1"
+T2_REWARD_DIAGNOSTICS_SCHEMA_ID = "t2_reward_diagnostics/v1"
 T2_MINIMUM_RELEVANT_EFFECT_M_S = 0.25
 T2_PAIRED_T_CRITICAL_95_DF4 = 2.7764451051977987
 T2_POLICY_SEEDS = (121001, 121101, 121201, 121301, 121401)
+T2_REPORT_ARTIFACT_INPUTS = frozenset(
+    {
+        "baseline_reward",
+        "candidate_reward",
+        "evaluator_design",
+        "execution_manifest",
+        "integrated_pairing_receipt",
+        "oracle",
+        "study_manifest",
+        "trace_index",
+        "training_design",
+    }
+)
 
 
 def _sha256(value: object, *, field: str) -> str:
@@ -53,15 +72,40 @@ def _optional_mean(values: Sequence[float | None]) -> float | None:
     return fmean(float(value) for value in values if value is not None)
 
 
-def _validate_report_inputs(
-    inputs: Mapping[str, object],
-    *,
-    required_inputs: set[str],
-) -> None:
-    if type(inputs) is not dict or set(inputs) != required_inputs:
+def _artifact_binding(value: object, *, field: str) -> dict[str, object]:
+    expected = {"byte_count", "path", "root", "sha256"}
+    if type(value) is not dict or set(value) != expected:
+        raise ValueError(f"T2 report {field} binding fields differ")
+    if value["root"] not in {"repository", "run"}:
+        raise ValueError(f"T2 report {field} root differs")
+    if type(value["byte_count"]) is not int or value["byte_count"] <= 0:
+        raise ValueError(f"T2 report {field} byte count differs")
+    path = Path(value["path"]) if type(value["path"]) is str else Path("/")
+    if (
+        path.is_absolute()
+        or not value["path"]
+        or str(path) != value["path"]
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or "\\" in value["path"]
+    ):
+        raise ValueError(f"T2 report {field} path is not canonical relative text")
+    _sha256(value["sha256"], field=f"T2 report {field} SHA-256")
+    return dict(value)
+
+
+def _validate_report_inputs(inputs: Mapping[str, object]) -> dict[str, object]:
+    if type(inputs) is not dict or set(inputs) != {"artifacts", "study_pairing_sha256"}:
         raise ValueError("T2 report input identities differ")
-    for field in required_inputs:
-        _sha256(inputs[field], field=field)
+    artifacts = inputs["artifacts"]
+    if type(artifacts) is not dict or set(artifacts) != T2_REPORT_ARTIFACT_INPUTS:
+        raise ValueError("T2 report artifact input identities differ")
+    checked = {name: _artifact_binding(binding, field=name) for name, binding in artifacts.items()}
+    return {
+        "artifacts": checked,
+        "study_pairing_sha256": _sha256(
+            inputs["study_pairing_sha256"], field="study_pairing_sha256"
+        ),
+    }
 
 
 def checkpoint_summary(episodes: Sequence[T2EpisodeMetrics]) -> dict[str, object]:
@@ -94,11 +138,9 @@ def checkpoint_summary(episodes: Sequence[T2EpisodeMetrics]) -> dict[str, object
     primary_values = [item.mean_absolute_per_step_error_m_s for item in ordered]
     task_returns = [item.protected_task_return for item in ordered]
     band_fractions = [item.fraction_steps_in_target_band for item in ordered]
-    stock_returns = [item.descriptive_stock_return for item in ordered]
     return {
         "checkpoint_sha256": ordered[0].checkpoint_sha256,
         "complete_episode_count": sum(item.complete_trace for item in ordered),
-        "descriptive_stock_return_mean": _optional_mean(stock_returns),
         "evaluation_episode_count": len(ordered),
         "fall_episode_count": sum(item.first_fall_step is not None for item in ordered),
         "fall_step_count": sum(item.fall_step_count for item in ordered),
@@ -111,6 +153,7 @@ def checkpoint_summary(episodes: Sequence[T2EpisodeMetrics]) -> dict[str, object
             {
                 "evaluation_seed": item.evaluation_seed,
                 "mean_absolute_per_step_error_m_s": item.mean_absolute_per_step_error_m_s,
+                "reference_lineage_sha256": item.reference_lineage_sha256,
                 "trace_sha256": item.trace_sha256,
             }
             for item in ordered
@@ -227,7 +270,7 @@ def paired_checkpoint_effect(
     all_positive = positive == 5
     task_rule = all_positive and mean_difference >= T2_MINIMUM_RELEVANT_EFFECT_M_S
     return {
-        "difference_definition": "baseline_mae_minus_candidate_mae_positive_favors_candidate",
+        "difference_definition": ("baseline_mae_minus_candidate_mae_positive_favors_candidate"),
         "differences_by_policy_seed": [
             {"difference_m_s": value, "policy_seed": seed}
             for seed, value in zip(T2_POLICY_SEEDS, differences, strict=True)
@@ -251,6 +294,7 @@ def paired_checkpoint_effect(
         ],
         "policy_count": 5,
         "range_difference_m_s": [min(differences), max(differences)],
+        "standard_error_m_s": standard_error,
         "task_improvement_rule": {
             "all_five_differences_positive": all_positive,
             "mean_reduction_at_least_0.25_m_s": (mean_difference >= T2_MINIMUM_RELEVANT_EFFECT_M_S),
@@ -260,8 +304,7 @@ def paired_checkpoint_effect(
 
 
 def _effect_from_arms(
-    baseline: Mapping[str, object],
-    candidate: Mapping[str, object],
+    baseline: Mapping[str, object], candidate: Mapping[str, object]
 ) -> dict[str, object]:
     baseline_values = baseline["primary_by_policy_seed"]
     candidate_values = candidate["primary_by_policy_seed"]
@@ -297,6 +340,7 @@ def _effect_from_arms(
             "paired_95_percent_t_interval_m_s": None,
             "policy_count": 5,
             "range_difference_m_s": None,
+            "standard_error_m_s": None,
             "task_improvement_rule": {
                 "all_five_differences_positive": False,
                 "mean_reduction_at_least_0.25_m_s": False,
@@ -394,36 +438,13 @@ def build_t2_study_report(
     inputs: Mapping[str, object],
     baseline_episodes: Sequence[T2EpisodeMetrics],
     candidate_episodes: Sequence[T2EpisodeMetrics],
-    reward_diagnostics: Mapping[str, object],
 ) -> dict[str, object]:
-    """Build report content whose protected summaries ignore reward diagnostics."""
+    """Build scientific bytes containing no reward-output telemetry."""
 
-    required_inputs = {
-        "baseline_reward_sha256",
-        "candidate_reward_sha256",
-        "evaluator_design_sha256",
-        "integrated_pairing_receipt_sha256",
-        "oracle_sha256",
-        "study_manifest_sha256",
-        "study_pairing_sha256",
-        "trace_index_sha256",
-        "training_design_sha256",
-    }
-    _validate_report_inputs(inputs, required_inputs=required_inputs)
-    if type(reward_diagnostics) is not dict:
-        raise ValueError("T2 reward diagnostics must be a separate object")
-    summary = _summary(
-        baseline_reward_sha256=inputs["baseline_reward_sha256"],
-        candidate_reward_sha256=inputs["candidate_reward_sha256"],
-        baseline_episodes=baseline_episodes,
-        candidate_episodes=candidate_episodes,
-    )
+    checked_inputs = _validate_report_inputs(inputs)
+    artifacts = checked_inputs["artifacts"]
     report = {
         "claim_ceiling": STUDY_CLAIM_CEILING,
-        "diagnostics": {
-            "candidate_reward_outputs_are_not_endpoints": True,
-            "reward_outputs": dict(reward_diagnostics),
-        },
         "evaluation": {
             "calibration": "none",
             "deterministic_actions": True,
@@ -435,33 +456,41 @@ def build_t2_study_report(
                 "baseline": [item.to_dict() for item in baseline_episodes],
                 "candidate": [item.to_dict() for item in candidate_episodes],
             },
-            "protected_metrics_grade_candidate_reward": False,
+            "protected_metric_source": "direct_state_only",
+            "reward_telemetry_in_scientific_receipt": False,
         },
         "evidence_class": STUDY_EVIDENCE_CLASS,
         "generated_utc": "recorded_in_separate_telemetry",
-        "inputs": dict(inputs),
+        "inputs": checked_inputs,
         "integrity": {
             "deterministic_scientific_receipt": True,
+            "raw_traces_replayed_before_acceptance": True,
+            "reward_diagnostics_location": "reward_diagnostics_t2_v1.json",
             "telemetry_location": "telemetry_t2_v1.json",
-            "wall_clock_and_host_excluded": True,
+            "wall_clock_host_and_reward_telemetry_excluded": True,
         },
         "paired_endpoint_id": T2_PAIRED_ENDPOINT_ID,
         "report_schema_id": T2_REPORT_SCHEMA_ID,
         "report_writer_id": T2_REPORT_WRITER_ID,
         "schema_version": 1,
         "scientific_receipt_schema_id": SCIENTIFIC_RECEIPT_SCHEMA_ID,
-        "summary": summary,
-        "telemetry_schema_id": TELEMETRY_SCHEMA_ID,
+        "summary": _summary(
+            baseline_reward_sha256=artifacts["baseline_reward"]["sha256"],
+            candidate_reward_sha256=artifacts["candidate_reward"]["sha256"],
+            baseline_episodes=baseline_episodes,
+            candidate_episodes=candidate_episodes,
+        ),
     }
-    validate_t2_study_report(report)
+    _validate_t2_study_report_structure(report)
     canonical_json_bytes(report)
     return report
 
 
-def validate_t2_study_report(value: Mapping[str, object]) -> dict[str, object]:
+def _validate_t2_study_report_structure(
+    value: Mapping[str, object],
+) -> tuple[dict[str, object], list[T2EpisodeMetrics], list[T2EpisodeMetrics]]:
     expected = {
         "claim_ceiling",
-        "diagnostics",
         "evaluation",
         "evidence_class",
         "generated_utc",
@@ -473,7 +502,6 @@ def validate_t2_study_report(value: Mapping[str, object]) -> dict[str, object]:
         "schema_version",
         "scientific_receipt_schema_id",
         "summary",
-        "telemetry_schema_id",
     }
     if type(value) is not dict or set(value) != expected:
         raise ValueError("T2 report fields differ")
@@ -483,19 +511,19 @@ def validate_t2_study_report(value: Mapping[str, object]) -> dict[str, object]:
         or value["report_writer_id"] != T2_REPORT_WRITER_ID
         or value["paired_endpoint_id"] != T2_PAIRED_ENDPOINT_ID
         or value["scientific_receipt_schema_id"] != SCIENTIFIC_RECEIPT_SCHEMA_ID
-        or value["telemetry_schema_id"] != TELEMETRY_SCHEMA_ID
         or value["generated_utc"] != "recorded_in_separate_telemetry"
         or value["evidence_class"] != STUDY_EVIDENCE_CLASS
         or value["claim_ceiling"] != STUDY_CLAIM_CEILING
     ):
         raise ValueError("T2 report identity or claim boundary differs")
-    integrity = value["integrity"]
-    if integrity != {
+    if value["integrity"] != {
         "deterministic_scientific_receipt": True,
+        "raw_traces_replayed_before_acceptance": True,
+        "reward_diagnostics_location": "reward_diagnostics_t2_v1.json",
         "telemetry_location": "telemetry_t2_v1.json",
-        "wall_clock_and_host_excluded": True,
+        "wall_clock_host_and_reward_telemetry_excluded": True,
     }:
-        raise ValueError("T2 report receipt and telemetry split differs")
+        raise ValueError("T2 report integrity boundary differs")
     evaluation = value["evaluation"]
     required_evaluation = {
         "calibration",
@@ -505,87 +533,302 @@ def validate_t2_study_report(value: Mapping[str, object]) -> dict[str, object]:
         "full_sufficient_traces_required",
         "horizon_steps",
         "per_episode_by_arm",
-        "protected_metrics_grade_candidate_reward",
+        "protected_metric_source",
+        "reward_telemetry_in_scientific_receipt",
     }
     if type(evaluation) is not dict or set(evaluation) != required_evaluation:
         raise ValueError("T2 report evaluation fields differ")
-    if any(
-        (
-            evaluation["calibration"] != "none",
-            evaluation["deterministic_actions"] is not True,
-            evaluation["evaluation_seeds"] != list(T2_EVALUATION_SEEDS),
-            evaluation["expert_start"] is not True,
-            evaluation["full_sufficient_traces_required"] is not True,
-            evaluation["horizon_steps"] != T2_HORIZON_STEPS,
-            evaluation["protected_metrics_grade_candidate_reward"] is not False,
-        )
+    if (
+        evaluation["calibration"] != "none"
+        or evaluation["deterministic_actions"] is not True
+        or evaluation["evaluation_seeds"] != list(T2_EVALUATION_SEEDS)
+        or evaluation["expert_start"] is not True
+        or evaluation["full_sufficient_traces_required"] is not True
+        or evaluation["horizon_steps"] != T2_HORIZON_STEPS
+        or evaluation["protected_metric_source"] != "direct_state_only"
+        or evaluation["reward_telemetry_in_scientific_receipt"] is not False
     ):
         raise ValueError("T2 report evaluation contract differs")
     per_arm = evaluation["per_episode_by_arm"]
     if type(per_arm) is not dict or set(per_arm) != {"baseline", "candidate"}:
         raise ValueError("T2 report arm episode fields differ")
+    if type(per_arm["baseline"]) is not list or type(per_arm["candidate"]) is not list:
+        raise ValueError("T2 report arm episodes must be arrays")
     baseline = [T2EpisodeMetrics.from_dict(item) for item in per_arm["baseline"]]
     candidate = [T2EpisodeMetrics.from_dict(item) for item in per_arm["candidate"]]
-    inputs = value["inputs"]
-    _validate_report_inputs(
-        inputs,
-        required_inputs={
-            "baseline_reward_sha256",
-            "candidate_reward_sha256",
-            "evaluator_design_sha256",
-            "integrated_pairing_receipt_sha256",
-            "oracle_sha256",
-            "study_manifest_sha256",
-            "study_pairing_sha256",
-            "trace_index_sha256",
-            "training_design_sha256",
-        },
-    )
+    inputs = _validate_report_inputs(value["inputs"])
+    artifacts = inputs["artifacts"]
     expected_summary = _summary(
-        baseline_reward_sha256=inputs["baseline_reward_sha256"],
-        candidate_reward_sha256=inputs["candidate_reward_sha256"],
+        baseline_reward_sha256=artifacts["baseline_reward"]["sha256"],
+        candidate_reward_sha256=artifacts["candidate_reward"]["sha256"],
         baseline_episodes=baseline,
         candidate_episodes=candidate,
     )
     if value["summary"] != expected_summary:
         raise ValueError("T2 report summary differs from recomputed episode rows")
-    diagnostics = value["diagnostics"]
+    canonical_json_bytes(dict(value))
+    return inputs, baseline, candidate
+
+
+def _regular_bytes(path: Path, *, field: str, maximum: int) -> bytes:
+    candidate = Path(path)
+    try:
+        before = candidate.lstat()
+    except OSError as exc:
+        raise ValueError(f"T2 report {field} is unavailable") from exc
     if (
-        type(diagnostics) is not dict
-        or set(diagnostics)
-        != {
-            "candidate_reward_outputs_are_not_endpoints",
-            "reward_outputs",
-        }
-        or diagnostics["candidate_reward_outputs_are_not_endpoints"] is not True
-        or type(diagnostics["reward_outputs"]) is not dict
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or not 0 < before.st_size <= maximum
     ):
-        raise ValueError("T2 report reward-diagnostic boundary differs")
+        raise ValueError(f"T2 report {field} must be bounded regular data")
+    encoded = candidate.read_bytes()
+    after = candidate.lstat()
+    identity = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
+    if any(getattr(before, name) != getattr(after, name) for name in identity):
+        raise ValueError(f"T2 report {field} changed while read")
+    return encoded
+
+
+def _resolve_binding(
+    binding: Mapping[str, object],
+    *,
+    repository_root: Path,
+    run_root: Path,
+    field: str,
+    maximum: int = 512 * 1024**2,
+) -> tuple[Path, bytes]:
+    checked = _artifact_binding(binding, field=field)
+    root = repository_root if checked["root"] == "repository" else run_root
+    path = root / checked["path"]
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"T2 report {field} is unavailable") from exc
+    if not resolved.is_relative_to(root) or resolved != path:
+        raise ValueError(f"T2 report {field} path crosses a symlink or root boundary")
+    encoded = _regular_bytes(path, field=field, maximum=maximum)
+    if (
+        len(encoded) != checked["byte_count"]
+        or hashlib.sha256(encoded).hexdigest() != checked["sha256"]
+    ):
+        raise ValueError(f"T2 report {field} artifact identity differs")
+    return path, encoded
+
+
+def build_t2_trace_index(entries: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    value = {
+        "schema_version": 1,
+        "trace_index_schema_id": T2_TRACE_INDEX_SCHEMA_ID,
+        "traces": [dict(entry) for entry in entries],
+    }
+    validate_t2_trace_index(value)
+    return value
+
+
+def validate_t2_trace_index(value: Mapping[str, object]) -> dict[str, object]:
+    if type(value) is not dict or set(value) != {
+        "schema_version",
+        "trace_index_schema_id",
+        "traces",
+    }:
+        raise ValueError("T2 trace index fields differ")
+    if value["schema_version"] != 1 or value["trace_index_schema_id"] != T2_TRACE_INDEX_SCHEMA_ID:
+        raise ValueError("T2 trace index identity differs")
+    entries = value["traces"]
+    if type(entries) is not list or len(entries) != 200:
+        raise ValueError("T2 trace index must contain exactly 200 traces")
+    expected_identities = {
+        (arm, policy_seed, evaluation_seed)
+        for arm in ("baseline", "candidate")
+        for policy_seed in T2_POLICY_SEEDS
+        for evaluation_seed in T2_EVALUATION_SEEDS
+    }
+    observed_identities = set()
+    paths = set()
+    for entry in entries:
+        if type(entry) is not dict or set(entry) != {
+            "arm_label",
+            "byte_count",
+            "evaluation_seed",
+            "path",
+            "policy_seed",
+            "sha256",
+        }:
+            raise ValueError("T2 trace index entry fields differ")
+        binding = _artifact_binding(
+            {
+                "byte_count": entry["byte_count"],
+                "path": entry["path"],
+                "root": "run",
+                "sha256": entry["sha256"],
+            },
+            field="trace",
+        )
+        identity = (
+            entry["arm_label"],
+            entry["policy_seed"],
+            entry["evaluation_seed"],
+        )
+        observed_identities.add(identity)
+        paths.add(binding["path"])
+    if observed_identities != expected_identities or len(paths) != 200:
+        raise ValueError("T2 trace index coverage differs from the frozen grid")
     canonical_json_bytes(dict(value))
     return dict(value)
 
 
-def load_t2_study_report(path: Path) -> dict[str, object]:
-    candidate = Path(path)
+def _load_trace_index(encoded: bytes) -> dict[str, object]:
+    try:
+        value = json.loads(encoded)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError("T2 trace index is not JSON") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise ValueError("T2 trace index is not canonical JSON")
+    return validate_t2_trace_index(value)
+
+
+def _replay_reported_traces(
+    *,
+    trace_index: Mapping[str, object],
+    report_episodes: Mapping[str, Sequence[T2EpisodeMetrics]],
+    repository_root: Path,
+    run_root: Path,
+) -> None:
+    reported = {
+        (arm, item.policy_seed, item.evaluation_seed): item
+        for arm, episodes in report_episodes.items()
+        for item in episodes
+    }
+    if len(reported) != 200:
+        raise ValueError("T2 report episode coverage differs from the frozen grid")
+    reference_cache = {
+        seed: load_t2_verified_reference(repository_root=repository_root, evaluation_seed=seed)
+        for seed in T2_EVALUATION_SEEDS
+    }
+    replayed = set()
+    for entry in trace_index["traces"]:
+        identity = (
+            entry["arm_label"],
+            entry["policy_seed"],
+            entry["evaluation_seed"],
+        )
+        if identity not in reported:
+            raise ValueError("T2 trace index contains an unreported trace")
+        path, encoded = _resolve_binding(
+            {
+                "byte_count": entry["byte_count"],
+                "path": entry["path"],
+                "root": "run",
+                "sha256": entry["sha256"],
+            },
+            repository_root=repository_root,
+            run_root=run_root,
+            field="raw trace",
+        )
+        try:
+            trace = json.loads(encoded)
+        except (UnicodeError, ValueError) as exc:
+            raise ValueError(f"T2 raw trace is not JSON: {path}") from exc
+        if type(trace) is not dict or canonical_json_bytes(trace) != encoded:
+            raise ValueError(f"T2 raw trace is not canonical JSON: {path}")
+        metrics = _evaluate_t2_trace_against_reference(
+            trace, reference=reference_cache[entry["evaluation_seed"]]
+        )
+        if (
+            metrics.policy_seed != entry["policy_seed"]
+            or metrics.evaluation_seed != entry["evaluation_seed"]
+            or metrics.to_dict() != reported[identity].to_dict()
+        ):
+            raise ValueError("T2 reported episode metrics differ from raw-trace replay")
+        replayed.add(identity)
+    if replayed != set(reported):
+        raise ValueError("T2 trace index does not cover exactly the reported traces")
+
+
+def validate_t2_study_report(
+    value: Mapping[str, object],
+    *,
+    repository_root: Path,
+    run_root: Path,
+) -> dict[str, object]:
+    """Resolve every input and replay every raw trace before accepting a report."""
+
+    inputs, baseline, candidate = _validate_t2_study_report_structure(value)
+    repository = Path(repository_root).resolve(strict=True)
+    run = Path(run_root).resolve(strict=True)
+    resolved = {}
+    for name, binding in inputs["artifacts"].items():
+        resolved[name] = _resolve_binding(
+            binding,
+            repository_root=repository,
+            run_root=run,
+            field=name,
+            maximum=512 * 1024 if name == "trace_index" else 512 * 1024**2,
+        )
+    study_bytes = resolved["study_manifest"][1]
+    try:
+        study = json.loads(study_bytes)
+    except (UnicodeError, ValueError) as exc:
+        raise ValueError("T2 bound study manifest is not JSON") from exc
     if (
-        candidate.is_symlink()
-        or not candidate.is_file()
-        or candidate.stat().st_size > 512 * 1024**2
+        type(study) is not dict
+        or canonical_json_bytes(study) != study_bytes
+        or study.get("study_pairing_sha256") != inputs["study_pairing_sha256"]
     ):
-        raise ValueError("T2 report is unavailable or oversized")
-    encoded = candidate.read_bytes()
+        raise ValueError("T2 report and study pairing identities differ")
+    trace_index = _load_trace_index(resolved["trace_index"][1])
+    _replay_reported_traces(
+        trace_index=trace_index,
+        report_episodes={"baseline": baseline, "candidate": candidate},
+        repository_root=repository,
+        run_root=run,
+    )
+    return dict(value)
+
+
+def load_t2_study_report(path: Path, *, repository_root: Path, run_root: Path) -> dict[str, object]:
+    encoded = _regular_bytes(path, field="scientific receipt", maximum=512 * 1024**2)
     try:
         value = json.loads(encoded)
     except (UnicodeError, ValueError) as exc:
         raise ValueError("T2 report is not JSON") from exc
     if type(value) is not dict or canonical_json_bytes(value) != encoded:
         raise ValueError("T2 report is not canonical JSON")
-    return validate_t2_study_report(value)
+    return validate_t2_study_report(value, repository_root=repository_root, run_root=run_root)
+
+
+def _reward_diagnostics_value(
+    *, scientific_receipt_sha256: str, reward_telemetry: object | None
+) -> dict[str, object]:
+    status = "missing"
+    telemetry = None
+    if reward_telemetry is not None:
+        if type(reward_telemetry) is dict:
+            try:
+                canonical_json_bytes(reward_telemetry)
+            except (TypeError, ValueError, OverflowError):
+                status = "malformed"
+            else:
+                status = "available"
+                telemetry = dict(reward_telemetry)
+        else:
+            status = "malformed"
+    return {
+        "reward_diagnostics_schema_id": T2_REWARD_DIAGNOSTICS_SCHEMA_ID,
+        "schema_version": 1,
+        "scientific_receipt_sha256": _sha256(
+            scientific_receipt_sha256, field="scientific_receipt_sha256"
+        ),
+        "status": status,
+        "telemetry": telemetry,
+    }
 
 
 @dataclass(frozen=True, slots=True)
 class T2ReportArtifacts:
     scientific_receipt: PublishedArtifact
+    reward_diagnostics: PublishedArtifact
     telemetry: PublishedArtifact
 
 
@@ -594,13 +837,25 @@ def publish_t2_study_report(
     output_directory: Path,
     report: Mapping[str, object],
     telemetry: Mapping[str, object],
+    reward_telemetry: object | None,
+    repository_root: Path,
+    run_root: Path,
 ) -> T2ReportArtifacts:
-    """Publish deterministic science, then host/wall telemetry bound to its hash."""
+    """Publish verified science, separately keyed reward diagnostics, and telemetry."""
 
-    validated = validate_t2_study_report(report)
+    validated = validate_t2_study_report(report, repository_root=repository_root, run_root=run_root)
     scientific = publish_bytes_without_overwrite(
         Path(output_directory) / "scientific_receipt_t2_v1.json",
         canonical_json_bytes(validated),
+    )
+    reward_diagnostics = publish_bytes_without_overwrite(
+        Path(output_directory) / "reward_diagnostics_t2_v1.json",
+        canonical_json_bytes(
+            _reward_diagnostics_value(
+                scientific_receipt_sha256=scientific.sha256,
+                reward_telemetry=reward_telemetry,
+            )
+        ),
     )
     telemetry_value = {
         "host": {"machine": platform.machine(), "system": platform.system()},
@@ -613,21 +868,26 @@ def publish_t2_study_report(
         Path(output_directory) / "telemetry_t2_v1.json",
         canonical_json_bytes(telemetry_value),
     )
-    load_t2_study_report(scientific.path)
-    return T2ReportArtifacts(scientific, telemetry_artifact)
+    load_t2_study_report(scientific.path, repository_root=repository_root, run_root=run_root)
+    return T2ReportArtifacts(scientific, reward_diagnostics, telemetry_artifact)
 
 
 __all__ = [
     "T2_MINIMUM_RELEVANT_EFFECT_M_S",
     "T2_PAIRED_ENDPOINT_ID",
     "T2_POLICY_SEEDS",
+    "T2_REPORT_ARTIFACT_INPUTS",
     "T2_REPORT_WRITER_ID",
+    "T2_REWARD_DIAGNOSTICS_SCHEMA_ID",
+    "T2_TRACE_INDEX_SCHEMA_ID",
     "T2ReportArtifacts",
     "arm_summary",
     "build_t2_study_report",
+    "build_t2_trace_index",
     "checkpoint_summary",
     "load_t2_study_report",
     "paired_checkpoint_effect",
     "publish_t2_study_report",
     "validate_t2_study_report",
+    "validate_t2_trace_index",
 ]
