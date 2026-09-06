@@ -42,6 +42,19 @@ def _parser() -> argparse.ArgumentParser:
     stats = research_commands.add_parser("stats", help="show graph coverage")
     stats.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
 
+    diagnose = commands.add_parser(
+        "diagnose", help="turn validated experiment evidence into one bounded next action"
+    )
+    diagnose.add_argument("--repository-root", type=Path, default=Path.cwd())
+    diagnose.add_argument("--experiment", type=Path, required=True)
+    diagnose.add_argument("--phase-a-receipt", type=Path, required=True)
+    diagnose.add_argument("--phase-a-cycle", type=int, required=True)
+    diagnose.add_argument("--phase-b-evidence", type=Path)
+    diagnose.add_argument("--steering-file", type=Path)
+    diagnose.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
+    diagnose.add_argument("--no-research-graph", action="store_true")
+    diagnose.add_argument("--output", type=Path, required=True)
+
     trace = commands.add_parser("trace", help="validate and inspect a trajectory trace")
     trace_commands = trace.add_subparsers(dest="trace_command", required=True)
     inspect_trace = trace_commands.add_parser(
@@ -149,6 +162,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "diagnostic_coverage": trace.diagnostic_coverage,
                 "artifact_bindings": [binding.to_dict() for binding in trace.artifact_bindings],
             }
+        elif args.command == "diagnose":
+            from .feedback.cli import run_diagnose_command
+
+            result = run_diagnose_command(
+                repository_root=args.repository_root,
+                experiment=args.experiment,
+                phase_a_receipt=args.phase_a_receipt,
+                phase_a_cycle=args.phase_a_cycle,
+                phase_b_evidence=args.phase_b_evidence,
+                steering_file=args.steering_file,
+                database=None if args.no_research_graph else args.database,
+                output=args.output,
+            )
         elif args.command == "tracker":
             if args.tracker_command == "probe-reference-use":
                 from .experiments.reference_causal_probe import run_reference_causal_probe

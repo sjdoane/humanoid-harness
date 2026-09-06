@@ -2,9 +2,27 @@
 
 | status | current truth |
 |---|---|
-| progress | Slot helper independently accepted and committed at `b7b67b7`; parent recheck has 37 focused passes. |
-| bottleneck | Fable-owned supervisor integration and exact smoke resource agreement remain pending. |
-| next step | Hand accepted source to Fable; review/import its clean integration, refresh T1 preflight, then propose the bounded smoke. |
+| progress | Astra owns both implementation lanes; real-evidence diagnosis implemented, protected-to-candidate leakage blocked. |
+| bottleneck | No new training result; existing T2C2 launch repair and independent development ablation are in progress. |
+| next step | Integrate bounded work, run the native smoke, inspect reference dependence, compare GMT admission feasibility. |
+
+## Current system-lead checkpoint: 2026-09-06
+
+- Authority: `../../strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`; Samuel assigns
+  Astra implementation, integration and bounded local training across both knobs.
+  Fable reviews and ideates only after its already-running T2C2 checkpoint.
+- Diagnosis: `humanoid-harness diagnose`; real Phase A cycle 2 validates 20
+  current rows, 0 falls, no intended slow segment. This is not reference competence.
+- Protected Phase B diagnoses are human-only. Candidate context excludes their
+  routing, outcomes, retrieval and steering. Development evidence is the next input.
+- Native Sol work: development ablation in the separate `humanoid-harness-dev-eval`
+  worktree; GMT artifact inspection in quarantine. Neither starts a simulator.
+- Fable critique: `../../strategy/astra/MDP_AND_FABLE_REVIEW_20260906.md`.
+  Its read-only CLI call could not read files; no code-review claim.
+- Heavy-job slot is free at this checkpoint. No new training or simulator result.
+- The entries below are retained history, not current dispatch authority.
+
+## Historical lane handoff
 
 - Date: 2026-09-05.
 - Last checkpoint: 2026-09-06, 15:56 UTC; helper accepted and committed for peer integration.

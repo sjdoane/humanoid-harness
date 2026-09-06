@@ -106,10 +106,22 @@ task + supplied references + initial reward + optional correction
 - [RDA v1](https://arxiv.org/html/2606.01672v1): subtask failure and instruction
   alignment inform revision. Use vision when it adds missing information, not
   as a replacement for available simulator measurements or protected scoring.
-- Alternative-MDP decision pending primary-source review: native Humanoid,
-  GMT/G1, HumEnv/Meta Motivo, SONIC. Require accessible weights/data, license
-  clarity, reference ABI, Mac feasibility, task-reward training, and lower total
-  integration cost. A more elaborate environment is not itself progress.
+- MDP decision: one existing native smoke, not a commitment to native tracking.
+  GMT/G1 is the leading alternative because it supplies demonstrated reference
+  competence and Mac deployment code. Admission and our adaptation remain untested.
+  Missing original PPO code does not rule out a frozen base plus a trainable
+  higher-level policy. No downloaded TorchScript or pickle has been executed.
+- A new high-level-policy adapter is a new experiment family: freeze its state,
+  action, cadence, tracker, training recipe, and objective metrics. Do not let an
+  oracle candidate change the action interface or introduce a residual halfway
+  through a comparison. Preserve an independently trainable policy downstream
+  of the two authored artifacts; do not rename oracle scripting as policy training.
+- Evaluate GMT first on supplied motions and numeric-reference interventions,
+  then one meaningful splice, then reward authority. Stop a route that fails
+  competence or safe artifact admission; count integration time as well as compute.
+- HumEnv/Meta Motivo remains a legitimate separate latent-composition hypothesis,
+  not a drop-in PPO result. SONIC currently adds a Linux/NVIDIA training dependency.
+  See `MDP_AND_FABLE_REVIEW_20260906.md` for evidence and review limits.
 
 ## Procedure acknowledgment
 
