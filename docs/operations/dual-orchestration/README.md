@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Lane swap complete; tracker source imported. OT1 reviews timed out without verdicts; pairing correction proposed to Fable. |
-| bottleneck | Tracker acceptance, calibration/scoring and evaluator authority remain open; no trained-tracker result. |
-| next step | Narrow OT1C/OT1E follow-up; see `OT1_REVIEW_CHECKPOINT.md`. No new Astra reward dispatch. |
+| progress | Narrow tracker reviews completed; omitted settling check repaired and parent-tested. Pairing correction proposed to Fable. |
+| bottleneck | Independent scoring-repair closure, calibration provenance and evaluator controls remain open; no trained-tracker result. |
+| next step | Review the small repair; see `OT1_NARROW_RESULTS.md`. No new Astra reward dispatch. |
 
 ## Ownership
 

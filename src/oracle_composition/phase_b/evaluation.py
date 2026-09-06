@@ -283,7 +283,12 @@ def _score_task_success(
         float(episode.segment_errors[name]) <= limit
         for name, limit in calibration.segment_speed_error_bands_m_s.items()
     )
-    passed = episode.safety_passed and latency_passed and segment_passed
+    settled_passed = (
+        episode.settled_state_normalized_error is not None
+        and episode.settled_state_normalized_error
+        <= calibration.settled_state_normalized_error_band
+    )
+    passed = episode.safety_passed and latency_passed and segment_passed and settled_passed
     return replace(episode, task_success=passed)
 
 

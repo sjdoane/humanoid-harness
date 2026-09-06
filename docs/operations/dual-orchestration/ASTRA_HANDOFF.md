@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | OT1 reviewers stopped at their deadlines without verdicts; 350 frozen inputs unchanged. Pairing defect confirmed by source inspection and sent to Fable. |
-| bottleneck | Calibration/scoring and evaluator authority need narrow closure; host-test cause unknown. No tracker approval or trained result. |
-| next step | Follow `OT1_REVIEW_CHECKPOINT.md` and the OT1C/OT1E packets. Close only verified findings; no broad review restart, training or Astra reward call. |
+| progress | OT1C/OT1E reviews completed. Parent repaired the omitted settling threshold in both scoring paths; 23 focused tests pass. |
+| bottleneck | Independent closure of the scoring repair, calibration provenance and evaluator gaps remain. No tracker approval or trained result. |
+| next step | Follow `OT1_NARROW_RESULTS.md`; review OT1C-02 only before the next bounded repair. Pairing agreement still pending; no training or Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 05:03 UTC; OT1 terminal receipts retained, narrow follow-up prepared, pairing counterproposal sent.
+- Last checkpoint: 2026-09-06, 05:40 UTC; narrow verdicts retained and scoring regression repaired in Astra only.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.

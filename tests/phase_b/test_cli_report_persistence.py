@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
@@ -21,7 +22,7 @@ from oracle_composition.phase_b.calibration import (
     TaskSuccessCalibration,
     publish_calibration_receipt,
 )
-from oracle_composition.phase_b.evaluation import UtilityEvaluationDependencies
+from oracle_composition.phase_b.evaluation import UtilityEvaluationDependencies, _score_task_success
 from oracle_composition.phase_b.persistence import (
     publish_checkpoint_index,
     publish_final_persistence,
@@ -29,6 +30,7 @@ from oracle_composition.phase_b.persistence import (
 from oracle_composition.phase_b.report_v2 import (
     ProtectedEpisodeMetrics,
     SeedReportFacts,
+    _derived_task_success,
     exact_binomial_interval,
     task_success_endpoint,
     utility_gate,
@@ -772,3 +774,82 @@ def test_resynchronization_limit_accepts_64_and_rejects_65() -> None:
         switch_records=({"boundary": 300, "from_behavior": "expert", "to_behavior": "medium"},),
     )
     assert hold_with_hidden_switch.utility_passed is False
+
+
+def _settled_calibration(band: float = 0.25) -> TaskSuccessCalibration:
+    return TaskSuccessCalibration(
+        sha256="a" * 64,
+        segment_speed_error_bands_m_s={"fast": 0.5, "slow": 0.5, "return_fast": 0.5},
+        transition_latency_caps_steps=(16, 16),
+        settled_state_normalized_error_band=band,
+        censoring_latency_steps=65,
+    )
+
+
+@pytest.mark.parametrize("consumer", ["evaluator", "report"])
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [(0.0, True), (0.25, True), (math.nextafter(0.25, math.inf), False), (None, False)],
+)
+def test_settled_band_is_required_by_both_task_success_consumers(
+    consumer: str, error: float | None, expected: bool
+) -> None:
+    episode = replace(
+        _episode(policy_seed=11, evaluation_seed=120101, cell="fixed_round_trip"),
+        settled_state_normalized_error=error,
+    )
+    calibration = _settled_calibration()
+    outcome = (
+        _score_task_success(episode, calibration).task_success
+        if consumer == "evaluator"
+        else _derived_task_success(episode, calibration)
+    )
+    assert outcome is expected
+    assert episode.utility_passed is True
+
+
+@pytest.mark.parametrize("band", [0.0, 0.125, 0.25, 0.5])
+def test_settled_scoring_consumes_the_calibrated_band(band: float) -> None:
+    episode = replace(
+        _episode(policy_seed=11, evaluation_seed=120101, cell="fixed_round_trip"),
+        settled_state_normalized_error=0.25,
+    )
+    expected = band >= 0.25
+    assert _score_task_success(episode, _settled_calibration(band)).task_success is expected
+    assert _derived_task_success(episode, _settled_calibration(band)) is expected
+
+
+@pytest.mark.parametrize("cell", ["fixed_round_trip", "hold_expert"])
+def test_settled_scoring_without_calibration_stays_non_scoring(cell: str) -> None:
+    episode = _episode(policy_seed=11, evaluation_seed=120101, cell=cell, task_success=True)
+    assert _score_task_success(episode, None).task_success is None
+    if cell == "hold_expert":
+        assert _score_task_success(episode, _settled_calibration()).task_success is None
+
+
+@pytest.mark.parametrize("error", [math.nextafter(0.25, math.inf), None])
+def test_settled_report_recomputes_serialized_rows_instead_of_cached_success(
+    error: float | None,
+) -> None:
+    baseline = [
+        _episode(
+            policy_seed=11,
+            evaluation_seed=seed,
+            cell="fixed_round_trip",
+            checkpoint_sha256="b" * 64,
+            task_success=True,
+        )
+        for seed in range(120101, 120121)
+    ]
+    candidate = [replace(item, checkpoint_sha256="c" * 64) for item in baseline]
+    candidate[0] = replace(candidate[0], settled_state_normalized_error=error)
+    encoded = canonical_json_bytes([item.to_dict() for item in candidate])
+    reloaded = tuple(ProtectedEpisodeMetrics.from_dict(row) for row in json.loads(encoded))
+    assert all(item.task_success is True for item in reloaded)
+    endpoint = task_success_endpoint(
+        reloaded, step_zero_episodes=baseline, calibration=_settled_calibration()
+    )
+    assert endpoint["primary_endpoint"]["checkpoint_results"][0]["successes"] == 19
+    assert endpoint["paired_seed_level_effects"][0]["effect_candidate_minus_step_zero"] == (
+        pytest.approx(-0.05)
+    )
