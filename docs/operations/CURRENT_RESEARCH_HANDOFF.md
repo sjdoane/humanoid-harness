@@ -2,9 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | `TASK-20260906-FT2R2` closes FT2-SCI-01 through 06, 08, and 09 plus FT2-ADV-01, 05, 06, and 08: evaluator-owned sufficient-trace replay, fail-closed evaluation lineage and bounded supervision, non-scoring uncalibrated endpoints, rollout-time likelihood audits, report-v2 semantic validation, mailbox-bound reservations, bounded loaders, production cohort authority, and the reviewed F2 registry entry. No training ran. |
-| bottleneck | FT2R3 still owns FT2-ADV-02, 03, 04, 07, and 09 plus the mechanism-level negatives: sealed worker inputs/import identity, clean-environment and process-tree resource isolation, bounded training IPC, fail-closed RSI evidence, and primary-versus-cleanup classification. No calibration receipt, smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
-| next step | Fable reviews and commits FT2R2, launches FT2R3, and then runs one combined re-review. Do not run the smoke before both repair slices and re-review; task-success remains non-scoring until a disjoint calibration receipt is frozen. |
+| progress | `TASK-20260906-FT2R3` closes FT2-ADV-02, 03, 04, 07, and 09 plus FT2-SCI-07's mechanism negatives: 103 sealed worker inputs, checkout-local executing-module identity, clean worker spawn, OS CPU and parent process-tree resource controls, bounded exact-schema JSON IPC, fail-closed RSI evidence, and separate primary/cleanup outcomes. Detector-path regressions cover source drift, six malformed-frame classes, resource limits, process-group survival, construction admission, RSI omissions/shortcuts, cohort gates, and the 20-minute smoke deadline. No training ran. |
+| bottleneck | FT2R1 through FT2R3 still need one combined scientific and robustness re-review. OS resource enforcement is best-effort where recorded and has not been measured under a production training load. No calibration receipt, disposable smoke, cohort, protected utility evaluation, or behavioral evidence exists. |
+| next step | Fable reviews and commits FT2R3, then launches the combined scientific and robustness re-reviews. Do not run the smoke before both verdicts; task success remains non-scoring until a disjoint calibration receipt is frozen, and the five-seed cohort still requires Samuel's authorization. |
+
+Fable integration note (2026-09-06T04:11Z): FT2R3 committed as `c945379`; this closes Fable's tracker-lane work (ADR 0009 lane swap). The oracle and tracker lane, including the combined re-reviews of FT2R1 to FT2R3, the smoke reservation, and the next composition packet, is Astra's from this commit; see docs/operations/TRACKER_LANE_HANDOFF.md. Fable now owns the reward lane: re-pin the F3 one-call protocol (packet TASK-20260906-F3PIN), freeze the T2 reward-study protocol from survey sol-survey-20260906-t2proto, then reward cycle 0 and 1 once compute is authorized.
+
+FT2R3 completion (2026-09-06T04:05Z): base/head `6d71e8b`; focused Phase B/harness/reward validation is `402 passed, 16 skipped` in `102.31 s`. The full suite is `1684 passed, 18 skipped, 1 deselected, 44 failed` in `218.30 s`; the sorted set of all `44` failed node IDs exactly matches `artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`. The sole deselection was the forbidden reward-lane receipt test `tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`; it was not executed or changed. Ruff lint, the authorized `235`-file source/test format check, `git diff --check`, Phase A byte identity/reproducibility, live E1 `68/68`, and documentation-to-artifact hash checks pass. No training or training smoke ran; simulator execution was limited to existing bounded tests.
+
+Fable resume: inspect the FT2R3 diff and mechanism regressions; preserve the interface/isolation-only claim; commit the slice; launch one combined scientific and robustness re-review of FT2R1 through FT2R3; and do not run the smoke before both verdicts.
 
 Fable integration note (2026-09-06T02:24Z): FT2R2 committed as `2930cd6`. Next writer: `sol-builder-20260906-ft2r3` (packet `TASK-20260906-FT2R3`, isolation and mechanism-level negatives; no training). Then one combined scientific and robustness re-review of FT2R1..FT2R3, then the smoke reservation proposal to Astra; the five-seed cohort needs Samuel's authorization. Fable resume: read the FT2R3 final; commit; launch the two re-reviews; do not run the smoke before the re-review verdicts.
 
@@ -57,13 +63,13 @@ reservation and Samuel's authorization.
 
 Fable resume: verify the cycle-2 oracle's byte identity and provenance, `20/20` replay receipt, six-row report, exact `single_fast` outcome/behavior match, phase-A closure, ignored trace index, focused regression, and claim ceiling; then commit E003C2 without editing the frozen task, oracle, or reports.
 
-- Updated: `2026-09-06T02:16Z` (FT2R2 scientific-integrity repair handoff)
+- Updated: `2026-09-06T04:05Z` (FT2R3 isolation and mechanism-negative handoff)
 - Repository: `/Users/samueldoane/Documents/ChatGPT/humanoid-harness`
-- Precondition HEAD: `87d2e39` (clean at FT2R2 launch; no Git writes)
+- Precondition HEAD: `6d71e8b` (clean at FT2R3 launch; no Git writes)
 - Git writes: none; Fable owns review and commit
-- Write lease: `CLAIMED` by `sol-builder-20260906-ft2r2`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
+- Write lease: `CLAIMED` by `sol-builder-20260906-ft2r3`, model `gpt-5.6-sol`, role `builder`, exact packet scope; launcher owns renewal and release
 - Evidence class: `interface_check`; no training or behavioral evidence
-- Builder wall time: `102m` through full-suite baseline reconciliation, final lint, authorized-scope format, diff, seals, and handoff
+- Builder wall time: `101m` through full-suite baseline reconciliation, final lint, authorized-scope format, diff, seals, and handoff
 
 ## Historical Experiment 003 phase-A handoff
 
