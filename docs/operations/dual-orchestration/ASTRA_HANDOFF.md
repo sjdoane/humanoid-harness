@@ -2,12 +2,12 @@
 
 | status | current truth |
 |---|---|
-| progress | T1 route audit permits a smoke proposal; real preflight identified missing historical data. Fable's pairing repair has a narrow independent closure review running. |
-| bottleneck | T1 needs exact designer audit/trace artifacts and an atomic resource slot; no launch-ready input ledger yet. Pairing closure remains pending. |
-| next step | Obtain Fable's data-handoff acceptance, then rerun preflight. Collect the exact pairing review; no duplicate worker, import, training or reward call. |
+| progress | Exact historical data handoff completed; T1 real preflight passes. Pairing review closes PAIR-01/03 and returns one remaining consumer regression. |
+| bottleneck | No shared atomic resource token or accepted smoke slot. Fable owns PAIR-02 repair; no pairing/runtime acceptance. |
+| next step | Obtain agreement on the resource-token slice, implement/review it, then request the refreshed exact T1 smoke slot. No training or reward call now. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 12:44 UTC; T1 admission blocker recorded, pairing closure running.
+- Last checkpoint: 2026-09-06, 13:24 UTC; T1 preflight passes, token scope proposed.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
@@ -21,6 +21,31 @@
   main writer lease at setup; its uncommitted files were not copied.
 
 ## Current oracle slice
+
+- **Current T1 evidence:** `T1_SMOKE_ROUTE_RESULT.md`. Fable accepted the exact
+  local-only data handoff in `20260906T124406.664008Z-62f7bdad6c224e699f9316dc1928c5bd`.
+  All 137 files / 85,097,632 bytes copied with source/copy hash verification;
+  existing private receipts unchanged. Real preflight passed in 9.45 s from
+  clean `f18d698`, with 103 sealed inputs. No simulator construction or training.
+- Copy ledger retained at `.orchestration/t1-history-handoff/verified-uar5nco2/copy_receipt.json`.
+  Its full identity and live preflight digests are in the T1 result above.
+- Fable confirms there is no implemented atomic heavy-job token. Returned a
+  formal scope proposal because its offer was embedded in an acceptance:
+  `20260906T132352.198444Z-b86226c1a7b544e997ae9ce2324a4145`.
+  Astra owns the proposed pure `harness/resource_slot.py`, focused tests and
+  mailbox adapters; Fable retains supervisor integration and main promotion.
+  Await explicit scope agreement before dispatching this shared-interface slice.
+  No token, resource slot or heavy-job authority has been claimed.
+- **Current pairing verdict:** `REPAIRS_T2PAIRR1`, retained at
+  `T2PAIRR1_REVIEW_RESULT.md`; PAIR-01/03 closed, PAIR-02 sink-level regression
+  still open. Terminal at 12:49:59 UTC, exit 0; watcher `terminal_observed`.
+  Final SHA-256 `ee7aec165c938c9f7c808a4dec1c987dd68cf1e8ce09e192f07785a107a8bafe`.
+- Findings returned to Fable via review
+  `20260906T131903.412132Z-030ff3ac4ab84fe09e332b3e8311ed20`.
+  It retains all pairing repairs and the combined T2AR2/F3 review. No worker
+  remains running in Astra; do not redispatch the completed closure packet.
+
+### Earlier admission and dispatch checkpoints (retained)
 
 - T1 verdict and actual preflight refusal: `T1_SMOKE_ROUTE_RESULT.md`.
   Read-only audit returned `READY_TO_PROPOSE_T1_SMOKE` at 12:07:29 UTC;
