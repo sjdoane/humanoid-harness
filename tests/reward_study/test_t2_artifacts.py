@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.experiments.fixed_reference import ExperimentContractError
 from oracle_composition.phase_b.contracts import (
     PhaseBContractError,
     TargetSpeedRewardSpec,
@@ -23,8 +24,6 @@ from oracle_composition.reward_study.execution_manifest import (
     load_t2_execution_manifest,
 )
 from oracle_composition.reward_study.pairing import (
-    fake_runtime_stream_receipt,
-    summarize_fake_runtime_stream_receipt,
     validate_pairing_receipt,
 )
 from oracle_composition.reward_study.study_manifest import (
@@ -85,9 +84,12 @@ def test_expert_hold_oracle_is_canonical_and_yields_rows_zero_through_1000() -> 
     assert runtime.transfer_logs == ()
 
 
-def test_execution_manifest_is_canonical_source_bound_and_identical_between_arms() -> None:
+def test_pre_seam_execution_manifest_is_canonical_but_requires_pairing_reseal() -> None:
     manifest_path = EXPERIMENT / "execution_manifest_t2_v1.json"
-    value, digest = load_t2_execution_manifest(manifest_path, repository_root=ROOT)
+    encoded = manifest_path.read_bytes()
+    value = json.loads(encoded)
+    digest = hashlib.sha256(encoded).hexdigest()
+    assert encoded == canonical_json_bytes(value)
     assert digest == "d675b1ac02ad8713d995bd795ce2130acf41bc7a6fcc0a164167b24e3684ab3e"
     study = json.loads((EXPERIMENT / "t2_reward_study_expert_hold_v1.json").read_bytes())
     expected_binding = {
@@ -101,6 +103,8 @@ def test_execution_manifest_is_canonical_source_bound_and_identical_between_arms
     assert value["repository"]["commit"] == ("ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe")
     assert value["tracker"]["external_tracker_checkpoint"] is None
     assert value["normalizers"] == {"observation": None, "reward": None}
+    with pytest.raises(ExperimentContractError, match="semantics or bindings differ"):
+        load_t2_execution_manifest(manifest_path, repository_root=ROOT)
 
 
 def test_t2_training_design_is_phase_b_validated_without_changing_t1_bytes() -> None:
@@ -140,16 +144,22 @@ def test_evaluator_design_is_canonical_and_source_bound() -> None:
 
 
 def test_study_manifest_verifies_common_files_and_pairing_key() -> None:
-    value, digest = load_t2_study_manifest(
-        EXPERIMENT / "t2_reward_study_expert_hold_v1.json",
-        repository_root=ROOT,
-    )
+    path = EXPERIMENT / "t2_reward_study_expert_hold_v1.json"
+    value, digest = load_t2_study_manifest(path)
     assert digest == "4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627"
     assert value["study_pairing_sha256"] == (
         "fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0"
     )
     assert value["arms"][0]["reward"]["sha256"].startswith("eea2b6a9")
     assert value["arms"][1]["reward"]["sha256"] == "TBD"
+    assert (
+        value["arms"][0]["pairing_adapter"]["sha256"]
+        != hashlib.sha256(
+            (ROOT / "src/oracle_composition/reward_study/pairing.py").read_bytes()
+        ).hexdigest()
+    )
+    with pytest.raises(T2StudyManifestError, match="pairing_adapter artifact byte count differs"):
+        load_t2_study_manifest(path, repository_root=ROOT)
 
 
 def test_study_manifest_refuses_common_field_drift_even_with_a_rehashed_key() -> None:
@@ -204,27 +214,19 @@ def test_candidate_reward_resolves_through_registry_and_refuses_tamper(
         resolve_t2_reward_binding(binding, artifact_root=tmp_path, candidate=True)
 
 
-def test_pairing_adapter_receipt_is_canonical_and_not_a_runtime_receipt() -> None:
+def test_pre_seam_pairing_adapter_receipt_is_canonical_but_superseded() -> None:
     encoded = PAIRING_RECEIPT.read_bytes()
     value = json.loads(encoded)
     assert encoded == canonical_json_bytes(value)
     assert hashlib.sha256(encoded).hexdigest() == (
         "6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a"
     )
-    assert validate_pairing_receipt(value) == value
+    with pytest.raises(ValueError, match="pairing receipt identity differs"):
+        validate_pairing_receipt(value)
     assert (
         value["adapter_source_sha256"]
-        == hashlib.sha256(
+        != hashlib.sha256(
             (ROOT / "src/oracle_composition/reward_study/pairing.py").read_bytes()
         ).hexdigest()
     )
-    recomputed = summarize_fake_runtime_stream_receipt(
-        fake_runtime_stream_receipt(
-            study_pairing_sha256=value["study_pairing_sha256"],
-            ppo_seeds=[121001, 121101, 121201, 121301, 121401],
-            evaluation_seeds=list(range(97001, 97021)),
-        )
-    )
-    assert value["baseline_stream_receipt"] == recomputed
-    assert value["candidate_stream_receipt"] == recomputed
     assert value["integrated_runtime_receipt"] == "TBD_pending_astra_acceptance"

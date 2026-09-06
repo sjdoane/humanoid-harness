@@ -170,6 +170,53 @@
       "scratch_record_sha256": "d2627d0235205e921819dc4bfd57c84037b4be229ab3ae658e844e604d6006b1",
       "started_utc": "2026-09-06T08:34:39Z",
       "tree": "Slice T2AR1 (T2 evaluator independence, safety endpoint, verified-chain lineage, execution manifest, tests, re-seal after the Astra merge)"
+    },
+    {
+      "commit": "ab7b955",
+      "follow_up_receipt_for": "Slice F3PINR1",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pinr1.txt",
+      "retained_scratch_record_sha256": "f081b83d70ae7b4d5cb000a1872cda16c7da9ed07b46c97d6cbffdf47022f601"
+    },
+    {
+      "commit": "e50a307",
+      "follow_up_receipt_for": "Slice T2AR1",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2ar1.txt",
+      "retained_scratch_record_sha256": "d2627d0235205e921819dc4bfd57c84037b4be229ab3ae658e844e604d6006b1"
+    },
+    {
+      "commit": "3b14d54",
+      "follow_up_receipt_for": "Slice T2A",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2a.txt",
+      "retained_scratch_record_sha256": "a8ef2ac3d8007658218a64868a0abeeea60f93907090788d3fc010c645a009cd"
+    },
+    {
+      "commit": "b071fc5",
+      "follow_up_receipt_for": "Slice F3PIN",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_f3pin.txt",
+      "retained_scratch_record_sha256": "c231ee97f6a1fc290ab13460230eb0eaa7b6f4961f4cbcbd6e0923608e2ae566"
+    },
+    {
+      "commit": "c945379",
+      "follow_up_receipt_for": "Slice FT2R3",
+      "note": "follow-up receipt written 2026-09-06T10:12Z after review SCI-T2AR1-03: binds the exact target SHA and the retained host run record; counts and times are in the record",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_ft2r3.txt",
+      "retained_scratch_record_sha256": "b1ffe99646c3eea1b2b46bb8c6dbb852278e6aadf023f02947af2335fdb8cc0b"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q -p no:cacheprovider --no-header; ruff check .; ruff format --check .",
+      "commit": "T2PAIR slice: the commit containing this record; a follow-up receipt with the exact SHA is appended at the next checkpoint",
+      "finished_utc": "2026-09-06T10:19:34Z",
+      "result": "1 failed, 1906 passed, 16 skipped, 2 warnings in 335.79s (0:05:35); the one expected failure is the reward-lane receipt binding test on the pre-regeneration receipt, regenerated in the following receipted commit",
+      "retained_scratch_record": "experiments/bootstrap_tqc_humanoid/reviews/host_runs/pytest_full_t2pair.txt",
+      "retained_scratch_record_sha256": "5211ba6b677819d58fc544b32222eb0b6abc52064cd2553d6607d9c0205d7b7f",
+      "ruff": "check clean; format clean",
+      "sandbox_baseline_comparison": "builder reported 44 failed in-sandbox matching the 03A3 baseline; host run has no sandbox failures",
+      "started_utc": "2026-09-06T10:11:51Z",
+      "tree": "Slice T2PAIR (t2_reward_pairing/v1 seam, integrated pairing receipt)"
     }
   ],
   "schema_version": 1

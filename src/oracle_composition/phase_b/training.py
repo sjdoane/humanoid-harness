@@ -19,6 +19,12 @@ from oracle_composition.contracts.reference_identity_v2 import (
 )
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 
+from .contracts import (
+    NON_PAIRED_ID,
+    T2_REWARD_PAIRING_DERIVATION_ID,
+    T2_REWARD_PAIRING_ID,
+    T2RewardPairing,
+)
 from .policy import (
     ACTION_WIDTH,
     OBSERVATION_WIDTH,
@@ -147,6 +153,8 @@ class TrainingPlan:
     evidence_class: str
     promotable: bool
     smoke: bool
+    pairing_declared: bool = False
+    study_pairing: T2RewardPairing | None = None
     n_envs: int = 4
     steps_per_environment: int = PRODUCTION_STEPS_PER_ENVIRONMENT
     recipe: PPORecipe = PPORecipe()
@@ -161,6 +169,23 @@ class TrainingPlan:
             or any(character not in "0123456789abcdef" for character in self.manifest_sha256)
         ):
             raise ValueError("training manifest SHA-256 is invalid")
+        if type(self.pairing_declared) is not bool:
+            raise ValueError("pairing_declared must be a boolean")
+        if self.pairing_declared is not (self.study_pairing is not None):
+            raise ValueError("declared pairing requires exact verified study and arm bytes")
+        if self.study_pairing is not None:
+            if type(self.study_pairing) is not T2RewardPairing:
+                raise ValueError("study pairing authority has the wrong type")
+            if self.manifest_sha256 not in {
+                self.study_pairing.baseline_arm_manifest_sha256,
+                self.study_pairing.candidate_arm_manifest_sha256,
+            }:
+                raise ValueError("training manifest is not either verified paired arm identity")
+            if "TBD" in {
+                self.study_pairing.baseline_reward_sha256,
+                self.study_pairing.candidate_reward_sha256,
+            }:
+                raise ValueError("paired training requires both exact reward SHA-256 identities")
         if self.n_envs != 4 or type(self.steps_per_environment) is not int:
             raise ValueError("Phase B requires exactly four environments")
         if self.steps_per_environment <= 0:
@@ -198,6 +223,16 @@ class TrainingPlan:
     @property
     def rollout_count(self) -> int:
         return self.transitions // self.transitions_per_rollout
+
+    @property
+    def pairing_id(self) -> str:
+        return T2_REWARD_PAIRING_ID if self.pairing_declared else NON_PAIRED_ID
+
+    @property
+    def randomization_sha256(self) -> str:
+        if self.study_pairing is None:
+            return self.manifest_sha256
+        return self.study_pairing.study_pairing_sha256
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -248,6 +283,103 @@ def domain_separated_seed(
         }
     )
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
+
+
+def paired_domain_separated_seed(
+    pairing: T2RewardPairing,
+    ppo_seed: int,
+    domain: str,
+    index: int = 0,
+) -> int:
+    """Derive one T2 stream only from an exact-byte-verified pairing authority."""
+
+    if type(pairing) is not T2RewardPairing:
+        raise ValueError("paired seed derivation requires exact verified study and arm bytes")
+    if (
+        type(ppo_seed) is not int
+        or ppo_seed <= 0
+        or type(domain) is not str
+        or not domain
+        or type(index) is not int
+        or index < 0
+    ):
+        raise ValueError("paired domain-separated seed inputs are invalid")
+    payload = canonical_json_bytes(
+        {
+            "domain": domain,
+            "index": index,
+            "ppo_seed": ppo_seed,
+            "schema": T2_REWARD_PAIRING_DERIVATION_ID,
+            "study_pairing_sha256": pairing.study_pairing_sha256,
+        }
+    )
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
+
+
+def plan_domain_separated_seed(
+    plan: TrainingPlan,
+    domain: str,
+    index: int = 0,
+) -> int:
+    """Keep legacy manifest derivation exact and select pairing only when declared."""
+
+    if type(plan) is not TrainingPlan:
+        raise ValueError("seed derivation requires an exact TrainingPlan")
+    if plan.study_pairing is None:
+        return domain_separated_seed(plan.manifest_sha256, plan.seed, domain, index)
+    return paired_domain_separated_seed(plan.study_pairing, plan.seed, domain, index)
+
+
+def paired_action_noise(
+    plan: TrainingPlan,
+    *,
+    rollout_index: int,
+    steps_per_environment: int,
+) -> np.ndarray:
+    """Materialize paired primitive action noise by rollout and environment slot."""
+
+    if not plan.pairing_declared:
+        raise ValueError("paired action noise requires a declared pairing")
+    if type(rollout_index) is not int or rollout_index < 0:
+        raise ValueError("rollout_index must be non-negative")
+    if type(steps_per_environment) is not int or steps_per_environment <= 0:
+        raise ValueError("steps_per_environment must be positive")
+    columns = []
+    for environment_index in range(plan.n_envs):
+        seed = plan_domain_separated_seed(
+            plan,
+            f"actions:environment_slot:{environment_index}",
+            rollout_index,
+        )
+        generator = np.random.Generator(np.random.PCG64(seed))
+        columns.append(
+            np.ascontiguousarray(
+                generator.standard_normal((steps_per_environment, ACTION_WIDTH)).astype("<f4"),
+                dtype="<f4",
+            )
+        )
+    return np.ascontiguousarray(np.stack(columns, axis=1), dtype="<f4")
+
+
+def paired_minibatch_permutation(
+    plan: TrainingPlan,
+    *,
+    update_index: int,
+    sample_count: int,
+) -> np.ndarray:
+    """Derive one paired minibatch ordering independently by update index."""
+
+    if not plan.pairing_declared:
+        raise ValueError("paired minibatch order requires a declared pairing")
+    if type(update_index) is not int or update_index < 0:
+        raise ValueError("update_index must be non-negative")
+    if type(sample_count) is not int or sample_count <= 1:
+        raise ValueError("sample_count must exceed one")
+    seed = plan_domain_separated_seed(plan, "minibatches", update_index)
+    return np.ascontiguousarray(
+        np.random.Generator(np.random.PCG64(seed)).permutation(sample_count),
+        dtype="<i8",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,16 +436,79 @@ class RSIAssignment:
 class BalancedRSIScheduler:
     """SHA-ranked 27-cell scheduler with balanced schedule classes."""
 
-    def __init__(self, *, manifest_sha256: str, ppo_seed: int) -> None:
-        domain_separated_seed(manifest_sha256, ppo_seed, "scheduler-construction")
+    def __init__(
+        self,
+        *,
+        manifest_sha256: str,
+        ppo_seed: int,
+        study_pairing: T2RewardPairing | None = None,
+    ) -> None:
+        if study_pairing is None:
+            domain_separated_seed(manifest_sha256, ppo_seed, "scheduler-construction")
+        else:
+            if manifest_sha256 not in {
+                study_pairing.baseline_arm_manifest_sha256,
+                study_pairing.candidate_arm_manifest_sha256,
+            }:
+                raise ValueError("scheduler manifest is not a verified paired arm identity")
+            paired_domain_separated_seed(study_pairing, ppo_seed, "scheduler-construction")
         self.manifest_sha256 = manifest_sha256
         self.ppo_seed = ppo_seed
+        self.study_pairing = study_pairing
+        behaviors = ("expert",) if study_pairing is not None else BEHAVIORS
         self._cells = tuple(
-            (block, behavior) for block in TRAINING_BLOCKS for behavior in BEHAVIORS
+            (block, behavior) for block in TRAINING_BLOCKS for behavior in behaviors
         )
 
-    def _ranked_cells(self, cycle: int) -> tuple[tuple[int, str], ...]:
+    @classmethod
+    def from_plan(cls, plan: TrainingPlan) -> BalancedRSIScheduler:
+        if type(plan) is not TrainingPlan:
+            raise ValueError("scheduler requires an exact TrainingPlan")
+        return cls(
+            manifest_sha256=plan.manifest_sha256,
+            ppo_seed=plan.seed,
+            study_pairing=plan.study_pairing,
+        )
+
+    @property
+    def pairing_declared(self) -> bool:
+        return self.study_pairing is not None
+
+    def _seed(
+        self,
+        domain: str,
+        *,
+        index: int = 0,
+        environment_index: int | None = None,
+    ) -> int:
+        if self.study_pairing is None:
+            return domain_separated_seed(self.manifest_sha256, self.ppo_seed, domain, index)
+        paired_domain = (
+            domain
+            if environment_index is None
+            else f"{domain}:environment_slot:{environment_index}"
+        )
+        return paired_domain_separated_seed(
+            self.study_pairing,
+            self.ppo_seed,
+            paired_domain,
+            index,
+        )
+
+    def _ranked_cells(
+        self,
+        cycle: int,
+        *,
+        environment_index: int | None = None,
+    ) -> tuple[tuple[int, str], ...]:
         def key(cell: tuple[int, str]) -> bytes:
+            if self.study_pairing is not None:
+                seed = self._seed(
+                    f"rsi_order:block:{cell[0]}:origin:{cell[1]}",
+                    index=cycle,
+                    environment_index=environment_index,
+                )
+                return seed.to_bytes(8, "big", signed=False)
             return hashlib.sha256(
                 canonical_json_bytes(
                     {
@@ -334,8 +529,35 @@ class BalancedRSIScheduler:
         if environment_index not in {2, 3}:
             raise ValueError("RSI assignments belong only to rehearsal environments 2 and 3")
         cycle, position = divmod(global_episode_index, len(self._cells))
-        block, origin = self._ranked_cells(cycle)[position]
+        block, origin = self._ranked_cells(
+            cycle,
+            environment_index=environment_index,
+        )[position]
         canonical_cell_index = self._cells.index((block, origin))
+        if self.study_pairing is not None:
+            class_seed = self._seed(
+                "rsi_class",
+                index=global_episode_index,
+                environment_index=environment_index,
+            )
+            start_seed = self._seed(
+                "rsi_start",
+                index=global_episode_index,
+                environment_index=environment_index,
+            )
+            return RSIAssignment(
+                ppo_seed=self.ppo_seed,
+                environment_index=environment_index,
+                global_episode_index=global_episode_index,
+                cycle=cycle,
+                cell_index=canonical_cell_index,
+                block=block,
+                origin_behavior="expert",
+                start_boundary=start_seed % 489,
+                schedule_class=("hold",)[class_seed % 1],
+                target_behavior="expert",
+                transition_boundaries=(),
+            )
         class_offset = domain_separated_seed(
             self.manifest_sha256,
             self.ppo_seed,
@@ -373,6 +595,31 @@ class BalancedRSIScheduler:
             transition_boundaries=transitions,
         )
 
+    def composition_block(
+        self,
+        *,
+        global_episode_index: int,
+        environment_index: int,
+    ) -> int:
+        if self.study_pairing is None:
+            raise ValueError("indexed composition blocks belong only to a paired study")
+        if type(global_episode_index) is not int or global_episode_index < 0:
+            raise ValueError("global_episode_index must be non-negative")
+        if environment_index not in {0, 1}:
+            raise ValueError("composition blocks belong only to environments 0 and 1")
+        cycle, position = divmod(global_episode_index, len(TRAINING_BLOCKS))
+        ranked = tuple(
+            sorted(
+                TRAINING_BLOCKS,
+                key=lambda block: self._seed(
+                    f"composition_block:block:{block}",
+                    index=cycle,
+                    environment_index=environment_index,
+                ),
+            )
+        )
+        return ranked[position]
+
     def audit_prefix(self, count: int, *, environment_index: int = 2) -> dict[str, object]:
         if type(count) is not int or count <= 0:
             raise ValueError("scheduler audit count must be positive")
@@ -387,8 +634,9 @@ class BalancedRSIScheduler:
             class_counts.setdefault(key, Counter())[item.schedule_class] += 1
         if max(cell_counts.values()) - min(cell_counts.values()) > 1:
             raise AssertionError("balanced RSI cell accounting drifted")
+        schedule_classes = ("hold",) if self.study_pairing is not None else SCHEDULE_CLASSES
         for counter in class_counts.values():
-            values = [counter[name] for name in SCHEDULE_CLASSES]
+            values = [counter[name] for name in schedule_classes]
             if max(values) - min(values) > 1:
                 raise AssertionError("balanced RSI schedule-class accounting drifted")
         encoded = canonical_json_bytes([item.to_dict() for item in assignments])
@@ -676,6 +924,7 @@ def _collect_rollout(
     policy: FullAuthorityPolicy,
     observations: np.ndarray,
     plan: TrainingPlan,
+    rollout_index: int,
     action_rng: np.random.Generator,
     stream_counts: Counter[str],
     reward_totals: Counter[str],
@@ -691,11 +940,24 @@ def _collect_rollout(
     terminal_value_rows: list[np.ndarray] = []
     value_rows: list[np.ndarray] = []
     current = np.ascontiguousarray(observations, dtype="<f4")
-    for _step in range(plan.steps_per_environment):
+    paired_noise = (
+        paired_action_noise(
+            plan,
+            rollout_index=rollout_index,
+            steps_per_environment=plan.steps_per_environment,
+        )
+        if plan.pairing_declared
+        else None
+    )
+    for step_index in range(plan.steps_per_environment):
         strict_input = _policy_input(current)
-        epsilon = np.ascontiguousarray(
-            action_rng.standard_normal((plan.n_envs, ACTION_WIDTH)).astype("<f4"),
-            dtype="<f4",
+        epsilon = (
+            paired_noise[step_index]
+            if paired_noise is not None
+            else np.ascontiguousarray(
+                action_rng.standard_normal((plan.n_envs, ACTION_WIDTH)).astype("<f4"),
+                dtype="<f4",
+            )
         )
         action = policy.actor.act(strict_input, epsilon=epsilon)
         log_prob = policy.actor.log_likelihood(strict_input, action.pre_tanh)
@@ -871,8 +1133,16 @@ def _ppo_update(
     actor_before = _actor_snapshot(policy)
     totals = Counter[str]()
     updates = 0
-    for _epoch in range(plan.recipe.n_epochs):
-        ordering = minibatch_rng.permutation(sample_count)
+    for epoch_index in range(plan.recipe.n_epochs):
+        ordering = (
+            paired_minibatch_permutation(
+                plan,
+                update_index=rollout_index * plan.recipe.n_epochs + epoch_index,
+                sample_count=sample_count,
+            )
+            if plan.pairing_declared
+            else minibatch_rng.permutation(sample_count)
+        )
         for start in range(0, sample_count, plan.recipe.batch_size):
             indices = ordering[start : start + plan.recipe.batch_size]
             strict_input = _policy_input(np.ascontiguousarray(observations[indices], dtype="<f4"))
@@ -1101,22 +1371,38 @@ def _runtime_rsi_ledger(
             int(item.get("environment_index", -1)),
         )
     )
-    indices = [item.get("global_episode_index") for item in entries]
-    if indices != list(range(len(entries))) or any(
-        item.get("environment_index") not in {2, 3} for item in entries
-    ):
-        raise PhaseBTrainingError(
-            TrainingFailureStatus.COUNTER_DRIFT,
-            "RSI reset assignments are duplicated, missing, or out of vector order",
+    if plan.pairing_declared:
+        entries.sort(
+            key=lambda item: (
+                int(item.get("environment_index", -1)),
+                int(item.get("global_episode_index", -1)),
+            )
         )
-    scheduler = BalancedRSIScheduler(
-        manifest_sha256=plan.manifest_sha256,
-        ppo_seed=plan.seed,
-    )
-    for index, entry in enumerate(entries):
+        for environment_index in (2, 3):
+            indices = [
+                item.get("global_episode_index")
+                for item in entries
+                if item.get("environment_index") == environment_index
+            ]
+            if indices != list(range(len(indices))):
+                raise PhaseBTrainingError(
+                    TrainingFailureStatus.COUNTER_DRIFT,
+                    "paired RSI reset indices must be consecutive within each environment slot",
+                )
+    else:
+        indices = [item.get("global_episode_index") for item in entries]
+        if indices != list(range(len(entries))) or any(
+            item.get("environment_index") not in {2, 3} for item in entries
+        ):
+            raise PhaseBTrainingError(
+                TrainingFailureStatus.COUNTER_DRIFT,
+                "RSI reset assignments are duplicated, missing, or out of vector order",
+            )
+    scheduler = BalancedRSIScheduler.from_plan(plan)
+    for entry in entries:
         environment_index = entry["environment_index"]
         expected = scheduler.assignment(
-            global_episode_index=index,
+            global_episode_index=int(entry["global_episode_index"]),
             environment_index=environment_index,
         ).to_dict()
         if any(entry.get(name) != value for name, value in expected.items()):
@@ -1200,8 +1486,8 @@ def run_ppo_training(
                 TrainingFailureStatus.NON_FINITE,
                 "vector reset returned a malformed policy observation",
             )
-        action_seed = domain_separated_seed(plan.manifest_sha256, plan.seed, "actions")
-        minibatch_seed = domain_separated_seed(plan.manifest_sha256, plan.seed, "minibatches")
+        action_seed = plan_domain_separated_seed(plan, "actions")
+        minibatch_seed = plan_domain_separated_seed(plan, "minibatches")
         action_rng = np.random.Generator(np.random.PCG64(action_seed))
         minibatch_rng = np.random.Generator(np.random.PCG64(minibatch_seed))
         for rollout_index in range(plan.rollout_count):
@@ -1210,6 +1496,7 @@ def run_ppo_training(
                 policy=policy,
                 observations=observations,
                 plan=plan,
+                rollout_index=rollout_index,
                 action_rng=action_rng,
                 stream_counts=stream_counts,
                 reward_totals=reward_totals,
@@ -1297,20 +1584,13 @@ def run_ppo_training(
             "rng_substreams": {
                 "action_sampling": action_seed,
                 "environment_order": [
-                    domain_separated_seed(
-                        plan.manifest_sha256,
-                        plan.seed,
-                        "vector-environment",
-                        index,
-                    )
+                    plan_domain_separated_seed(plan, "vector-environment", index)
                     for index in range(plan.n_envs)
                 ],
                 "minibatches": minibatch_seed,
                 "numpy_global": plan.seed,
                 "python_global": plan.seed,
-                "scheduler": domain_separated_seed(
-                    plan.manifest_sha256, plan.seed, "scheduler-construction"
-                ),
+                "scheduler": plan_domain_separated_seed(plan, "scheduler-construction"),
                 "torch_global": plan.seed,
             },
             "rsi_ledger_sha256": hashlib.sha256(rsi_bytes).hexdigest(),
@@ -1407,6 +1687,10 @@ __all__ = [
     "audit_rollout_likelihood",
     "compute_truncation_aware_gae",
     "domain_separated_seed",
+    "paired_action_noise",
+    "paired_domain_separated_seed",
+    "paired_minibatch_permutation",
+    "plan_domain_separated_seed",
     "run_ppo_training",
     "validate_rsi_restoration_receipt",
     "verify_step_zero_worker_action_path",

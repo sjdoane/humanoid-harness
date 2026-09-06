@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from types import MappingProxyType
 
@@ -69,6 +71,41 @@ COHORT_TRANSITIONS = 1_048_576
 FINAL_CHECKPOINT_RULE = "final_transition_only"
 T2_TRAINING_DESIGN_SCHEMA_ID = "humanoid_fine_tuning_training_design_t2/v1"
 T2_RSI_FAMILY_ID = "expert_reference_nine_block_rsi/v1"
+T2_REWARD_PAIRING_ID = "t2_reward_pairing/v1"
+T2_REWARD_PAIRING_DERIVATION_ID = "t2_reward_study_rng_substream/v1"
+NON_PAIRED_ID = "non_paired"
+PAIRING_EXCLUDED_ARM_FIELDS = frozenset({"arm_label", "output_path", "reward", "timestamps"})
+_T2_PAIRING_STUDY_FIELDS = frozenset(
+    {
+        "arms",
+        "integrated_pairing_receipt_sha256",
+        "schema_version",
+        "status",
+        "study_id",
+        "study_manifest_schema_id",
+        "study_pairing_sha256",
+    }
+)
+_T2_PAIRING_COMMON_ARM_FIELDS = frozenset(
+    {
+        "calibration",
+        "claim_ceiling",
+        "evaluation",
+        "evaluator",
+        "evidence_class",
+        "execution_manifest",
+        "library",
+        "oracle",
+        "pairing",
+        "pairing_adapter",
+        "reference_corpus",
+        "starting_checkpoint",
+        "task",
+        "training",
+        "training_design",
+    }
+)
+_T2_PAIRING_ARM_FIELDS = _T2_PAIRING_COMMON_ARM_FIELDS | PAIRING_EXCLUDED_ARM_FIELDS
 T2_TRAINING_BLOCKS = (
     120001,
     120002,
@@ -828,6 +865,266 @@ def utility_evaluation_design_contract_value() -> dict[str, object]:
     }
 
 
+def _canonical_pairing_object(encoded: object, *, field_name: str) -> dict[str, object]:
+    if type(encoded) is not bytes or not encoded or len(encoded) > 256 * 1024:
+        raise PhaseBContractError(f"{field_name} bytes are unavailable or oversized")
+    try:
+        value = json.loads(encoded)
+    except (UnicodeError, ValueError) as exc:
+        raise PhaseBContractError(f"{field_name} bytes are not JSON") from exc
+    if type(value) is not dict or canonical_json_bytes(value) != encoded:
+        raise PhaseBContractError(f"{field_name} bytes are not one canonical JSON object")
+    return value
+
+
+def _validate_t2_pairing_common_fields(common: Mapping[str, object]) -> None:
+    for field in (
+        "evaluator",
+        "execution_manifest",
+        "library",
+        "oracle",
+        "pairing_adapter",
+        "reference_corpus",
+        "starting_checkpoint",
+        "training_design",
+    ):
+        _artifact_binding(common.get(field), field=f"pairing {field}")
+    task = _exact_mapping(
+        common.get("task"),
+        {"environment_id", "expert_start", "horizon_steps", "target_com_forward_speed_m_s"},
+        field="pairing task",
+    )
+    _nonempty_text(task["environment_id"], field="pairing task.environment_id")
+    if type(task["expert_start"]) is not bool:
+        raise PhaseBContractError("pairing task.expert_start must be a boolean")
+    _integer(task["horizon_steps"], field="pairing task.horizon_steps", minimum=1)
+    _finite(
+        task["target_com_forward_speed_m_s"],
+        field="pairing task.target_com_forward_speed_m_s",
+    )
+    training = _exact_mapping(
+        common.get("training"),
+        {
+            "checkpoint_selection",
+            "environment_count",
+            "ppo_seeds",
+            "retries_or_seed_replacement",
+            "transitions_per_seed",
+        },
+        field="pairing training",
+    )
+    _nonempty_text(training["checkpoint_selection"], field="pairing checkpoint selection")
+    _integer(training["environment_count"], field="pairing environment count", minimum=1)
+    _integer(training["transitions_per_seed"], field="pairing transition budget", minimum=1)
+    if type(training["retries_or_seed_replacement"]) is not bool:
+        raise PhaseBContractError("pairing retries flag must be a boolean")
+    ppo_seeds = training["ppo_seeds"]
+    if type(ppo_seeds) is not list or not ppo_seeds:
+        raise PhaseBContractError("pairing PPO seeds must be a nonempty list")
+    for seed in ppo_seeds:
+        _integer(seed, field="pairing PPO seed", minimum=1)
+    if len(set(ppo_seeds)) != len(ppo_seeds):
+        raise PhaseBContractError("pairing PPO seeds must be unique")
+    evaluation = _exact_mapping(
+        common.get("evaluation"),
+        {
+            "deterministic_actions",
+            "evaluation_seeds",
+            "evaluator_id",
+            "expert_start",
+            "horizon_steps",
+            "report_schema_id",
+        },
+        field="pairing evaluation",
+    )
+    if (
+        type(evaluation["deterministic_actions"]) is not bool
+        or type(evaluation["expert_start"]) is not bool
+    ):
+        raise PhaseBContractError("pairing evaluation flags must be booleans")
+    _integer(evaluation["horizon_steps"], field="pairing evaluation horizon", minimum=1)
+    _nonempty_text(evaluation["evaluator_id"], field="pairing evaluator identity")
+    _nonempty_text(evaluation["report_schema_id"], field="pairing report schema")
+    evaluation_seeds = evaluation["evaluation_seeds"]
+    if type(evaluation_seeds) is not list or not evaluation_seeds:
+        raise PhaseBContractError("pairing evaluation seeds must be a nonempty list")
+    for seed in evaluation_seeds:
+        _integer(seed, field="pairing evaluation seed", minimum=1)
+    if len(set(evaluation_seeds)) != len(evaluation_seeds):
+        raise PhaseBContractError("pairing evaluation seeds must be unique")
+    _nonempty_text(common.get("calibration"), field="pairing calibration binding")
+    _nonempty_text(common.get("claim_ceiling"), field="pairing claim ceiling")
+    _nonempty_text(common.get("evidence_class"), field="pairing evidence class")
+
+
+def _validate_pairing_reward(value: object, *, field: str) -> str:
+    reward = _exact_mapping(value, {"path", "reward_id", "sha256"}, field=field)
+    path = _nonempty_text(reward["path"], field=f"{field}.path")
+    _nonempty_text(reward["reward_id"], field=f"{field}.reward_id")
+    digest = reward["sha256"]
+    if (path == "TBD") is not (digest == "TBD"):
+        raise PhaseBContractError(f"{field} path and SHA-256 readiness differ")
+    if digest == "TBD":
+        return "TBD"
+    return _sha(digest, field=f"{field}.sha256")
+
+
+@dataclass(frozen=True, slots=True)
+class T2RewardPairing:
+    """Verified exact-byte authority for one reward-only T2 arm pair."""
+
+    study_manifest_bytes: bytes = dataclass_field(repr=False)
+    baseline_arm_manifest_bytes: bytes = dataclass_field(repr=False)
+    candidate_arm_manifest_bytes: bytes = dataclass_field(repr=False)
+    study_pairing_sha256: str = dataclass_field(init=False)
+    study_manifest_sha256: str = dataclass_field(init=False)
+    baseline_arm_manifest_sha256: str = dataclass_field(init=False)
+    candidate_arm_manifest_sha256: str = dataclass_field(init=False)
+    baseline_reward_sha256: str = dataclass_field(init=False)
+    candidate_reward_sha256: str = dataclass_field(init=False)
+
+    def __post_init__(self) -> None:
+        study = _canonical_pairing_object(
+            self.study_manifest_bytes,
+            field_name="pairing study manifest",
+        )
+        baseline = _canonical_pairing_object(
+            self.baseline_arm_manifest_bytes,
+            field_name="baseline arm manifest",
+        )
+        candidate = _canonical_pairing_object(
+            self.candidate_arm_manifest_bytes,
+            field_name="candidate arm manifest",
+        )
+        arms = study.get("arms")
+        if (
+            set(study) != _T2_PAIRING_STUDY_FIELDS
+            or study.get("schema_version") != 1
+            or study.get("study_manifest_schema_id") != "t2_reward_study_manifest/v1"
+            or study.get("study_id") != "t2_reward_study_expert_hold/v1"
+            or type(arms) is not list
+            or len(arms) != 2
+            or arms != [baseline, candidate]
+            or canonical_json_bytes(arms[0]) != self.baseline_arm_manifest_bytes
+            or canonical_json_bytes(arms[1]) != self.candidate_arm_manifest_bytes
+        ):
+            raise PhaseBContractError("pairing study and exact arm manifest bytes differ")
+        _nonempty_text(study.get("status"), field="pairing study status")
+        receipt_sha256 = study.get("integrated_pairing_receipt_sha256")
+        if receipt_sha256 != "TBD":
+            _sha(receipt_sha256, field="integrated_pairing_receipt_sha256")
+        if set(baseline) != _T2_PAIRING_ARM_FIELDS or set(candidate) != _T2_PAIRING_ARM_FIELDS:
+            raise PhaseBContractError("paired arm manifest fields differ")
+        if baseline.get("arm_label") != "baseline" or candidate.get("arm_label") != "candidate":
+            raise PhaseBContractError("paired arm labels differ")
+        for arm, field in ((baseline, "baseline"), (candidate, "candidate")):
+            _nonempty_text(arm.get("output_path"), field=f"{field} pairing output path")
+            timestamps = _exact_mapping(
+                arm.get("timestamps"),
+                {"completed_utc", "started_utc"},
+                field=f"{field} pairing timestamps",
+            )
+            for name, value in timestamps.items():
+                _nonempty_text(value, field=f"{field} pairing timestamps.{name}")
+        baseline_reward_sha256 = _validate_pairing_reward(
+            baseline.get("reward"),
+            field="baseline pairing reward",
+        )
+        candidate_reward_sha256 = _validate_pairing_reward(
+            candidate.get("reward"),
+            field="candidate pairing reward",
+        )
+        if baseline.get("reward") == candidate.get("reward") or (
+            candidate_reward_sha256 != "TBD" and baseline_reward_sha256 == candidate_reward_sha256
+        ):
+            raise PhaseBContractError("reward-only pairing requires distinct reward specifications")
+        expected_declaration = {
+            "adapter_id": "t2_reward_study_pairing_adapter/v1",
+            "declared": True,
+            "derivation_id": T2_REWARD_PAIRING_DERIVATION_ID,
+        }
+        if (
+            baseline.get("pairing") != expected_declaration
+            or candidate.get("pairing") != expected_declaration
+        ):
+            raise PhaseBContractError("paired arm declaration differs")
+        baseline_common = {
+            name: value
+            for name, value in baseline.items()
+            if name not in PAIRING_EXCLUDED_ARM_FIELDS
+        }
+        candidate_common = {
+            name: value
+            for name, value in candidate.items()
+            if name not in PAIRING_EXCLUDED_ARM_FIELDS
+        }
+        if baseline_common != candidate_common:
+            raise PhaseBContractError("paired arms differ outside the reward-only exclusions")
+        _validate_t2_pairing_common_fields(baseline_common)
+        pairing_sha256 = hashlib.sha256(canonical_json_bytes(baseline_common)).hexdigest()
+        _sha(study.get("study_pairing_sha256"), field="study_pairing_sha256")
+        if study["study_pairing_sha256"] != pairing_sha256:
+            raise PhaseBContractError("study pairing SHA-256 differs from exact arm bytes")
+        object.__setattr__(self, "study_pairing_sha256", pairing_sha256)
+        object.__setattr__(
+            self,
+            "study_manifest_sha256",
+            hashlib.sha256(self.study_manifest_bytes).hexdigest(),
+        )
+        object.__setattr__(
+            self,
+            "baseline_arm_manifest_sha256",
+            hashlib.sha256(self.baseline_arm_manifest_bytes).hexdigest(),
+        )
+        object.__setattr__(
+            self,
+            "candidate_arm_manifest_sha256",
+            hashlib.sha256(self.candidate_arm_manifest_bytes).hexdigest(),
+        )
+        object.__setattr__(self, "baseline_reward_sha256", baseline_reward_sha256)
+        object.__setattr__(self, "candidate_reward_sha256", candidate_reward_sha256)
+        if self.baseline_arm_manifest_sha256 == self.candidate_arm_manifest_sha256:
+            raise PhaseBContractError("paired arm execution identities must remain distinct")
+
+    @classmethod
+    def from_study_manifest_bytes(cls, encoded: bytes) -> T2RewardPairing:
+        """Require the study bytes and both embedded arm byte identities."""
+
+        study = _canonical_pairing_object(encoded, field_name="pairing study manifest")
+        arms = study.get("arms")
+        if type(arms) is not list or len(arms) != 2 or any(type(arm) is not dict for arm in arms):
+            raise PhaseBContractError("pairing study requires exactly two arm manifests")
+        return cls(
+            study_manifest_bytes=encoded,
+            baseline_arm_manifest_bytes=canonical_json_bytes(arms[0]),
+            candidate_arm_manifest_bytes=canonical_json_bytes(arms[1]),
+        )
+
+    def arm_manifest_sha256(self, arm_label: str) -> str:
+        if arm_label == "baseline":
+            return self.baseline_arm_manifest_sha256
+        if arm_label == "candidate":
+            return self.candidate_arm_manifest_sha256
+        raise PhaseBContractError("paired arm label must be baseline or candidate")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "arm_manifest_sha256": {
+                "baseline": self.baseline_arm_manifest_sha256,
+                "candidate": self.candidate_arm_manifest_sha256,
+            },
+            "declared": True,
+            "derivation_id": T2_REWARD_PAIRING_DERIVATION_ID,
+            "pairing_id": T2_REWARD_PAIRING_ID,
+            "reward_sha256": {
+                "baseline": self.baseline_reward_sha256,
+                "candidate": self.candidate_reward_sha256,
+            },
+            "study_manifest_sha256": self.study_manifest_sha256,
+            "study_pairing_sha256": self.study_pairing_sha256,
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class FineTuningRunManifest:
     value: Mapping[str, object]
@@ -1254,7 +1551,9 @@ __all__ = [
     "CLAIM_CEILING",
     "EVIDENCE_CLASS",
     "FROZEN_TRACKING_REWARD_CONFIG",
+    "NON_PAIRED_ID",
     "ORACLE_SCHEMA_ID",
+    "PAIRING_EXCLUDED_ARM_FIELDS",
     "PHASE_POLICY",
     "REPORT_V2_SCHEMA_ID",
     "REVIEWED_RUN_MANIFEST_SHA256",
@@ -1263,6 +1562,8 @@ __all__ = [
     "REWARD_SCHEMA_SHA256",
     "RUN_MANIFEST_SCHEMA_ID",
     "STARTING_CHECKPOINT_SCHEMA_ID",
+    "T2_REWARD_PAIRING_DERIVATION_ID",
+    "T2_REWARD_PAIRING_ID",
     "T2_RSI_FAMILY_ID",
     "T2_TRAINING_BLOCKS",
     "T2_TRAINING_DESIGN_SCHEMA_ID",
@@ -1290,6 +1591,7 @@ __all__ = [
     "PhaseBOracleProgram",
     "RewardRegistry",
     "StartingCheckpointContract",
+    "T2RewardPairing",
     "TargetSpeedRewardSpec",
     "TrackingOnlyRewardSpec",
     "load_fine_tuning_run_manifest",

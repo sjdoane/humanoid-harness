@@ -1,0 +1,9 @@
+2026-09-06T04:06:49Z
+SKIPPED [3] tests/rewards/test_scale_calibration.py:109: R2 host fixture required: dynamic axiom/scale outcomes remain unreviewed
+FAILED tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly
+FAILED tests/phase_b/test_cli_report_persistence.py::test_cli_fake_runtime_end_to_end_writes_deterministic_report_v2
+2 failed, 1729 passed, 16 skipped, 2 warnings in 217.94s (0:03:37)
+All checks passed!
+
+1 file would be reformatted, 362 files already formatted
+2026-09-06T04:10:28Z

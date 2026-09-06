@@ -70,6 +70,7 @@ from .training import (
     TrainingFailureStatus,
     TrainingPlan,
     domain_separated_seed,
+    plan_domain_separated_seed,
     validate_rsi_restoration_receipt,
 )
 
@@ -355,18 +356,31 @@ class _SharedResetAssignments:
         self.scheduler = scheduler
         self._rehearsal_episode = 0
         self._composition_episode = 0
-        self._block_order = tuple(
-            sorted(
-                scheduler._cells[::3],
-                key=lambda item: domain_separated_seed(
-                    scheduler.manifest_sha256,
-                    scheduler.ppo_seed,
-                    f"composition-block:{item[0]}",
-                ),
+        self._paired_rehearsal_episodes = {2: 0, 3: 0}
+        self._paired_composition_episodes = {0: 0, 1: 0}
+        self._block_order = (
+            ()
+            if scheduler.pairing_declared
+            else tuple(
+                sorted(
+                    scheduler._cells[::3],
+                    key=lambda item: domain_separated_seed(
+                        scheduler.manifest_sha256,
+                        scheduler.ppo_seed,
+                        f"composition-block:{item[0]}",
+                    ),
+                )
             )
         )
 
     def rehearsal(self, environment_index: int) -> RSIAssignment:
+        if self.scheduler.pairing_declared:
+            index = self._paired_rehearsal_episodes[environment_index]
+            self._paired_rehearsal_episodes[environment_index] += 1
+            return self.scheduler.assignment(
+                global_episode_index=index,
+                environment_index=environment_index,
+            )
         index = self._rehearsal_episode
         self._rehearsal_episode += 1
         return self.scheduler.assignment(
@@ -374,7 +388,14 @@ class _SharedResetAssignments:
             environment_index=environment_index,
         )
 
-    def composition_block(self) -> int:
+    def composition_block(self, environment_index: int) -> int:
+        if self.scheduler.pairing_declared:
+            index = self._paired_composition_episodes[environment_index]
+            self._paired_composition_episodes[environment_index] += 1
+            return self.scheduler.composition_block(
+                global_episode_index=index,
+                environment_index=environment_index,
+            )
         block = self._block_order[self._composition_episode % len(self._block_order)][0]
         self._composition_episode += 1
         return block
@@ -383,8 +404,13 @@ class _SharedResetAssignments:
 class _SharedFakeRehearsalCounter:
     def __init__(self) -> None:
         self.value = 0
+        self.by_environment = {2: 0, 3: 0}
 
-    def take(self) -> int:
+    def take(self, *, environment_index: int, pairing_declared: bool) -> int:
+        if pairing_declared:
+            value = self.by_environment[environment_index]
+            self.by_environment[environment_index] += 1
+            return value
         value = self.value
         self.value += 1
         return value
@@ -560,7 +586,7 @@ class RealPhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
     ) -> tuple[np.ndarray, dict[str, object]]:
         del seed, options
         if self.stream == "composition":
-            block = self.assignments.composition_block()
+            block = self.assignments.composition_block(self.environment_index)
             observation, _info = self.base.reset(seed=block)
             self._references = self._load_references(block)
             self._runtime = ComposedReferenceRuntime(self.oracle, self._references)
@@ -759,7 +785,10 @@ class FakePhaseBTrainingEnv(gym.Env[np.ndarray, np.ndarray]):
         if self.stream == "rehearsal":
             self.rsi_reset_count += 1
             assignment = self.scheduler.assignment(
-                global_episode_index=self.rehearsal_counter.take(),
+                global_episode_index=self.rehearsal_counter.take(
+                    environment_index=self.environment_index,
+                    pairing_declared=self.scheduler.pairing_declared,
+                ),
                 environment_index=self.environment_index,
             )
             receipt = RSIRestorationReceipt(
@@ -843,7 +872,7 @@ def fake_policy_factory(plan: TrainingPlan) -> FullAuthorityPolicy:
     """Build a deterministic full-sized FT1 actor without reading external payloads."""
 
     generator = np.random.Generator(
-        np.random.PCG64(domain_separated_seed(plan.manifest_sha256, plan.seed, "fake-policy"))
+        np.random.PCG64(plan_domain_separated_seed(plan, "fake-policy"))
     )
     first = np.ascontiguousarray(
         generator.normal(0.0, 0.01, size=(256, POLICY_INPUT_WIDTH)).astype("<f4")
@@ -946,10 +975,7 @@ def fake_environment_factories(
     failure_mode: str | None = None,
     episode_steps: int = 13,
 ) -> tuple[Callable[[], object], ...]:
-    scheduler = BalancedRSIScheduler(
-        manifest_sha256=plan.manifest_sha256,
-        ppo_seed=plan.seed,
-    )
+    scheduler = BalancedRSIScheduler.from_plan(plan)
     rehearsal_counter = _SharedFakeRehearsalCounter()
     return tuple(
         lambda index=index: FakePhaseBTrainingEnv(
@@ -969,10 +995,7 @@ def real_environment_factories(
     plan: TrainingPlan,
     config: RealRuntimeConfig,
 ) -> tuple[Callable[[], object], ...]:
-    scheduler = BalancedRSIScheduler(
-        manifest_sha256=plan.manifest_sha256,
-        ppo_seed=plan.seed,
-    )
+    scheduler = BalancedRSIScheduler.from_plan(plan)
     assignments = _SharedResetAssignments(scheduler)
     return tuple(
         lambda index=index: RealPhaseBTrainingEnv(

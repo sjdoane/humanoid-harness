@@ -22,6 +22,7 @@ from oracle_composition.phase_b.contracts import (
     PhaseBOracleProgram,
     RewardRegistry,
     StartingCheckpointContract,
+    T2RewardPairing,
     TargetSpeedRewardSpec,
     TrackingOnlyRewardSpec,
     load_fine_tuning_run_manifest,
@@ -108,6 +109,15 @@ def test_run_manifest_refuses_a_bound_hash_mismatch(tmp_path: Path) -> None:
     path.write_bytes(canonical_json_bytes(raw))
     with pytest.raises(PhaseBContractError, match="reviewed admission seal"):
         load_fine_tuning_run_manifest(path, repository_root=ROOT)
+
+
+def test_t2_pairing_contract_requires_exact_canonical_study_and_arm_bytes() -> None:
+    path = ROOT / "experiments/004_t2_reward_study/t2_reward_study_expert_hold_v1.json"
+    encoded = path.read_bytes()
+    pairing = T2RewardPairing.from_study_manifest_bytes(encoded)
+    assert pairing.study_manifest_sha256 == hashlib.sha256(encoded).hexdigest()
+    with pytest.raises(PhaseBContractError, match="canonical JSON"):
+        T2RewardPairing.from_study_manifest_bytes(encoded + b"\n")
 
 
 def test_run_manifest_rejects_unreviewed_smoke_budget_even_when_json_is_valid() -> None:

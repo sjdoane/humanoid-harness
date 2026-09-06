@@ -2,9 +2,58 @@
 
 | status | current truth |
 |---|---|
-| progress | T2AR1 closes assigned review findings SCI-T2A-01, 02, 03, 05, and 06: protected science excludes reward telemetry; the independent action-bounds endpoint is reachable; reference rows use a verified block/clip/bundle/corpus/row chain; reports re-resolve every binding and replay every raw trace; and a content-addressed execution manifest seals both arms. Focused validation is `131 passed`. |
-| bottleneck | T2 execution remains **NO-GO**. The candidate reward path and SHA-256 and the accepted integrated pairing receipt are still TBD; SCI-T2A-04 remains in `T2PAIR`. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
-| next step | Fable reviews and commits this complete T2AR1 slice, preserves the NO-GO, and routes composition-reset derivation through `T2PAIR`; only a registry-resolved candidate and accepted integrated pairing receipt can make a later dispatch verdict possible. |
+| progress | `T2PAIR` implements the accepted `t2_reward_pairing/v1` shared-runtime seam and closes SCI-T2A-04 at the interface layer. Exact study and embedded arm-manifest bytes authorize paired derivation; the generated fake-runtime receipt shows matching primitive streams for 5 seeds and 4 environment slots while retaining distinct arm execution and reward hashes. Focused validation is `75 passed`. |
+| bottleneck | T2 execution remains **NO-GO**. The candidate reward is synthetic only inside the fake-runtime receipt, and the pre-seam T2A execution manifest, study manifest, and F3 seal now require committed-checkpoint regeneration and independent review. No candidate call, smoke, training, cohort, or behavioral evaluation ran. |
+| next step | Fable independently reviews and commits this complete interface-only slice, regenerates the T2A execution/study/F3 seals against that commit, binds the accepted receipt, and obtains a new dispatch verdict before any candidate call or training. |
+
+T2PAIR completion (2026-09-06T10:09Z): launch base `7698256` was clean.
+The builder started only after Astra's executable-scope acceptance
+`20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103` and held the
+exact claimed write lease as `sol-builder-20260906-t2pair`, model
+`gpt-5.6-sol`, role `builder`. The accepted packet checksum was
+`515516fc81e925e8d056bb26fab128115733405332cf81d82233bf0789a93d60`.
+
+`T2RewardPairing` reconstructs the pairing key from canonical study-manifest
+bytes plus both canonical embedded arm-manifest byte strings; it refuses a
+missing, stale, mismatched, forged, or digest-only key before a paired
+`TrainingPlan` can exist. The key excludes the reward specification, arm label,
+output path, and timestamps but binds the accepted common fields. Each arm
+retains its complete byte-addressed arm-manifest execution identity and reward
+identity; the common key is never an execution identity. Legacy plans retain
+the prior manifest-hash derivation exactly and are labeled `non_paired`.
+
+Paired action-noise draws are indexed by rollout and environment slot;
+minibatch permutations by update; reset and RSI block, origin, class, and start
+by global episode index independently within each environment slot; and
+evaluation seeds by declared index. Actions, states, returns, and episode
+lengths are not paired. The fake-runtime receipt is 9,770 bytes at SHA-256
+`e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259`.
+Its pairing key is `fd91156a…b3e0`; exact arm-manifest identities are
+`cf4d5090…ba2a` and `9692875c…336a`; reward identities are
+`eea2b6a9…1c5f` and `c09e93dc…c123`. All 20 seed-slot rows and all five
+seed-level minibatch, evaluation, and fake-policy rows match across arms.
+
+Focused validation is `75 passed` in `105.25s`. The full suite, explicitly
+deselecting
+`tests/experiments/test_reward_target_speed_manifest.py::test_recorded_no_learning_runtime_receipt_replays_exactly`,
+is `1860 passed, 18 skipped, 1 deselected, 44 failed` in `313.42s`; the sorted
+44-node failure set exactly equals the recorded sandbox baseline in
+`artifacts/bootstrap_tqc_humanoid/sandbox_baseline_failures_03a3.txt`.
+Repository-wide Ruff lint passes, `ruff format --check .` reports all `404`
+files formatted, and `git diff --check` passes. The reward-study pairing test
+was renamed to `tests/reward_study/test_reward_pairing.py` so pytest can collect
+it beside the new shared-runtime `tests/phase_b/test_pairing.py`. No Git write,
+candidate call, standalone simulator, smoke, training, cohort, or behavioral
+evaluation occurred; fake policy construction was limited to the source-bound
+interface receipt. Builder wall time
+was `84m` from lease acquisition through the final handoff audit.
+
+Fable resume: independently review the fail-closed exact-byte authority,
+per-slot episode indexing, legacy non-paired byte compatibility, receipt, and
+full diff; commit the complete slice; regenerate the now-stale T2A
+execution/study/F3 seals at that committed checkpoint; bind the receipt and send
+the exact commit to Astra for review. Keep T2 NO-GO and do not call for a
+candidate or run training until a separate dispatch verdict exists.
 
 T2AR1 completion (2026-09-06T08:33Z): launch base
 `ed9f1d38aba4f7b41a576b0fd9c8be4f6b8b47fe` was clean. The first action was

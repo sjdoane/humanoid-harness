@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | T2AR1 repairs the interface with direct-state formulas; reward-telemetry separation proven by test, reachable action-bound failures, verified-chain reference rows, exact trace-index replay, registry-resolved reward slots, and a content-addressed execution manifest. No candidate call, training, smoke, cohort, or behavioral evaluation ran. |
-| bottleneck | Execution remains **NO-GO**: `t2_seal_v1.json` records `pairing_receipt: pending`; the candidate reward SHA-256 and an integrated `phase_b/training.py` pairing receipt are TBD. SCI-T2A-04 remains in `T2PAIR`. |
-| next step | Fable reviews and commits T2AR1, then obtains Astra's accepted `T2PAIR` receipt and a separate dispatch verdict. Smoke and cohorts remain separately gated. |
+| progress | `t2_reward_pairing/v1` now routes shared Phase B fake-policy, action-noise, minibatch, composition-block, reset/RSI, and evaluation-seed identities through one exact-byte-verified reward-study key. `pairing_receipt_v1.json` records equal fake-runtime primitive digests for all five PPO seeds and four environment slots while retaining distinct arm and reward hashes. No candidate call, training, smoke, cohort, or behavioral evaluation ran. |
+| bottleneck | Execution remains **NO-GO**: the candidate reward is TBD, Astra has not reviewed this slice, and the pre-seam execution/study/F3 seals bind superseded trainer/adapter bytes and still record `pairing_receipt: pending`. |
+| next step | Fable independently reviews and commits the complete T2PAIR slice, regenerates the affected seals at that committed checkpoint, then requests Astra's acceptance and a separate dispatch verdict. Smoke and cohorts remain separately gated. |
 
 ## Frozen artifact ledger
 
@@ -17,7 +17,8 @@
 | `t2_reward_study_expert_hold_v1.json` | 5,872 | `4eb3440b943355b8eee96e7663a4d542833464a8720d4b8ac102c050d9623627` | common fields duplicated and equality-checked across arm slots |
 | `t2_seal_v1.json` | 1,613 | `c0edc94a71d7e7cd23723e0e58b352568c2610d064db170a47a83869f02394ae` | non-model-facing hash ledger including the execution manifest; pairing receipt explicitly `pending`, dispatch withheld |
 | `artifacts/experiments_004/t2_pairing_adapter_receipt_v1.json` | 1,736 | `6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a` | fake-runtime adapter receipt; ignored local artifact, not trainer execution |
-| `reward_study/pairing.py` | source | `724cda361d88e0ab7bec2de95bdf9c7811b156f410620af38a23821a53d15543` | arm-invariant adapter source bound into both study arms and its receipt |
+| `pairing_receipt_v1.json` | 9,770 | `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` | shared-runtime fake-runtime interface receipt; five seeds x four slots; pending independent review and seal admission |
+| `reward_study/pairing.py` | source | `242e094325b91d3c5f309c158d585b5335ead5f7302045ad4197a818f641099f` | current exact-byte caller and receipt generator; the frozen T2AR1 study still binds its superseded pre-seam hash |
 | `reward_study/t2_evaluator.py` | source | `6f42b49b628ea11a2df13cf37a2ad170cde2be231427112103225e58b6f2e975` | protected direct-state computation and verified reference chain |
 | `reward_study/t2_report.py` | source | `a534d9c745df4adf23e8e1d800d9f106aa4f55b21143c9a696458cc65afbbbaa` | input resolution, raw-trace replay, deterministic receipt, and separate telemetry writers |
 | `phase_b/protected_metrics.py` | source | `a7456f038c08d6592a7bb4a92b4970e171ed38e6ac736cd477dcaa9f60760da6` | bound metric core preserving finite raw actions for independent bounds scoring |
@@ -75,7 +76,7 @@ authority.
 | Candidate timing | The independent evaluator is frozen first; one initial F3 call; admit the candidate and seal both arm manifests before exposing baseline measurements |
 | Common references and initialization | Corpus `a3e9a7234b67194f0d4ac8d3961e9040f217ec9768e27451c279105aa3391090`; library `ad57578dc2ed4fe3707da74a4f86620e758b1aa30064016785d187a5e86d3207`; starting checkpoint `9931750c5015ae5a385ac42202485868b0338530918421234c5aacbfe9b3e3b5`; exact reference bytes, ABI, provenance, E1 actor, and value initialization unchanged |
 | Training | Design SHA-256 `84543f08265dae5076697549f25ce69b7e5e87947d4bb6e32b86a7700d24e67e`; PPO seeds `121001,121101,121201,121301,121401`; `1,048,576` transitions per seed; four environments, two expert-hold composition and two expert-reference rehearsal; first eight rollouts restricted, then full actor; final checkpoint only; no retries |
-| Pairing | `study_pairing_sha256=fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0`; action, minibatch, RSI order/class/start, and evaluation streams derive from it in the uncalled adapter. Adapter receipt `6bd6f5ab3eb33ea563fff06c01828781d4c01864b7f0384108bfa5161c02540a`; integrated runtime pairing receipt **TBD pending Astra acceptance** |
+| Pairing | `t2_reward_pairing/v1`; `study_pairing_sha256=fd91156a949a4484b497a112327db864c2a4cbcbaf0cf1cf5db75064f6a5b3e0`. The runtime accepts it only through exact canonical study bytes plus both exact embedded arm manifests. Action noise is indexed by rollout and environment slot; minibatch permutations by update; composition blocks and reset/RSI block, origin, class, and start by global episode index within each slot; declared evaluation seeds are the actual reset seeds at declared indices. `pairing_receipt_v1.json` SHA-256 `e5351c3b49ba97cc362ccd68a0bcf797c5077fb0c2ace78535b24e5567e0a259` is pending independent review and seal admission. |
 | Evaluation | Seeds `97001`-`97020`; deterministic actions; expert start; full 1,000-step sufficient traces; direct-state formulas; reward-telemetry separation proven by test; verified library/corpus/index/bundle/payload/row chain; evaluator/report design SHA-256 `7ae812d43c524285941cd567ce1663ff023cb6307229d9472a6dfe6577ebf5b3`; report schema `t2_reward_study_report/v1`; calibration `none` |
 | Primary endpoint | Per checkpoint, mean over 20 episode values; each episode value is the mean of all `1,000` absolute per-step COM speed errors against `3.0 m/s`; no censoring |
 | Arm estimator | Five paired PPO-seed differences `d_s = Y_baseline - Y_candidate`; report every pair, mean, median, range, paired 95% t interval using the five policies, and the exact one-sided sign result; pooled `n = 100` inference is forbidden |
@@ -91,12 +92,22 @@ authority.
 
 ## Pairing integration boundary
 
-The launch note records no Astra acceptance message ID. Therefore
-`src/oracle_composition/phase_b/training.py` is byte-untouched. The new adapter
-refuses an arm-specific manifest hash when a study declares pairing and retains
-the existing manifest-hash derivation only for undeclared single-arm runs. This
-is an interface seam, not evidence that production actions, minibatches, RSI
-assignments, resets, or evaluation episodes are paired.
+Astra accepted the exact executable scope in mailbox message
+`20260906T072706.830333Z-a50cb508191d4d629b4ba6c8f9e42103`; Fable launched
+this slice at clean base `7698256`. A paired `TrainingPlan` cannot be built from
+a supplied digest: it requires canonical study bytes and byte-matching embedded
+baseline and candidate arm manifests, recomputes the common projection, and
+checks that the plan's ordinary execution identity is one of the two distinct
+arm hashes before any policy or environment factory is called. Missing,
+mismatched, stale, or forged keys fail there. Undeclared single-arm plans are
+explicitly `non_paired` and preserve the original manifest-hash derivation.
+
+The generated fake-runtime receipt covers primitive variates and indexed
+schedules, not actions, states, returns, episode lengths, or learned behavior.
+Per-slot episode counters keep reset schedules aligned even if the two policies
+later terminate at different times. The receipt does not repair the old seal
+chain by itself: Fable must rebind the changed runtime sources and admit the
+reviewed receipt before any dispatch decision.
 
 ## Execution gates and claim ceiling
 
