@@ -2,7 +2,7 @@
 
 | status | current truth |
 |---|---|
-| progress | Samuel assigns Astra both implementation lanes; the role-change message is sent to Fable. |
+| progress | Fable acknowledges Astra as system lead; diagnosis, development ablation, and numeric-only GMT admission are integrated. |
 | bottleneck | No trained reference-composition result; diagnosis, proposal, training, and revision are not joined end to end. |
 | next step | Finish the clean peer handoff, run a bounded native-tracker utility test, and implement evidence-to-revision routing. |
 
@@ -17,7 +17,8 @@
   include paid cloud resources, publication, private-source disclosure, or
   bypassing provider safeguards.
 - Mailbox handoff: `20260906T164045.084189Z-f91211dc986c4788a2d16ac759c458c9`.
-- Communication is queued until Fable reads it; delivery is not acknowledgment.
+- Fable acknowledgment: `20260906T175818.868830Z-6266274cc43349c9a49af2daa9e7be95`.
+  Astra also owns main promotion after Fable's clean T2C2 checkpoint.
 
 Completion requires all of these, not just a runnable command:
 
@@ -119,6 +120,11 @@ task + supplied references + initial reward + optional correction
 - Evaluate GMT first on supplied motions and numeric-reference interventions,
   then one meaningful splice, then reward authority. Stop a route that fails
   competence or safe artifact admission; count integration time as well as compute.
+- Fable's follow-up review supports native T1 first, then the fixed-oracle T2
+  reward loop. That is useful reward evidence, not the complete two-knob result.
+  Its under-five-hours estimate is unmeasured. A protected metric implementation
+  may score development data; untouched held-out outcomes must never select a
+  revision. Do not wait weeks for a possible tracker without an availability date.
 - HumEnv/Meta Motivo remains a legitimate separate latent-composition hypothesis,
   not a drop-in PPO result. SONIC currently adds a Linux/NVIDIA training dependency.
   See `MDP_AND_FABLE_REVIEW_20260906.md` for evidence and review limits.

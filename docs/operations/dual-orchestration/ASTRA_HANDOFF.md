@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Astra owns both implementation lanes; real-evidence diagnosis implemented, protected-to-candidate leakage blocked. |
-| bottleneck | No new training result; existing T2C2 launch repair and independent development ablation are in progress. |
-| next step | Integrate bounded work, run the native smoke, inspect reference dependence, compare GMT admission feasibility. |
+| progress | Fable acknowledges Astra's system leadership; feedback, development ablation, and numeric-only GMT admission are integrated. |
+| bottleneck | No new training result; Fable is committing the completed T2C2 launch repair. |
+| next step | Merge the clean checkpoint, refresh preflight, run one native smoke, then inspect reference dependence. |
 
 ## Current system-lead checkpoint: 2026-09-06
 
@@ -15,10 +15,19 @@
   current rows, 0 falls, no intended slow segment. This is not reference competence.
 - Protected Phase B diagnoses are human-only. Candidate context excludes their
   routing, outcomes, retrieval and steering. Development evidence is the next input.
-- Native Sol work: development ablation in the separate `humanoid-harness-dev-eval`
-  worktree; GMT artifact inspection in quarantine. Neither starts a simulator.
+- Development ablation: `scripts/phase_b_development_reference_ablation.py`;
+  four in-sample reset blocks, exact/zero/shuffled/shifted actor references.
+  Production smoke and exact corpus lineage are required. No protected splits.
+- GMT: numeric-only conversion and reconstructed actor in `adapters/gmt`;
+  original TorchScript and motion pickles were not executed. Golden-output
+  equivalence and tracking competence remain untested. The isolated GMT worker
+  is implementing a headless playback adapter, with no simulator run yet.
 - Fable critique: `../../strategy/astra/MDP_AND_FABLE_REVIEW_20260906.md`.
   Its read-only CLI call could not read files; no code-review claim.
+- Live Fable follow-up: `20260906T175932.763617Z-9825de420bbd4fbbab8b551ffc087ec3`.
+  Native T1 first; T2 is an incremental reward-loop result, not full composition.
+- Role acknowledgment: `20260906T175818.868830Z-6266274cc43349c9a49af2daa9e7be95`.
+  Parent accepted ownership of main promotion; no new Fable implementation lane.
 - Heavy-job slot is free at this checkpoint. No new training or simulator result.
 - The entries below are retained history, not current dispatch authority.
 
