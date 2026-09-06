@@ -1631,9 +1631,23 @@ def _spawn_worker(request: WorkerRequest) -> tuple[multiprocessing.Process, Conn
     context = multiprocessing.get_context("spawn")
     parent, child = context.Pipe(duplex=True)
     process = context.Process(target=_worker_session_entry, args=(child, request), daemon=False)
-    with _spawn_environment(dict(request.worker_environment)):
-        process.start()
-    child.close()
+    try:
+        with _spawn_environment(dict(request.worker_environment)):
+            process.start()
+        child.close()
+    except BaseException as exc:
+        with suppress(BaseException):
+            child.close()
+        with suppress(BaseException):
+            parent.close()
+        if process.pid is not None:
+            try:
+                cleanup_worker_process(process, group_validated=False)
+            except BaseException as cleanup_exc:
+                raise _SpawnCleanupUnverified(
+                    f"worker spawn cleanup failed: {cleanup_exc}"
+                ) from exc
+        raise
     return process, parent
 
 
@@ -1711,6 +1725,7 @@ class HeavyJobSlotSession:
         self._expected_wall_seconds: int | None = None
         self._owner: str | None = None
         self._token_id: str | None = None
+        self._worker_cleanup_pending = False
 
     def configure(
         self,
@@ -1753,7 +1768,7 @@ class HeavyJobSlotSession:
             raise ExperimentContractError("heavy-job slot identity changed between workers")
 
     def release(self) -> None:
-        if self._owner is None or self._token_id is None:
+        if self._owner is None or self._token_id is None or self._worker_cleanup_pending:
             return
         assert self._coordination_root is not None
         owner, token_id = self._owner, self._token_id
@@ -1773,6 +1788,77 @@ class HeavyJobSlotSession:
             raise ExperimentContractError("heavy-job slot cleanup identity differs")
         self._owner = None
         self._token_id = None
+
+    def worker_spawned(self) -> None:
+        if not self._required:
+            return
+        if self._worker_cleanup_pending:
+            raise ExperimentContractError("heavy-job worker lifecycle differs")
+        self._worker_cleanup_pending = True
+
+    def worker_cleanup_verified(self) -> None:
+        if not self._required:
+            return
+        if not self._worker_cleanup_pending:
+            raise ExperimentContractError("heavy-job worker cleanup was not pending")
+        self._worker_cleanup_pending = False
+
+
+class _SpawnCleanupUnverified(RuntimeError):
+    pass
+
+
+class _WorkerCleanupGuard:
+    def __init__(
+        self,
+        dependencies: SupervisionDependencies,
+        slot_session: HeavyJobSlotSession,
+    ) -> None:
+        self._dependencies = dependencies
+        self._slot_session = slot_session
+        self._process: object | None = None
+        self._connection: object | None = None
+        self._group_validated = False
+        self._cleanup_attempted = False
+        self._connection_closed = False
+
+    def retain_for_unverified_spawn(self) -> None:
+        self._slot_session.worker_spawned()
+
+    def attach(self, process: object, connection: object) -> None:
+        self._process = process
+        self._connection = connection
+        self._slot_session.worker_spawned()
+
+    def validate_group(self) -> None:
+        self._group_validated = True
+
+    def cleanup(self) -> None:
+        if self._process is None or self._cleanup_attempted:
+            return
+        self._cleanup_attempted = True
+        try:
+            self._dependencies.cleanup_worker(
+                self._process,
+                group_validated=self._group_validated,
+            )
+            self._slot_session.worker_cleanup_verified()
+        finally:
+            if self._connection is not None and not self._connection_closed:
+                self._connection.close()
+                self._connection_closed = True
+
+
+def _with_worker_cleanup(
+    dependencies: SupervisionDependencies,
+    slot_session: HeavyJobSlotSession,
+    operation: Callable[[_WorkerCleanupGuard], SeedOutcome],
+) -> SeedOutcome:
+    guard = _WorkerCleanupGuard(dependencies, slot_session)
+    try:
+        return operation(guard)
+    finally:
+        guard.cleanup()
 
 
 def _failure_receipt(
@@ -1942,6 +2028,7 @@ def _supervise_seed(
     job_output_directory: Path,
     dependencies: SupervisionDependencies,
     validate_slot_before_spawn: Callable[[], None],
+    cleanup_guard: _WorkerCleanupGuard,
 ) -> SeedOutcome:
     seed_directory.mkdir(mode=0o700)
     request = WorkerRequest(
@@ -1962,10 +2049,14 @@ def _supervise_seed(
         worker_environment=tuple(minimal_worker_environment(os.environ).items()),
     )
     validate_slot_before_spawn()
-    process, connection = dependencies.spawn_worker(request)
+    try:
+        process, connection = dependencies.spawn_worker(request)
+    except _SpawnCleanupUnverified:
+        cleanup_guard.retain_for_unverified_spawn()
+        raise
+    cleanup_guard.attach(process, connection)
     started = dependencies.clock()
     last_stage = "spawned"
-    group_validated = False
     terminal_payload: Mapping[str, object] | None = None
     terminal_status: SupervisorStatus | None = None
     reason = ""
@@ -2066,7 +2157,7 @@ def _supervise_seed(
                         "enforcement": "checkout_realpath_and_recorded_digest_verified",
                         "start_sha256": acknowledged_module_identity_sha256,
                     }
-                    group_validated = True
+                    cleanup_guard.validate_group()
                     _send_frame(
                         connection,
                         "admit_execution",
@@ -2192,7 +2283,7 @@ def _supervise_seed(
         reason = f"supervisor channel/resource failure: {exc}"
     cleanup_succeeded = True
     try:
-        dependencies.cleanup_worker(process, group_validated=group_validated)
+        cleanup_guard.cleanup()
         resource_controls["process_group_cleanup"] = {
             "enforcement": "os_session_group_best_effort",
             "succeeded": True,
@@ -2209,8 +2300,6 @@ def _supervise_seed(
         if terminal_status is None:
             terminal_status = SupervisorStatus.CLEANUP_FAILURE
             reason = f"worker cleanup failed: {exc}"
-    finally:
-        connection.close()
     if terminal_payload is not None:
         try:
             verify_sealed_inputs(
@@ -2556,19 +2645,32 @@ def _supervise_training_job(
             preflight.sealed_inputs,
             expected_lineage_sha256=preflight.sealed_input_lineage_sha256,
         )
-        outcome = _supervise_seed(
-            plan=plan,
-            seed_directory=output / f"seed_{seed}",
-            execution_manifest_bytes=manifest_bytes,
-            execution_manifest_sha256=manifest.sha256,
-            preflight=preflight,
-            limits=selected_limits,
-            cohort_job_deadline=cohort_job_deadline,
-            runtime_kind=runtime_kind,
-            failure_mode=failure_mode,
-            job_output_directory=output,
-            dependencies=selected_dependencies,
-            validate_slot_before_spawn=slot_session.validate_before_spawn,
+
+        def supervise_seed(
+            cleanup_guard: _WorkerCleanupGuard,
+            selected_plan: TrainingPlan = plan,
+            selected_seed: int = seed,
+        ) -> SeedOutcome:
+            return _supervise_seed(
+                plan=selected_plan,
+                seed_directory=output / f"seed_{selected_seed}",
+                execution_manifest_bytes=manifest_bytes,
+                execution_manifest_sha256=manifest.sha256,
+                preflight=preflight,
+                limits=selected_limits,
+                cohort_job_deadline=cohort_job_deadline,
+                runtime_kind=runtime_kind,
+                failure_mode=failure_mode,
+                job_output_directory=output,
+                dependencies=selected_dependencies,
+                validate_slot_before_spawn=slot_session.validate_before_spawn,
+                cleanup_guard=cleanup_guard,
+            )
+
+        outcome = _with_worker_cleanup(
+            selected_dependencies,
+            slot_session,
+            supervise_seed,
         )
         outcomes.append(outcome)
         if outcome.status != SupervisorStatus.SUCCEEDED:

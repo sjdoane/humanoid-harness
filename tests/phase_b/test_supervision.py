@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import signal
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -1350,3 +1352,277 @@ def test_validated_slot_is_released_after_normal_supervision_return(
     )
     assert result is sentinel
     assert not (slot_root / SLOT_FILENAME).exists()
+
+
+def _run_controlled_slot_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    slot_root: Path,
+    reservation: dict[str, object],
+    dependencies: SupervisionDependencies,
+    operation: object,
+) -> object:
+    def controlled_core(**kwargs: object) -> object:
+        session = kwargs["slot_session"]
+        session.configure(slot_root, reservation, expected_wall_seconds=1_200)
+        session.validate_before_spawn()
+        return supervision_module._with_worker_cleanup(dependencies, session, operation)
+
+    monkeypatch.setattr(supervision_module, "_supervise_training_job", controlled_core)
+    return supervise_training_job(
+        preflight=object(),
+        output_directory=Path(reservation["output"]),
+        seeds=(121901,),
+        transitions=196_608,
+        smoke=True,
+        reservation=reservation,
+        runtime_kind="real",
+        canonical_argv=reservation["canonical_argv"],
+        dependencies=dependencies,
+        coordination_root=slot_root,
+    )
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    (
+        (KeyboardInterrupt, "controlled post-spawn interrupt"),
+        (RuntimeError, "controlled initializer exception"),
+    ),
+)
+def test_production_core_cleans_worker_before_slot_release_on_post_spawn_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: type[BaseException],
+    message: str,
+) -> None:
+    output = tmp_path / failure.__name__
+    slot_root = tmp_path / f"coordination-{failure.__name__}"
+    reservation = _write_slot_fixture(slot_root, output=output)
+    source_snapshot = supervision_module.RuntimeSourceSnapshot(
+        value={"git": {"commit": reservation["commit"]}, "source_sha256": {}},
+        sha256="6" * 64,
+    )
+    preflight = supervision_module.TrainingPreflight(
+        repository_root=tmp_path,
+        experiment=tmp_path,
+        oracle_path=tmp_path / "oracle.json",
+        reward_path=tmp_path / "reward.json",
+        template_manifest=object(),
+        template_manifest_sha256="8" * 64,
+        e003_execution_manifest_sha256="9" * 64,
+        prior_scientific_receipt_sha256="a" * 64,
+        source_snapshot=source_snapshot,
+        sealed_inputs=(),
+        sealed_input_lineage_sha256="b" * 64,
+        report_inputs={},
+        runtime_config=object(),
+    )
+    process = _FakeProcess()
+    connection = _ScriptedConnection([])
+    cleanup_calls = 0
+
+    def cleanup(worker: _FakeProcess, *, group_validated: bool) -> None:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        assert worker is process
+        assert group_validated is False
+        worker.alive = False
+
+    dependencies = _observer_dependencies(lambda _request: None, cleanup=cleanup)
+
+    def controlled_seed(**kwargs: object) -> object:
+        guard = kwargs["cleanup_guard"]
+        guard.attach(process, connection)
+        raise failure(message)
+
+    monkeypatch.setattr(supervision_module, "validate_reservation", lambda *_a, **_k: reservation)
+    monkeypatch.setattr(supervision_module, "verify_sealed_inputs", lambda *_a, **_k: None)
+    monkeypatch.setattr(supervision_module, "validate_executing_modules", lambda *_a, **_k: None)
+    monkeypatch.setattr(supervision_module, "_assert_no_conflicting_training_process", lambda: None)
+    monkeypatch.setattr(
+        supervision_module,
+        "_execution_manifest_value",
+        lambda **_kwargs: {"schema_version": 3},
+    )
+    monkeypatch.setattr(supervision_module, "_supervise_seed", controlled_seed)
+
+    with pytest.raises(failure, match=message):
+        supervise_training_job(
+            preflight=preflight,
+            output_directory=output,
+            seeds=(121901,),
+            transitions=196_608,
+            smoke=True,
+            reservation=reservation,
+            runtime_kind="real",
+            canonical_argv=reservation["canonical_argv"],
+            expected_wall_seconds=1_200,
+            dependencies=dependencies,
+            coordination_root=slot_root,
+        )
+    assert cleanup_calls == 1
+    assert process.alive is False
+    assert connection.closed is True
+    assert not (slot_root / SLOT_FILENAME).exists()
+
+
+def test_unverified_worker_cleanup_retains_exact_slot_for_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "cleanup-survives"
+    slot_root = tmp_path / "coordination-cleanup-survives"
+    reservation = _write_slot_fixture(slot_root, output=output)
+    process = _FakeProcess()
+    connection = _ScriptedConnection([])
+
+    def cleanup(_worker: object, *, group_validated: bool) -> None:
+        assert group_validated is False
+        raise RuntimeError("controlled worker survived cleanup")
+
+    dependencies = _observer_dependencies(lambda _request: None, cleanup=cleanup)
+
+    def operation(guard: object) -> object:
+        guard.attach(process, connection)
+        raise KeyboardInterrupt("controlled interrupt")
+
+    with pytest.raises(RuntimeError, match="survived cleanup"):
+        _run_controlled_slot_lifecycle(
+            monkeypatch,
+            slot_root=slot_root,
+            reservation=reservation,
+            dependencies=dependencies,
+            operation=operation,
+        )
+    assert process.alive is True
+    assert connection.closed is True
+    retained = json.loads((slot_root / SLOT_FILENAME).read_bytes())
+    assert retained["owner"] == reservation["owner"]
+    assert retained["token_id"] == "7" * 32
+
+
+@pytest.mark.parametrize("cleanup_fails", (False, True))
+def test_terminal_result_survives_cleanup_outcome_and_slot_release_tracks_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_fails: bool,
+) -> None:
+    outcome = "fails" if cleanup_fails else "succeeds"
+    output = tmp_path / f"cleanup-{outcome}"
+    slot_root = tmp_path / f"coordination-cleanup-{outcome}"
+    reservation = _write_slot_fixture(slot_root, output=output)
+    process = _FakeProcess()
+    connection = _ScriptedConnection([])
+    sentinel = object()
+
+    def cleanup(worker: _FakeProcess, *, group_validated: bool) -> None:
+        assert worker is process
+        assert group_validated is False
+        if cleanup_fails:
+            raise RuntimeError("controlled terminal cleanup failure")
+        worker.alive = False
+
+    dependencies = _observer_dependencies(lambda _request: None, cleanup=cleanup)
+
+    def operation(guard: object) -> object:
+        guard.attach(process, connection)
+        try:
+            guard.cleanup()
+        except RuntimeError:
+            if not cleanup_fails:
+                raise
+        return sentinel
+
+    result = _run_controlled_slot_lifecycle(
+        monkeypatch,
+        slot_root=slot_root,
+        reservation=reservation,
+        dependencies=dependencies,
+        operation=operation,
+    )
+    assert result is sentinel
+    assert process.alive is cleanup_fails
+    assert connection.closed is True
+    assert (slot_root / SLOT_FILENAME).exists() is cleanup_fails
+
+
+def test_spawn_worker_closes_pipes_and_worker_when_child_close_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def __init__(self, *, fail: bool = False) -> None:
+            self.closed = False
+            self.fail = fail
+
+        def close(self) -> None:
+            self.closed = True
+            if self.fail:
+                raise OSError("controlled child close failure")
+
+    class Process:
+        pid = 4242
+
+        def start(self) -> None:
+            return None
+
+    parent = Endpoint()
+    child = Endpoint(fail=True)
+    process = Process()
+    context = SimpleNamespace(
+        Pipe=lambda **_kwargs: (parent, child),
+        Process=lambda **_kwargs: process,
+    )
+    cleanup_calls = []
+    monkeypatch.setattr(supervision_module.multiprocessing, "get_context", lambda _kind: context)
+    monkeypatch.setattr(supervision_module, "_spawn_environment", lambda _env: nullcontext())
+    monkeypatch.setattr(
+        supervision_module,
+        "cleanup_worker_process",
+        lambda worker, *, group_validated: cleanup_calls.append((worker, group_validated)),
+    )
+
+    with pytest.raises(OSError, match="child close failure"):
+        supervision_module._spawn_worker(SimpleNamespace(worker_environment=()))
+    assert parent.closed is True
+    assert child.closed is True
+    assert cleanup_calls == [(process, False)]
+
+
+def test_spawn_worker_closes_pipes_and_worker_when_process_start_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class Process:
+        pid = 4242
+
+        def start(self) -> None:
+            raise RuntimeError("controlled partial start failure")
+
+    parent = Endpoint()
+    child = Endpoint()
+    process = Process()
+    context = SimpleNamespace(
+        Pipe=lambda **_kwargs: (parent, child),
+        Process=lambda **_kwargs: process,
+    )
+    cleanup_calls = []
+    monkeypatch.setattr(supervision_module.multiprocessing, "get_context", lambda _kind: context)
+    monkeypatch.setattr(supervision_module, "_spawn_environment", lambda _env: nullcontext())
+    monkeypatch.setattr(
+        supervision_module,
+        "cleanup_worker_process",
+        lambda worker, *, group_validated: cleanup_calls.append((worker, group_validated)),
+    )
+
+    with pytest.raises(RuntimeError, match="partial start failure"):
+        supervision_module._spawn_worker(SimpleNamespace(worker_environment=()))
+    assert parent.closed is True
+    assert child.closed is True
+    assert cleanup_calls == [(process, False)]
