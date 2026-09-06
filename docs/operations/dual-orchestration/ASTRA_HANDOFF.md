@@ -2,9 +2,16 @@
 
 | status | current truth |
 |---|---|
-| progress | A real native T1 worker returned a verified likelihood failure; cleanup and slot release succeeded. GMT replay and renderer are integrated. |
-| bottleneck | No trained checkpoint. The native likelihood audit suffers float32 cancellation near saturated actions. |
-| next step | Compare the supplied GMT baseline and review a numerical correction before choosing another native attempt. |
+| progress | Native T1 and the first GMT probe have retained failure receipts; both cleaned up and released the shared slot. |
+| bottleneck | Native likelihood cancellation; GMT failed before simulation because its restricted PATH omitted macOS sysctl. No trained checkpoint. |
+| next step | Repair the GMT launcher PATH, verify a real dependency import, then request a fresh bounded baseline. Review the native numerical correction separately. |
+
+- GMT attempt: `humanoid-harness-probe-runs/gmt_walk_stand_20260906`, outside
+  this worktree; 0.58 s wall, 234 MB peak RSS, no robot steps or trace.
+- Resource receipt SHA-256:
+  `23dbb2f663f3d039d8424585fa4d878ddd0c9559db7fd4e4180675259e4ea849`.
+- Launcher repair adds only `/usr/sbin`; it does not inherit arbitrary PATH.
+  The regression imports real MuJoCo under the exact child environment/limits.
 
 - Current attempt record: `../../strategy/astra/T1_ATTEMPT_20260906.md`.
 - Native terminal: 27.44 s, `likelihood_failure`; no automatic training retry.

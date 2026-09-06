@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -85,6 +86,38 @@ def _reservation(plan: Any) -> dict[str, object]:
         "required_authorizer": "fable",
         "schema_version": 2,
     }
+
+
+def test_real_mujoco_import_under_child_environment_and_limits(tmp_path: Path) -> None:
+    pytest.importorskip("mujoco")
+    plan = _plan(tmp_path)
+    plan = replace(
+        plan,
+        config=replace(
+            plan.config,
+            repository_root=SCRIPT.parents[1],
+            venv_python=Path(sys.executable),
+        ),
+    )
+    environment = PROBE._child_environment(plan)
+    assert environment["PATH"].split(":") == [
+        str(Path(sys.executable).parent),
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+    ]
+    result = subprocess.run(
+        [sys.executable, "-c", "import mujoco; print(mujoco.__version__)"],
+        env=environment,
+        cwd=plan.config.repository_root,
+        preexec_fn=PROBE._apply_child_limits,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
 
 
 def _write_fake_success(plan: Any, stdout: Any, stderr: Any) -> None:

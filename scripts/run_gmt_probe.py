@@ -341,7 +341,7 @@ def _child_environment(plan: ProbePlan) -> dict[str, str]:
     return {
         **inherited,
         **THREAD_ENVIRONMENT,
-        "PATH": f"{plan.config.venv_python.parent}:/usr/bin:/bin",
+        "PATH": f"{plan.config.venv_python.parent}:/usr/bin:/bin:/usr/sbin",
         "PYTHONPATH": str(plan.config.repository_root / "src"),
         "VIRTUAL_ENV": str(plan.config.venv_python.parent.parent),
     }
