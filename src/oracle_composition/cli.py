@@ -26,6 +26,18 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("status", help="show target, capability, evidence, and next gate")
     commands.add_parser("doctor", help="check required and optional local dependencies")
 
+    g1 = commands.add_parser("g1", help="operate bounded GMT G1 development evidence")
+    g1_commands = g1.add_subparsers(dest="g1_command", required=True)
+    g1_feedback = g1_commands.add_parser(
+        "feedback", help="build proposal-safe feedback from one pinned course run"
+    )
+    g1_feedback.add_argument("--manifest", type=Path, required=True)
+    g1_feedback.add_argument("--manifest-sha256", required=True)
+    g1_feedback.add_argument(
+        "--label", choices=("final_policy", "zero_residual"), required=True
+    )
+    g1_feedback.add_argument("--output", type=Path, required=True)
+
     research = commands.add_parser("research", help="build and query the research graph")
     research_commands = research.add_subparsers(dest="research_command", required=True)
 
@@ -158,6 +170,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = program_status()
         elif args.command == "doctor":
             result = doctor_status()
+        elif args.command == "g1":
+            from .feedback.g1_course import build_g1_course_feedback
+
+            result = build_g1_course_feedback(
+                manifest_path=args.manifest,
+                expected_manifest_sha256=args.manifest_sha256,
+                label=args.label,
+                output=args.output,
+            )
         elif args.command == "research":
             if args.research_command == "build":
                 result = build_index(args.extractions, args.database)
