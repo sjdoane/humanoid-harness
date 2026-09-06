@@ -3,11 +3,11 @@
 | status | current truth |
 |---|---|
 | progress | Fable formally accepted the lane swap and F3 at 04:07 UTC. FT2R3 terminal success and lease release verified; Astra owns both combined tracker reviews. |
-| bottleneck | Fable's parent validation and exact FT2R3 integration commit are pending. No Phase B trained-tracker result or F3 model-candidate call. |
-| next step | Follow `LANE_SWAP_20260906.md`: verify the final committed chain, integrate in this checkout, then dispatch exact-snapshot reviews. No new Astra reward call. |
+| bottleneck | Complete tracker source is imported for review; one unexplained host-suite CLI failure and combined reviews remain open. No Phase B trained-tracker result. |
+| next step | Dispatch the two OT1 source-review packets; retain the host failure. Exact import/checks: `TRACKER_IMPORT_20260906.md`. No new Astra reward call. |
 
 - Date: 2026-09-05.
-- Last checkpoint: 2026-09-06, 04:10 UTC; formal peer acceptance and FT2R3 terminal collected.
+- Last checkpoint: 2026-09-06, 04:23 UTC; exact peer handoff imported at `851e16d`, focused checks reproduced, OT1 packets prepared.
 - Current lane: oracle/reference composition and tracker integration.
 - Current transfer authority: `LANE_SWAP_20260906.md`. Historical reward
   sequences below are evidence records, not current Astra dispatch authority.
