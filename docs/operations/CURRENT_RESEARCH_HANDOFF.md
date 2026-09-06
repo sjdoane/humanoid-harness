@@ -2,9 +2,50 @@
 
 | status | current truth |
 |---|---|
-| progress | `F3PINR2` derives and pins the six dispatch-facing identities from the committed T2PAIRR1 seal and baseline bytes; a regression compares both protocol documents with a freshly validated record. |
-| bottleneck | T2 execution remains **NO-GO**. F3PINR2 lacks a narrow readback verdict on its exact commit, dispatch lacks its separate verdict, the canonical candidate is TBD, and report admission remains `study_not_final_ready`. |
-| next step | Commit F3PINR2 and obtain narrow independent readback. Any later dispatch must regenerate and validate `record.json`, copy its identities exactly, and stop on a mismatch; candidate admission and runtime remain later gates. |
+| progress | `T2PAIRR2` replaces helper-return pairing evidence with exact action, PPO-input, composition, reset, and RSI sink observations; all 10 independent mutation cases pass. |
+| bottleneck | PAIR-02 is builder-repaired but lacks Astra's narrow independent closure. T2 execution and F3 dispatch remain **NO-GO**. |
+| next step | Commit the four-path test/handoff slice and send its exact commit to Astra for PAIR-02 re-review; preserve every later dispatch and execution gate. |
+
+T2PAIRR2 completion (2026-09-06): launch base `f9f032e` was clean. The
+builder started only after the launcher acquired the exact write lease as
+`sol-builder-20260906-t2pairr2`, model `gpt-5.6-sol`, role `builder`, with the
+declared scope. The launcher owns renewal and release; the builder performed no
+Git write.
+
+PAIR-02 now observes the epsilon supplied to `actor.act`; every ordered PPO
+observation, pre-tanh action, old log-probability, advantage, and return array at
+the actual Torch input sink; per-slot composition blocks; all four environment
+reset ledgers and routes; and per-slot RSI assignments. Each exact arm plan
+independently regenerates its expected values. Cross-arm equality remains
+required but cannot accept an identical wrong route.
+
+One parameterized regression applies five independent sink mutations to both
+arms and then checks the disabled pairing seam against each of the five routes
+independently. The identical wrong reset-slot mutation fails exact per-slot
+expectations. Disabled routing retains nonempty actor and PPO captures, so a
+later route cannot pass behind the old empty-action first failure. The existing
+two-arm receipt test is unchanged. Production routing showed no defect and no
+source, receipt, manifest, study, or F3 seal was changed.
+
+| T2PAIRR2 verification | result |
+|---|---|
+| Pairing tests | final readback `15 passed in 1.03s`; 10-case mutation matrix separately `10 passed in 5.20s` |
+| Phase B plus reward-study tests | final-byte run `254 passed in 245.33s` |
+| Full suite, named reward-lane receipt test deselected | final-byte run `1886 passed, 18 skipped, 1 deselected, 44 failed in 428.16s` |
+| Recorded sandbox-ledger comparison | all `44` recorded nodes failed; full-suite and baseline failure sets are exactly equal |
+| Repository-wide Ruff lint / format | passed / all `409` files formatted in the final four-path tree |
+| `git diff --check` / builder wall time | passed / `50m` from lease acquisition through final validation and handoff readback |
+
+The forbidden reward-lane receipt test was not run and its receipt was not
+regenerated. This is regression coverage only. It neither claims nor refutes an
+observed contaminated cohort and establishes no reward or humanoid behavior.
+See the [T2PAIRR2 result](dual-orchestration/T2PAIRR2_RESULT.md).
+
+Fable resume: inspect the test-only sink observers, exact per-arm/per-slot
+expectations, all five independent sink mutations and five route-specific
+disabled-seam checks; commit the four-path slice; send the exact commit to Astra
+for narrow PAIR-02 re-review. Keep candidate calls, smoke, training, protected
+evaluation, and cohorts withheld.
 
 F3PINR2 completion (2026-09-06): launch base `2160684` was clean. The builder
 started only after the launcher acquired the exact write lease as
