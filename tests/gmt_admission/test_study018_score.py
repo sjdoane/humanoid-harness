@@ -218,9 +218,11 @@ def test_local_repository_tree_is_recomputed_and_mismatch_rejected(module) -> No
         "source_file_count": binding["file_count"],
     }
 
-    assert module._validate_local_source(common)["file_count"] == 196
+    assert module._validate_local_source(common)["file_count"] == len(files)
     with pytest.raises(ValueError, match="local scoring source differs"):
         module._validate_local_source({**common, "source_tree_sha256": "0" * 64})
+    with pytest.raises(ValueError, match="local scoring source differs"):
+        module._validate_local_source({**common, "source_file_count": len(files) + 1})
 
 
 def _authority_fixture(module, tmp_path: Path):
