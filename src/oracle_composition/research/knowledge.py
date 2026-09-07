@@ -14,6 +14,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
+from oracle_composition.harness.contract import OracleContractError, decode_json_object
+
 SCHEMA_VERSION = 1
 DEFAULT_DATABASE = Path("artifacts/knowledge/graph.db")
 DEFAULT_EXTRACTIONS = Path("research/evidence/legacy_policy_harness_kg/extractions")
@@ -232,7 +234,7 @@ def _validate_source_record(record: Mapping[str, Any], *, path: Path) -> None:
         },
         field=field,
     )
-    if record.get("schema_version") != 1 or isinstance(record.get("schema_version"), bool):
+    if type(record.get("schema_version")) is not int or record["schema_version"] != 1:
         raise KnowledgeIndexError(f"{field}.schema_version must equal 1")
     record_id = _stable_id(record.get("record_id"), field=f"{field}.record_id")
     if path.stem != record_id:
@@ -432,8 +434,8 @@ def _source_records(directory: Path) -> list[tuple[Path, bytes, Mapping[str, Any
         if len(source_bytes) != metadata.st_size:
             raise KnowledgeIndexError(f"source record changed while reading: {path}")
         try:
-            record = _required_mapping(json.loads(source_bytes), field=path.name)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            record = decode_json_object(source_bytes, source=path.name)
+        except OracleContractError as exc:
             raise KnowledgeIndexError(f"cannot read source record: {path}") from exc
         _validate_source_record(record, path=path)
         record_id = str(record["record_id"])

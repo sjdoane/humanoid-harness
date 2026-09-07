@@ -316,6 +316,29 @@ def test_supplemental_records_fail_closed_on_type_status_and_provenance(
         build_index(extractions, tmp_path / "graph.db", supplemental_records=supplemental)
 
 
+@pytest.mark.parametrize("case", ("duplicate_key", "nonfinite", "float_version"))
+def test_supplemental_record_json_is_unambiguous(tmp_path: Path, case: str) -> None:
+    extractions = tmp_path / "extractions"
+    extractions.mkdir()
+    _write_record(extractions, _record("2600.00001", title="Closed-loop recovery"))
+    supplemental = tmp_path / "supplemental"
+    supplemental.mkdir()
+    record = _source_record(
+        "source_audit", record_type="public_source_audit", evidence_status="not_admitted"
+    )
+    if case == "float_version":
+        record["schema_version"] = 1.0
+    encoded = json.dumps(record)
+    if case == "duplicate_key":
+        encoded = '{"title":"contradictory title",' + encoded[1:]
+    elif case == "nonfinite":
+        encoded = '{"unexpected":NaN,' + encoded[1:]
+    (supplemental / "source_audit.json").write_text(encoded)
+
+    with pytest.raises(KnowledgeIndexError):
+        build_index(extractions, tmp_path / "graph.db", supplemental_records=supplemental)
+
+
 def test_supplemental_record_symlink_is_rejected(tmp_path: Path) -> None:
     extractions = tmp_path / "extractions"
     extractions.mkdir()
