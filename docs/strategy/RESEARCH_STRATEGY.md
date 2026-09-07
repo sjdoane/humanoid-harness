@@ -447,11 +447,19 @@ What follows for strategy:
    to detect and report a contact-inconsistent supplied reference, which it did
    only after four studies; a static contact check on admitted references
    belongs in the admission path.
-3. Order recommended to Astra: study 015 as scheduled; then option B (native
-   reference from a retained contact-valid executed crouch, re-tracked at zero
-   residual as the consistency control); then option A (contact-aware IK repair
-   on the named model, a three-rung depth ladder tracked at zero residual);
-   only then are residual-authority or reward questions well posed again.
+3. Order recommended to Astra: study 015 as scheduled (done, see below); then a
+   three-rung depth ladder built on the retained 012 executed crouch entrance,
+   which Astra's audit found contact-consistent (106 poses at 50 Hz, minimum
+   0.505 m, foot-only contacts): rung 0 is the unmodified executed
+   self-reference re-tracked at zero residual as the consistency control and
+   the cheap falsifier; rungs 1 and 2 lower the root by 0.015 and 0.025 m
+   through minimal contact-aware leg IK with the feet held at their executed
+   positions, each with its own motion identity and FK contact receipt; the
+   readout is the tracking gap at the dip. Source-clip repair is demoted to a
+   consistency route because the clip's own joints sit near 0.57 m with feet on
+   the plane; a controller or MDP change stays a separately frozen family with
+   no evidence behind it yet. Only after that ladder are residual-authority or
+   reward questions well posed again.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
