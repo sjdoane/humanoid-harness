@@ -30,6 +30,7 @@ from oracle_composition.adapters.gmt.course_config import CourseRunConfig
 from oracle_composition.adapters.gmt.course_runtime import (
     AFTER_HEADING_FEEDBACK_RUNTIME,
     FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     CourseRuntimeProfile,
@@ -38,6 +39,7 @@ from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskRewa
 from oracle_composition.adapters.gmt.gym_env import (
     AFTER_HEADING_FEEDBACK_OBSERVATION_DIM,
     FINITE_HORIZON_RESIDUAL_OBSERVATION_DIM,
+    FOUR_STATE_FINITE_HORIZON_OBSERVATION_DIM,
     LOOP_RESIDUAL_OBSERVATION_DIM,
     RESIDUAL_OBSERVATION_DIM,
     GMTResidualEnv,
@@ -581,6 +583,32 @@ def test_finite_horizon_profile_preserves_legacy_observation_layout() -> None:
     assert FINITE_HORIZON_RESIDUAL_OBSERVATION_DIM == RESIDUAL_OBSERVATION_DIM == 2_171
     np.testing.assert_array_equal(finite_observation, legacy_observation)
     assert finite_observation[OBSERVATION_DIM + 10] == np.float32(1.0)
+
+
+def test_four_state_finite_horizon_is_2172d_terminal_and_heading_feedback_free() -> None:
+    plant = _FakePlant([0.0, 1.1, 2.1, 2.2, 2.3])
+    oracle = _four_state_oracle()
+    env = GMTResidualEnv(
+        plant=plant,
+        actor=_FakeActorSession(),
+        oracle=oracle,
+        task=_task(horizon_steps=4),
+        recipe=TaskRewardRecipe(1.0, 1.0, 1.0, 1.0, 1.0),
+        runtime=FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    )
+
+    observation, reset_info = env.reset(seed=7)
+    modes = []
+    for step in range(4):
+        observation, _reward, terminated, truncated, info = env.step(_zero_action())
+        modes.append(info["executed_mode"])
+        assert AFTER_HEADING_FEEDBACK_TRACE_KEY not in info
+        assert observation.shape == (2_172,)
+        assert (terminated, truncated) == ((step == 3), False)
+
+    assert FOUR_STATE_FINITE_HORIZON_OBSERVATION_DIM == 2_172
+    assert modes == ["before", "inside", "rise", "after"]
+    assert reset_info["course_runtime"] == FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract()
 
 
 def test_task_region_comes_from_actual_position_not_oracle_mode() -> None:

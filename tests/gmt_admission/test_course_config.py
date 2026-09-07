@@ -11,6 +11,8 @@ from oracle_composition.adapters.gmt.course_runtime import (
     AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
     FINITE_HORIZON_RUNTIME,
     FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     LOOP_RUNTIME_PROFILE_ID,
@@ -376,6 +378,79 @@ def _enable_after_heading_feedback_runtime(raw: dict) -> None:
         {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2.05"},
         {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 24"},
     ]
+
+
+def _enable_four_state_finite_horizon_runtime(raw: dict) -> None:
+    _enable_after_heading_feedback_runtime(raw)
+    raw["schema_version"] = 5
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    }
+
+
+def test_config_v5_admits_exact_four_state_finite_horizon_training(admitted_config):
+    raw, path = admitted_config
+    _enable_four_state_finite_horizon_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert admitted.runtime.training_admitted is True
+    assert admitted.runtime.after_heading_reference_feedback is False
+    assert admitted.trainer == trainer
+    assert set(admitted.program.states) == {"before", "inside", "rise", "after"}
+    manifest = admitted.runtime.manifest_contract()
+    assert manifest == {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "rise", "after"],
+        "training_admitted": True,
+        "loop_exit_gate": {
+            "guard_sampling": "fresh_signals_only_at_first_50hz_boundary_crossing_loop_end",
+            "float32_boundary_tolerance": "four_eps_times_max_source_end_or_one",
+            "maximum_deferral": "one_loop_period_plus_one_control_interval",
+            "control_interval_seconds": 0.02,
+        },
+        "termination": {
+            "fall": "terminated",
+            "intrinsic_horizon": "terminated",
+            "truncated": False,
+            "remaining_time_observation": "task_features.remaining_horizon_fraction",
+        },
+    }
+    assert "after_heading_reference_feedback" not in manifest
+    assert LOOP_RUNTIME.training_admitted is False
+
+
+def test_config_v5_requires_exact_profile_and_exact_four_states(admitted_config):
+    raw, path = admitted_config
+    _enable_four_state_finite_horizon_runtime(raw)
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "heading_feedback": False,
+    }
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+    _enable_four_state_finite_horizon_runtime(raw)
+    del raw["oracle"]["states"]["rise"]
+    raw["oracle"]["transitions"] = [
+        raw["oracle"]["transitions"][0],
+        {"from": "inside", "to": "after", "priority": 0, "guard": "x_travelled >= 2"},
+    ]
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="exact four-state"):
+        module.load_run_config(path)
 
 
 def test_config_v4_admits_only_exact_four_state_probe_with_fixed_law(admitted_config):

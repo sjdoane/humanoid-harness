@@ -14,11 +14,13 @@ LEGACY_CONFIG_SCHEMA_VERSION = 1
 LOOP_CONFIG_SCHEMA_VERSION = 2
 FINITE_HORIZON_CONFIG_SCHEMA_VERSION = 3
 AFTER_HEADING_FEEDBACK_CONFIG_SCHEMA_VERSION = 4
+FOUR_STATE_FINITE_HORIZON_CONFIG_SCHEMA_VERSION = 5
 LOOP_RUNTIME_PROFILE_ID = "gmt_g1_four_state_loop_course/v1"
 FINITE_HORIZON_RUNTIME_PROFILE_ID = "gmt_g1_three_state_finite_horizon_course/v1"
 AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID = (
     "gmt_g1_four_state_loop_after_heading_feedback_course/v1"
 )
+FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID = "gmt_g1_four_state_finite_horizon_course/v1"
 LEGACY_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_and_boundary/v2"
 LOOP_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_loop_boundary/v3"
 LEGACY_GYM_RUNTIME_ID = "gmt_g1_residual_course_50hz/v1"
@@ -26,6 +28,9 @@ LOOP_GYM_RUNTIME_ID = "gmt_g1_residual_course_four_state_50hz/v2"
 FINITE_HORIZON_GYM_RUNTIME_ID = "gmt_g1_residual_course_three_state_finite_horizon_50hz/v1"
 AFTER_HEADING_FEEDBACK_GYM_RUNTIME_ID = (
     "gmt_g1_residual_course_four_state_after_heading_feedback_50hz/v1"
+)
+FOUR_STATE_FINITE_HORIZON_GYM_RUNTIME_ID = (
+    "gmt_g1_residual_course_four_state_finite_horizon_50hz/v1"
 )
 COURSE_RESIDUAL_RAW_SCALE = 0.25
 LEGACY_STATE_SLOTS = ("before", "inside", "after")
@@ -43,6 +48,10 @@ _AFTER_HEADING_FEEDBACK_CONFIG_VALUE = {
     "schema_version": 1,
     "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
 }
+_FOUR_STATE_FINITE_HORIZON_CONFIG_VALUE = {
+    "schema_version": 1,
+    "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +64,7 @@ class CourseRuntimeProfile:
     gym_runtime_id: str
     state_slots: tuple[str, ...]
     permits_entry_loop: bool
+    requires_exact_state_slots: bool
     training_admitted: bool
     intrinsic_horizon_termination: bool
     after_heading_reference_feedback: bool
@@ -73,23 +83,26 @@ class CourseRuntimeProfile:
             return dict(_FINITE_HORIZON_CONFIG_VALUE)
         if self.profile_id == AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID:
             return dict(_AFTER_HEADING_FEEDBACK_CONFIG_VALUE)
+        if self.profile_id == FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID:
+            return dict(_FOUR_STATE_FINITE_HORIZON_CONFIG_VALUE)
         raise ValueError("course runtime profile is not admitted")
 
     def validate_states(self, states: Mapping[str, object]) -> None:
         observed = set(states)
-        if self.after_heading_reference_feedback:
-            if observed != frozenset(LOOP_STATE_SLOTS):
-                raise ValueError(
-                    "heading-feedback runtime requires the exact four-state course"
+        if self.requires_exact_state_slots:
+            if observed != frozenset(self.state_slots):
+                family = (
+                    "heading-feedback runtime"
+                    if self.after_heading_reference_feedback
+                    else "four-state finite-horizon runtime"
                 )
+                raise ValueError(f"{family} requires the exact four-state course")
             return
         valid = observed == _REQUIRED_STATES
         if self.permits_entry_loop:
             valid = valid or observed == frozenset(LOOP_STATE_SLOTS)
         if not valid:
-            family = (
-                "three-state or four-state loop" if self.permits_entry_loop else "three-state"
-            )
+            family = "three-state or four-state loop" if self.permits_entry_loop else "three-state"
             raise ValueError(f"oracle states differ from the {family} runtime profile")
 
     def validate_program(self, program: OracleProgram) -> None:
@@ -141,6 +154,7 @@ LEGACY_RUNTIME = CourseRuntimeProfile(
     gym_runtime_id=LEGACY_GYM_RUNTIME_ID,
     state_slots=LEGACY_STATE_SLOTS,
     permits_entry_loop=False,
+    requires_exact_state_slots=False,
     training_admitted=True,
     intrinsic_horizon_termination=False,
     after_heading_reference_feedback=False,
@@ -152,6 +166,7 @@ LOOP_RUNTIME = CourseRuntimeProfile(
     gym_runtime_id=LOOP_GYM_RUNTIME_ID,
     state_slots=LOOP_STATE_SLOTS,
     permits_entry_loop=True,
+    requires_exact_state_slots=False,
     training_admitted=False,
     intrinsic_horizon_termination=False,
     after_heading_reference_feedback=False,
@@ -163,6 +178,7 @@ FINITE_HORIZON_RUNTIME = CourseRuntimeProfile(
     gym_runtime_id=FINITE_HORIZON_GYM_RUNTIME_ID,
     state_slots=LEGACY_STATE_SLOTS,
     permits_entry_loop=False,
+    requires_exact_state_slots=False,
     training_admitted=True,
     intrinsic_horizon_termination=True,
     after_heading_reference_feedback=False,
@@ -174,9 +190,22 @@ AFTER_HEADING_FEEDBACK_RUNTIME = CourseRuntimeProfile(
     gym_runtime_id=AFTER_HEADING_FEEDBACK_GYM_RUNTIME_ID,
     state_slots=LOOP_STATE_SLOTS,
     permits_entry_loop=True,
+    requires_exact_state_slots=True,
     training_admitted=False,
     intrinsic_horizon_termination=False,
     after_heading_reference_feedback=True,
+)
+FOUR_STATE_FINITE_HORIZON_RUNTIME = CourseRuntimeProfile(
+    config_schema_version=FOUR_STATE_FINITE_HORIZON_CONFIG_SCHEMA_VERSION,
+    profile_id=FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    composition_runtime_id=LOOP_COMPOSITION_RUNTIME_ID,
+    gym_runtime_id=FOUR_STATE_FINITE_HORIZON_GYM_RUNTIME_ID,
+    state_slots=LOOP_STATE_SLOTS,
+    permits_entry_loop=True,
+    requires_exact_state_slots=True,
+    training_admitted=True,
+    intrinsic_horizon_termination=True,
+    after_heading_reference_feedback=False,
 )
 
 
@@ -220,6 +249,16 @@ def runtime_profile_from_config(value: Mapping[str, object]) -> CourseRuntimePro
         ):
             raise ValueError("course after-heading-feedback runtime profile differs")
         return AFTER_HEADING_FEEDBACK_RUNTIME
+    if schema_version == FOUR_STATE_FINITE_HORIZON_CONFIG_SCHEMA_VERSION:
+        runtime = value.get("runtime")
+        if (
+            type(runtime) is not dict
+            or set(runtime) != set(_FOUR_STATE_FINITE_HORIZON_CONFIG_VALUE)
+            or type(runtime.get("schema_version")) is not int
+            or runtime != _FOUR_STATE_FINITE_HORIZON_CONFIG_VALUE
+        ):
+            raise ValueError("course four-state finite-horizon runtime profile differs")
+        return FOUR_STATE_FINITE_HORIZON_RUNTIME
     raise ValueError("course run schema version differs")
 
 
@@ -254,6 +293,10 @@ __all__ = [
     "FINITE_HORIZON_GYM_RUNTIME_ID",
     "FINITE_HORIZON_RUNTIME",
     "FINITE_HORIZON_RUNTIME_PROFILE_ID",
+    "FOUR_STATE_FINITE_HORIZON_CONFIG_SCHEMA_VERSION",
+    "FOUR_STATE_FINITE_HORIZON_GYM_RUNTIME_ID",
+    "FOUR_STATE_FINITE_HORIZON_RUNTIME",
+    "FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID",
     "LEGACY_COMPOSITION_RUNTIME_ID",
     "LEGACY_CONFIG_SCHEMA_VERSION",
     "LEGACY_GYM_RUNTIME_ID",
