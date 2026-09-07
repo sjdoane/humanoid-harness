@@ -30,6 +30,30 @@ experiment authorization, or proof that a cited method transfers to GMT.
 
 ## Separate candidates, not a combined patch
 
+Post-hoc root readback, 13:08 UTC: all 1,000 lateral samples per trace were
+reconstructed from retained qpos and reset `TaskFrame`, matching recorded
+metrics within 1e-12 m. Switch handovers below are **pre-action** boundaries;
+first-failure times are post-step. Three deterministic traces, no uncertainty
+estimate. Evidence: linked Study018 result and
+[Study016 receipts](../../../experiments/016_g1_after_feedback/RESULTS.md).
+
+| Trace | First lateral-limit failure | After-entry lateral / heading |
+|---|---|---|
+| O7b zero residual | Inside, action index213;4.28 s | Index263;1.410961 m /0.092443 rad |
+| Study018 trained A | Inside, action index195;3.92 s | Index268;2.305469 m /0.169542 rad |
+| Study016 after-only feedback | Inside, action index213;4.28 s | Index263;1.410961 m /0.092443 rad |
+
+- An after-only correction cannot erase an earlier failure on these frozen
+  traces. This does **not** prove that retraining with a new reward cannot
+  change earlier behavior.
+- Earlier steering and mirrored motion are candidate oracle/supply directions,
+  not proven necessities. A yaw-free reference does not establish that the
+  handover turn is unsteerable. Complete019 before choosing another oracle test.
+- Evaluate each retained checkpoint with paired noise before a trainer diagnosis.
+  Early/late training episode shares mix changing policies; they are not exact
+  initial/final checkpoint evaluations. RPL's burn-in argument concerns DDPG,
+  not a demonstrated PPO defect here.
+
 | Candidate | Frozen comparison needed | Discriminating outcome |
 |---|---|---|
 | Earlier entry guard |019 zero-residual oracle pair |Entry-phase manipulation and unchanged physical task metrics |
