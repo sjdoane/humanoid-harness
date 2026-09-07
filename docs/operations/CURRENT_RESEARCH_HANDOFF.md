@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 24 completed training runs; trainer scaling passes all three r1 seed screens. O4b survives its state-aware exit. UI validates 12 selected snapshots; main remains `9188ed0`. |
-| bottleneck | No full G1 task pass. Native Humanoid-v5 remains a separate family: T1 failed its likelihood audit; no qualifying native policy or protected-evaluation result. |
-| next step | Freeze the reviewed depth-reward proposal and a matched O2/O4b x r1/r4 larger-budget study. Native retries remain separate and require repaired/sealed source plus exact run authority. |
+| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 29 completed training runs and a verified composition x depth-reward study. Main remains `9188ed0`; no push. |
+| bottleneck | No full G1 task pass. Longer training falls or stops. Native Humanoid-v5 remains a separate family with an unresolved likelihood audit. |
+| next step | Separate lower-learning-rate training from a probe-only repeatable crouch/rise runtime; preserve all failed controls. |
 
 - Current: [G1 results](../strategy/astra/G1_LEARNING_RESULTS_20260906.md),
   [Astra handoff](dual-orchestration/ASTRA_HANDOFF.md), and the live mailbox.

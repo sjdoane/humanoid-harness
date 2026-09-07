@@ -2,9 +2,16 @@
 
 | status | current truth |
 |---|---|
-| progress | 24 G1 training runs completed (786,432 transitions). Three r1 seeds pass the trainer screen; O4b survives both reference transitions. UI validates 12 selected snapshots. |
-| bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Freeze the reviewed r4 proposal and the matched O2/O4b x r1/r4 larger-budget study, then train all four arms. |
+| progress | 29 G1 training runs completed (1,343,488 transitions). Study 006 is fully scored; UI busy handling and reviewed paired scoring are integrated. |
+| bottleneck | No full task pass. Larger-budget arms fall or stop; held-out inputs remain untested. |
+| next step | Study 007 lower-LR profile and a separate probe-only descent/loop/rise runtime; Fable reviews only. |
+
+- All study-006 workers are terminal and the heavy-job slot is free at 00:44 UTC.
+- Current result: `../../../experiments/006_g1_composition_depth/RESULTS.md`.
+- Next fixed experiment: `../../../experiments/007_g1_learning_rate/PROTOCOL.md`.
+- Main remains `9188ed0`; no push. Native family remains separate and blocked.
+- Read the live mailbox and `.orchestration/astra-active-run.json` before dispatch.
+- Entries below retain earlier checkpoints; they are not current launch authority.
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.

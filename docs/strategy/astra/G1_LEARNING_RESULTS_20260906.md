@@ -2,9 +2,16 @@
 
 | status | evidence |
 |---|---|
-| progress | 24 bounded training runs completed (786,432 transitions); all three r1 seeds pass the trainer screen and O4b fixes the observed reference-exit fall. |
-| bottleneck | No policy passes the full posture-course gate. Depth and heading remain unresolved. |
-| next step | Compare O2/O4b and r1/depth-directed r4 at the same larger training budget; retain all four arms. |
+| progress | 29 bounded training runs completed (1,343,488 transitions); the fixed composition/depth-reward study is independently verified. |
+| bottleneck | No full task pass. Longer training falls or stops; zero-residual admission did not guarantee learned transitions. |
+| next step | Test a smaller learning rate separately from a descent/loop/rise oracle runtime. |
+
+- Latest: [composition x depth results](../../../experiments/006_g1_composition_depth/RESULTS.md).
+  Three of four larger arms fall; one stops. All failures are retained.
+- Next: [fixed learning-rate test](../../../experiments/007_g1_learning_rate/PROTOCOL.md).
+  A repeatable crouch/rise compositor is a separate, initially probe-only family.
+- The following trainer-screen and original factorial records remain valid
+  historical results, not the current best-task claim.
 
 - Latest: [trainer screen](../../../experiments/005_g1_training_conditioning/RESULTS.md)
   and [fixed replication jobs](../../../experiments/005_g1_training_conditioning/REPLICATION.md).
