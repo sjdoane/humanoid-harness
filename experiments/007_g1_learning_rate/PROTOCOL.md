@@ -14,6 +14,8 @@
 | 2 | O4b/r4 | 3e-5 | 131,072 | separate matched rate contrast on the combined candidate |
 
 - Seed `20260906`; final checkpoint only; same static total-reward scale `1/64`.
+- The low-rate arms start fresh from the seeded initial policy. They are not
+  continuations or optimizer resumes of the retained 32k paths.
 - Fixed G1 dynamics/reset/observations/actions, base weights, reference/oracle,
   task recipe, tracking reward, other PPO parameters, evaluator and budget
   within each rate contrast. No repeatable-loop oracle in this study.

@@ -10,6 +10,11 @@
 - Current result: `../../../experiments/006_g1_composition_depth/RESULTS.md`.
 - Next fixed experiment: `../../../experiments/007_g1_learning_rate/PROTOCOL.md`.
 - Main remains `9188ed0`; no push. Native family remains separate and blocked.
+- UI `http://127.0.0.1:8766/`: all 12 current registered snapshots validate
+  (six scaled replication cells, O4b zero reference, pilot, four larger arms).
+  The previous selection is archived locally; no run evidence was removed.
+- UI busy-state fix has executable DOM regression coverage. A new browser
+  screenshot could not be checked because the Mac was locked.
 - Read the live mailbox and `.orchestration/astra-active-run.json` before dispatch.
 - Entries below retain earlier checkpoints; they are not current launch authority.
 

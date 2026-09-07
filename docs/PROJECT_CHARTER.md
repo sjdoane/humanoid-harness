@@ -96,7 +96,11 @@ A task reward is an immutable, executable program with:
 - an independent task metric that the reward cannot edit; and
 - a matched comparison against `r_0` with the oracle frozen.
 
-Reward generation is a program target. It is not implemented yet.
+General reward-program generation remains the research target. The GMT/G1
+adapter now executes bounded, data-only reward recipes and feedback-linked
+LLM revisions. That implemented subset does not admit arbitrary generated
+Python or establish successful task learning. See the
+[current evidence](strategy/astra/G1_LEARNING_RESULTS_20260906.md).
 
 ## Diagnostic dossier
 
@@ -129,7 +133,7 @@ reported as measured.
 
 No higher claim is allowed when a lower gate is missing.
 
-## Current admission experiment
+## Native admission family (historical setup, separate from GMT/G1)
 
 Experiment 001 remains a valid prerequisite:
 
@@ -141,10 +145,16 @@ Experiment 001 remains a valid prerequisite:
   causal use of a time-varying reference;
 - current evidence: interface checks only.
 
-Experiment 002 is the distinct time-varying reference installation and
-causal-use study. The first Family-A oracle comparison is Experiment 003 and
-remains blocked until Experiment 002 passes. The observed immediately falling
-Humanoid does not demonstrate tracker or oracle quality.
+Experiment 002 is the distinct native time-varying reference installation and
+causal-use study. Its admission requirements continue to govern the native
+Experiment 003 family. The observed immediately falling Humanoid does not
+demonstrate tracker or oracle quality.
+
+The separately versioned GMT/G1 adapter now supplies a frozen reference tracker
+for bounded composition/reward learning studies. Its implementation and results
+are recorded in the [current G1 evidence](strategy/astra/G1_LEARNING_RESULTS_20260906.md).
+This does not repair, certify, or substitute for a failed native experiment.
+Both adapters remain subject to the same scientific boundaries above.
 
 ## Deferred scope
 
