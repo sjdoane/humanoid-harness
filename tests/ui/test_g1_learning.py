@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -347,9 +349,7 @@ def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None
 
 
 def test_busy_validation_preserves_last_snapshot_for_manual_retry() -> None:
-    script = (
-        Path(module.__file__).with_name("static") / "app.js"
-    ).read_text(encoding="utf-8")
+    script = (Path(module.__file__).with_name("static") / "app.js").read_text(encoding="utf-8")
     busy_renderer = script.split("function renderG1LearningBusy(payload) {", 1)[1].split(
         "function renderG1Learning(payload) {", 1
     )[0]
@@ -361,3 +361,123 @@ def test_busy_validation_preserves_last_snapshot_for_manual_retry() -> None:
     assert 'if (payload.state === "busy") {' in script
     assert "return false;" in script
     assert "if (snapshotAccepted) g1LearningLoaded = true;" in script
+
+
+def test_busy_validation_dom_state_and_manual_retry() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable")
+    script = (Path(module.__file__).with_name("static") / "app.js").read_text(encoding="utf-8")
+    g1_source = script.split("function g1Text(value, field) {", 1)[1].split(
+        "function renderResults(payload) {", 1
+    )[0]
+    production = (
+        "let g1LearningLoaded = false;\n"
+        "let g1LearningLoading = false;\n"
+        "function g1Text(value, field) {" + g1_source
+    )
+    harness = r"""
+import assert from "node:assert/strict";
+import vm from "node:vm";
+const production = __PRODUCTION__;
+
+function element() {
+  return {
+    children: [], listeners: {}, hidden: false, textContent: "", className: "",
+    append(...values) { this.children.push(...values); },
+    replaceChildren(...values) { this.children = [...values]; },
+    addEventListener(name, listener) { this.listeners[name] = listener; },
+  };
+}
+
+function contextFor(responses) {
+  const elements = new Map();
+  const document = {
+    querySelector(selector) {
+      if (!elements.has(selector)) elements.set(selector, element());
+      return elements.get(selector);
+    },
+    createElement: element,
+    createTextNode(value) { return { textContent: String(value), children: [] }; },
+  };
+  document.querySelector("#g1-learning-results").hidden = true;
+  const queue = [...responses];
+  const context = vm.createContext({
+    document,
+    loadJson: async (url) => {
+      assert.equal(url, "/api/g1-learning");
+      assert.ok(queue.length, "unexpected validation request");
+      return queue.shift();
+    },
+  });
+  vm.runInContext(production, context);
+  vm.runInContext(`
+    appendG1Run = (row) => {
+      const rendered = document.createElement("tr");
+      rendered.runId = row.run_id;
+      const receipt = document.createElement("pre");
+      receipt.textContent = row.receipt;
+      rendered.append(receipt);
+      document.querySelector("#g1-learning-body").append(rendered);
+    };
+  `, context);
+  return { context, document };
+}
+
+function available(runId, receipt) {
+  return {
+    state: "available", authority: "test-authority", validated_at: "test-time",
+    validation: "manual", registry: { sha256: "test-sha", aggregate_source_bytes: 1 },
+    summary: { accepted_runs: 1, rejected_runs: 0, full_task_development_gate_passes: 1 },
+    runs: [{ run_id: runId, receipt }],
+  };
+}
+const busy = { state: "busy", detail: "validation is running", runs: [] };
+const loaded = (context) => vm.runInContext("g1LearningLoaded", context);
+const load = (context) => vm.runInContext("loadG1Learning()", context);
+const retry = (document) => document.querySelector("#g1-learning-refresh").listeners.click();
+
+{
+  const { context, document } = contextFor([
+    available("one", "receipt-one"), busy, available("two", "receipt-two"),
+  ]);
+  await load(context);
+  const results = document.querySelector("#g1-learning-results");
+  const body = document.querySelector("#g1-learning-body");
+  const row = body.children[0];
+  const receipt = row.children[0];
+  await retry(document);
+  assert.equal(results.hidden, false);
+  assert.strictEqual(body.children[0], row);
+  assert.strictEqual(body.children[0].children[0], receipt);
+  assert.equal(receipt.textContent, "receipt-one");
+  assert.equal(document.querySelector("#g1-learning-badge").textContent, "validation busy");
+  assert.match(document.querySelector("#g1-learning-state").textContent, /Showing the last validated snapshot/);
+  assert.equal(loaded(context), true);
+  await retry(document);
+  assert.equal(body.children[0].runId, "two");
+  assert.equal(body.children[0].children[0].textContent, "receipt-two");
+}
+
+{
+  const { context, document } = contextFor([busy, available("after-busy", "receipt-after")]);
+  await load(context);
+  assert.equal(loaded(context), false);
+  assert.equal(document.querySelector("#g1-learning-results").hidden, true);
+  assert.equal(document.querySelector("#g1-learning-body").children.length, 0);
+  assert.match(document.querySelector("#g1-learning-state").textContent, /No validated snapshot is loaded/);
+  await retry(document);
+  assert.equal(loaded(context), true);
+  assert.equal(document.querySelector("#g1-learning-results").hidden, false);
+  assert.equal(document.querySelector("#g1-learning-body").children[0].runId, "after-busy");
+}
+""".replace("__PRODUCTION__", json.dumps(production))
+
+    subprocess.run(
+        [node, "--input-type=module", "-"],
+        input=harness,
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
