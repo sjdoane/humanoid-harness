@@ -51,6 +51,10 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
 
 - Apply to column 6 of every future native row; preserve the other 29 columns,
   float32 shape/order, cadence, and source window. Active only in `after`.
+- Arithmetic: compute target/wrapped correction from float64 state; retain that
+  analytic correction and its float32 applied value. Add the applied correction
+  to native float32 yaw, clip with float32 limits, and retain float32 output.
+  The held poststep target uses the identical operation order.
 - **Correction plus total-rate clipping is the combined manipulation.** The
   clamp can also clip native content above 0.3 rad/s. Report both native-limit
   exceedance and output saturation; do not claim correction-only causality.
