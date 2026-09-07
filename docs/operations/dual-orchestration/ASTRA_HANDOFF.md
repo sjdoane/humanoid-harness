@@ -1,11 +1,30 @@
 # Astra orchestration handoff
 
-| progress | Study 021 predata oracle-exit protocol committed; scorer building in a separate worktree. Training total unchanged: 38 runs / 2,424,832 transitions. |
+| progress | Study 021 scorer integrated; 115 focused/adjacent checks pass locally. Training total unchanged: 38 runs / 2,424,832 transitions. |
 |---|---|
 | bottleneck | No full-task pass. Trained policy falls in 11/16 paired tests versus 5/16 initially. |
-| next step | Finish and independently review the Study 021 scorer, then seal before any new native run. |
+| next step | Close independent scorer review, seal source, then request the one proposal and separate native approvals. |
 
-## Current checkpoint: 2026-09-07 16:00 UTC
+## Current checkpoint: 2026-09-07 16:30 UTC
+
+- Scorer/tests: builder `f1bde0c`, imported exactly as `c46c883`. Builder worktree
+  clean and lease released. Only two new Study 021 files; old scorers unchanged.
+- Root: 115 focused/adjacent tests pass; Ruff checks/format and compilation pass.
+  Imports resolve inside the Astra checkout. Independent Sol final review pending.
+- Predata repairs: exact prior-command float32 clock, strict schema type,
+  reconstructed numeric-window prefix, post-action fall detection boundary,
+  interval-censored contact timing, and negative tests for each screen condition.
+  These clarify measurement; they do not change the candidate or task gates.
+- No Study 021 dynamics, training, final proposal admission or native reservation.
+  Source is not sealed yet. Fable's one proposal remains held until source lock.
+- Fable review request `20260907T161630.263112Z-d7529bb01ad54f25afa00b1d93b4c221`
+  also asks which next intervention could address depth/lateral failures after
+  this bounded screen. No additional candidate or run is authorized by that question.
+- Next sequence: seal reviewed source; request the held proposal; obtain native
+  control approval; finish a separate successful control verification; only then
+  obtain candidate approval and run. End freeze after independent pair scoring.
+
+## Earlier checkpoint: 2026-09-07 16:00 UTC
 
 - Continuity resumed from clean `fc9fff5`. No competing active user turn,
   training process or claimed heavy slot. Root reacquired only its own lease.
