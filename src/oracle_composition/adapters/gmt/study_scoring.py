@@ -16,7 +16,8 @@ from oracle_composition.harness.contract import decode_json_object, read_json_ob
 from .contracts import CONTROL_DT_SECONDS
 from .course_config import load_run_config
 from .training_contract import CourseTrainerSpec, effective_training_contract
-from .training_telemetry import SCALED_TELEMETRY_FILENAME, TELEMETRY_FILENAME
+from .training_normalizer import FIXED_NORMALIZER_STATE_SHA256
+from .training_telemetry import telemetry_filename
 
 PAIR_SCORE_ID = "gmt_g1_course_study_pair_score/v1"
 RESOURCE_RECEIPT_FILENAME = "gmt_probe_resource_receipt_v1.json"
@@ -211,7 +212,14 @@ def _resource_linkage(
 def _updates(
     run_root: Path, manifest: dict[str, object], trainer: CourseTrainerSpec | None
 ) -> dict[str, object]:
-    filename = SCALED_TELEMETRY_FILENAME if trainer is not None else TELEMETRY_FILENAME
+    filename = telemetry_filename(
+        reward_scale=(trainer.total_training_reward_scale if trainer is not None else None),
+        fixed_normalizer_sha256=(
+            FIXED_NORMALIZER_STATE_SHA256
+            if trainer is not None and trainer.uses_fixed_observation_normalizer
+            else None
+        ),
+    )
     outputs = manifest["outputs"]
     if type(outputs) is not dict or filename not in outputs:
         raise ValueError("study scoring requires version-matched training telemetry")

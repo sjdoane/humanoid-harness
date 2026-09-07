@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 
@@ -7,8 +8,15 @@ import numpy as np
 import pytest
 import torch
 
+from oracle_composition.adapters.gmt import training_normalizer as normalizer_module
+from oracle_composition.adapters.gmt import training_telemetry as telemetry_module
 from oracle_composition.adapters.gmt.training_contract import TRAINING_REWARD_SCALE
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FixedNormalizerState,
+    normalizer_state_sha256,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     EpisodeAccumulator,
@@ -66,6 +74,25 @@ def _numpy_state_equal(left: tuple, right: tuple) -> bool:
         and np.array_equal(left[1], right[1])
         and left[2:] == right[2:]
     )
+
+
+def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
+    mean = np.linspace(-1.0, 1.0, 2154, dtype="<f4")
+    std = np.linspace(0.01, 1.0, 2154, dtype="<f4")
+    digest = normalizer_state_sha256(mean, std)
+    monkeypatch.setattr(normalizer_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_MEAN_SHA256",
+        hashlib.sha256(mean.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_STD_SHA256",
+        hashlib.sha256(std.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(telemetry_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    return FixedNormalizerState.from_arrays(mean, std, expected_sha256=digest)
 
 
 def test_measurements_do_not_consume_python_numpy_or_torch_rng(tmp_path) -> None:
@@ -195,6 +222,79 @@ def test_scaled_v2_telemetry_names_ppo_input_and_raw_environment_returns(tmp_pat
     )
     with pytest.raises(ValueError, match="identity"):
         validate_training_telemetry(path.read_bytes(), 512)
+
+
+def test_v3_records_only_current_raw_rollout_fixed_normalized_range(
+    tmp_path, monkeypatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    observations = np.zeros((2, 2171), dtype=np.float32)
+    observations[:, :2154] = state.mean + np.float32(2.0) * (
+        state.standard_deviation + np.float32(1.0e-4)
+    )
+    observations[:, 2154:] = 1.0e6
+    path = tmp_path / FIXED_NORMALIZER_TELEMETRY_FILENAME
+    with TrainingTelemetry(
+        path,
+        reward_scale=TRAINING_REWARD_SCALE,
+        fixed_normalizer=state,
+    ) as telemetry:
+        telemetry.rollout_boundary(512, observations, {}, None)
+        telemetry.final_update({}, None)
+        descriptor = telemetry.descriptor(512)
+
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    measured = rows[0]["fixed_normalized_base_range"]
+    assert measured["source"] == "current_rollout_buffer_raw_observations"
+    assert measured["normalizer_state_sha256"] == state.sha256
+    assert measured["maximum_absolute_value"] == pytest.approx(2.0, abs=2.0e-6)
+    assert descriptor["telemetry_id"] == "gmt_g1_ppo_training_telemetry/v3"
+    assert descriptor["schema_version"] == 2
+    assert descriptor["fixed_normalizer_state_sha256"] == state.sha256
+    validate_training_telemetry_descriptor(
+        descriptor,
+        path.read_bytes(),
+        512,
+        reward_scale=TRAINING_REWARD_SCALE,
+        fixed_normalizer_sha256=state.sha256,
+    )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "digest", "negative", "extra"])
+def test_v3_rejects_unbound_or_invalid_normalized_range(
+    tmp_path, monkeypatch, mutation: str
+) -> None:
+    state = _fixed_state(monkeypatch)
+    path = tmp_path / FIXED_NORMALIZER_TELEMETRY_FILENAME
+    with TrainingTelemetry(
+        path,
+        reward_scale=TRAINING_REWARD_SCALE,
+        fixed_normalizer=state,
+    ) as telemetry:
+        telemetry.rollout_boundary(512, _observations(), {}, None)
+        telemetry.final_update({}, None)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    measured = rows[0]["fixed_normalized_base_range"]
+    if mutation == "missing":
+        rows[0].pop("fixed_normalized_base_range")
+    elif mutation == "digest":
+        measured["normalizer_state_sha256"] = "0" * 64
+    elif mutation == "negative":
+        measured["maximum_absolute_value"] = -1.0
+    else:
+        measured["threshold_passed"] = True
+    encoded = b"".join(
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        for row in rows
+    )
+
+    with pytest.raises(ValueError, match="rollout telemetry"):
+        validate_training_telemetry(
+            encoded,
+            512,
+            reward_scale=TRAINING_REWARD_SCALE,
+            fixed_normalizer_sha256=state.sha256,
+        )
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from oracle_composition.adapters.gmt import training_normalizer as normalizer_module
+from oracle_composition.adapters.gmt import training_telemetry as telemetry_module
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
@@ -28,7 +30,13 @@ from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
     training_reward_metadata,
 )
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FixedNormalizerState,
+    fixed_normalizer_policy_metadata,
+    normalizer_state_sha256,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -130,6 +138,28 @@ def _write_frames(path: Path, rows: list[dict]) -> str:
     return sha256_file(path)
 
 
+def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
+    mean = np.linspace(-1.0, 1.0, 2154, dtype="<f4")
+    standard_deviation = np.linspace(0.01, 1.0, 2154, dtype="<f4")
+    digest = normalizer_state_sha256(mean, standard_deviation)
+    monkeypatch.setattr(normalizer_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_MEAN_SHA256",
+        hashlib.sha256(mean.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_STD_SHA256",
+        hashlib.sha256(standard_deviation.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(telemetry_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    monkeypatch.setattr(module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    return FixedNormalizerState.from_arrays(
+        mean, standard_deviation, expected_sha256=digest
+    )
+
+
 def _run_fixture(
     root: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -138,6 +168,7 @@ def _run_fixture(
     telemetry: bool = False,
     scaled: bool = False,
     low_rate: bool = False,
+    fixed_normalizer: bool = False,
     loop_runtime: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
@@ -151,7 +182,7 @@ def _run_fixture(
         horizon_steps=4,
     )
     recipe = TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0)
-    if loop_runtime and (telemetry or scaled):
+    if loop_runtime and (telemetry or scaled or fixed_normalizer):
         raise ValueError("loop fixture is probe-only")
     runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
     mode = "probe" if loop_runtime else "train"
@@ -171,9 +202,9 @@ def _run_fixture(
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
-            profile_version=2 if low_rate else 1,
+            profile_version=3 if fixed_normalizer else 2 if low_rate else 1,
         )
-        if scaled
+        if scaled or fixed_normalizer
         else None
     )
     if trainer is not None:
@@ -221,17 +252,40 @@ def _run_fixture(
             root / f"{label}_evaluation.json", summary
         )
         summaries[label] = summary
+    fixed_state = _fixed_state(monkeypatch) if fixed_normalizer else None
     if not loop_runtime:
         for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
-            (root / name).write_bytes(b"numeric policy fixture")
+            if fixed_state is None:
+                (root / name).write_bytes(b"numeric policy fixture")
+            else:
+                arrays = {
+                    f"{prefix}.{suffix}": (
+                        fixed_state.mean
+                        if suffix == "normalizer_mean"
+                        else fixed_state.standard_deviation
+                    )
+                    for prefix in (
+                        "features_extractor",
+                        "pi_features_extractor",
+                        "vf_features_extractor",
+                    )
+                    for suffix in ("normalizer_mean", "normalizer_std")
+                }
+                np.savez(root / name, **arrays)
             outputs[name] = _sha(root / name)
     training = None if loop_runtime else {"completed_transitions": 512}
     if telemetry:
-        telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
-        reward_scale = TRAINING_REWARD_SCALE if scaled else None
+        telemetry_filename = (
+            FIXED_NORMALIZER_TELEMETRY_FILENAME
+            if fixed_normalizer
+            else SCALED_TELEMETRY_FILENAME
+            if scaled
+            else TELEMETRY_FILENAME
+        )
+        reward_scale = TRAINING_REWARD_SCALE if trainer is not None else None
         info = {"metrics": rows[-1]["metrics"]}
         observed_reward = 1.25
-        if scaled:
+        if trainer is not None:
             observed_reward = float(np.float32(64.0 * TRAINING_REWARD_SCALE))
             info["training_reward"] = {
                 "schema_id": "gmt_g1_training_reward_observation/v1",
@@ -240,7 +294,9 @@ def _run_fixture(
                 "total_training_reward_scale": TRAINING_REWARD_SCALE,
             }
         with TrainingTelemetry(
-            root / telemetry_filename, reward_scale=reward_scale
+            root / telemetry_filename,
+            reward_scale=reward_scale,
+            fixed_normalizer=fixed_state,
         ) as writer:
             writer.observe_step([observed_reward], [True], [info])
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
@@ -260,6 +316,9 @@ def _run_fixture(
     if trainer is not None:
         assert training is not None
         training["reward_preconditioning"] = training_reward_metadata(trainer)
+    if fixed_state is not None:
+        assert training is not None
+        training["observation_preconditioning"] = fixed_normalizer_policy_metadata()
     manifest = {
         "schema_version": 1,
         "artifact": "gmt_g1_course_development_run",
@@ -425,6 +484,54 @@ def test_feedback_accepts_exact_low_rate_trainer_receipts(tmp_path, monkeypatch)
     )
 
     assert result["feedback"]["sha256"] == _sha(tmp_path / "feedback/feedback_v1.json")
+
+
+def test_feedback_accepts_exact_fixed_normalizer_receipts_and_descriptive_range(
+    tmp_path, monkeypatch
+) -> None:
+    manifest, digest, _ = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        fixed_normalizer=True,
+    )
+
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=tmp_path / "feedback",
+    )
+
+    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())[
+        "diagnosis"
+    ]
+    assert "Fixed-normalized base-slice maximum absolute value" in diagnosis
+    assert "descriptive, not a safety threshold" in diagnosis
+
+
+def test_feedback_rejects_changed_fixed_normalizer_metadata(
+    tmp_path, monkeypatch
+) -> None:
+    manifest_path, _, _ = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        fixed_normalizer=True,
+    )
+    manifest = json.loads(manifest_path.read_text())
+    manifest["training"]["observation_preconditioning"][
+        "normalizer_state_sha256"
+    ] = "0" * 64
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="observation preconditioning"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
 
 
 def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:

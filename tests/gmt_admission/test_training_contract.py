@@ -6,14 +6,22 @@ import pytest
 
 from oracle_composition.adapters.gmt.training_contract import (
     BASE_LEARNING_RATE,
+    EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID,
     EFFECTIVE_RATE_TRAINING_CONTRACT_ID,
     LOW_LEARNING_RATE,
+    TRAINER_FIXED_NORMALIZER_SCHEMA_ID,
     TRAINER_RATE_SCHEMA_ID,
     TRAINING_CONTRACT,
     TRAINING_REWARD_SCALE,
     CourseTrainerSpec,
     effective_training_contract,
     training_reward_metadata,
+)
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FIXED_NORMALIZER_ID,
+    FIXED_NORMALIZER_MEAN_SHA256,
+    FIXED_NORMALIZER_STATE_SHA256,
+    FIXED_NORMALIZER_STD_SHA256,
 )
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 
@@ -71,8 +79,62 @@ def test_v2_rejects_every_nonexact_learning_rate(rate: object) -> None:
 
 def test_trainer_rejects_unadmitted_versions_and_fields() -> None:
     with pytest.raises(ValueError, match="version"):
-        CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=3)
+        CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=4)
     value = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=2).to_dict()
     value["schedule"] = "linear"
     with pytest.raises(ValueError, match="v2 profile"):
         CourseTrainerSpec.from_dict(value)
+
+
+def test_v3_is_one_exact_fixed_actor_normalizer_profile() -> None:
+    spec = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=3)
+
+    assert spec.to_dict() == {
+        "schema_id": TRAINER_FIXED_NORMALIZER_SCHEMA_ID,
+        "schema_version": 3,
+        "total_training_reward_scale": TRAINING_REWARD_SCALE,
+        "learning_rate": LOW_LEARNING_RATE,
+        "observation_preconditioning": FIXED_NORMALIZER_ID,
+    }
+    assert CourseTrainerSpec.from_dict(spec.to_dict()) == spec
+    effective = effective_training_contract(spec)
+    assert effective["schema_id"] == EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID
+    assert effective["schema_version"] == 4
+    assert effective["base_ppo_contract"]["observation_normalization"] == (
+        FIXED_NORMALIZER_ID
+    )
+    normalizer = effective["observation_preconditioning"]
+    assert normalizer["normalizer_state_sha256"] == FIXED_NORMALIZER_STATE_SHA256
+    assert normalizer["features_extractor"]["trainable_parameter_count"] == 0
+    assert normalizer["buffers"] == {
+        "normalizer_mean": {
+            "sha256": FIXED_NORMALIZER_MEAN_SHA256,
+            "dtype": "<f4",
+            "shape": [2154],
+        },
+        "normalizer_std": {
+            "sha256": FIXED_NORMALIZER_STD_SHA256,
+            "dtype": "<f4",
+            "shape": [2154],
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("schema_version", True),
+        ("schema_version", 3.0),
+        ("observation_preconditioning", "other"),
+        ("learning_rate", True),
+        ("learning_rate", float("nan")),
+    ],
+)
+def test_v3_rejects_malformed_or_authored_profile_fields(
+    field: str, value: object
+) -> None:
+    raw = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=3).to_dict()
+    raw[field] = value
+
+    with pytest.raises(ValueError, match="trainer"):
+        CourseTrainerSpec.from_dict(raw)

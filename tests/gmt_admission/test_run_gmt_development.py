@@ -12,6 +12,8 @@ from typing import Any
 import numpy as np
 import pytest
 
+from oracle_composition.adapters.gmt import training_normalizer as normalizer_module
+from oracle_composition.adapters.gmt import training_telemetry as telemetry_module
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
     LEGACY_RUNTIME,
@@ -24,7 +26,13 @@ from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
     training_reward_metadata,
 )
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FixedNormalizerState,
+    fixed_normalizer_policy_metadata,
+    normalizer_state_sha256,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -56,6 +64,7 @@ def _loaded(
     *,
     scaled: bool = False,
     low_rate: bool = False,
+    fixed_normalizer: bool = False,
     loop_runtime: bool = False,
 ) -> Any:
     config_path = tmp_path / "config.json"
@@ -71,7 +80,7 @@ def _loaded(
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
-            profile_version=2 if low_rate else 1,
+            profile_version=3 if fixed_normalizer else 2 if low_rate else 1,
         )
         if scaled
         else None
@@ -107,9 +116,16 @@ def _plan(
     mode: str = "probe",
     *,
     scaled: bool = False,
+    fixed_normalizer: bool = False,
     loop_runtime: bool = False,
 ) -> tuple[Any, Any]:
-    loaded = _loaded(tmp_path, mode, scaled=scaled, loop_runtime=loop_runtime)
+    loaded = _loaded(
+        tmp_path,
+        mode,
+        scaled=scaled,
+        fixed_normalizer=fixed_normalizer,
+        loop_runtime=loop_runtime,
+    )
     output = tmp_path / "output"
     output.mkdir()
     config_path = tmp_path / "config.json"
@@ -176,7 +192,35 @@ def _summary(*, residual_rms: float) -> dict[str, object]:
     }
 
 
-def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> dict[str, object]:
+def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
+    mean = np.linspace(-1.0, 1.0, 2154, dtype="<f4")
+    standard_deviation = np.linspace(0.01, 1.0, 2154, dtype="<f4")
+    digest = normalizer_state_sha256(mean, standard_deviation)
+    monkeypatch.setattr(normalizer_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_MEAN_SHA256",
+        hashlib.sha256(mean.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(
+        normalizer_module,
+        "FIXED_NORMALIZER_STD_SHA256",
+        hashlib.sha256(standard_deviation.tobytes()).hexdigest(),
+    )
+    monkeypatch.setattr(telemetry_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    monkeypatch.setattr(DEVELOPMENT, "FIXED_NORMALIZER_STATE_SHA256", digest)
+    return FixedNormalizerState.from_arrays(
+        mean, standard_deviation, expected_sha256=digest
+    )
+
+
+def _write_course_result(
+    plan: Any,
+    loaded: Any,
+    *,
+    telemetry: bool = False,
+    fixed_state: FixedNormalizerState | None = None,
+) -> dict[str, object]:
     output = plan.config.output_directory
     (output / DEVELOPMENT.supervisor.STDOUT_FILENAME).write_text("{}\n", encoding="utf-8")
     (output / DEVELOPMENT.supervisor.STDERR_FILENAME).write_text("", encoding="utf-8")
@@ -185,7 +229,9 @@ def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> 
         if loaded.course_mode == "probe"
         else (
             (
-                DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
+                DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+                if fixed_state is not None
+                else DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
                 if loaded.course_trainer is not None
                 else DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
             )
@@ -195,10 +241,20 @@ def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> 
     )
     telemetry_descriptor = None
     scaled = loaded.course_trainer is not None
-    telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
+    telemetry_filename = (
+        FIXED_NORMALIZER_TELEMETRY_FILENAME
+        if fixed_state is not None
+        else SCALED_TELEMETRY_FILENAME
+        if scaled
+        else TELEMETRY_FILENAME
+    )
     if telemetry:
         reward_scale = TRAINING_REWARD_SCALE if scaled else None
-        with TrainingTelemetry(output / telemetry_filename, reward_scale=reward_scale) as writer:
+        with TrainingTelemetry(
+            output / telemetry_filename,
+            reward_scale=reward_scale,
+            fixed_normalizer=fixed_state,
+        ) as writer:
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
             writer.final_update({}, None)
             telemetry_descriptor = writer.descriptor(512)
@@ -207,8 +263,30 @@ def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> 
         path = output / name
         if name == "input_config.json":
             path.write_bytes((Path(plan.inputs["config"]["path"])).read_bytes())
-        elif name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}:
+        elif name in {
+            TELEMETRY_FILENAME,
+            SCALED_TELEMETRY_FILENAME,
+            FIXED_NORMALIZER_TELEMETRY_FILENAME,
+        }:
             pass
+        elif fixed_state is not None and name in {
+            "initial_residual_policy.npz",
+            "final_residual_policy.npz",
+        }:
+            arrays = {
+                f"{prefix}.{suffix}": (
+                    fixed_state.mean
+                    if suffix == "normalizer_mean"
+                    else fixed_state.standard_deviation
+                )
+                for prefix in (
+                    "features_extractor",
+                    "pi_features_extractor",
+                    "vf_features_extractor",
+                )
+                for suffix in ("normalizer_mean", "normalizer_std")
+            }
+            np.savez(path, **arrays)
         else:
             path.write_bytes(f"fixture:{name}".encode())
         outputs[name] = _digest(path)
@@ -227,6 +305,10 @@ def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> 
             training["telemetry"] = telemetry_descriptor
         if loaded.course_trainer is not None:
             training["reward_preconditioning"] = training_reward_metadata(loaded.course_trainer)
+        if fixed_state is not None:
+            training["observation_preconditioning"] = (
+                fixed_normalizer_policy_metadata()
+            )
         final_policy = _summary(residual_rms=0.02)
     manifest = {
         "schema_version": 1,
@@ -308,6 +390,67 @@ def test_course_verifier_accepts_exact_scaled_trainer_and_v2_telemetry(
 
     assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
     assert artifacts["outputs"][SCALED_TELEMETRY_FILENAME]["size"] > 0
+
+
+def test_course_verifier_accepts_exact_v3_normalizer_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    plan, loaded = _plan(
+        tmp_path,
+        mode="train",
+        scaled=True,
+        fixed_normalizer=True,
+    )
+    _write_course_result(plan, loaded, telemetry=True, fixed_state=state)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == (
+        DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+    )
+    assert artifacts["outputs"][FIXED_NORMALIZER_TELEMETRY_FILENAME]["size"] > 0
+
+
+@pytest.mark.parametrize("mutation", ["metadata", "policy"])
+def test_course_verifier_rejects_changed_v3_normalizer_receipts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    state = _fixed_state(monkeypatch)
+    plan, loaded = _plan(
+        tmp_path,
+        mode="train",
+        scaled=True,
+        fixed_normalizer=True,
+    )
+    manifest = _write_course_result(
+        plan, loaded, telemetry=True, fixed_state=state
+    )
+    if mutation == "metadata":
+        manifest["training"]["observation_preconditioning"][
+            "normalizer_state_sha256"
+        ] = "0" * 64
+    else:
+        path = plan.config.output_directory / "final_residual_policy.npz"
+        with np.load(path, allow_pickle=False) as archive:
+            arrays = {name: archive[name].copy() for name in archive.files}
+        arrays["features_extractor.normalizer_mean"][0] += np.float32(1.0)
+        path.unlink()
+        np.savez(path, **arrays)
+        manifest["outputs"][path.name] = _digest(path)
+    _write_json(
+        plan.config.output_directory / DEVELOPMENT.COURSE_MANIFEST_FILENAME,
+        manifest,
+    )
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    with pytest.raises(
+        DEVELOPMENT.supervisor.ProbeError, match=r"normalizer|preconditioning"
+    ):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 @pytest.mark.parametrize("mutation", ["missing_telemetry", "metadata", "runtime"])

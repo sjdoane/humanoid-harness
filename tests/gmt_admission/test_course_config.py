@@ -147,6 +147,23 @@ def test_exact_low_rate_trainer_profile_is_admitted_without_rewriting_input(
     assert admitted.trainer == trainer
 
 
+def test_exact_fixed_normalizer_trainer_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == trainer
+
+
 @pytest.mark.parametrize("scale", [1.0, True, float("nan"), float("inf"), "0.015625"])
 def test_unadmitted_training_reward_scales_fail_closed(admitted_config, scale):
     raw, path = admitted_config

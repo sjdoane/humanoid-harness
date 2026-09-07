@@ -21,6 +21,7 @@ from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -28,6 +29,7 @@ from oracle_composition.adapters.gmt.training_telemetry import (
 )
 from oracle_composition.feedback import g1_course
 from tests.feedback.test_g1_course_feedback import (
+    _fixed_state,
     _run_fixture,
     _write_frames,
     _write_json,
@@ -469,6 +471,32 @@ def test_missing_explained_variance_is_unavailable_not_a_numeric_failure(
     assert learning["explained_variance_last16_mean"] is None
     assert learning["explained_variance_last16_available"] is False
     assert learning["explained_variance_last16_at_least_0_5"] is False
+
+
+def test_updates_select_exact_v3_fixed_normalizer_telemetry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    monkeypatch.setattr(module, "FIXED_NORMALIZER_STATE_SHA256", state.sha256)
+    path = tmp_path / FIXED_NORMALIZER_TELEMETRY_FILENAME
+    with TrainingTelemetry(
+        path,
+        reward_scale=TRAINING_REWARD_SCALE,
+        fixed_normalizer=state,
+    ) as telemetry:
+        telemetry.rollout_boundary(
+            512, np.zeros((1, 2171), dtype=np.float32), {}, None
+        )
+        telemetry.final_update({}, None)
+
+    learning = module._updates(
+        tmp_path,
+        {"outputs": {path.name: _sha(path)}},
+        CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=3),
+    )
+
+    assert learning["telemetry_path"] == FIXED_NORMALIZER_TELEMETRY_FILENAME
+    assert learning["update_count"] == 1
 
 
 def test_pair_rejects_mismatched_seed_before_reading_runs(

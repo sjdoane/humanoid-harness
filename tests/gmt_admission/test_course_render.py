@@ -105,6 +105,7 @@ def _fixture(
     contact_substeps: int = 20,
     scaled: bool = False,
     low_rate: bool = False,
+    fixed_normalizer: bool = False,
     loop_runtime: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
@@ -131,9 +132,9 @@ def _fixture(
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
-            profile_version=2 if low_rate else 1,
+            profile_version=3 if fixed_normalizer else 2 if low_rate else 1,
         )
-        if scaled
+        if scaled or fixed_normalizer
         else None
     )
     if trainer is not None:
@@ -279,6 +280,26 @@ def test_admission_accepts_exact_low_rate_trainer_runtime(tmp_path: Path) -> Non
         label="final_policy",
         scaled=True,
         low_rate=True,
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_fixed_normalizer_trainer_runtime(
+    tmp_path: Path,
+) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        fixed_normalizer=True,
     )
 
     admitted = load_course_render_inputs(

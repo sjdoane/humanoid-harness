@@ -399,7 +399,7 @@ def test_loop_profile_proposal_admits_o5_and_cannot_change_runtime() -> None:
         apply_proposal(parent, proposal, feedback)
 
 
-@pytest.mark.parametrize("profile_version", [1, 2])
+@pytest.mark.parametrize("profile_version", [1, 2, 3])
 def test_proposal_preserves_explicit_trainer_and_cannot_author_it(
     profile_version: int,
 ) -> None:

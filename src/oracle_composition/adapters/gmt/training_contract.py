@@ -9,11 +9,15 @@ from dataclasses import dataclass
 
 from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
 
+from .training_normalizer import FIXED_NORMALIZER_ID, fixed_normalizer_contract
+
 TRAINING_REWARD_SCALE = 1.0 / 64.0
 TRAINER_SCHEMA_ID = "gmt_g1_total_training_reward_preconditioning/v1"
 TRAINER_RATE_SCHEMA_ID = "gmt_g1_scaled_ppo_training_profile/v2"
+TRAINER_FIXED_NORMALIZER_SCHEMA_ID = "gmt_g1_scaled_fixed_normalizer_training_profile/v3"
 EFFECTIVE_TRAINING_CONTRACT_ID = "gmt_g1_ppo_training_contract/v2"
 EFFECTIVE_RATE_TRAINING_CONTRACT_ID = "gmt_g1_ppo_training_contract/v3"
+EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID = "gmt_g1_ppo_training_contract/v4"
 TRAINING_REWARD_METADATA_ID = "gmt_g1_training_reward_units/v1"
 TRAINING_REWARD_INFO_ID = "gmt_g1_training_reward_observation/v1"
 BASE_LEARNING_RATE = 3e-4
@@ -45,7 +49,7 @@ TRAINING_CONTRACT = {
 
 @dataclass(frozen=True, slots=True)
 class CourseTrainerSpec:
-    """One of the two exact opt-in scaled trainer profiles."""
+    """One of the exact opt-in scaled trainer profiles."""
 
     total_training_reward_scale: float
     profile_version: int = 1
@@ -54,8 +58,8 @@ class CourseTrainerSpec:
         value = self.total_training_reward_scale
         if type(value) is not float or not math.isfinite(value) or value != TRAINING_REWARD_SCALE:
             raise ValueError("trainer reward scale must be the fixed finite 1/64 profile")
-        if type(self.profile_version) is not int or self.profile_version not in {1, 2}:
-            raise ValueError("trainer profile version must be exactly 1 or 2")
+        if type(self.profile_version) is not int or self.profile_version not in {1, 2, 3}:
+            raise ValueError("trainer profile version must be exactly 1, 2, or 3")
 
     @classmethod
     def from_dict(cls, value: object) -> CourseTrainerSpec:
@@ -87,6 +91,26 @@ class CourseTrainerSpec:
             ):
                 raise ValueError("trainer learning rate must be the fixed finite 3e-5 profile")
             return cls(value["total_training_reward_scale"], profile_version=2)
+        if identity == (TRAINER_FIXED_NORMALIZER_SCHEMA_ID, 3):
+            expected = {
+                "schema_id",
+                "schema_version",
+                "total_training_reward_scale",
+                "learning_rate",
+                "observation_preconditioning",
+            }
+            if set(value) != expected:
+                raise ValueError("trainer fields differ from the fixed v3 profile")
+            learning_rate = value["learning_rate"]
+            if (
+                type(learning_rate) is not float
+                or not math.isfinite(learning_rate)
+                or learning_rate != LOW_LEARNING_RATE
+            ):
+                raise ValueError("trainer learning rate must be the fixed finite 3e-5 profile")
+            if value["observation_preconditioning"] != FIXED_NORMALIZER_ID:
+                raise ValueError("trainer fixed observation preconditioning differs")
+            return cls(value["total_training_reward_scale"], profile_version=3)
         raise ValueError("trainer schema identity differs")
 
     def to_dict(self) -> dict[str, object]:
@@ -96,16 +120,28 @@ class CourseTrainerSpec:
                 "schema_version": 1,
                 "total_training_reward_scale": self.total_training_reward_scale,
             }
+        if self.profile_version == 2:
+            return {
+                "schema_id": TRAINER_RATE_SCHEMA_ID,
+                "schema_version": 2,
+                "total_training_reward_scale": self.total_training_reward_scale,
+                "learning_rate": LOW_LEARNING_RATE,
+            }
         return {
-            "schema_id": TRAINER_RATE_SCHEMA_ID,
-            "schema_version": 2,
+            "schema_id": TRAINER_FIXED_NORMALIZER_SCHEMA_ID,
+            "schema_version": 3,
             "total_training_reward_scale": self.total_training_reward_scale,
             "learning_rate": LOW_LEARNING_RATE,
+            "observation_preconditioning": FIXED_NORMALIZER_ID,
         }
 
     @property
     def learning_rate(self) -> float:
         return BASE_LEARNING_RATE if self.profile_version == 1 else LOW_LEARNING_RATE
+
+    @property
+    def uses_fixed_observation_normalizer(self) -> bool:
+        return self.profile_version == 3
 
     @property
     def sha256(self) -> str:
@@ -119,18 +155,24 @@ def effective_training_contract(trainer: CourseTrainerSpec | None) -> dict[str, 
         return copy.deepcopy(TRAINING_CONTRACT)
     base_contract = copy.deepcopy(TRAINING_CONTRACT)
     base_contract["learning_rate"] = trainer.learning_rate
+    if trainer.uses_fixed_observation_normalizer:
+        base_contract["observation_normalization"] = FIXED_NORMALIZER_ID
+    identities = {
+        1: (EFFECTIVE_TRAINING_CONTRACT_ID, 2),
+        2: (EFFECTIVE_RATE_TRAINING_CONTRACT_ID, 3),
+        3: (EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID, 4),
+    }
+    schema_id, schema_version = identities[trainer.profile_version]
     payload: dict[str, object] = {
-        "schema_id": (
-            EFFECTIVE_TRAINING_CONTRACT_ID
-            if trainer.profile_version == 1
-            else EFFECTIVE_RATE_TRAINING_CONTRACT_ID
-        ),
-        "schema_version": 2 if trainer.profile_version == 1 else 3,
+        "schema_id": schema_id,
+        "schema_version": schema_version,
         "base_ppo_contract": base_contract,
         "reward_preconditioning": trainer.to_dict(),
         "training_reward_units": "raw_environment_total_reward_times_static_factor",
         "evaluation_reward_units": "raw_environment_total_reward",
     }
+    if trainer.uses_fixed_observation_normalizer:
+        payload["observation_preconditioning"] = fixed_normalizer_contract()
     return {
         **payload,
         "identity_sha256": hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
@@ -159,8 +201,10 @@ def training_reward_metadata(trainer: CourseTrainerSpec) -> dict[str, object]:
 
 __all__ = [
     "BASE_LEARNING_RATE",
+    "EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID",
     "EFFECTIVE_RATE_TRAINING_CONTRACT_ID",
     "LOW_LEARNING_RATE",
+    "TRAINER_FIXED_NORMALIZER_SCHEMA_ID",
     "TRAINER_RATE_SCHEMA_ID",
     "TRAINER_SCHEMA_ID",
     "TRAINING_CONTRACT",

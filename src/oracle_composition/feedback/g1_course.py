@@ -34,7 +34,14 @@ from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
     training_reward_metadata,
 )
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FIXED_NORMALIZER_STATE_SHA256,
+    MAX_NUMERIC_POLICY_BYTES,
+    fixed_normalizer_policy_metadata,
+    validate_policy_normalizer_archive,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     MAX_TELEMETRY_BYTES,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
@@ -73,6 +80,10 @@ _TRAIN_OUTPUTS = {
 }
 _TRAIN_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
 _TRAIN_SCALED_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, SCALED_TELEMETRY_FILENAME}
+_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
+    *_TRAIN_OUTPUTS,
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
+}
 _SUMMARY_FIELDS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -377,7 +388,10 @@ def _diagnosis(
 
 
 def _training_telemetry_diagnosis(
-    encoded: bytes, *, reward_scale: float | None = None
+    encoded: bytes,
+    *,
+    reward_scale: float | None = None,
+    fixed_normalizer_sha256: str | None = None,
 ) -> str:
     rows = [
         decode_json_object(line, source="G1 training telemetry row")
@@ -436,6 +450,15 @@ def _training_telemetry_diagnosis(
             " PPO value loss is in scaled optimization-reward units and is not comparable "
             "to value loss from raw-reward runs."
         )
+    if fixed_normalizer_sha256 is not None:
+        maximum = max(
+            row["fixed_normalized_base_range"]["maximum_absolute_value"]
+            for row in rollout_rows
+        )
+        summary += (
+            " Fixed-normalized base-slice maximum absolute value across raw training "
+            f"rollout buffers={maximum:.6g}; this is descriptive, not a safety threshold."
+        )
     return summary
 
 
@@ -473,6 +496,7 @@ def build_g1_course_feedback(
         _TRAIN_OUTPUTS,
         _TRAIN_TELEMETRY_OUTPUTS,
         _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
     )
     mode_hint = "train" if train_output else "probe"
     if output_names not in (
@@ -480,6 +504,7 @@ def build_g1_course_feedback(
         _TRAIN_OUTPUTS,
         _TRAIN_TELEMETRY_OUTPUTS,
         _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
     ):
         raise ValueError("course run output ledger differs")
     retained: dict[str, bytes] = {}
@@ -496,7 +521,12 @@ def build_g1_course_feedback(
         expected = _sha256(digest, field=f"course output {name}")
         maximum = (
             MAX_TELEMETRY_BYTES
-            if name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}
+            if name
+            in {
+                TELEMETRY_FILENAME,
+                SCALED_TELEMETRY_FILENAME,
+                FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            }
             else _MAX_FRAMES_BYTES
             if name.endswith("_frames.jsonl")
             else _MAX_NUMERIC_BYTES
@@ -504,7 +534,11 @@ def build_g1_course_feedback(
             else _MAX_JSON_BYTES
         )
         encoded = _verified_bytes(run_root / name, expected, maximum)
-        if name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}:
+        if name in {
+            TELEMETRY_FILENAME,
+            SCALED_TELEMETRY_FILENAME,
+            FIXED_NORMALIZER_TELEMETRY_FILENAME,
+        }:
             telemetry_encoded = encoded
         if name in selected:
             retained[name] = encoded
@@ -516,10 +550,24 @@ def build_g1_course_feedback(
         raise ValueError("admitted config differs from retained run bytes")
     if config.raw["mode"] != mode_hint:
         raise ValueError("course run mode and output ledger differ")
-    if config.trainer is not None and output_names != _TRAIN_SCALED_TELEMETRY_OUTPUTS:
-        raise ValueError("scaled trainer requires its exact v2 telemetry output")
-    if config.trainer is None and output_names == _TRAIN_SCALED_TELEMETRY_OUTPUTS:
-        raise ValueError("v2 telemetry requires the scaled trainer config")
+    fixed_normalizer = bool(
+        config.trainer is not None
+        and config.trainer.uses_fixed_observation_normalizer
+    )
+    expected_train_outputs = (
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+        if fixed_normalizer
+        else _TRAIN_SCALED_TELEMETRY_OUTPUTS
+        if config.trainer is not None
+        else None
+    )
+    if expected_train_outputs is not None and output_names != expected_train_outputs:
+        raise ValueError("trainer requires its exact versioned telemetry output")
+    if config.trainer is None and output_names in (
+        _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+    ):
+        raise ValueError("versioned telemetry requires its exact trainer config")
     training = manifest["training"]
     has_descriptor = type(training) is dict and "telemetry" in training
     descriptor = training.get("telemetry") if has_descriptor else None
@@ -536,6 +584,9 @@ def build_g1_course_feedback(
                 if config.trainer is not None
                 else None
             ),
+            fixed_normalizer_sha256=(
+                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
+            ),
         )
     has_preconditioning = type(training) is dict and "reward_preconditioning" in training
     if config.trainer is None:
@@ -546,6 +597,23 @@ def build_g1_course_feedback(
         or training["reward_preconditioning"] != training_reward_metadata(config.trainer)
     ):
         raise ValueError("scaled training reward metadata differs")
+    observation_metadata = (
+        training.get("observation_preconditioning") if type(training) is dict else None
+    )
+    if fixed_normalizer:
+        expected_metadata = fixed_normalizer_policy_metadata()
+        if observation_metadata != expected_metadata:
+            raise ValueError("fixed observation preconditioning metadata differs")
+        for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
+            encoded_policy = _verified_bytes(
+                run_root / name,
+                _sha256(outputs[name], field=f"course output {name}"),
+                MAX_NUMERIC_POLICY_BYTES,
+            )
+            if validate_policy_normalizer_archive(encoded_policy) != expected_metadata:
+                raise ValueError("numeric policy fixed normalizer metadata differs")
+    elif observation_metadata is not None:
+        raise ValueError("non-normalized trainer reports observation preconditioning")
     frozen_runtime = manifest["frozen_runtime"]
     expected_runtime = frozen_runtime_contract(
         config.runtime,
@@ -595,10 +663,14 @@ def build_g1_course_feedback(
             if config.trainer is not None
             else None
         )
-        diagnosis = (
-            f"{diagnosis}\n"
-            f"{_training_telemetry_diagnosis(telemetry_encoded, reward_scale=reward_scale)}"
+        telemetry_diagnosis = _training_telemetry_diagnosis(
+            telemetry_encoded,
+            reward_scale=reward_scale,
+            fixed_normalizer_sha256=(
+                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
+            ),
         )
+        diagnosis = f"{diagnosis}\n{telemetry_diagnosis}"
         if len(diagnosis) > MAX_DIAGNOSIS_CHARACTERS:
             raise ValueError("course feedback diagnosis exceeds its contract")
     feedback = {

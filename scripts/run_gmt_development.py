@@ -39,7 +39,14 @@ from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
     training_reward_metadata,
 )
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FIXED_NORMALIZER_STATE_SHA256,
+    MAX_NUMERIC_POLICY_BYTES,
+    fixed_normalizer_policy_metadata,
+    validate_policy_normalizer_archive,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
     MAX_TELEMETRY_BYTES,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
@@ -88,6 +95,10 @@ COURSE_TRAIN_TELEMETRY_OUTPUTS = {*COURSE_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
 COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS = {
     *COURSE_TRAIN_OUTPUTS,
     SCALED_TELEMETRY_FILENAME,
+}
+COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
 }
 LAUNCHER_SOURCES = ("scripts/run_gmt_probe.py", "scripts/run_gmt_development.py")
 PARITY_CONFIG_FIELDS = {
@@ -807,6 +818,8 @@ def _validate_training_record(
         expected.add("telemetry")
     if trainer is not None:
         expected.add("reward_preconditioning")
+        if trainer.uses_fixed_observation_normalizer:
+            expected.add("observation_preconditioning")
     if not isinstance(value, Mapping) or set(value) != expected:
         raise supervisor.ProbeError("course training record fields differ")
     if (
@@ -831,6 +844,12 @@ def _validate_training_record(
                 reward_scale=(
                     trainer.total_training_reward_scale if trainer is not None else None
                 ),
+                fixed_normalizer_sha256=(
+                    FIXED_NORMALIZER_STATE_SHA256
+                    if trainer is not None
+                    and trainer.uses_fixed_observation_normalizer
+                    else None
+                ),
             )
         except ValueError as exc:
             raise supervisor.ProbeError(str(exc)) from exc
@@ -838,6 +857,12 @@ def _validate_training_record(
         trainer
     ):
         raise supervisor.ProbeError("course reward preconditioning metadata differs")
+    if (
+        trainer is not None
+        and trainer.uses_fixed_observation_normalizer
+        and value["observation_preconditioning"] != fixed_normalizer_policy_metadata()
+    ):
+        raise supervisor.ProbeError("course observation preconditioning metadata differs")
 
 
 def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
@@ -867,6 +892,9 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     valid_output_sets = (
         {frozenset(COURSE_PROBE_OUTPUTS)}
         if mode == "probe"
+        else {frozenset(COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS)}
+        if loaded.course_trainer is not None
+        and loaded.course_trainer.uses_fixed_observation_normalizer
         else {frozenset(COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS)}
         if loaded.course_trainer is not None
         else {
@@ -892,10 +920,26 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             raise supervisor.ProbeError(f"course output hash differs: {name}")
         expected_names.add(name)
         artifacts[name] = {"path": name, "sha256": observed, "size": path.stat().st_size}
-        if name in {TELEMETRY_FILENAME, SCALED_TELEMETRY_FILENAME}:
+        if name in {
+            TELEMETRY_FILENAME,
+            SCALED_TELEMETRY_FILENAME,
+            FIXED_NORMALIZER_TELEMETRY_FILENAME,
+        }:
             telemetry_encoded = supervisor._read_bounded(
                 path, MAX_TELEMETRY_BYTES, "course training telemetry"
             )
+        if (
+            loaded.course_trainer is not None
+            and loaded.course_trainer.uses_fixed_observation_normalizer
+            and name in {"initial_residual_policy.npz", "final_residual_policy.npz"}
+        ):
+            policy_encoded = supervisor._read_bounded(
+                path, MAX_NUMERIC_POLICY_BYTES, f"course numeric policy {name}"
+            )
+            try:
+                validate_policy_normalizer_archive(policy_encoded)
+            except ValueError as exc:
+                raise supervisor.ProbeError(str(exc)) from exc
     if _output_names(output) != expected_names:
         raise supervisor.ProbeError("course run has unknown or missing output files")
     supervisor._read_bounded(

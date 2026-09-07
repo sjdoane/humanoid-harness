@@ -15,11 +15,18 @@ from oracle_composition.harness.contract import decode_json_object
 from .contracts import OBSERVATION_DIM
 from .course_task import TASK_FEATURE_NAMES
 from .training_contract import TRAINING_REWARD_INFO_ID, TRAINING_REWARD_SCALE
+from .training_normalizer import (
+    FIXED_NORMALIZER_STATE_SHA256,
+    FixedNormalizerState,
+    normalized_base_max_abs,
+)
 
 TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v1"
 TELEMETRY_FILENAME = "training_telemetry_v1.jsonl"
 SCALED_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v2"
 SCALED_TELEMETRY_FILENAME = "training_telemetry_v2.jsonl"
+FIXED_NORMALIZER_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v3"
+FIXED_NORMALIZER_TELEMETRY_FILENAME = "training_telemetry_v3.jsonl"
 ROLLOUT_STEPS = 512
 MAX_TELEMETRY_BYTES = 4 * 1024**2
 
@@ -66,15 +73,34 @@ _DESCRIPTOR_FIELDS = {
 }
 _ROLLOUT_SEMANTICS = "current_rollout_with_previous_update_then_final_flush"
 _UPDATE_COUNT_SEMANTICS = "attempted_ppo_epochs_including_kl_stopped_partial_epochs"
+_NORMALIZED_RANGE_SEMANTICS = (
+    "maximum_absolute_value_after_fixed_prefix_transform_of_current_raw_rollout_buffer"
+)
 _UNAVAILABLE_REASONS = {"missing", "undefined_nonfinite"}
 
 
-def _telemetry_identity(reward_scale: float | None) -> tuple[str, str]:
+def _telemetry_identity(
+    reward_scale: float | None, fixed_normalizer_sha256: str | None = None
+) -> tuple[str, str, int]:
+    if fixed_normalizer_sha256 is not None:
+        if (
+            type(reward_scale) is not float
+            or reward_scale != TRAINING_REWARD_SCALE
+            or fixed_normalizer_sha256 != FIXED_NORMALIZER_STATE_SHA256
+        ):
+            raise ValueError("fixed-normalizer telemetry requires the exact v3 trainer")
+        return FIXED_NORMALIZER_TELEMETRY_ID, FIXED_NORMALIZER_TELEMETRY_FILENAME, 2
     if reward_scale is None:
-        return TELEMETRY_ID, TELEMETRY_FILENAME
+        return TELEMETRY_ID, TELEMETRY_FILENAME, 1
     if type(reward_scale) is not float or reward_scale != TRAINING_REWARD_SCALE:
         raise ValueError("scaled telemetry requires the fixed 1/64 trainer factor")
-    return SCALED_TELEMETRY_ID, SCALED_TELEMETRY_FILENAME
+    return SCALED_TELEMETRY_ID, SCALED_TELEMETRY_FILENAME, 1
+
+
+def telemetry_filename(
+    *, reward_scale: float | None, fixed_normalizer_sha256: str | None = None
+) -> str:
+    return _telemetry_identity(reward_scale, fixed_normalizer_sha256)[1]
 
 
 def _float(value: object, name: str) -> float:
@@ -314,13 +340,23 @@ def ppo_update_record(
 class TrainingTelemetry:
     """Write one record per rollout and one post-train final-update record."""
 
-    def __init__(self, path: Path, *, reward_scale: float | None = None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        reward_scale: float | None = None,
+        fixed_normalizer: FixedNormalizerState | None = None,
+    ) -> None:
         self.path = Path(path)
-        self.telemetry_id, self.filename = _telemetry_identity(reward_scale)
+        fixed_sha256 = fixed_normalizer.sha256 if fixed_normalizer is not None else None
+        self.telemetry_id, self.filename, self.schema_version = _telemetry_identity(
+            reward_scale, fixed_sha256
+        )
         if self.path.name != self.filename:
             raise ValueError("training telemetry filename differs from its version")
         self.handle = self.path.open("xb")
         self.reward_scale = reward_scale
+        self.fixed_normalizer = fixed_normalizer
         self.episodes, self.last_boundary = EpisodeAccumulator(reward_scale), None
         self.records = self.rollouts = self.bytes_written = 0
         self.finished = False
@@ -362,18 +398,25 @@ class TrainingTelemetry:
             else ppo_update_record(self.last_boundary, logger_values, model_n_updates)
         )
         self.rollouts += 1
-        self._write(
-            {
-                "schema_version": 1,
-                "telemetry_id": self.telemetry_id,
-                "event": "rollout_boundary",
-                "rollout_index": self.rollouts,
-                "collected_through_transitions": through,
-                "previous_update": previous,
-                "episodes": self.episodes.take_summary(),
-                "observation_groups": observation_group_moments(observations),
+        row = {
+            "schema_version": self.schema_version,
+            "telemetry_id": self.telemetry_id,
+            "event": "rollout_boundary",
+            "rollout_index": self.rollouts,
+            "collected_through_transitions": through,
+            "previous_update": previous,
+            "episodes": self.episodes.take_summary(),
+            "observation_groups": observation_group_moments(observations),
+        }
+        if self.fixed_normalizer is not None:
+            row["fixed_normalized_base_range"] = {
+                "source": "current_rollout_buffer_raw_observations",
+                "normalizer_state_sha256": self.fixed_normalizer.sha256,
+                "maximum_absolute_value": normalized_base_max_abs(
+                    observations, self.fixed_normalizer
+                ),
             }
-        )
+        self._write(row)
         self.last_boundary = through
 
     def final_update(self, logger_values: Mapping[str, object], model_n_updates: object) -> None:
@@ -381,7 +424,7 @@ class TrainingTelemetry:
             raise ValueError("training telemetry lacks a unique final rollout")
         self._write(
             {
-                "schema_version": 1,
+                "schema_version": self.schema_version,
                 "telemetry_id": self.telemetry_id,
                 "event": "final_update",
                 "collected_through_transitions": self.last_boundary,
@@ -397,12 +440,17 @@ class TrainingTelemetry:
         self.handle.flush()
         encoded = self.path.read_bytes()
         counts = validate_training_telemetry(
-            encoded, expected_transitions, reward_scale=self.reward_scale
+            encoded,
+            expected_transitions,
+            reward_scale=self.reward_scale,
+            fixed_normalizer_sha256=(
+                self.fixed_normalizer.sha256 if self.fixed_normalizer is not None else None
+            ),
         )
         if counts["record_count"] != self.records:
             raise ValueError("training telemetry writer and validator disagree")
-        return {
-            "schema_version": 1,
+        descriptor = {
+            "schema_version": self.schema_version,
             "telemetry_id": self.telemetry_id,
             "path": self.filename,
             "sha256": hashlib.sha256(encoded).hexdigest(),
@@ -411,6 +459,12 @@ class TrainingTelemetry:
             "rollout_boundary_semantics": _ROLLOUT_SEMANTICS,
             "sb3_n_updates_semantics": _UPDATE_COUNT_SEMANTICS,
         }
+        if self.fixed_normalizer is not None:
+            descriptor.update(
+                fixed_normalizer_state_sha256=self.fixed_normalizer.sha256,
+                normalized_base_range_semantics=_NORMALIZED_RANGE_SEMANTICS,
+            )
+        return descriptor
 
 
 def _finite_json(value: object) -> None:
@@ -555,6 +609,19 @@ def _valid_observation_counts(value: object) -> bool:
     return True
 
 
+def _valid_normalized_range(value: object, expected_sha256: str) -> bool:
+    return (
+        type(value) is dict
+        and set(value)
+        == {"source", "normalizer_state_sha256", "maximum_absolute_value"}
+        and value["source"] == "current_rollout_buffer_raw_observations"
+        and value["normalizer_state_sha256"] == expected_sha256
+        and type(value["maximum_absolute_value"]) in {int, float}
+        and math.isfinite(value["maximum_absolute_value"])
+        and value["maximum_absolute_value"] >= 0
+    )
+
+
 def _valid_incomplete(value: object, *, scaled: bool) -> bool:
     if type(value) is not list:
         return False
@@ -582,6 +649,7 @@ def validate_training_telemetry(
     expected_transitions: int,
     *,
     reward_scale: float | None = None,
+    fixed_normalizer_sha256: str | None = None,
 ) -> dict[str, object]:
     """Validate the bounded identity and previous-update transition alignment."""
 
@@ -593,7 +661,9 @@ def validate_training_telemetry(
         or expected_transitions % ROLLOUT_STEPS
     ):
         raise ValueError("training telemetry bytes or budget is invalid")
-    telemetry_id, _filename = _telemetry_identity(reward_scale)
+    telemetry_id, _filename, schema_version = _telemetry_identity(
+        reward_scale, fixed_normalizer_sha256
+    )
     scaled = reward_scale is not None
     lines, rollouts = encoded.splitlines(), expected_transitions // ROLLOUT_STEPS
     if len(lines) != rollouts + 1 or any(not line for line in lines):
@@ -601,7 +671,10 @@ def validate_training_telemetry(
     rows = [decode_json_object(line, source="training telemetry row") for line in lines]
     for row in rows:
         _finite_json(row)
-        if row.get("schema_version") != 1 or row.get("telemetry_id") != telemetry_id:
+        if (
+            row.get("schema_version") != schema_version
+            or row.get("telemetry_id") != telemetry_id
+        ):
             raise ValueError("training telemetry identity differs")
     rollout_keys = {
         "schema_version",
@@ -613,6 +686,8 @@ def validate_training_telemetry(
         "episodes",
         "observation_groups",
     }
+    if fixed_normalizer_sha256 is not None:
+        rollout_keys.add("fixed_normalized_base_range")
     for index, row in enumerate(rows[:-1], start=1):
         through = index * ROLLOUT_STEPS
         if (
@@ -626,6 +701,12 @@ def validate_training_telemetry(
             or (index > 1 and not _valid_update(row["previous_update"], through - ROLLOUT_STEPS))
             or not _valid_episode_counts(row["episodes"], scaled=scaled)
             or not _valid_observation_counts(row["observation_groups"])
+            or (
+                fixed_normalizer_sha256 is not None
+                and not _valid_normalized_range(
+                    row["fixed_normalized_base_range"], fixed_normalizer_sha256
+                )
+            )
         ):
             raise ValueError("training rollout telemetry fields or sequence differ")
     final = rows[-1]
@@ -659,22 +740,33 @@ def validate_training_telemetry_descriptor(
     expected_transitions: int,
     *,
     reward_scale: float | None = None,
+    fixed_normalizer_sha256: str | None = None,
 ) -> dict[str, object]:
     """Bind an exact optional descriptor to its retained JSONL bytes."""
 
-    if type(value) is not dict or set(value) != _DESCRIPTOR_FIELDS:
+    descriptor_fields = set(_DESCRIPTOR_FIELDS)
+    if fixed_normalizer_sha256 is not None:
+        descriptor_fields.update(
+            {"fixed_normalizer_state_sha256", "normalized_base_range_semantics"}
+        )
+    if type(value) is not dict or set(value) != descriptor_fields:
         raise ValueError("training telemetry descriptor fields differ")
     if any(
         type(value[name]) is not int or value[name] < 1
         for name in ("size_bytes", "record_count", "rollout_boundary_count")
     ):
         raise ValueError("training telemetry descriptor counts differ")
-    telemetry_id, filename = _telemetry_identity(reward_scale)
+    telemetry_id, filename, schema_version = _telemetry_identity(
+        reward_scale, fixed_normalizer_sha256
+    )
     counts = validate_training_telemetry(
-        encoded, expected_transitions, reward_scale=reward_scale
+        encoded,
+        expected_transitions,
+        reward_scale=reward_scale,
+        fixed_normalizer_sha256=fixed_normalizer_sha256,
     )
     expected = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "telemetry_id": telemetry_id,
         "path": filename,
         "sha256": hashlib.sha256(encoded).hexdigest(),
@@ -683,12 +775,19 @@ def validate_training_telemetry_descriptor(
         "rollout_boundary_semantics": _ROLLOUT_SEMANTICS,
         "sb3_n_updates_semantics": _UPDATE_COUNT_SEMANTICS,
     }
+    if fixed_normalizer_sha256 is not None:
+        expected.update(
+            fixed_normalizer_state_sha256=fixed_normalizer_sha256,
+            normalized_base_range_semantics=_NORMALIZED_RANGE_SEMANTICS,
+        )
     if value != expected:
         raise ValueError("training telemetry descriptor differs from retained bytes")
     return expected
 
 
 __all__ = [
+    "FIXED_NORMALIZER_TELEMETRY_FILENAME",
+    "FIXED_NORMALIZER_TELEMETRY_ID",
     "MAX_TELEMETRY_BYTES",
     "SCALED_TELEMETRY_FILENAME",
     "SCALED_TELEMETRY_ID",
@@ -698,6 +797,7 @@ __all__ = [
     "TrainingTelemetry",
     "observation_group_moments",
     "ppo_update_record",
+    "telemetry_filename",
     "validate_training_telemetry",
     "validate_training_telemetry_descriptor",
 ]

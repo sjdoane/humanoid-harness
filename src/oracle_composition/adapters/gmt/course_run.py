@@ -28,10 +28,15 @@ from .training_contract import (
     effective_training_contract,
     training_reward_metadata,
 )
+from .training_features import extractor_kwargs
+from .training_normalizer import (
+    FixedNormalizerState,
+    pinned_normalizer_from_actor,
+    policy_normalizer_metadata,
+)
 from .training_telemetry import (
-    SCALED_TELEMETRY_FILENAME,
-    TELEMETRY_FILENAME,
     TrainingTelemetry,
+    telemetry_filename,
 )
 from .training_wrapper import training_env as precondition_training_env
 
@@ -51,7 +56,13 @@ def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMT
     )
 
 
-def make_policy(env: gym.Env, seed: int, trainer: CourseTrainerSpec | None = None) -> PPO:
+def make_policy(
+    env: gym.Env,
+    seed: int,
+    trainer: CourseTrainerSpec | None = None,
+    *,
+    fixed_normalizer: FixedNormalizerState | None = None,
+) -> PPO:
     effective = effective_training_contract(trainer)
     contract = effective if trainer is None else effective["base_ppo_contract"]
     if type(contract) is not dict:
@@ -72,16 +83,24 @@ def make_policy(env: gym.Env, seed: int, trainer: CourseTrainerSpec | None = Non
             "max_grad_norm",
         )
     }
+    uses_fixed_normalizer = bool(
+        trainer is not None and trainer.uses_fixed_observation_normalizer
+    )
+    if uses_fixed_normalizer != (fixed_normalizer is not None):
+        raise ValueError("fixed-normalizer trainer and buffers must be supplied together")
+    policy_kwargs = {
+        "net_arch": contract["net_arch"],
+        "log_std_init": contract["log_std_init"],
+    }
+    if fixed_normalizer is not None:
+        policy_kwargs.update(extractor_kwargs(fixed_normalizer))
     model = PPO(
         "MlpPolicy",
         env,
         seed=seed,
         device="cpu",
         verbose=0,
-        policy_kwargs={
-            "net_arch": contract["net_arch"],
-            "log_std_init": contract["log_std_init"],
-        },
+        policy_kwargs=policy_kwargs,
         **kwargs,
     )
     # Deterministic initialization preserves the verified frozen-base behavior.
@@ -91,10 +110,15 @@ def make_policy(env: gym.Env, seed: int, trainer: CourseTrainerSpec | None = Non
     return model
 
 
-def _numeric_policy(model: PPO, path: Path) -> str:
+def _numeric_policy(
+    model: PPO, path: Path, *, fixed_normalizer: FixedNormalizerState | None = None
+) -> str:
+    state_dict = model.policy.state_dict()
+    if fixed_normalizer is not None:
+        policy_normalizer_metadata(state_dict, fixed_normalizer)
     arrays = {
         name: value.detach().cpu().numpy().copy()
-        for name, value in model.policy.state_dict().items()
+        for name, value in state_dict.items()
     }
     if not all(np.isfinite(value).all() for value in arrays.values()):
         raise ValueError("learned policy contains non-finite state")
@@ -260,25 +284,43 @@ def run_course(config_path: Path, output: Path) -> dict:
         raw_training_env = make_env(config)
         training_env = precondition_training_env(raw_training_env, config.trainer)
         base_before = _frozen_actor_digest(raw_training_env)
-        model = make_policy(training_env, config.raw["seed"], config.trainer)
+        fixed_normalizer = (
+            pinned_normalizer_from_actor(raw_training_env.actor._actor)
+            if config.trainer is not None
+            and config.trainer.uses_fixed_observation_normalizer
+            else None
+        )
+        model = make_policy(
+            training_env,
+            config.raw["seed"],
+            config.trainer,
+            fixed_normalizer=fixed_normalizer,
+        )
         outputs["initial_residual_policy.npz"] = _numeric_policy(
-            model, output / "initial_residual_policy.npz"
+            model,
+            output / "initial_residual_policy.npz",
+            fixed_normalizer=fixed_normalizer,
         )
         reward_scale = (
             config.trainer.total_training_reward_scale
             if config.trainer is not None
             else None
         )
-        telemetry_filename = (
-            SCALED_TELEMETRY_FILENAME if reward_scale is not None else TELEMETRY_FILENAME
+        telemetry_name = telemetry_filename(
+            reward_scale=reward_scale,
+            fixed_normalizer_sha256=(
+                fixed_normalizer.sha256 if fixed_normalizer is not None else None
+            ),
         )
         with TrainingTelemetry(
-            output / telemetry_filename, reward_scale=reward_scale
+            output / telemetry_name,
+            reward_scale=reward_scale,
+            fixed_normalizer=fixed_normalizer,
         ) as telemetry:
             callback = _TrainingProgress(telemetry)
             model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
             telemetry_descriptor = telemetry.descriptor(config.raw["training_steps"])
-        outputs[telemetry_filename] = str(telemetry_descriptor["sha256"])
+        outputs[telemetry_name] = str(telemetry_descriptor["sha256"])
         base_after = _frozen_actor_digest(raw_training_env)
         if base_after != base_before:
             raise ValueError("training changed the frozen base actor state")
@@ -286,7 +328,9 @@ def run_course(config_path: Path, output: Path) -> dict:
         if learned_steps != config.raw["training_steps"]:
             raise ValueError("completed training steps differ from the frozen budget")
         outputs["final_residual_policy.npz"] = _numeric_policy(
-            model, output / "final_residual_policy.npz"
+            model,
+            output / "final_residual_policy.npz",
+            fixed_normalizer=fixed_normalizer,
         )
         final, artifacts = _rollout(config, env, model, output, "final_policy")
         outputs.update(artifacts)
@@ -301,6 +345,10 @@ def run_course(config_path: Path, output: Path) -> dict:
         }
         if config.trainer is not None:
             training["reward_preconditioning"] = training_reward_metadata(config.trainer)
+        if fixed_normalizer is not None:
+            training["observation_preconditioning"] = policy_normalizer_metadata(
+                model.policy.state_dict(), fixed_normalizer
+            )
         training_env.close()
     env.close()
     manifest = {
