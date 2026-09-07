@@ -4,7 +4,7 @@
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 37 training runs and about 2.3M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
 | bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a 0.50 m dip gate that no retained run has met (best 0.494 to 0.516 m). Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration); that bounds what the supplied reference specifies, not what the plant can reach, so depth stays a measured quantity rather than an established impossibility. The bounded depth reward (study 014) was active and did not deepen the crouch. |
-| next step | Studies 015 to 017 are done (after-crop, heading feedback and the execution-derived reference all rejected on their pre-registered screens; details below). The recommended next stage, Astra's call: one preregistered training pair on the native O7b under the new four-state finite-horizon trainable profile, a reward-r1 baseline then one feedback-linked reward revision inside the admitted recipe, predeclared on lateral and heading rows with depth reported only, exposure telemetry riding along; the transition-preview mechanism is deferred to a separate oracle-capability study. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed of the finding, and continuing to study the gate needs no new decision from him. |
+| next step | Studies 015 to 018 are done: after-crop, heading feedback and the execution-derived reference were rejected on their screens, and the first trained pair on the surviving four-state composition stopped at its baseline (compliance and heading-mediated speed failures, training return falling while falls rose). Recommended next stage, Astra's call and not yet declared: a course-signal availability study that trains on the 018 baseline's exact pins with a non-saturating heading and lateral reward signal (new recipe fields, data-only contrast), read out on the after-window turning rate against the zero-residual 0.084 rad/s and on the training fall trend; if steering does not appear with the signal active, the lateral problem returns to reference content. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed, and continuing to study the gate needs no new decision from him. |
 
 ## Fable's authority
 
@@ -529,7 +529,26 @@ What follows for strategy:
    while drift is still small, whereas the heading term (mean 0.19) carries
    signal throughout; the one B revision is chosen from A's actual feedback
    within the bounds, and any scale or formula change is a separately
-   declared study.
+   declared study. Result (2026-09-07 12:10Z, source e57f220, two
+   independent scorers agree): baseline A survived 20 s with all four modes,
+   entry, exit, finish and no re-entry, but failed admission on compliance
+   (47 of 71 samples, 0.662 against 0.75) and speed error (0.474 m/s against
+   0.35), so no B arm was trained and the pair stops. Measured diagnosis: the
+   speed failure is heading-mediated, since ground speed stayed near 1 m/s
+   through the after window while course-frame forward speed fell to
+   negative values as the heading veered to 2.1 rad; the compliance loss sits
+   on the region-entry rows where both arms are above the band before the
+   crouch settles; and the training return per completed episode fell across
+   the four quarters while stochastic-rollout falls rose from 46 to 67
+   percent, clustered in the crouch-exit window, so the optimizer did not
+   improve its own objective on this substrate. The reward's course terms are
+   saturated in the after window (lateral term near zero on 91 percent of
+   samples, heading term 0.04), which no weight change inside the recipe can
+   repair. Recommended next test (Fable, not yet declared): a course-signal
+   availability study that trains on A's exact pins with a non-saturating
+   heading and lateral signal as new recipe fields, read out on the
+   after-window turning rate against the zero-residual 0.084 rad/s and on the
+   training fall trend; a second seed of A ranks below it.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
@@ -679,3 +698,5 @@ goal ID.
   imported source, frozen criteria and scorer, baseline A launched); the
   bottleneck row now states that the contact finding bounds what the
   reference specifies, not what the plant can reach.
+- 2026-09-07 12:15Z: study 018 result recorded (baseline A failed admission,
+  no B); next-step row points at the course-signal availability study.
