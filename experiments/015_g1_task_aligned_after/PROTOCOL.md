@@ -38,10 +38,16 @@
 - Source has changed since O7: **first reproduce its three outputs byte-for-byte**
   at the new committed source, then run the candidate at that same source.
   No metadata exception is allowed; any mismatch stops the candidate.
+- Pin both fresh executable ledgers to 194 files and tree
+  `3ba7fe0ab72374e0667402848460c43915024fbcd2fe44f9ce5de791f0ab8b8e`.
+  Source equality between arms alone is not sufficient. Bind each resource
+  receipt to its exact native v2 reservation and acceptance/acknowledgment chain.
 - Both zero residual, seed `20260906`, four-state/2,172-observation probe profile,
   1,000 steps, no training. Each needs its own exact reservation, one heavy job.
 - Candidate must preserve the first 263 actions and 264 state rows. Changed
   after behavior first executes at command 263; its resulting state may differ.
+- Compare all first 263 frame records, including reward. This oracle-only
+  intervention has no legitimate prefix reward exception.
 - Rebuild independent feedback/objective from retained raw states. Verify
   all input/output hashes, resource/source binding and zero residuals.
 
@@ -57,6 +63,10 @@
 | Reduced drift | Maximum lateral error <2.5 m |
 | Tracking | Joint p95 <=0.35 rad; roll-pitch p95 <=0.25 rad |
 
+- Separate manipulation check: mean issued local yaw rate during `after`
+  must be <=0.06 rad/s, as predicted in the actual proposal. This is not an
+  original task gate or an executed-heading measurement. Failed manipulation
+  cannot support the proposed mechanism even if the outcome screen passes.
 - Unwrap the full executed heading series before selecting after rows. A
   wrapped final heading near zero cannot hide a full turn. Also report maximum
   excursion relative to after-entry heading; it does not replace the fixed gate.
