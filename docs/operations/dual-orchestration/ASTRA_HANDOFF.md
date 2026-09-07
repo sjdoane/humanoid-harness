@@ -2,13 +2,16 @@
 
 | status | current truth |
 |---|---|
-| progress | 29 G1 training runs completed (1,343,488 transitions). Study 006 is fully scored; UI busy handling and reviewed paired scoring are integrated. |
-| bottleneck | No full task pass. Larger-budget arms fall or stop; held-out inputs remain untested. |
-| next step | Study 007 lower-LR profile and a separate probe-only descent/loop/rise runtime; Fable reviews only. |
+| progress | 32 G1 training runs completed (1,638,400 transitions). Studies 006 and 007 are fully scored; source compatibility is byte-exact. |
+| bottleneck | No full task pass. Lower learning rate fails adoption: O2/r1 falls; O4b/r4 survives but backtracks and regresses on compliance. |
+| next step | Integrate repaired probe-only descent/loop/rise runtime, test its control and candidate, and close the separate reference causal-use gate. Fable reviews only. |
 
-- All study-006 workers are terminal and the heavy-job slot is free at 00:44 UTC.
-- Current result: `../../../experiments/006_g1_composition_depth/RESULTS.md`.
-- Next fixed experiment: `../../../experiments/007_g1_learning_rate/PROTOCOL.md`.
+- All study-007 workers are terminal and the heavy-job slot is free at 01:19 UTC.
+- Current result: `../../../experiments/007_g1_learning_rate/RESULTS.md`.
+- O5 is isolated at `287cb95/e7e52e0/e552b21`, not yet integrated or simulated.
+  Required repairs: full feedback-to-revision runtime binding and the paired
+  scorer's legacy fixture. A separate five-arm actor-reference ablation is being
+  implemented; matched-state action sensitivity is not closed-loop evidence.
 - Main remains `9188ed0`; no push. Native family remains separate and blocked.
 - UI `http://127.0.0.1:8766/`: all 12 current registered snapshots validate
   (six scaled replication cells, O4b zero reference, pilot, four larger arms).
