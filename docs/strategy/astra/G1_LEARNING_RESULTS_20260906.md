@@ -5,6 +5,10 @@
 | bottleneck | No full task pass. Study 011 misses its compliance floor and three task gates; no trainer default is changed. |
 | next step | Diagnose posture timing/depth and lateral drift; choose the next bounded oracle/reward comparison from verified feedback. |
 
+- [O7 reference qualification](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
+  the zero-residual robot executes walk/crouch/rise/walk for 20 s without falling.
+  Full task fails five gates; no repeated crouch loop executes. All 1,000 commands
+  and tracking targets reconstruct exactly. No training result or phase-rate claim.
 - [Study 011: fixed input normalization](../../../experiments/011_g1_fixed_normalization/RESULTS.md):
   exact control reproduction; candidate survives, but 64.2% compliance misses
   the locked 68.35% floor. Retained, not adopted. Normalization alone is not a

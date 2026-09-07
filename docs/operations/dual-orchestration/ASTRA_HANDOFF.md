@@ -5,7 +5,20 @@
 | bottleneck | No full-task pass. Normalization misses the locked compliance floor; posture depth/compliance and lateral drift still fail. |
 | next step | Retain the opt-in profile without adoption; select a bounded next comparison. Fable reviews and ideates only. |
 
-## Current checkpoint: 2026-09-07 03:05 UTC
+## Current checkpoint: 2026-09-07 04:53 UTC
+
+- [O7 Stage A](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
+  20 s/no fall, walk/crouch/rise/walk executed. All qualification conditions pass;
+  task fails five gates. No repeated crouch loop was executed.
+- Every one of 1,000 commands/targets reconstructed; predicted prefix exact.
+  O7 worker terminal, resource released, source freeze ended.
+- Finite-horizon patch `ae67399` is clean/released in its isolated worktree;
+  parent/Fable review before import and the Study012 matched training test.
+- Phase-rate pure core `0e1ae8a` is clean/released and under independent review;
+  unwired, not imported and no phase simulation authorized.
+- Training totals remain 34 runs / 1,900,544 transitions; zero full-task passes.
+
+## Earlier checkpoint: 2026-09-07 03:05 UTC
 
 - [Study 011](../../../experiments/011_g1_fixed_normalization/RESULTS.md): source
   `1e5d84b`, both jobs terminal/successful/released. Source freeze ended.
