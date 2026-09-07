@@ -4,7 +4,7 @@
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 38 training runs and about 2.4M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
 | bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a 0.50 m dip gate that no retained run has met (best 0.494 to 0.516 m). Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration); that bounds what the supplied reference specifies, not what the plant can reach, so depth stays a measured quantity rather than an established impossibility. The bounded depth reward (study 014) was active and did not deepen the crouch. |
-| next step | Declared by Astra (2026-09-07 12:26Z) as study 019: one data-only oracle probe that lowers the before-to-inside guard from 0.65 m to 0.40 m so the posture region is entered on a crouch-reference trough instead of the 0.639 m peak (manipulation checks on the entry phase and the target height at entry, compliance row at or above 0.85, guardrails, all eleven gates reported; an exploratory oracle screen, not training admission; fresh same-source control first; Fable authors the single feedback-linked proposal after the declaration and scorer are committed). After 019, Astra's stated preference (2026-09-07 12:38Z) is a bounded paired stochastic diagnostic of the retained 018 policies (exact initial and final tensors, 16 paired Gaussian noise seeds each, all original metrics plus hand-over states and downstream outcomes, descriptive only, under a new source-bound protocol once the 019 freeze ends), because only the first 512-transition rollout of A's training was collected under the exact initial policy, so the telemetry cannot bracket the initial stochastic fall share. Deferred behind it, as separately declared studies if worthwhile: the course-signal availability study, in Astra's proposed form a single-kernel contrast that swaps the lateral and heading Gaussian terms for Cauchy tails at unchanged scales and weights (Fable's audit on the retained traces: the swap restores a persistent heading gradient at large heading errors but only a marginal lateral one, so the primary readout should be the after-window turning rate against an r1 replication that also serves as the determinism floor) that trains on the 018 baseline's exact pins with a non-saturating heading and lateral reward signal (new recipe fields, data-only contrast), read out on the after-window turning rate against the zero-residual 0.084 rad/s and on the training fall trend; if steering does not appear with the signal active, the lateral problem returns to reference content. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed, and continuing to study the gate needs no new decision from him. |
+| next step | Declared by Astra (2026-09-07 12:26Z) as study 019: one data-only oracle probe that lowers the before-to-inside guard from 0.65 m to 0.40 m so the posture region is entered on a crouch-reference trough instead of the 0.639 m peak (manipulation checks on the entry phase and the target height at entry, compliance row at or above 0.85, guardrails, all eleven gates reported; an exploratory oracle screen, not training admission; fresh same-source control first; Fable authors the single feedback-linked proposal after the declaration and scorer are committed). After 019, Astra's stated preference (2026-09-07 12:38Z) is a bounded paired stochastic diagnostic of the retained 018 policies (exact initial and final tensors, 16 paired Gaussian noise seeds each, all original metrics plus hand-over states and downstream outcomes, descriptive only, under a new source-bound protocol once the 019 freeze ends), because only the first 512-transition rollout of A's training was collected under the exact initial policy, so the telemetry cannot bracket the initial stochastic fall share. Deferred behind it, as separately declared and not yet numbered studies if worthwhile: the course-signal availability study, in Astra's proposed form a single-kernel contrast that swaps the lateral and heading Gaussian terms for Cauchy tails at unchanged scales and weights (Fable's audit on the retained traces: the swap restores a persistent heading gradient at large heading errors but only a marginal lateral one, so the primary readout should be the after-window turning rate against an r1 replication that also serves as the determinism floor) that trains on the 018 baseline's exact pins with a non-saturating heading and lateral reward signal (new recipe fields, data-only contrast), read out on the after-window turning rate against the zero-residual 0.084 rad/s and on the training fall trend; if steering does not appear with the signal active, the lateral problem returns to reference content. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed, and continuing to study the gate needs no new decision from him. |
 
 ## Fable's authority
 
@@ -579,8 +579,8 @@ What follows for strategy:
    probe as study 019 (2026-09-07 12:26Z, guard 0.40 m, exploratory oracle
    screen); Fable holds a firewall-validated proposal to be re-pinned on the
    fresh same-source control's feedback packet; the course-signal training
-   is deferred to a separately declared study 020, and the two changes are
-   never combined in one arm. Route critique on record (2026-09-07 13:50Z,
+   is deferred to a separately declared, not yet numbered study, and the two
+   changes are never combined in one arm. Route critique on record (2026-09-07 13:50Z,
    retained traces): on every four-state composition the whole-run 0.75 m
    lateral gate is lost before the after window (maximum before after entry
    1.41 m on O7b, 2.31 m on the trained A, 0.97 m with the yaw-free derived
@@ -589,14 +589,24 @@ What follows for strategy:
    accrual has a hand-over turn of about 0.5 rad between the inside switch
    and region entry that appears even under a yaw-free inside reference,
    plus a traverse at that heading that inside content does steer (the
-   derived asset recovered heading by region exit). After-window laws,
-   kernels or crops cannot repair the pre-after loss; the steerable lever is
-   content before and during the crouch, and the library has no right-turn
-   content, so a mirrored asset is the supply prerequisite. Fable's ranking
-   after 019: the paired stochastic diagnostic (gates any learned demo), then
-   a pre-crouch right-turn compensation probe once a mirrored asset is
-   validated, then the reward-tail study on the O2 pins where the course
-   signal is alive and the gate is intact at after entry.
+   derived asset recovered heading by region exit). On a frozen trace,
+   after-window laws, kernels or crops act only after the pre-after loss; a
+   newly trained task reward can still change earlier behavior, so full-run
+   failure is not inevitable under training. One steerable lever is content
+   before and during the crouch; the library has no right-turn content, so a
+   mirrored asset is one candidate supply route (exact joint, frame and
+   contact admission plus re-tracking required), not the only one. The
+   yaw-free replay shows the hand-over turn survives a yaw-free inside
+   reference; it does not prove that reference steering cannot affect the
+   hand-over. Hand-over values are read at the pre-action boundary (the 016
+   after boundary carries y = 1.411 m) and region entry at the first
+   post-step row. Fable's ranking after 019 (Astra's priorities agree on the
+   first two): the paired stochastic diagnostic of the retained 018
+   checkpoints (it diagnoses those checkpoints, not all future learning),
+   then a pre-crouch compensation probe once a right-turn asset is admitted,
+   then a separately declared reward-tail study on the O2 pins where the
+   course signal is alive and the gate is intact at after entry; study
+   numbers beyond 019 stay unassigned until Astra declares them.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
