@@ -23,6 +23,9 @@
 - Freeze dynamics/reset, base tracker, action bounds, tracking reward, task,
   evaluation, references/oracle and trainer. B changes only the admitted reward
   recipe. Bind total observation width through frozen_runtime, not trainer ID alone.
+- B minus A estimates the reward contrast for one development seed. A alone is
+  a substrate observation, not an estimate of the new runtime's effect; there
+  is no trained matched control under the old probe-only four-state runtime.
 - Telemetry v4 binds the runtime and base/task/phase widths2154/11/7. Existing
   episode/optimizer summaries are diagnostics. A per-phase height histogram is
   not currently available; no exposure-core import is required for this study.
@@ -68,12 +71,16 @@ OUTPUT: both final policies, synchronized traces, reward lineage, scores, replay
   rationale, prediction and falsifier; publish through `g1 revise`.
 - Exactly one reward recipe, restricted to lateral/heading weight revision.
   Keep recipe version, all other weights and component formulas unchanged.
+- Before A, bound each revised weight to0.5–4.0 times its r1 value: lateral
+  in[0.5,4.0], heading in[0.25,2.0]. One or both may change, at least one must.
+  No candidate grid or feedback-dependent widening of these ranges.
 - P1: B whole-run maximum lateral error≤0.70×A's.
 - P2: B maximum absolute unwrapped reset-relative heading during executed after
   mode≤A's. Unwrap the entire reset-relative heading sequence first, then select
   post-step samples whose executed mode is after; never reset unwrapping at entry.
 - B must retain A's substrate gates, except the headroom requirement is not a
   B guardrail. Posture compliance must also be≥A's, without a rounding tolerance.
+  This deliberately treats even a one-sample fractional regression as a failure.
 - Report every original task gate unchanged. Depth is measured, not a predicted
   improvement or a claim of physical impossibility. A study-screen pass is not
   full-task qualification, held-out performance or generalization evidence.
