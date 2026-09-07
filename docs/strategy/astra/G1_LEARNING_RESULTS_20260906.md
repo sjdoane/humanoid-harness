@@ -126,6 +126,34 @@ robot state → oracle → future reference window → frozen GMT base actor
 
 ## Diagnosis and guardrails
 
+### Reward-family incentive audit (2026-09-07)
+
+Independent read-only audit and parent recomputation at `57d2a2e`:
+
+| Analytic task-reward setting, before tracking | Reward / maximum |
+|---|---:|
+| R1: stationary, aligned, outside the posture region | 3.50432 / 4.5 (77.87%) |
+| R4: inside, height 0.60 m, speed 0.65 m/s, aligned | 3.31967 / 4.5 |
+| R4: immediately outside, same height/speed/alignment | 4.47260 / 4.5 |
+| R4 with speed weight 5: stationary/aligned/outside | 3.52160 / 8.5 (41.43%) |
+
+- These are counterfactual feature evaluations of the actual reward function,
+  not rollouts or proofs that those policies are dynamically achievable.
+- Outside-region posture error is zero, so the posture term pays +2 per living
+  step in R1/R4. There is no explicit progress, finish or milestone term.
+- Separate observed counterexample: O4b/R1 at 131,072 transitions survives but
+  stalls near final progress 1.11370 m. Its 733 inside-region frames average
+  0.008356 m/s. This is an **inside** stall, not the outside analytic example.
+- Source: `adapters/gmt/course_task.py`; retained run:
+  `gmt_course_o4br1_scale64_131072_seed20260906_20260907`.
+- The family can alter local incentives but does not explicitly express task
+  traversal. This is a concrete design concern, not an isolated causal diagnosis.
+- Finish the fixed-normalization comparison before a separate reward test.
+  A higher speed weight is a candidate expressiveness test, not an adopted
+  reward; prior R2 improved mean speed while worsening other task measures.
+
+### Earlier revision safeguards
+
 - O3 execution source: `1b501d6`; 32,768 transitions, seed `20260906`.
   Control/training code is unchanged from `004592f`; only reporting tools differ.
 - O3's five preregistered trained predictions fail: entry phase `1.240 < 1.25 s`,
