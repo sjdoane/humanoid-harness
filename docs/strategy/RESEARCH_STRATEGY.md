@@ -462,7 +462,19 @@ What follows for strategy:
    donor with canonicalized y and yaw and re-derived velocities is a new target
    whose re-tracking (rung 0) is the only authorized falsifier, and no ladder
    or IK run is authorized until it exists; a controller or MDP change stays a
-   separately frozen family with no evidence behind it yet.
+   separately frozen family with no evidence behind it yet. Astra converted
+   the donor into a hash-pinned 106-pose asset at 50 Hz (root x rebased, y
+   and yaw zeroed, unit quaternions, foot-only static contacts) and
+   predeclared study 017: the asset replaces only the inside segment of the
+   unchanged four-state O7b, with a terminal hold and a 2 cm depth-fidelity
+   tolerance that is explicitly not the task gate. Fable's review (2026-09-07
+   08:09Z) found the comparison sound and one structural risk: the donor's
+   passage ends only 0.03 m past the 2.05 m exit guard under exact tracking,
+   and the terminal hold is visible in the tracker's 1.9 s lookahead almost
+   from entry, so a stall or fall in the hold would test the bundle's terminal
+   semantics rather than crouch tracking; the recommended remedies are to
+   extend the asset with the donor's following contact-valid rows or to
+   predeclare hold exposure as a bundle-semantics failure.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
