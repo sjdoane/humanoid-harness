@@ -5,8 +5,10 @@
 | bottleneck | Posture compliance and speed fail the predeclared admission checks. No full-task pass. |
 | next step | Stop B. Test an earlier crouch transition separately before another training comparison. |
 
-Local development report; AI-assisted draft. Machine checks and independent agent
-reviews are complete; accountable human scientific review remains pending.
+Local development report; AI-assisted draft. Numeric/receipt checks and independent
+agent reviews are complete. Accountable human scientific review remains pending.
+Manuscript lint is not complete: sources are unverified by a human, and this internal
+report does not tag each numeric table/path line as a separate manuscript claim.
 No target venue, submission approval, or formal reporting-guideline adherence is claimed.
 
 ## Locked decision
