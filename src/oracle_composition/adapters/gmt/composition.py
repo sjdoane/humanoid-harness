@@ -57,7 +57,7 @@ class ReferenceSegment:
         if self.boundary == "entry_once_then_loop":
             loop_duration = (
                 self.end_seconds - self.loop_start_seconds
-                if self.loop_start_seconds is not None
+                if type(self.loop_start_seconds) is float
                 else -1.0
             )
             if (

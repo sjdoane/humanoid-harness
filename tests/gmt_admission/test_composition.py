@@ -231,6 +231,8 @@ def test_entry_loop_current_and_future_window_share_one_boundary_mapping():
         {"boundary": "entry_once_then_loop"},
         {"boundary": "entry_once_then_loop", "loop_start_seconds": 2.7},
         {"boundary": "entry_once_then_loop", "loop_start_seconds": 4.86},
+        {"boundary": "entry_once_then_loop", "loop_start_seconds": "3.9"},
+        {"boundary": "entry_once_then_loop", "loop_start_seconds": True},
         {
             "entry_phase_end_seconds": 1.3,
             "boundary": "entry_once_then_loop",
