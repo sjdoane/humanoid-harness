@@ -2,8 +2,13 @@
 
 | progress | 38 bounded training runs / 2,424,832 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | No full-task pass. Study018's trained four-stage baseline fails posture and speed admission. |
-| next step | Stop Study018 B; test earlier crouch entry separately from any reward-tail revision. |
+| bottleneck | No full-task pass. Study019 earlier entry falls; Study018 B remains stopped. |
+| next step | Diagnose saved initial/final018 policies under matched noise before changing training. |
+
+- [Study019 result](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
+  one LLM guard revision tested against an exact control. Candidate falls at4.34 s,
+  passes3/11 gates, and fails the intended entry-phase manipulation. Reject;
+  no training. The changed handover state is descriptive, not an isolated cause.
 
 - [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
   native four-state baseline trains for131072 transitions and survives20 s,

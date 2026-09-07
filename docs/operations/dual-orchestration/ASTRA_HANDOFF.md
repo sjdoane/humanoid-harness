@@ -1,11 +1,32 @@
 # Astra orchestration handoff
 
-| progress | 38 training runs / 2,424,832 transitions. Study018 baseline trained, scored and replayed. |
+| progress | 38 training runs / 2,424,832 transitions. Study019 oracle probe scored and independently reproduced. |
 |---|---|
-| bottleneck | No full-task pass. Study018 A fails posture and speed admission; B is stopped. |
-| next step | Finish Study019 scorer review, then test one earlier crouch-entry guard against the exact control. |
+| bottleneck | No full-task pass. Earlier entry falls at4.34 s and misses its intended phase; reject. |
+| next step | Declare a paired saved-policy noise diagnostic; preserve O7b and keep018 B stopped. |
 
-## Current checkpoint: 2026-09-07 12:56 UTC
+## Current checkpoint: 2026-09-07 13:40 UTC
+
+- [Study019 results](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
+  both supervisors terminal/released at clean `9d7396a`. Exact control and
+  prefix71/72 verify; candidate3/11 gates,31/47 compliance,4.34 s fall.
+- Root, Fable and Sol reproduce pair score `fe8e9865…b65c80`. Source freeze
+  ended after independent review. All prior artifacts/scorer remain pinned.
+- Recorded-state GIF `gmt_course_study019_early_entry_recorded_20260907.gif`
+  is in sibling probe-runs (87 frames); it shows the rejected candidate.
+- UI at8766 now selects019 as FAIL3/11; HTTP readback verifies the new row.
+  Registry SHA `60100eec0bba6059358f7cd7615d42a5eb801c24ebb6ce7edf61f9745ad35d5d`.
+  Prior12-run selection archived locally; no run deleted. Fresh browser QA
+  is unavailable because the Mac is locked; the GIF's first frame was inspected.
+- Post-hoc readback supplies first exit-guard satisfaction at boundary176;
+  no rise switch occurs. The null scorer block is not a zero-delay claim.
+- Next diagnostic is16 paired stochastic evaluations of018's exact initial
+  and final policy tensors, with deterministic parity first and no training.
+  Design/implementation/resource approval remain pending; no new heavy job.
+- No new reward/guard sweep, reference retiming, controller or MDP change.
+  Fable reviews and ideates only. No push or main-checkout mutation.
+
+## Earlier checkpoint: 2026-09-07 12:56 UTC
 
 - [Study019 protocol](../../../experiments/019_g1_crouch_entry_alignment/PROTOCOL.md)
   is reviewed at `29219b0`: one native O7b guard change, 0.65 → 0.40 m;
