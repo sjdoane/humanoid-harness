@@ -5,7 +5,19 @@
 | bottleneck | No full-task pass. Study017 reference survives but misses depth fidelity and worsens posture compliance. |
 | next step | Seal/review the Study018 scorer; train native O7b baseline A, then one reward-only B only if A passes predeclared admission. |
 
-## Current checkpoint: 2026-09-07 09:20 UTC
+## Current checkpoint: 2026-09-07 09:34 UTC
+
+- Study018 pure admission/pair criteria committed as `a089491`;19 tests pass.
+  Signed-heading logic also runs against the retained015 recorded trace.
+  Wrapper and negative-path tests remain under construction/review; no A run.
+- Root review requests: pin imported scoring dependencies, require every
+  reconstructed A gate to pass at pair time, and use the actual normalizer API.
+  These are predata closure items, not changed scientific thresholds.
+- Retained015 after-mode lateral reward is below1e-6 in454/737 samples.
+  Fable received this descriptive saturation caveat; it is not a new trial,
+  a claim about PPO gradients, or authority to change018 reward formulas.
+
+## Earlier checkpoint: 2026-09-07 09:20 UTC
 
 - Four-state prerequisite imported as `4aa3385`, `7017f58`, `834c72d`,
   `aef3d7d`. Both independent review and parent inspection pass after the
