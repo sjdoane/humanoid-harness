@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Request or supervise one fixed GMT parity, course, or reference ablation."""
+"""Request or supervise one fixed GMT development workload."""
 
 from __future__ import annotations
 
@@ -39,6 +39,11 @@ from oracle_composition.adapters.gmt.reference_ablation_artifact import (
     validate_reference_ablation_artifact,
 )
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
+from oracle_composition.adapters.gmt.saved_policy_diagnostic_config import (
+    SavedPolicyDiagnosticConfig,
+    load_saved_policy_diagnostic_config,
+    verify_saved_policy_diagnostic_outputs,
+)
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
 from oracle_composition.adapters.gmt.training_contract import (
     CourseTrainerSpec,
@@ -169,6 +174,7 @@ class _LoadedWorkload:
     course_trainer: CourseTrainerSpec | None = None
     course_runtime: CourseRuntimeProfile | None = None
     parity_receipt_inputs: dict[str, object] | None = None
+    saved_policy_diagnostic: SavedPolicyDiagnosticConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -438,8 +444,31 @@ def _load_workload(workload: str, path: Path) -> _LoadedWorkload:
                 "reference ablation requires a probe config with zero training"
             )
         return loaded
+    if workload == "saved-policy-diagnostic":
+        try:
+            diagnostic = load_saved_policy_diagnostic_config(path)
+        except (OSError, ValueError) as exc:
+            raise supervisor.ProbeError(str(exc)) from exc
+        loaded = _load_course(diagnostic.course_config.path)
+        if (
+            loaded.sha256 != diagnostic.course_config.sha256
+            or loaded.course_mode != "train"
+            or loaded.raw.get("training_steps") != 131_072
+            or loaded.course_trainer is None
+            or loaded.course_runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME
+        ):
+            raise supervisor.ProbeError(
+                "saved-policy diagnostic requires the exact retained Study018 course"
+            )
+        return replace(
+            loaded,
+            sha256=diagnostic.sha256,
+            course_mode="evaluation-only",
+            saved_policy_diagnostic=diagnostic,
+        )
     raise supervisor.ProbeError(
-        "development workload must be parity, course, or reference-ablation"
+        "development workload must be parity, course, reference-ablation, "
+        "or saved-policy-diagnostic"
     )
 
 
@@ -462,6 +491,14 @@ def _profile(workload: str, course_mode: str | None) -> tuple[supervisor.ProbeLi
             supervisor.ProbeLimits(wall_seconds=1_200, cpu_seconds=1_200, **common),
             "gmt_g1_reference_ablation_development_resource_receipt",
             REFERENCE_ABLATION_EVIDENCE_CLASS,
+        )
+    if workload == "saved-policy-diagnostic":
+        if course_mode != "evaluation-only":
+            raise supervisor.ProbeError("saved-policy diagnostic mode must be evaluation-only")
+        return (
+            supervisor.ProbeLimits(wall_seconds=1_200, cpu_seconds=1_200, **common),
+            "gmt_g1_saved_policy_diagnostic_resource_receipt",
+            "evaluation_only_paired_saved_policy_diagnostic_not_task_success",
         )
     if course_mode not in {"probe", "train"}:
         raise supervisor.ProbeError("course config mode must be probe or train")
@@ -488,6 +525,17 @@ def _child_argv(request: DevelopmentRequest, root: Path) -> tuple[str, ...]:
             str(request.venv_python),
             "-m",
             "oracle_composition.adapters.gmt.reference_ablation_run",
+            "--config",
+            str(request.config_path),
+            "--output",
+            str(request.output_directory),
+        )
+    if request.workload == "saved-policy-diagnostic":
+        return (
+            str(request.venv_python),
+            "-m",
+            "oracle_composition.adapters.gmt.saved_policy_diagnostic_run",
+            "run",
             "--config",
             str(request.config_path),
             "--output",
@@ -522,6 +570,8 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         "artifact_contract": (
             "gmt_g1_fixed_reference_ablation_launcher/v1"
             if request.workload == "reference-ablation"
+            else "gmt_g1_saved_policy_diagnostic_launcher/v1"
+            if request.workload == "saved-policy-diagnostic"
             else "gmt_g1_fixed_development_launcher/v1"
         ),
         "workload": request.workload,
@@ -537,6 +587,17 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
     }
     if request.workload == "reference-ablation":
         inputs["reference_ablation"] = reference_ablation_contract()
+    if request.workload == "saved-policy-diagnostic":
+        diagnostic = loaded.saved_policy_diagnostic
+        if diagnostic is None:
+            raise supervisor.ProbeError("saved-policy diagnostic binding is missing")
+        protocol_path = root / "experiments/020_g1_saved_policy_diagnostic/PROTOCOL.md"
+        if (
+            diagnostic.protocol.path != protocol_path
+            or sha256_file(protocol_path) != diagnostic.protocol.sha256
+        ):
+            raise supervisor.ProbeError("saved-policy diagnostic protocol differs from this source")
+        inputs["saved_policy_diagnostic"] = diagnostic.resource_binding()
     if loaded.course_trainer is not None:
         inputs["trainer"] = effective_training_contract(loaded.course_trainer)
     if loaded.course_runtime is not None:
@@ -1106,6 +1167,39 @@ def _verify_reference_ablation(plan: supervisor.ProbePlan) -> dict[str, object]:
     }
 
 
+def _verify_saved_policy_diagnostic(plan: supervisor.ProbePlan) -> dict[str, object]:
+    config_binding = plan.inputs.get("config")
+    if not isinstance(config_binding, Mapping) or type(config_binding.get("path")) is not str:
+        raise supervisor.ProbeError("saved-policy diagnostic plan config is malformed")
+    loaded = _load_workload("saved-policy-diagnostic", Path(config_binding["path"]))
+    config = loaded.saved_policy_diagnostic
+    if (
+        config is None
+        or plan.inputs.get("saved_policy_diagnostic") != config.resource_binding()
+        or plan.artifact_label != "gmt_g1_saved_policy_diagnostic_resource_receipt"
+        or plan.evidence_class != "evaluation_only_paired_saved_policy_diagnostic_not_task_success"
+    ):
+        raise supervisor.ProbeError("saved-policy diagnostic accepted binding differs")
+    try:
+        verified = verify_saved_policy_diagnostic_outputs(config, plan.config.output_directory)
+    except (OSError, ValueError) as exc:
+        raise supervisor.ProbeError(str(exc)) from exc
+    supervisor._read_bounded(
+        plan.config.output_directory / supervisor.STDOUT_FILENAME,
+        MAX_LOG_BYTES,
+        "saved-policy diagnostic child stdout",
+    )
+    supervisor._read_bounded(
+        plan.config.output_directory / supervisor.STDERR_FILENAME,
+        MAX_LOG_BYTES,
+        "saved-policy diagnostic child stderr",
+    )
+    return {
+        "saved_policy_diagnostic_manifest": verified["manifest"],
+        "outputs": verified["outputs"],
+    }
+
+
 def verify_development_completed(plan: supervisor.ProbePlan) -> dict[str, object]:
     workload = plan.inputs.get("workload")
     if workload == "parity":
@@ -1114,6 +1208,8 @@ def verify_development_completed(plan: supervisor.ProbePlan) -> dict[str, object
         return _verify_course(plan)
     if workload == "reference-ablation":
         return _verify_reference_ablation(plan)
+    if workload == "saved-policy-diagnostic":
+        return _verify_saved_policy_diagnostic(plan)
     raise supervisor.ProbeError("development workload binding is invalid")
 
 
@@ -1161,7 +1257,7 @@ def _run_parity_child(config_path: Path, output: Path) -> dict[str, object]:
 def _shared_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--workload",
-        choices=("parity", "course", "reference-ablation"),
+        choices=("parity", "course", "reference-ablation", "saved-policy-diagnostic"),
         required=True,
     )
     parser.add_argument("--repository-root", type=Path, required=True)
