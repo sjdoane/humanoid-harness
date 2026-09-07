@@ -31,6 +31,7 @@ class ReferenceSegment:
     entry_phase_end_seconds: float | None = None
     boundary: str = "wrap_within_segment"
     loop_start_seconds: float | None = None
+    exit_at_loop_boundary: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -64,6 +65,10 @@ class ReferenceSegment:
                 raise ValueError("entry-loop bounds must preserve an initial entry interval")
         elif self.loop_start_seconds is not None:
             raise ValueError("loop start requires entry-once-then-loop boundary semantics")
+        if type(self.exit_at_loop_boundary) is not bool or (
+            self.exit_at_loop_boundary and self.boundary != "entry_once_then_loop"
+        ):
+            raise ValueError("loop-boundary exit requires entry-once-then-loop semantics")
 
     @property
     def duration(self) -> float:
@@ -83,6 +88,8 @@ class ReferenceSegment:
             result["entry_phase_end_seconds"] = self.entry_phase_end_seconds
         if self.loop_start_seconds is not None:
             result["loop_start_seconds"] = self.loop_start_seconds
+        if self.exit_at_loop_boundary:
+            result["exit_at_loop_boundary"] = True
         return result
 
     @property
@@ -104,6 +111,28 @@ class ReferenceSegment:
             phase_seconds < self.duration - tolerance,
             phase_seconds,
             loop_start + remainder,
+        )
+
+    def _entry_loop_boundary_index(self, phase: torch.Tensor) -> int:
+        assert self.loop_start_seconds is not None
+        tolerance = torch.finfo(phase.dtype).eps * max(self.end_seconds, 1.0) * 4
+        if float(phase) < self.duration - tolerance:
+            return -1
+        loop_duration = self.end_seconds - self.loop_start_seconds
+        return int(torch.floor((phase - self.duration + tolerance) / loop_duration))
+
+    def allows_ordinary_transition(
+        self, previous_phase: torch.Tensor | None, current_phase: torch.Tensor
+    ) -> bool:
+        if not self.exit_at_loop_boundary:
+            return True
+        if previous_phase is None:
+            return False
+        tolerance = torch.finfo(current_phase.dtype).eps * max(self.end_seconds, 1.0) * 4
+        if float(current_phase) + tolerance < float(previous_phase):
+            raise ValueError("entry-loop phase must advance monotonically")
+        return self._entry_loop_boundary_index(current_phase) > self._entry_loop_boundary_index(
+            previous_phase
         )
 
     def features(self, phase_seconds: torch.Tensor) -> torch.Tensor:
@@ -169,6 +198,8 @@ class ComposedReference:
         self._last_step = -1
         self._phase_origin_step = 0
         self._phase_origin_seconds = 0.0
+        self._last_command_behavior: str | None = None
+        self._last_command_phase: torch.Tensor | None = None
 
     def _phase(self, step: int) -> torch.Tensor:
         return torch.tensor(
@@ -191,7 +222,17 @@ class ComposedReference:
         if "dwell" in signals:
             raise ValueError("dwell is owned by the deterministic oracle machine")
         previous_state, previous_behavior = self.machine.state, self.machine.behavior
-        decision = self.machine.decide({**signals, "dwell": self.machine.dwell})
+        previous_segment = self.segments[previous_behavior]
+        phase_before_decision = self._phase(step)
+        prior_phase = (
+            self._last_command_phase if self._last_command_behavior == previous_behavior else None
+        )
+        decision = self.machine.decide(
+            {**signals, "dwell": self.machine.dwell},
+            allow_transitions=previous_segment.allows_ordinary_transition(
+                prior_phase, phase_before_decision
+            ),
+        )
         segment = self.segments[decision.behavior]
         transition = None
         if decision.controller_switched:
@@ -213,6 +254,8 @@ class ComposedReference:
         current = segment.features(phase.reshape(1))[0].numpy().copy()
         window = segment.features(phase + offsets).numpy().copy()
         self._last_step = step
+        self._last_command_behavior = decision.behavior
+        self._last_command_phase = phase.clone()
         self.machine.advance()
         return ReferenceCommand(
             decision.state,

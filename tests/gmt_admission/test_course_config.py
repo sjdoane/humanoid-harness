@@ -6,6 +6,11 @@ import json
 import pytest
 
 from oracle_composition.adapters.gmt import course_config as module
+from oracle_composition.adapters.gmt.course_runtime import (
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    LOOP_RUNTIME_PROFILE_ID,
+)
 
 
 @pytest.fixture
@@ -93,6 +98,7 @@ def test_exact_config_and_raw_byte_identity(admitted_config):
     admitted = module.load_run_config(path)
     assert admitted.encoded == path.read_bytes()
     assert admitted.trainer is None and "trainer" not in admitted.raw
+    assert admitted.runtime == LEGACY_RUNTIME
     assert admitted.program.initial == "before"
     assert admitted.task.horizon_steps == 1000
     assert admitted.segments["walk"].duration == 10.0
@@ -225,9 +231,7 @@ def test_course_config_admits_exact_reward_v2(admitted_config):
     admitted = module.load_run_config(path)
 
     assert admitted.recipe == reward_v2
-    assert admitted.recipe.sha256 != module.TaskRewardRecipe(
-        1.0, 2.0, 1.0, 0.5, 1.0
-    ).sha256
+    assert admitted.recipe.sha256 != module.TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0).sha256
 
 
 @pytest.mark.parametrize(
@@ -278,4 +282,145 @@ def test_training_budget_is_exact_rollout_multiple(admitted_config, steps):
     raw.update(mode="train", training_steps=steps)
     path.write_text(json.dumps(raw))
     with pytest.raises(ValueError, match="training steps"):
+        module.load_run_config(path)
+
+
+def _enable_loop_runtime(raw: dict) -> None:
+    raw["schema_version"] = 2
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": LOOP_RUNTIME_PROFILE_ID,
+    }
+    raw["segments"] = {
+        "walk": {
+            "motion_name": "walk_stand",
+            "start_seconds": 0.0,
+            "end_seconds": 10.0,
+        },
+        "crouch": {
+            "motion_name": "walk_stand",
+            "entry_phase_end_seconds": 0.15,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+            "exit_at_loop_boundary": True,
+            "start_seconds": 2.7,
+            "end_seconds": 4.86,
+        },
+    }
+    raw["oracle"]["behaviors"] = ["walk", "crouch"]
+    raw["oracle"]["states"]["inside"]["behavior"] = "crouch"
+
+
+def test_config_v2_admits_loop_profile_and_three_state_control_subset(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == LOOP_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert set(admitted.program.states) == {"before", "inside", "after"}
+    assert admitted.segments["crouch"].loop_start_seconds == 3.9
+    assert admitted.segments["crouch"].exit_at_loop_boundary is True
+
+
+def test_config_v2_admits_full_four_state_oracle(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    raw["segments"]["rise"] = {
+        "motion_name": "walk_stand",
+        "start_seconds": 5.72,
+        "end_seconds": 6.5,
+        "entry_phase_end_seconds": 0.0,
+        "boundary": "hold_last_pose_zero_velocity",
+    }
+    raw["oracle"]["behaviors"] = ["walk", "crouch", "rise"]
+    raw["oracle"]["states"] = {
+        "before": {"behavior": "walk", "min_dwell": 25},
+        "inside": {"behavior": "crouch", "min_dwell": 25},
+        "rise": {"behavior": "rise", "min_dwell": 25},
+        "after": {"behavior": "walk", "min_dwell": 25},
+    }
+    raw["oracle"]["transitions"] = [
+        {"from": "before", "to": "inside", "priority": 0, "guard": "x_travelled >= 1"},
+        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2"},
+        {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 25"},
+    ]
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert tuple(admitted.runtime.state_slots) == ("before", "inside", "rise", "after")
+    assert set(admitted.program.states) == set(admitted.runtime.state_slots)
+
+
+def test_loop_profile_is_probe_only_and_legacy_profile_prohibits_loop(admitted_config):
+    raw, path = admitted_config
+    legacy = copy.deepcopy(raw)
+    legacy["segments"]["walk"].update(
+        {
+            "entry_phase_end_seconds": 0.15,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+        }
+    )
+    path.write_text(json.dumps(legacy))
+    with pytest.raises(ValueError, match="legacy runtime prohibits"):
+        module.load_run_config(path)
+
+    _enable_loop_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="probe-only"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": LOOP_RUNTIME_PROFILE_ID},
+        {"schema_version": 1, "profile_id": LOOP_RUNTIME_PROFILE_ID, "extra": 1},
+    ],
+)
+def test_config_v2_requires_exact_runtime_profile(admitted_config, runtime):
+    raw, path = admitted_config
+    raw["schema_version"] = 2
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+
+def test_loop_profile_rejects_unknown_states_recovery_and_state_only_transitions(
+    admitted_config,
+):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    unknown = copy.deepcopy(raw)
+    unknown["oracle"]["states"]["detour"] = unknown["oracle"]["states"].pop("after")
+    unknown["oracle"]["transitions"][1]["to"] = "detour"
+    path.write_text(json.dumps(unknown))
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+    recovery = copy.deepcopy(raw)
+    recovery["oracle"]["recovery"] = {
+        "behavior": "walk",
+        "guard": "z_root < 0.3",
+        "max_duration": 25,
+        "min_dwell": 5,
+        "reentry_dwell": 25,
+        "rejoin": "suspended_state_dwell_reset",
+    }
+    path.write_text(json.dumps(recovery))
+    with pytest.raises(ValueError, match="does not admit recovery"):
+        module.load_run_config(path)
+
+    state_only = copy.deepcopy(raw)
+    state_only["oracle"]["states"]["after"]["behavior"] = "crouch"
+    path.write_text(json.dumps(state_only))
+    with pytest.raises(ValueError, match="behavior-changing"):
         module.load_run_config(path)

@@ -19,8 +19,10 @@ from oracle_composition.adapters.gmt.control_runtime import (
     ControlInterval,
     PreparedControl,
 )
+from oracle_composition.adapters.gmt.course_runtime import LOOP_RUNTIME, CourseRuntimeProfile
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskRewardRecipe
 from oracle_composition.adapters.gmt.gym_env import (
+    LOOP_RESIDUAL_OBSERVATION_DIM,
     RESIDUAL_OBSERVATION_DIM,
     GMTResidualEnv,
 )
@@ -205,6 +207,7 @@ def _env(
     task: CourseTaskSpec | None = None,
     contact_substep: int | None = None,
     fall_substep: int | None = None,
+    runtime: CourseRuntimeProfile | None = None,
 ) -> tuple[GMTResidualEnv, _FakePlant, _FakeActorSession]:
     plant = _FakePlant(
         positions,
@@ -212,12 +215,14 @@ def _env(
         fall_substep=fall_substep,
     )
     actor = _FakeActorSession()
+    kwargs = {} if runtime is None else {"runtime": runtime}
     env = GMTResidualEnv(
         plant=plant,
         actor=actor,
         oracle=_oracle(),
         task=task or _task(),
         recipe=TaskRewardRecipe(1.0, 1.0, 1.0, 1.0, 1.0),
+        **kwargs,
     )
     return env, plant, actor
 
@@ -240,6 +245,20 @@ def test_fixed_observation_layout_and_one_reference_window_feed_all_modes() -> N
     np.testing.assert_array_equal(observations[2][-4:-1], [0.0, 0.0, 1.0])
     for observation, window in zip(observations, actor.windows, strict=True):
         np.testing.assert_array_equal(observation[:600], window.reshape(-1))
+
+
+def test_loop_profile_adds_fixed_rise_slot_for_three_state_matched_control() -> None:
+    env, _plant, _actor = _env([0.0, 1.5, 2.5], runtime=LOOP_RUNTIME)
+    observations = [env.reset()[0]]
+    observations.append(env.step(_zero_action())[0])
+    observations.append(env.step(_zero_action())[0])
+
+    assert LOOP_RESIDUAL_OBSERVATION_DIM == 2_172
+    assert [observation.shape for observation in observations] == [(2_172,)] * 3
+    np.testing.assert_array_equal(observations[0][-5:-1], [1.0, 0.0, 0.0, 0.0])
+    np.testing.assert_array_equal(observations[1][-5:-1], [0.0, 1.0, 0.0, 0.0])
+    np.testing.assert_array_equal(observations[2][-5:-1], [0.0, 0.0, 0.0, 1.0])
+    assert all(observation[-3] == 0.0 for observation in observations)
 
 
 def test_task_region_comes_from_actual_position_not_oracle_mode() -> None:

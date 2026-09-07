@@ -16,6 +16,7 @@ from oracle_composition.adapters.gmt.course_proposal import (
     COURSE_PROPOSAL_SCHEMA_VERSION,
     apply_proposal,
 )
+from oracle_composition.adapters.gmt.course_runtime import LOOP_RUNTIME
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskRewardRecipe
 from oracle_composition.adapters.gmt.reference_runtime import ReferenceMotion
 from oracle_composition.adapters.gmt.training_contract import (
@@ -176,6 +177,47 @@ def _parent_with_trainer(profile_version: int = 1) -> CourseRunConfig:
     )
 
 
+def _loop_parent() -> CourseRunConfig:
+    parent = _parent()
+    raw = copy.deepcopy(parent.raw)
+    raw.update(
+        schema_version=2,
+        mode="probe",
+        training_steps=0,
+        runtime=LOOP_RUNTIME.config_value,
+    )
+    raw["segments"]["crouch"].update(
+        {
+            "start_seconds": 2.7,
+            "end_seconds": 4.86,
+            "entry_phase_end_seconds": 0.15,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+            "exit_at_loop_boundary": True,
+        }
+    )
+    segments = dict(parent.segments)
+    segments["crouch"] = ReferenceSegment(
+        segments["crouch"].motion,
+        CROUCH_SHA256,
+        2.7,
+        4.86,
+        entry_phase_end_seconds=0.15,
+        boundary="entry_once_then_loop",
+        loop_start_seconds=3.9,
+        exit_at_loop_boundary=True,
+    )
+    encoded = canonical_json_bytes(raw)
+    return replace(
+        parent,
+        raw=raw,
+        encoded=encoded,
+        sha256=hashlib.sha256(encoded).hexdigest(),
+        segments=segments,
+        runtime=LOOP_RUNTIME,
+    )
+
+
 def _reward_replacement() -> dict:
     return {"reward": TaskRewardRecipe(1.5, 2.0, 1.0, 0.5, 1.0).to_dict()}
 
@@ -194,6 +236,67 @@ def _oracle_replacement() -> dict:
                 "start_seconds": 0.1,
                 "end_seconds": 9.9,
                 "entry_phase_end_seconds": 0.5,
+                "boundary": "hold_last_pose_zero_velocity",
+            },
+        },
+    }
+
+
+def _o5_replacement() -> dict:
+    return {
+        "oracle": {
+            "schema_version": 1,
+            "evidence_class": "exploratory_oracle_cycle",
+            "oracle_id": "o5_four_state",
+            "behaviors": ["walk", "crouch", "rise"],
+            "initial": "before",
+            "states": {
+                "before": {"behavior": "walk", "min_dwell": 25},
+                "inside": {"behavior": "crouch", "min_dwell": 25},
+                "rise": {"behavior": "rise", "min_dwell": 25},
+                "after": {"behavior": "walk", "min_dwell": 25},
+            },
+            "transitions": [
+                {
+                    "from": "before",
+                    "to": "inside",
+                    "priority": 0,
+                    "guard": "x_travelled >= 1",
+                },
+                {
+                    "from": "inside",
+                    "to": "rise",
+                    "priority": 0,
+                    "guard": "(dwell >= 24 and z_root >= 0.70) or dwell >= 40",
+                },
+                {
+                    "from": "rise",
+                    "to": "after",
+                    "priority": 0,
+                    "guard": "dwell >= 39",
+                },
+            ],
+        },
+        "segments": {
+            "walk": {
+                "motion_name": "walk_stand",
+                "start_seconds": 0.0,
+                "end_seconds": 10.0,
+            },
+            "crouch": {
+                "motion_name": "crouchwalk_stand",
+                "start_seconds": 2.7,
+                "end_seconds": 4.86,
+                "entry_phase_end_seconds": 0.15,
+                "boundary": "entry_once_then_loop",
+                "loop_start_seconds": 3.9,
+                "exit_at_loop_boundary": True,
+            },
+            "rise": {
+                "motion_name": "crouchwalk_stand",
+                "start_seconds": 5.72,
+                "end_seconds": 6.5,
+                "entry_phase_end_seconds": 0.0,
                 "boundary": "hold_last_pose_zero_velocity",
             },
         },
@@ -275,6 +378,23 @@ def test_oracle_proposal_changes_only_oracle_and_segments() -> None:
     }
     for field in CONFIG_KEYS - {"oracle", "segments"}:
         assert canonical_json_bytes(candidate[field]) == canonical_json_bytes(parent.raw[field])
+
+
+def test_loop_profile_proposal_admits_o5_and_cannot_change_runtime() -> None:
+    parent = _loop_parent()
+    feedback = _feedback(parent)
+    proposal = _proposal(parent, feedback, factor="oracle")
+    proposal["replacement"] = _o5_replacement()
+
+    candidate = apply_proposal(parent, proposal, feedback)
+
+    assert candidate["runtime"] == parent.raw["runtime"]
+    assert candidate["segments"]["crouch"]["loop_start_seconds"] == 3.9
+    assert candidate["segments"]["crouch"]["exit_at_loop_boundary"] is True
+    assert set(candidate["oracle"]["states"]) == {"before", "inside", "rise", "after"}
+    proposal["replacement"]["runtime"] = parent.raw["runtime"]
+    with pytest.raises(ValueError, match="exactly oracle and segments"):
+        apply_proposal(parent, proposal, feedback)
 
 
 @pytest.mark.parametrize("profile_version", [1, 2])

@@ -10,15 +10,20 @@ import gymnasium as gym
 import numpy as np
 
 from .composition import ComposedReference
-from .contracts import ACTION_DIM, CONTROL_DT_SECONDS, OBSERVATION_DIM
+from .contracts import ACTION_DIM, CONTROL_DT_SECONDS
 from .control_runtime import (
     G1ControlRuntime,
     GMTActorSession,
     compose_residual_raw_action,
 )
+from .course_runtime import (
+    LEGACY_GYM_RUNTIME_ID,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    CourseRuntimeProfile,
+)
 from .course_task import (
     ROOT_HEIGHT_FAILURE_M,
-    TASK_FEATURE_NAMES,
     TORSO_UP_FAILURE_MIN,
     CourseTaskSpec,
     TaskFrame,
@@ -28,11 +33,12 @@ from .course_task import (
 )
 from .reference_math import quaternion_to_euler_wxyz
 
-GYM_RUNTIME_ID = "gmt_g1_residual_course_50hz/v1"
+GYM_RUNTIME_ID = LEGACY_GYM_RUNTIME_ID
 ORACLE_SIGNAL_CONTRACT_ID = "gmt_initial_heading_frame_boundary_signals/v1"
-STATE_SLOTS = ("before", "inside", "after")
+STATE_SLOTS = LEGACY_RUNTIME.state_slots
 RESIDUAL_RAW_SCALE = np.float32(0.25)
-RESIDUAL_OBSERVATION_DIM = OBSERVATION_DIM + len(TASK_FEATURE_NAMES) + 6
+RESIDUAL_OBSERVATION_DIM = LEGACY_RUNTIME.observation_dim
+LOOP_RESIDUAL_OBSERVATION_DIM = LOOP_RUNTIME.observation_dim
 
 
 class GMTResidualEnv(gym.Env):
@@ -47,15 +53,18 @@ class GMTResidualEnv(gym.Env):
         task: CourseTaskSpec,
         recipe: TaskRewardRecipe,
         record_trajectory: bool = False,
+        runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
     ) -> None:
-        if set(oracle.program.states) != set(STATE_SLOTS):
-            raise ValueError("all study arms must retain the same three oracle state slots")
+        if runtime not in {LEGACY_RUNTIME, LOOP_RUNTIME}:
+            raise ValueError("course runtime profile is not admitted")
+        runtime.validate_program(oracle.program)
         self.plant, self.actor, self.oracle = plant, actor, oracle
         self.task, self.recipe = task, recipe
+        self.runtime = runtime
         self.record_trajectory = record_trajectory
         self.action_space = gym.spaces.Box(-1.0, 1.0, (ACTION_DIM,), dtype=np.float32)
         self.observation_space = gym.spaces.Box(
-            -np.inf, np.inf, (RESIDUAL_OBSERVATION_DIM,), dtype=np.float32
+            -np.inf, np.inf, (runtime.observation_dim,), dtype=np.float32
         )
         self._done = True
 
@@ -104,7 +113,7 @@ class GMTResidualEnv(gym.Env):
             [
                 math.sin(phase),
                 math.cos(phase),
-                *[float(self._command.state == name) for name in STATE_SLOTS],
+                *[float(self._command.state == name) for name in self.runtime.state_slots],
                 min(self.oracle.machine.dwell / self.task.horizon_steps, 1.0),
             ],
             dtype=np.float32,
@@ -140,8 +149,8 @@ class GMTResidualEnv(gym.Env):
         )
         self._done = False
         observation = self._prepare()
-        return observation, {
-            "runtime_id": GYM_RUNTIME_ID,
+        info = {
+            "runtime_id": self.runtime.gym_runtime_id,
             "signal_contract_id": ORACLE_SIGNAL_CONTRACT_ID,
             "reset_distribution": "fixed_home_keyframe_one_warmup_step",
             "seed_effect": "policy_training_rng_only_no_reset_randomization",
@@ -149,6 +158,10 @@ class GMTResidualEnv(gym.Env):
             "oracle_sha256": self.oracle.program.sha256,
             "reward_sha256": self.recipe.sha256,
         }
+        runtime = self.runtime.manifest_contract()
+        if runtime is not None:
+            info["course_runtime"] = runtime
+        return observation, info
 
     def step(self, action: np.ndarray):
         if self._done:

@@ -135,7 +135,12 @@ def _oracle_replacement(parent: CourseRunConfig, replacement: object) -> dict[st
     consumed = set()
     for behavior, raw in raw_segments.items():
         required = {"motion_name", "start_seconds", "end_seconds"}
-        optional = {"entry_phase_end_seconds", "boundary"}
+        optional = {
+            "entry_phase_end_seconds",
+            "boundary",
+            "loop_start_seconds",
+            "exit_at_loop_boundary",
+        }
         if type(raw) is not dict or not required <= set(raw) <= required | optional:
             raise ValueError("proposal segment fields differ")
         motion_name = raw["motion_name"]
@@ -144,8 +149,23 @@ def _oracle_replacement(parent: CourseRunConfig, replacement: object) -> dict[st
         if any(type(raw[name]) is not float for name in ("start_seconds", "end_seconds")):
             raise ValueError("proposal segment bounds must be floats")
         parent_sha256 = parent.assets["motions"][motion_name]["sha256"]
+        if not parent.runtime.permits_entry_loop and (
+            "loop_start_seconds" in raw
+            or "exit_at_loop_boundary" in raw
+            or raw.get("boundary") == "entry_once_then_loop"
+        ):
+            raise ValueError("parent runtime prohibits entry-loop segment semantics")
+        if "exit_at_loop_boundary" in raw and raw["exit_at_loop_boundary"] is not True:
+            raise ValueError("proposal loop-boundary exit must be exactly true when declared")
         options = {
-            name: raw[name] for name in ("entry_phase_end_seconds", "boundary") if name in raw
+            name: raw[name]
+            for name in (
+                "entry_phase_end_seconds",
+                "boundary",
+                "loop_start_seconds",
+                "exit_at_loop_boundary",
+            )
+            if name in raw
         }
         segments[behavior] = ReferenceSegment(
             motions[motion_name],
@@ -158,8 +178,7 @@ def _oracle_replacement(parent: CourseRunConfig, replacement: object) -> dict[st
     if consumed != set(motions):
         raise ValueError("proposal must consume exactly the parent's admitted motions")
     program = oracle_program_from_dict(replacement["oracle"], available_behaviors=list(segments))
-    if set(program.states) != {"before", "inside", "after"}:
-        raise ValueError("proposal must preserve the three course state slots")
+    parent.runtime.validate_program(program)
     if set(program.behaviors) != set(segments):
         raise ValueError("proposal oracle and segment behaviors must agree exactly")
     return {"oracle": program.to_dict(), "segments": copy.deepcopy(raw_segments)}

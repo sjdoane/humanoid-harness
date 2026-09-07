@@ -16,6 +16,12 @@ from oracle_composition.harness.contract import (
 from .checkpoint import verify_upstream_root
 from .composition import ReferenceSegment
 from .contracts import MOTION_SPECS
+from .course_runtime import (
+    LEGACY_RUNTIME,
+    LOOP_CONFIG_SCHEMA_VERSION,
+    CourseRuntimeProfile,
+    runtime_profile_from_config,
+)
 from .course_task import CourseTaskSpec, TaskRewardRecipe
 from .io import sha256_file
 from .reference_runtime import ReferenceMotion
@@ -44,6 +50,7 @@ CONFIG_KEYS = {
     "training_steps",
 }
 CONFIG_KEYS_WITH_TRAINER = {*CONFIG_KEYS, "trainer"}
+CONFIG_KEYS_WITH_RUNTIME = {*CONFIG_KEYS, "runtime"}
 
 
 def _keys(value: object, expected: set[str], field: str) -> dict:
@@ -75,14 +82,21 @@ class CourseRunConfig:
     program: OracleProgram
     segments: dict[str, ReferenceSegment]
     trainer: CourseTrainerSpec | None = None
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME
 
 
 def load_run_config(path: Path) -> CourseRunConfig:
     raw, encoded = read_json_object(path)
-    if type(raw) is not dict or set(raw) not in (CONFIG_KEYS, CONFIG_KEYS_WITH_TRAINER):
+    if type(raw) is not dict:
         raise ValueError("course run fields differ")
-    if type(raw["schema_version"]) is not int or raw["schema_version"] != 1:
-        raise ValueError("course run schema version differs")
+    runtime = runtime_profile_from_config(raw)
+    valid_fields = (
+        {frozenset(CONFIG_KEYS_WITH_RUNTIME)}
+        if runtime.config_schema_version == LOOP_CONFIG_SCHEMA_VERSION
+        else {frozenset(CONFIG_KEYS), frozenset(CONFIG_KEYS_WITH_TRAINER)}
+    )
+    if frozenset(raw) not in valid_fields:
+        raise ValueError("course run fields differ")
     if raw["mode"] not in {"probe", "train"}:
         raise ValueError("course mode must be probe or train")
     steps = raw["training_steps"]
@@ -96,6 +110,8 @@ def load_run_config(path: Path) -> CourseRunConfig:
     trainer = CourseTrainerSpec.from_dict(raw["trainer"]) if "trainer" in raw else None
     if trainer is not None and raw["mode"] != "train":
         raise ValueError("trainer preconditioning is valid only for train mode")
+    if not runtime.training_admitted and raw["mode"] != "probe":
+        raise ValueError("four-state loop runtime is probe-only until feasibility is measured")
     assets = _keys(raw["assets"], {"upstream_root", "weights", "motions"}, "assets")
     if type(assets["upstream_root"]) is not str or not Path(assets["upstream_root"]).is_absolute():
         raise ValueError("upstream_root must be an absolute path")
@@ -123,7 +139,12 @@ def load_run_config(path: Path) -> CourseRunConfig:
     admitted = {}
     for behavior, value in segments.items():
         required = {"motion_name", "start_seconds", "end_seconds"}
-        optional = {"entry_phase_end_seconds", "boundary"}
+        optional = {
+            "entry_phase_end_seconds",
+            "boundary",
+            "loop_start_seconds",
+            "exit_at_loop_boundary",
+        }
         if type(value) is not dict or not required <= set(value) <= required | optional:
             raise ValueError("segment fields differ")
         segment = value
@@ -131,6 +152,16 @@ def load_run_config(path: Path) -> CourseRunConfig:
             raise ValueError("segment refers to an unadmitted motion")
         if any(type(segment[key]) is not float for key in ("start_seconds", "end_seconds")):
             raise ValueError("segment bounds must be floats")
+        if "loop_start_seconds" in segment and type(segment["loop_start_seconds"]) is not float:
+            raise ValueError("segment loop start must be a float")
+        if "exit_at_loop_boundary" in segment and segment["exit_at_loop_boundary"] is not True:
+            raise ValueError("segment loop-boundary exit must be exactly true when declared")
+        if not runtime.permits_entry_loop and (
+            "loop_start_seconds" in segment
+            or "exit_at_loop_boundary" in segment
+            or segment.get("boundary") == "entry_once_then_loop"
+        ):
+            raise ValueError("legacy runtime prohibits entry-loop segment semantics")
         name = segment["motion_name"]
         admitted[behavior] = ReferenceSegment(
             loaded[name],
@@ -139,23 +170,25 @@ def load_run_config(path: Path) -> CourseRunConfig:
             segment["end_seconds"],
             entry_phase_end_seconds=segment.get("entry_phase_end_seconds"),
             boundary=segment.get("boundary", "wrap_within_segment"),
+            loop_start_seconds=segment.get("loop_start_seconds"),
+            exit_at_loop_boundary=segment.get("exit_at_loop_boundary", False),
         )
     if {segment["motion_name"] for segment in segments.values()} != set(motions):
         raise ValueError("unused assets must not masquerade as consumed references")
     program = oracle_program_from_dict(raw["oracle"], available_behaviors=list(admitted))
-    if set(program.states) != {"before", "inside", "after"}:
-        raise ValueError("all course arms require the same three state slots")
+    runtime.validate_program(program)
     task = CourseTaskSpec.from_dict(raw["task"])
     if task.horizon_steps > 2_000:
         raise ValueError("development evaluation is bounded to forty simulated seconds")
     return CourseRunConfig(
-        raw,
-        encoded,
-        hashlib.sha256(encoded).hexdigest(),
-        assets,
-        task,
-        TaskRewardRecipe.from_dict(raw["reward"]),
-        program,
-        admitted,
-        trainer,
+        raw=raw,
+        encoded=encoded,
+        sha256=hashlib.sha256(encoded).hexdigest(),
+        assets=assets,
+        task=task,
+        recipe=TaskRewardRecipe.from_dict(raw["reward"]),
+        program=program,
+        segments=admitted,
+        trainer=trainer,
+        runtime=runtime,
     )

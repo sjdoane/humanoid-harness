@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from .contracts import OBSERVATION_DIM
+from oracle_composition.harness.contract import OracleProgram
+
+from .contracts import CONTROL_DT_SECONDS, OBSERVATION_DIM
 from .course_task import TASK_FEATURE_NAMES
 
 LEGACY_CONFIG_SCHEMA_VERSION = 1
@@ -55,6 +57,18 @@ class CourseRuntimeProfile:
             )
             raise ValueError(f"oracle states differ from the {family} runtime profile")
 
+    def validate_program(self, program: OracleProgram) -> None:
+        self.validate_states(program.states)
+        if not self.permits_entry_loop:
+            return
+        if program.recovery is not None:
+            raise ValueError("loop runtime does not admit recovery semantics")
+        if any(
+            program.states[transition.source].behavior == program.states[transition.target].behavior
+            for transition in program.transitions
+        ):
+            raise ValueError("loop runtime requires behavior-changing state transitions")
+
     def manifest_contract(self) -> dict[str, object] | None:
         if self.profile_id is None:
             return None
@@ -63,6 +77,12 @@ class CourseRuntimeProfile:
             "profile_id": self.profile_id,
             "state_observation_slots": list(self.state_slots),
             "training_admitted": self.training_admitted,
+            "loop_exit_gate": {
+                "guard_sampling": "fresh_signals_only_at_first_50hz_boundary_crossing_loop_end",
+                "float32_boundary_tolerance": "four_eps_times_max_source_end_or_one",
+                "maximum_deferral": "one_loop_period_plus_one_control_interval",
+                "control_interval_seconds": CONTROL_DT_SECONDS,
+            },
         }
 
 
@@ -97,7 +117,13 @@ def runtime_profile_from_config(value: Mapping[str, object]) -> CourseRuntimePro
             raise ValueError("legacy course config cannot declare a runtime profile")
         return LEGACY_RUNTIME
     if schema_version == LOOP_CONFIG_SCHEMA_VERSION:
-        if value.get("runtime") != _LOOP_CONFIG_VALUE:
+        runtime = value.get("runtime")
+        if (
+            type(runtime) is not dict
+            or set(runtime) != set(_LOOP_CONFIG_VALUE)
+            or type(runtime.get("schema_version")) is not int
+            or runtime != _LOOP_CONFIG_VALUE
+        ):
             raise ValueError("course loop runtime profile differs")
         return LOOP_RUNTIME
     raise ValueError("course run schema version differs")
