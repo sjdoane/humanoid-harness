@@ -455,11 +455,14 @@ What follows for strategy:
    the cheap falsifier; rungs 1 and 2 lower the root by 0.015 and 0.025 m
    through minimal contact-aware leg IK with the feet held at their executed
    positions, each with its own motion identity and FK contact receipt; the
-   readout is the tracking gap at the dip. Source-clip repair is demoted to a
-   consistency route because the clip's own joints sit near 0.57 m with feet on
-   the plane; a controller or MDP change stays a separately frozen family with
-   no evidence behind it yet. Only after that ladder are residual-authority or
-   reward questions well posed again.
+   readout is the tracking gap at the dip. Astra's corrections (2026-09-07
+   07:12Z) bound this: the 0.57 m clearance figure holds the source dip's joints
+   fixed, and contact-aware IK changes joints, so source-clip repair is not
+   proved incapable of 0.50 m and remains a candidate route; the extracted
+   donor with canonicalized y and yaw and re-derived velocities is a new target
+   whose re-tracking (rung 0) is the only authorized falsifier, and no ladder
+   or IK run is authorized until it exists; a controller or MDP change stays a
+   separately frozen family with no evidence behind it yet.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
