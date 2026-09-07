@@ -8,7 +8,14 @@ import numpy as np
 import pytest
 
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
+from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
+from oracle_composition.adapters.gmt.heading_feedback import AFTER_HEADING_FEEDBACK_TRACE_KEY
 
 
 def _spec() -> CourseTaskSpec:
@@ -123,6 +130,29 @@ def test_fixed_development_gates_pass_on_complete_compliant_trace() -> None:
     assert all(result["development_gate_results"].values())
     assert result["development_gate_passed"] is True
     assert result["episode_success"] is None
+
+
+def test_heading_trace_schema_is_profile_scoped_and_never_changes_score() -> None:
+    rows = _frames()
+    rows[-1]["executed_mode"] = "after"
+    baseline = evaluate_episode(spec=_spec(), frames=rows)
+    rows[-1][AFTER_HEADING_FEEDBACK_TRACE_KEY] = {"diagnostic_only": 1.0}
+    assert evaluate_episode(
+        spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME
+    ) == baseline
+    for runtime in (LEGACY_RUNTIME, LOOP_RUNTIME, FINITE_HORIZON_RUNTIME):
+        with pytest.raises(ValueError, match="frame fields"):
+            evaluate_episode(spec=_spec(), frames=rows, runtime=runtime)
+    rows[0][AFTER_HEADING_FEEDBACK_TRACE_KEY] = {}
+    with pytest.raises(ValueError, match="frame fields"):
+        evaluate_episode(spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME)
+    del rows[0][AFTER_HEADING_FEEDBACK_TRACE_KEY]
+    rows[-1][AFTER_HEADING_FEEDBACK_TRACE_KEY] = {"bad": float("nan")}
+    with pytest.raises(ValueError, match="finite object"):
+        evaluate_episode(spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME)
+    del rows[-1][AFTER_HEADING_FEEDBACK_TRACE_KEY]
+    with pytest.raises(ValueError, match="frame fields"):
+        evaluate_episode(spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME)
 
 
 def test_fall_is_reported_and_cannot_pass_the_development_gate() -> None:

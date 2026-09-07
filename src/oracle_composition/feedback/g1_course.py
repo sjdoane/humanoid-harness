@@ -644,7 +644,7 @@ def build_g1_course_feedback(
         frames=frames,
         trajectory=trajectory,
     )
-    objective = evaluate_episode(spec=config.task, frames=frames)
+    objective = evaluate_episode(spec=config.task, frames=frames, runtime=config.runtime)
     report = _json(
         retained[f"{label}_evaluation.json"], source=f"{label} course evaluation"
     )

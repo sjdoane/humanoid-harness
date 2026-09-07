@@ -192,6 +192,7 @@ def test_zero_residual_artifacts_are_exact_across_trainer_profiles(tmp_path, mon
         config = SimpleNamespace(
             raw={"seed": 17},
             task=task,
+            runtime=SimpleNamespace(after_heading_reference_feedback=False),
             trainer=(
                 None
                 if version is None
@@ -211,7 +212,10 @@ def test_rollout_observer_sees_pre_step_input_without_changing_standard_artifact
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(module, "evaluate_episode", lambda **_: {"fixture": True})
-    config = SimpleNamespace(raw={"seed": 17}, task=SimpleNamespace(horizon_steps=2))
+    config = SimpleNamespace(
+        raw={"seed": 17}, task=SimpleNamespace(horizon_steps=2),
+        runtime=SimpleNamespace(after_heading_reference_feedback=False),
+    )
     baseline_dir = tmp_path / "baseline"
     observed_dir = tmp_path / "observed"
     baseline_dir.mkdir()

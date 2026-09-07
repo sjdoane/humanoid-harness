@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
 from dataclasses import replace
 
@@ -145,7 +146,7 @@ def _pose(x: float, lateral: float, yaw: float, *, height: float = 0.8) -> np.nd
     return result
 
 
-def _heading_env(final_lateral: float = 1.2):
+def _heading_env(final_lateral: float = 1.2, *, horizon_steps: int = 10):
     plant = _FakePlant([0.0, 1.1, 2.1, 2.2, 2.3])
     plant.states = [
         _pose(0.0, 0.0, 0.0),
@@ -156,7 +157,7 @@ def _heading_env(final_lateral: float = 1.2):
     ]
     actor = _FakeActorSession()
     oracle = _four_state_oracle()
-    task = _task()
+    task = _task(horizon_steps=horizon_steps)
     recipe = TaskRewardRecipe(1.0, 1.0, 1.0, 1.0, 1.0)
     env = GMTResidualEnv(
         plant=plant,
@@ -431,6 +432,31 @@ def test_after_heading_profile_issues_actor_window_and_held_target_from_pre_acti
             frames=frames,
             trajectory=wrong_reference,
         )
+
+
+def test_heading_rollout_publishes_through_real_evaluator(tmp_path) -> None:
+    from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
+    from oracle_composition.adapters.gmt.course_run import _rollout
+
+    env, _plant, _actor, config = _heading_env(horizon_steps=4)
+    config = replace(config, raw={"seed": 7})
+    report, outputs = _rollout(config, env, None, tmp_path, "zero_residual")
+    frames = [
+        json.loads(line)
+        for line in (tmp_path / "zero_residual_frames.jsonl").read_text().splitlines()
+    ]
+    with np.load(tmp_path / "zero_residual_trajectory.npz", allow_pickle=False) as archive:
+        trajectory = {name: archive[name] for name in archive.files}
+    assert report["steps"] == 4
+    assert len(outputs) == 3
+    assert report["objective_evaluation"] == evaluate_episode(
+        spec=config.task, frames=frames, runtime=config.runtime
+    )
+    assert validate_after_heading_feedback_trace(
+        config=config, frames=frames, trajectory=trajectory
+    )["after_actions"] == 1
+    with pytest.raises(ValueError, match="frame fields"):
+        evaluate_episode(spec=config.task, frames=frames)
 
 
 def test_after_heading_validator_rejects_executed_but_numeric_noop_profile() -> None:

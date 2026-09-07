@@ -169,7 +169,7 @@ def _rollout(
         total_reward += scalar_reward
         if terminated or truncated:
             break
-    score = evaluate_episode(spec=config.task, frames=frames)
+    score = evaluate_episode(spec=config.task, frames=frames, runtime=config.runtime)
     rows_path = output / f"{label}_frames.jsonl"
     with rows_path.open("x", encoding="utf-8") as handle:
         for row in frames:

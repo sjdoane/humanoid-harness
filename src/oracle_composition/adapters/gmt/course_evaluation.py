@@ -9,7 +9,9 @@ from statistics import fmean
 from typing import Any
 
 from .contracts import CONTROL_DT_SECONDS
+from .course_runtime import LEGACY_RUNTIME, CourseRuntimeProfile
 from .course_task import CourseStepMetrics, CourseTaskSpec
+from .heading_feedback import AFTER_HEADING_FEEDBACK_TRACE_KEY
 
 COURSE_EVALUATOR_ID = "gmt_g1_posture_course_development_evaluator/v1"
 DEVELOPMENT_GATE_THRESHOLDS = {
@@ -76,11 +78,21 @@ def _finite_tree(value: object) -> bool:
     return False
 
 
-def _validate_frame(frame: object, *, spec: CourseTaskSpec, expected_step: int) -> dict[str, Any]:
-    if type(frame) is not dict or not _FRAME_FIELDS <= set(frame) <= (
-        _FRAME_FIELDS | _OPTIONAL_FRAME_FIELDS
-    ):
+def _validate_frame(
+    frame: object, *, spec: CourseTaskSpec, expected_step: int, runtime: CourseRuntimeProfile
+) -> dict[str, Any]:
+    if type(frame) is not dict:
         raise ValueError("course evaluation frame fields differ")
+    required_fields = _FRAME_FIELDS
+    if runtime.after_heading_reference_feedback and frame.get("executed_mode") == "after":
+        required_fields = _FRAME_FIELDS | {AFTER_HEADING_FEEDBACK_TRACE_KEY}
+    if not required_fields <= set(frame) <= (required_fields | _OPTIONAL_FRAME_FIELDS):
+        raise ValueError("course evaluation frame fields differ")
+    if AFTER_HEADING_FEEDBACK_TRACE_KEY in frame and (
+        type(frame[AFTER_HEADING_FEEDBACK_TRACE_KEY]) is not dict
+        or not _finite_tree(frame[AFTER_HEADING_FEEDBACK_TRACE_KEY])
+    ):
+        raise ValueError("course evaluation heading evidence must be a finite object")
     metrics = frame.get("metrics")
     if type(metrics) is not dict or set(metrics) != _METRIC_FIELDS:
         raise ValueError("course evaluation metric fields differ")
@@ -170,13 +182,15 @@ def _tracking_summary(rows: list[dict[str, Any]]) -> dict[str, object]:
     return result
 
 
-def evaluate_episode(*, spec: CourseTaskSpec, frames: list[dict]) -> dict[str, object]:
+def evaluate_episode(
+    *, spec: CourseTaskSpec, frames: list[dict], runtime: CourseRuntimeProfile = LEGACY_RUNTIME
+) -> dict[str, object]:
     """Evaluate one retained development trace; reward values never enter scoring."""
 
     if type(frames) is not list or not frames or len(frames) > spec.horizon_steps:
         raise ValueError("course episode must contain 1..horizon successive frames")
     rows = [
-        _validate_frame(frame, spec=spec, expected_step=index)
+        _validate_frame(frame, spec=spec, expected_step=index, runtime=runtime)
         for index, frame in enumerate(frames, start=1)
     ]
     if any(row["metrics"]["fallen"] or row["metrics"]["horizon_reached"] for row in rows[:-1]):
