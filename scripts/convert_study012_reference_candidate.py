@@ -12,6 +12,8 @@ import hashlib
 import io
 import json
 import math
+import re
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -130,6 +132,7 @@ INTERVAL_COUNT = 105
 FPS_HZ = 50.0
 MAX_ALLOWED_FOOT_PENETRATION_M = 0.01544
 ALLOWED_FEET = course_task.ALLOWED_GROUND_CONTACT_BODIES
+FULL_GIT_COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -146,10 +149,49 @@ def _array_sha256(value: np.ndarray) -> str:
     return _sha256_bytes(np.ascontiguousarray(value).tobytes())
 
 
-def source_identity() -> dict[str, object]:
+def reviewed_checkout_identity(repository_root: Path, expected_commit: str) -> dict[str, object]:
+    """Require an externally named commit and a clean checkout, including untracked files."""
+
+    if type(expected_commit) is not str or FULL_GIT_COMMIT.fullmatch(expected_commit) is None:
+        raise gmt_io.GMTAdmissionError("reviewed source commit must be one full lowercase Git SHA")
+    root = Path(repository_root).resolve()
+
+    def git(*arguments: str) -> str:
+        result = subprocess.run(
+            ("git", "-C", str(root), *arguments),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise gmt_io.GMTAdmissionError(
+                f"Git source verification failed: {' '.join(arguments)}"
+            )
+        return result.stdout.strip()
+
+    if Path(git("rev-parse", "--show-toplevel")).resolve() != root:
+        raise gmt_io.GMTAdmissionError("producer does not belong to the declared repository root")
+    observed_commit = git("rev-parse", "--verify", "HEAD")
+    if observed_commit != expected_commit:
+        raise gmt_io.GMTAdmissionError(
+            f"reviewed source commit differs: expected {expected_commit}, observed {observed_commit}"
+        )
+    if git("status", "--porcelain=v1", "--untracked-files=all"):
+        raise gmt_io.GMTAdmissionError("reviewed source checkout is not clean")
+    return {
+        "commit": observed_commit,
+        "working_tree": "clean_including_staged_unstaged_and_untracked_files",
+        "checked_before_donor_reads_or_output_writes": True,
+        "authority": "caller_supplied_exact_commit_from_external_completed_review",
+    }
+
+
+def source_identity(reviewed_source_commit: str) -> dict[str, object]:
     """Fail if any relied-upon project module resolves outside or differs from this source."""
 
-    source_root = Path(__file__).resolve().parents[1] / "src"
+    repository_root = Path(__file__).resolve().parents[1]
+    reviewed_checkout = reviewed_checkout_identity(repository_root, reviewed_source_commit)
+    source_root = repository_root / "src"
     observed: dict[str, str] = {}
     for relative, (module_name, expected_digest) in SOURCE_BINDINGS.items():
         module = sys.modules.get(module_name)
@@ -164,7 +206,6 @@ def source_identity() -> dict[str, object]:
             raise gmt_io.GMTAdmissionError(f"source digest mismatch: {relative}")
         observed[relative] = digest
     producer = Path(__file__).resolve()
-    repository_root = producer.parents[1]
     producer_relative = str(producer.relative_to(repository_root))
     producer_sha256 = gmt_io.sha256_file(producer)
     executed = {**observed, producer_relative: producer_sha256}
@@ -173,6 +214,7 @@ def source_identity() -> dict[str, object]:
         "producer": {"path": producer_relative, "sha256": producer_sha256},
         "executed_source_set_sha256": _canonical_sha256(executed),
         "import_containment": "all listed project imports resolved beneath producer checkout src",
+        "reviewed_checkout": reviewed_checkout,
     }
 
 
@@ -585,14 +627,20 @@ def validate_static_geometry(xml_path: Path, arrays: dict[str, np.ndarray]) -> d
     }
 
 
-def convert(*, donor_root: Path, artifact_root: Path, output: Path) -> dict[str, object]:
+def convert(
+    *,
+    donor_root: Path,
+    artifact_root: Path,
+    output: Path,
+    reviewed_source_commit: str,
+) -> dict[str, object]:
     output = Path(output)
     if output.suffix != ".npz":
         raise gmt_io.GMTAdmissionError("candidate output must use the .npz suffix")
     receipt_path = output.with_suffix(f"{output.suffix}.manifest.json")
     if output.exists() or receipt_path.exists():
         raise gmt_io.GMTAdmissionError("refusing to overwrite candidate output or receipt")
-    sources = source_identity()
+    sources = source_identity(reviewed_source_commit)
     qpos, donor = validate_donor(Path(donor_root))
     arrays, measurements = build_candidate_arrays(qpos)
     validate_pinned_measurements(measurements)
@@ -654,11 +702,17 @@ def main() -> None:
     parser.add_argument("--donor-root", type=Path, default=DONOR_ROOT)
     parser.add_argument("--artifact-root", type=Path, default=ARTIFACT_ROOT)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--reviewed-source-commit",
+        required=True,
+        help="full clean Git commit accepted by the independent source review",
+    )
     args = parser.parse_args()
     result = convert(
         donor_root=args.donor_root,
         artifact_root=args.artifact_root,
         output=args.output,
+        reviewed_source_commit=args.reviewed_source_commit,
     )
     print(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -177,14 +178,90 @@ def test_verified_json_rejects_changed_bytes(tmp_path: Path, monkeypatch) -> Non
         candidate._verified_json(tmp_path, "input_config.json")
 
 
-def test_source_imports_are_exact_and_output_overwrite_fails_before_reads(tmp_path: Path) -> None:
-    source = candidate.source_identity()
+def test_source_imports_are_exact_and_output_overwrite_fails_before_reads(
+    tmp_path: Path, monkeypatch
+) -> None:
+    reviewed = {
+        "commit": "a" * 40,
+        "working_tree": "clean_including_staged_unstaged_and_untracked_files",
+        "checked_before_donor_reads_or_output_writes": True,
+        "authority": "caller_supplied_exact_commit_from_external_completed_review",
+    }
+    monkeypatch.setattr(candidate, "reviewed_checkout_identity", lambda *_args: reviewed)
+    source = candidate.source_identity("a" * 40)
     assert set(source["imports"]) == set(candidate.SOURCE_BINDINGS)
+    assert source["reviewed_checkout"] == reviewed
     output = tmp_path / "candidate.npz"
     output.write_bytes(b"retained")
     with pytest.raises(GMTAdmissionError, match="overwrite"):
-        candidate.convert(donor_root=tmp_path, artifact_root=tmp_path, output=output)
+        candidate.convert(
+            donor_root=tmp_path,
+            artifact_root=tmp_path,
+            output=output,
+            reviewed_source_commit="a" * 40,
+        )
     assert output.read_bytes() == b"retained"
+
+
+def _git(root: Path, *arguments: str) -> str:
+    result = subprocess.run(
+        ("git", "-C", str(root), *arguments),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def test_reviewed_checkout_gate_rejects_dirty_producer(tmp_path: Path) -> None:
+    root = tmp_path / "reviewed"
+    producer = root / "scripts/convert.py"
+    producer.parent.mkdir(parents=True)
+    producer.write_text("print('reviewed')\n")
+    _git(root, "init", "-q")
+    _git(root, "add", "scripts/convert.py")
+    _git(
+        root,
+        "-c",
+        "user.name=Test Reviewer",
+        "-c",
+        "user.email=reviewer@example.invalid",
+        "commit",
+        "-q",
+        "-m",
+        "review converter",
+    )
+    reviewed_commit = _git(root, "rev-parse", "HEAD")
+    assert candidate.reviewed_checkout_identity(root, reviewed_commit)["commit"] == reviewed_commit
+
+    producer.write_text("print('dirty replacement')\n")
+    with pytest.raises(GMTAdmissionError, match="not clean"):
+        candidate.reviewed_checkout_identity(root, reviewed_commit)
+
+
+def test_reviewed_checkout_gate_rejects_wrong_commit_and_untracked_file(tmp_path: Path) -> None:
+    root = tmp_path / "reviewed"
+    root.mkdir()
+    (root / "tracked.txt").write_text("reviewed\n")
+    _git(root, "init", "-q")
+    _git(root, "add", "tracked.txt")
+    _git(
+        root,
+        "-c",
+        "user.name=Test Reviewer",
+        "-c",
+        "user.email=reviewer@example.invalid",
+        "commit",
+        "-q",
+        "-m",
+        "review source",
+    )
+    reviewed_commit = _git(root, "rev-parse", "HEAD")
+    with pytest.raises(GMTAdmissionError, match="commit differs"):
+        candidate.reviewed_checkout_identity(root, "0" * 40)
+    (root / "untracked.txt").write_text("not reviewed\n")
+    with pytest.raises(GMTAdmissionError, match="not clean"):
+        candidate.reviewed_checkout_identity(root, reviewed_commit)
 
 
 @pytest.mark.skipif(

@@ -21,6 +21,10 @@
 - The receipt binds the donor resource receipt, manifest, config, JSONL, NPZ,
   executable source tree, model XML, all 35 model meshes, converter sources,
   output archive, and every output array's C-order bytes.
+- Generation also requires a caller-supplied full Git SHA from the completed
+  independent review. That SHA must equal `HEAD`, and the checkout must have no
+  staged, unstaged, or untracked files before the converter reads the donor or
+  writes output.
 
 ## Measured scope
 
@@ -54,6 +58,7 @@ or learnability.
 ```bash
 PYTHONPATH="$PWD/src" .venv/bin/python \
   scripts/convert_study012_reference_candidate.py \
+  --reviewed-source-commit REVIEWED_FULL_GIT_SHA \
   --output /reviewed/server-owned/path/study012_inside_passage_v1.npz
 ```
 
