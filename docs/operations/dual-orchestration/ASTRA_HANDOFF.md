@@ -1,11 +1,36 @@
 # Astra orchestration handoff
 
-| progress | 37 training runs / 2,293,760 transitions. Study015 oracle revision completed; FK audit reproduced. |
+| progress | 37 training runs / 2,293,760 transitions. Study016 completed; execution-derived reference generated. |
 |---|---|
-| bottleneck | No full-task pass. O7b fails depth/lateral gates; low reference poses penetrate the floor in static FK. |
-| next step | Study016 after-only state-feedback probe; inspect contact-valid reference alternatives. Fable reviews/ideates only. |
+| bottleneck | No full-task pass. After feedback reduces drift but fails its lateral screen; depth unresolved. |
+| next step | Admit and re-track the exact execution-derived reference in a separate probe. Fable reviews/ideates only. |
 
-## Current checkpoint: 2026-09-07 07:00 UTC
+## Current checkpoint: 2026-09-07 08:00 UTC
+
+- [Study016 result](../../../experiments/016_g1_after_feedback/RESULTS.md):
+  r2 pair at `08d7338` terminal/released; source freeze ended. Control reproduces
+  all three retained outputs, candidate prefix exact. Heading 0.386 rad passes,
+  lateral 5.043 m fails the 2.5 m screen. Reject fixed law; no training admission.
+- Earlier failed source `e865a80` lacked evaluator trace-key plumbing; outputs
+  were never published. Failure retained, not a behavioral result. `1decb52`
+  repairs the exact runtime-aware evaluator and adds real rollout publication test.
+- Converter imported selectively as `61f9b3c` + `541b82b`. Actual generation used
+  independently reviewed clean `e889f0c` in the converter checkout. Numeric
+  candidate SHA `885e4c1b324a9b41a4d176ec5fee9e4bc634226d5ade46634111cb1c3204c259`;
+  manifest SHA `1c7edb409579d757ef6657378ab605e6aa013cf60b552630beb914728bec602c`.
+  Path: `artifacts/gmt/derived_references/study012_inside_passage_v1.npz`.
+  Source is kinematic-only and unadmitted/untracked. Sol builds exact probe-only
+  admission in a separate worktree from `08d7338`; do not import dirty changes.
+- Recorded016 GIF is in sibling probe-runs, named
+  `gmt_course_study016_after_feedback_recorded_20260907.gif` (401 frames, no
+  policy/dynamics rerun). Shown to Samuel. UI restarted as session26510 at8766;
+  registry now includes015 and016. All12 rows validate, zero full-task passes.
+  Registry SHA `d4fd723fe27e406936ebc04ce76f8c53d0d07609930f55eb9978248fd9149db7`.
+  Earlier selection archived; no run deleted. HTTP QA only; Mac was locked.
+- Reviewed phase/exposure/fallback cores remain unimported and unwired. Main
+  remains separate; no push. Live mailbox/active-run supersede older sections.
+
+## Earlier checkpoint: 2026-09-07 07:00 UTC
 
 - [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
   both workers terminal/released; source freeze ended. Full control and prefix

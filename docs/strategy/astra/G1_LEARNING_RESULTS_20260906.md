@@ -2,17 +2,22 @@
 
 | progress | 37 bounded training runs / 2,293,760 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | O7b removes backtracking but fails depth and lateral gates. Low crouch references also have a verified static ground inconsistency. |
-| next step | Test after-only state feedback and review reference geometry before further training. |
+| bottleneck | State feedback reduces heading and lateral drift but still fails containment. Depth remains unachieved. |
+| next step | Test the new execution-derived reference with the frozen tracker before further training. |
 
 - [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
   zero-residual four-stage composition survives, with no upright revisit.
   9/11 task gates pass, but depth and 10.94 m lateral drift fail. The candidate
   also fails its own stricter heading/manipulation predictions; rejected.
-- [Study016 protocol](../../../experiments/016_g1_after_feedback/PROTOCOL.md):
-  separately versioned after-only heading/lateral feedback; implementation
-  underway, no simulation yet. Correction and total-rate clipping are one
-  declared intervention. It cannot erase earlier depth/lateral failures.
+- [Study016 result](../../../experiments/016_g1_after_feedback/RESULTS.md):
+  after-only state feedback lowers heading deviation 1.397→0.386 rad and
+  lateral drift 10.940→5.043 m, with 20 s survival and three switches.
+  The fixed law fails its lateral screen and is rejected for advancement.
+  Original 9/11 task gates remain; no new training or full-task pass.
+- Execution-derived reference generated from Study012: 106 poses at 50 Hz,
+  minimum height 0.504942 m, 106-pose static foot-only contact screen with
+  15.431 mm maximum foot overlap. Numeric archive and producer provenance are
+  pinned; **not yet admitted, re-tracked or dynamics certified**.
 - [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
   LLM depth reward revision completed 131,072 transitions and failed its depth
   prediction. Correct finite-horizon semantics from Study012 remain separate
