@@ -56,6 +56,11 @@ def _parser() -> argparse.ArgumentParser:
 
     build = research_commands.add_parser("build", help="build the local graph atomically")
     build.add_argument("--extractions", type=Path, default=DEFAULT_EXTRACTIONS)
+    build.add_argument(
+        "--supplemental-records",
+        type=Path,
+        help="optional directory of bounded provenance-bearing source records",
+    )
     build.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
 
     query = research_commands.add_parser("query", help="search mechanisms and evidence")
@@ -210,7 +215,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         elif args.command == "research":
             if args.research_command == "build":
-                result = build_index(args.extractions, args.database)
+                result = build_index(
+                    args.extractions,
+                    args.database,
+                    supplemental_records=args.supplemental_records,
+                )
             elif args.research_command == "query":
                 result = query_index(
                     args.query,
