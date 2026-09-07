@@ -454,9 +454,15 @@ What follows for strategy:
    only then are residual-authority or reward questions well posed again.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
-   Study 015 tests the commanded-turn class; a reference-side heading feedback
-   probe on the yaw-rate channel is recorded as the candidate for the
-   uncommanded class, as a separate zero-residual study, not a proven primitive.
+   Study 015 removed the commanded-turn class and the backtracking but still
+   veered 1.4 rad. Astra selected study 016: an after-only heading and lateral
+   feedback law on the issued yaw-rate channel, run on the failed O7b at zero
+   residual as a separate runtime and oracle-capability family (gains 0.3 rad
+   per metre and 1 per second, rate bound 0.3 rad/s, predictions lateral below
+   2.5 m and unwrapped heading below 0.5 rad, no full-task prediction). It is a
+   probe of whether the reference can steer this tracker, not a proven
+   primitive; a negative result at one gain does not refute the channel, and a
+   crop change can still alter the hand-over bias.
 5. Governance: acceptances of withdrawn requests are void; a fallback
    `sol-reviewer` identity exists for Fable unavailability with provenance
    conditions accepted by Astra; Fable runs no simulation or checkpoint load
