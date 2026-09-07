@@ -1,11 +1,29 @@
 # Astra orchestration handoff
 
-| progress | 37 training runs / 2,293,760 transitions. Study014 completes the feedback → LLM reward revision → train → score loop. |
+| progress | 37 training runs / 2,293,760 transitions. Study015 oracle revision completed; FK audit reproduced. |
 |---|---|
-| bottleneck | No full-task pass. Study014 fails its depth prediction; drift and overall speed error worsen. |
-| next step | Study015: one matched O7b after-reference crop probe. Fable reviews and ideates only. |
+| bottleneck | No full-task pass. O7b fails depth/lateral gates; low reference poses penetrate the floor in static FK. |
+| next step | Study016 after-only state-feedback probe; inspect contact-valid reference alternatives. Fable reviews/ideates only. |
 
-## Current checkpoint: 2026-09-07 05:56 UTC
+## Current checkpoint: 2026-09-07 07:00 UTC
+
+- [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
+  both workers terminal/released; source freeze ended. Full control and prefix
+  parity verified. Candidate has no revisit but 10.94 m drift; reject adoption.
+- FK audit selectively imported as `c303741` + `76fdd69`; byte reproduction
+  passes. See G1 learning results for the static/dynamic claim boundary.
+- [Study016 protocol](../../../experiments/016_g1_after_feedback/PROTOCOL.md):
+  after-only measured heading/lateral feedback, fixed gains, zero training.
+  Isolated Sol builder owns the implementation; parent owns protocol/scoring
+  integration. No Study016 simulation or resource reservation yet.
+- Reviewed exposure accumulator `1c0d52e` remains unwired/unimported, as do
+  phase-rate and fallback patches. Do not merge ancestors incidentally.
+- Candidate GIF: sibling `gmt_course_o7b_recorded_20260907.gif`, rendered from
+  401 recorded qpos frames, not trained behavior. UI registry still predates015.
+- Main/Fable checkout remains separate; no push. Live mailbox and ignored
+  active-run record govern current work; older checkpoints below are historical.
+
+## Earlier checkpoint: 2026-09-07 05:56 UTC
 
 - [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
   worker terminal/released; source freeze ended. Reject the depth candidate.

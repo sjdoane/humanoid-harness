@@ -1,9 +1,22 @@
 # G1 learning loop — measured results
 
-| progress | 34 bounded training runs / 1,900,544 transitions. The fixed-normalizer O2 policy survives 20 s with both switches. |
+| progress | 37 bounded training runs / 2,293,760 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | No full task pass. Study 011 misses its compliance floor and three task gates; no trainer default is changed. |
-| next step | Diagnose posture timing/depth and lateral drift; choose the next bounded oracle/reward comparison from verified feedback. |
+| bottleneck | O7b removes backtracking but fails depth and lateral gates. Low crouch references also have a verified static ground inconsistency. |
+| next step | Test after-only state feedback and review reference geometry before further training. |
+
+- [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
+  zero-residual four-stage composition survives, with no upright revisit.
+  9/11 task gates pass, but depth and 10.94 m lateral drift fail. The candidate
+  also fails its own stricter heading/manipulation predictions; rejected.
+- [Study016 protocol](../../../experiments/016_g1_after_feedback/PROTOCOL.md):
+  separately versioned after-only heading/lateral feedback; implementation
+  underway, no simulation yet. Correction and total-rate clipping are one
+  declared intervention. It cannot erase earlier depth/lateral failures.
+- [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
+  LLM depth reward revision completed 131,072 transitions and failed its depth
+  prediction. Correct finite-horizon semantics from Study012 remain separate
+  from claims of behavioral improvement.
 
 - [O7 reference qualification](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
   the zero-residual robot executes walk/crouch/rise/walk for 20 s without falling.
@@ -134,6 +147,31 @@ robot state → oracle → future reference window → frozen GMT base actor
   It does not demonstrate task success.
 
 ## Diagnosis and guardrails
+
+### Reference geometry and residual authority (2026-09-07)
+
+- Reproducible, source-bound [audit](../../../scripts/analyze_gmt_reference_geometry.py)
+  and [numeric receipt](../../../experiments/012_g1_finite_horizon/reference_geometry_audit_v1.json).
+  Parent byte reproduction passes at `76fdd69`; independent Sol closure accepted.
+- At the supplied crouch's 4.42 s minimum (`root z=0.425428 m`), rebuilding
+  the **consumed** height, roll/pitch and 23 joints with a unit quaternion gives
+  deepest foot penetration `0.146499 m`; deepest non-foot `0.072656 m`.
+  The literal source quaternion is nonunit, but cannot explain this result.
+- All 34 native rows with source `z<=0.50 m` penetrate the plane by more than
+  0.01 m; 32 have non-foot overlap. Four selected matched actual rollout poses
+  show only shallow permitted-foot penetration. Do not generalize those four
+  checks to entire trajectories or call static FK dynamics certification.
+- Preserve historical motion bytes and results. **Treat the low segment as
+  geometry-inconsistent for new task-reference use.** Review contact-aware
+  repair or a separately admitted reference before another depth-reward sweep.
+- Translation-only clearance would put these targets at `0.547130–0.626535 m`.
+  This preserves joints/RP; it is not a task-feasible repair or a lower bound on
+  what a different posture/controller can do.
+- Study012/014 residual maxima are `0.423 / 0.362`; no `|residual|>=0.99`
+  saturation. Physical-region PD-offset RMS is `0.0101 / 0.0146 rad`.
+  Absence of saturation does not establish sufficient authority or policy intent.
+- These findings distinguish reference quality from reward/learning questions.
+  They do not establish causality, global tracker incapability or impossible depth.
 
 ### Reward-family incentive audit (2026-09-07)
 
