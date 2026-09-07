@@ -484,7 +484,21 @@ What follows for strategy:
    tests, the real 017 config loads, executable tree 5e516691 at 196 files);
    the native library stays closed and the asset carries the provenance class
    "execution-derived kinematic candidate, not a dynamics certificate" and
-   training not admitted.
+   training not admitted. Study 017 result (2026-09-07 09:00Z, source
+   d189d5a): the fresh O7b control reproduced the retained outputs byte-exact;
+   the derived-reference candidate survived 20 s with all four modes, entry,
+   exit, finish and no re-entry, with the best joint and roll-pitch tracking
+   in the family (p95 0.145 and 0.103), reproduced the reference's first dip
+   to about 2 mm, but missed the deeper second dip: minimum 0.533 m against
+   the 0.505 m target, 2.8 cm outside the 2 cm fidelity tolerance, so the
+   bundle is rejected for automatic training admission. The predeclared
+   terminal-hold risk materialized as a 0.78 s hold exposure without a fall,
+   and the robot ran below the issued reference speed. Astra disclosed that
+   the candidate was dispatched before the control verification finished; the
+   parity holds on the immutable artifacts (two verifiers), so the reading
+   stands, labelled exploratory with a sequencing footnote and no
+   outcome-selected repeat. The candidate next contrast on record is a
+   donor-continuation positive control, not proposed.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
