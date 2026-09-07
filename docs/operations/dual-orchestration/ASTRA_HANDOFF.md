@@ -1,11 +1,27 @@
 # Astra orchestration handoff
 
-| progress | 37 training runs / 2,293,760 transitions. Study016 completed; execution-derived reference generated. |
+| progress | 37 training runs / 2,293,760 transitions. Study016 completed; derived reference admitted for probes only. |
 |---|---|
 | bottleneck | No full-task pass. After feedback reduces drift but fails its lateral screen; depth unresolved. |
-| next step | Admit and re-track the exact execution-derived reference in a separate probe. Fable reviews/ideates only. |
+| next step | Finish the Study017 scorer, seal the pair, and re-track the exact derived reference. Fable reviews/ideates only. |
 
-## Current checkpoint: 2026-09-07 08:22 UTC
+## Current checkpoint: 2026-09-07 08:35 UTC
+
+- Exact derived admission imported as `05d0808` from clean peer `465c9c4`.
+  Parent: 117 adjacent tests plus 33 launcher tests pass; Ruff clean. The
+  actual017 config loads and binds both archive and conversion manifest.
+  This remains probe-only, not dynamics certification or training admission.
+- Candidate config SHA `337b5f2c540ce364a45446431a22085c63ebf89b5284e5fa26bae606ffbb20db`.
+  Executable tree `5e516691bfe5c090ff0625c6b13d67a66265a367c2b2000f6e41b61d98877738`,
+  196 files. No017 run yet; scorer still builds separately. Final source and
+  exact native resource acceptances remain required before dispatch.
+- Isolated four-state training prerequisite builds a new finite-horizon
+  profile and 2172D telemetry; old profiles unchanged. No import during the
+  Study017 source freeze; no training or derived-reference promotion yet.
+- [Transition-preview note](../../strategy/astra/TRANSITION_PREVIEW_20260907.md)
+  records an unimplemented, source-bounded hypothesis for later diagnosis.
+
+## Earlier checkpoint: 2026-09-07 08:21 UTC
 
 - Feedback-to-revision repair now accepts the exact heading-validation receipt
   only for its declared runtime. The retained016 rollout passes the full
@@ -13,7 +29,7 @@
   pass. The test proposal is a software fixture, not a new scientific trial.
 - Study017 is still predata. Its protocol now records early terminal-hold
   lookahead and the exact endpoint: donor boundary197, not198. The relative
-  endpoint is about0.000618 m short of the unchanged exit guard. One bounded
+  endpoint is about 0.000618 m short of the unchanged exit guard. One bounded
   bundle screen remains planned; no new reference extension or training.
 - The app restart ended prior subagents. Their assigned worktrees are preserved;
   replacement Sol/max workers finish the admission and scorer slices there.
