@@ -60,6 +60,12 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
   exceedance and output saturation; do not claim correction-only causality.
 - Hold that exact pre-action correction for the matching `current_after_step`
   reference. Do not recompute it from the resulting state or next prepared mode.
+- Preserve both existing native clock paths. At a float32 crop-wrap boundary,
+  `window[0]` can differ from separately recomputed `current_after_step`.
+  Apply the same held correction independently to both authoritative targets;
+  reconstruct and report their equality or mismatch, **do not force equality**.
+  A wrap-boundary regression is required. No endpoint-clock repair is hidden
+  inside this yaw-feedback intervention.
 - At the retained entry boundary, `psi=+0.092443 rad` and `y` is about `+1.42 m`:
   initial correction is about `-0.392443 rad/s`. Native rows below `+0.092443`
   therefore saturate at `-0.3 rad/s`. An immediate handover fall is a meaningful

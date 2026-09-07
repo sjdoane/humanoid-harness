@@ -84,6 +84,7 @@ def _run(scorer, *, initial_yaw=0.0):
                     "native_yaw_rate_rad_s": native,
                     "issued_yaw_rate_rad_s": issued,
                     "matches_issued_window_first_row": True,
+                    "native_matches_window_first_row": True,
                 },
                 "window": {
                     "total_rate_saturation_fraction": 0.5,
@@ -101,6 +102,18 @@ def test_feedback_uses_rotated_reset_task_frame(scorer, initial_yaw):
     assert result["first_correction_rad_s"] == pytest.approx(-0.3)
     assert result["first_two_seconds_lateral_abs_max_m"] == pytest.approx(1.0)
     assert result["first_two_seconds_boundary_count"] == 4
+
+
+def test_frozen_endpoint_window_mismatch_is_reported_not_rejected(scorer):
+    run = _run(scorer)
+    endpoint = run["frames"][264][scorer.TRACE_KEY]["held_poststep_target"]
+    # Full native/window reconstruction belongs to the runtime feedback validator.
+    endpoint["matches_issued_window_first_row"] = False
+    result = scorer.steering_measures(run)
+    assert result["issued_endpoint_window_first_row_mismatch_count"] == 1
+    endpoint["matches_issued_window_first_row"] = 0
+    with pytest.raises(ValueError, match="observed boolean"):
+        scorer.steering_measures(run)
 
 
 @pytest.mark.parametrize("mutation", ["sign", "future", "endpoint", "missing", "early"])

@@ -78,6 +78,8 @@ def steering_measures(run: dict) -> dict:
     qpos = trajectory["qpos"]
     task_frame = TaskFrame.initialize(qpos[0, :2], qpos[0, 3:7])
     corrections, issued_rates, native_rates, saturation, native_exceedance = [], [], [], [], []
+    endpoint_window_mismatches = 0
+    native_endpoint_window_mismatches = 0
     first_after = None
     for index, row in enumerate(frames):
         active = row["executed_mode"] == "after"
@@ -112,9 +114,15 @@ def steering_measures(run: dict) -> dict:
         if (
             endpoint["issued_yaw_rate_rad_s"] != expected_yaw
             or float(trajectory["current_reference"][index, 6]) != expected_yaw
-            or endpoint["matches_issued_window_first_row"] is not True
         ):
             raise ValueError("poststep target did not hold the pre-action correction")
+        if any(
+            type(endpoint[key]) is not bool
+            for key in ("matches_issued_window_first_row", "native_matches_window_first_row")
+        ):
+            raise ValueError("endpoint/window comparison must be an observed boolean")
+        endpoint_window_mismatches += not endpoint["matches_issued_window_first_row"]
+        native_endpoint_window_mismatches += not endpoint["native_matches_window_first_row"]
         corrections.append(correction)
         issued_rates.append(expected_yaw)
         native_rates.append(native)
@@ -132,6 +140,8 @@ def steering_measures(run: dict) -> dict:
     ]
     return {
         "after_action_count": len(corrections),
+        "issued_endpoint_window_first_row_mismatch_count": endpoint_window_mismatches,
+        "native_endpoint_window_first_row_mismatch_count": native_endpoint_window_mismatches,
         "first_correction_rad_s": corrections[0],
         "mean_correction_rad_s": float(np.mean(corrections)),
         "issued_local_yaw_integral_rad": float(np.sum(issued_rates) * 0.02),
