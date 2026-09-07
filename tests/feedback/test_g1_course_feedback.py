@@ -537,6 +537,30 @@ def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatc
     assert "do not establish convergence or a causal mechanism" in diagnosis
 
 
+def test_legacy_feedback_rejects_v1_telemetry_renamed_as_v4(
+    tmp_path, monkeypatch
+) -> None:
+    manifest_path, _, _ = _run_fixture(
+        tmp_path / "run", monkeypatch, telemetry=True
+    )
+    root = manifest_path.parent
+    legacy = root / TELEMETRY_FILENAME
+    renamed = root / FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+    legacy.rename(renamed)
+    manifest = json.loads(manifest_path.read_text())
+    manifest["outputs"][renamed.name] = manifest["outputs"].pop(legacy.name)
+    assert manifest["training"]["telemetry"]["path"] == legacy.name
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="versioned telemetry requires"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
+
+
 def test_training_summary_reports_no_completed_episodes_and_missing_stats(tmp_path) -> None:
     path = tmp_path / TELEMETRY_FILENAME
     with TrainingTelemetry(path) as writer:
