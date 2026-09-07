@@ -473,7 +473,16 @@ What follows for strategy:
    2.5 m and unwrapped heading below 0.5 rad, no full-task prediction). It is a
    probe of whether the reference can steer this tracker, not a proven
    primitive; a negative result at one gain does not refute the channel, and a
-   crop change can still alter the hand-over bias.
+   crop change can still alter the hand-over bias. First attempt (2026-09-07
+   07:45Z, source e865a80): the fresh legacy control reproduced the retained
+   O7b outputs byte-exact, but the feedback arm died in the evaluator's strict
+   frame whitelist, which had not been extended for the new trace key; an
+   integration failure with no evidence written, not a behavioral result.
+   Fable's source review had passed the runtime without checking that
+   consumer; the review checklist now enumerates every strict whitelist
+   consumer and requires a launcher-level rollout test under a new profile.
+   The pair is re-run at the repaired source with the control reproduced
+   first.
 5. Governance: acceptances of withdrawn requests are void; a fallback
    `sol-reviewer` identity exists for Fable unavailability with provenance
    conditions accepted by Astra; Fable runs no simulation or checkpoint load
