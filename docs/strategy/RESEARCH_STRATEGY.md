@@ -588,9 +588,11 @@ What follows for strategy:
    progress per unit phase doubled, and the region was entered at post-step
    phase 1.10 s on the same 0.634 m peak; compliance 31 of 47, and the robot
    fell at 4.34 s inside the crouch while accelerating to 1.9 m/s with the
-   heading veering to 1.7 rad, two commands before the loop-boundary exit
-   the protocol had predeclared as reported. Negative screen, local to this
-   guard value and hand-over. Lesson: the entry guard changes the state
+   heading veering to 1.7 rad; the inside-exit guard had first been met
+   0.82 s earlier (local phase 2.10 s) and the exit was still pending the
+   loop boundary when the fall came, a censored absence that carries no
+   causal reading. Negative screen, local to this guard value and
+   hand-over. Lesson: the entry guard changes the state
    handed to the crouch, and the clock-driven inside phase then advances at
    whatever progress rate the plant produces, so the region-entry phase is
    not settable by the guard alone; a progress-synchronized or
@@ -599,10 +601,12 @@ What follows for strategy:
    row. The coupled-motion readback makes the mechanism exact: the crouch
    reference issued after the switch was byte-identical in both arms,
    including its commanded local forward velocity; what differed was the
-   hand-over state, a walk still accelerating at 0.77 m/s at clip phase
-   1.40 s against a steady 0.58 m/s at phase 1.82 s, and the candidate's
-   speed excess over the commanded velocity stayed about 0.5 m/s larger
-   through the descent. Retained displacement per phase is therefore a
+   hand-over state: a walk still accelerating at 0.77 m/s at clip phase
+   1.40 s against a steady 0.58 m/s at phase 1.82 s, a different heading
+   (0.19 against 0.39 rad) and a different walk-phase history, so speed is
+   one component of the changed state rather than an isolated cause; the
+   candidate's speed excess over the commanded velocity stayed about
+   0.5 m/s larger through the descent. Retained displacement per phase is therefore a
    property of the reference and the hand-over state together, which is
    the lesson for any later entry-timing design. The course-signal training
    is deferred to a separately declared, not yet numbered study, and the two
