@@ -23,7 +23,9 @@ RETAINED_FEEDBACK = Path(
 
 
 def _module():
-    path = Path(__file__).resolve().parents[2] / "experiments/019_g1_crouch_entry_alignment/score.py"
+    path = (
+        Path(__file__).resolve().parents[2] / "experiments/019_g1_crouch_entry_alignment/score.py"
+    )
     spec = importlib.util.spec_from_file_location("study019_score_test_module", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -95,7 +97,9 @@ def test_real_retained_1000_row_native_replay_uses_poststep_phase(module, retain
     assert replay["windows_reconstructed_not_directly_retained"] is True
     assert replay["entry_boundary_dispatch"]["first_guard_satisfaction"]["action_index"] == 92
     assert replay["entry_boundary_dispatch"]["actual_switch"]["action_index"] == 92
-    assert replay["inside_exit_boundary_deferral"]["first_guard_satisfaction"]["action_index"] == 227
+    assert (
+        replay["inside_exit_boundary_deferral"]["first_guard_satisfaction"]["action_index"] == 227
+    )
     assert replay["inside_exit_boundary_deferral"]["actual_switch"]["action_index"] == 239
     target = replay["diagnostic_poststep_targets"][str(entry)]
     assert run["frames"][entry]["executed_phase_seconds"] == pytest.approx(1.16)
@@ -108,7 +112,11 @@ def test_native_replay_rejects_phase_transition_or_reference_corruption(
     module, retained, corruption: str
 ) -> None:
     original, config = retained
-    run = {**original, "frames": list(original["frames"]), "trajectory": dict(original["trajectory"])}
+    run = {
+        **original,
+        "frames": list(original["frames"]),
+        "trajectory": dict(original["trajectory"]),
+    }
     if corruption == "phase":
         run["frames"][0] = {**run["frames"][0], "executed_phase_seconds": 0.02}
     elif corruption == "transition":
@@ -254,10 +262,17 @@ def _prefix_fixture():
         "qpos": np.zeros((101, 1), dtype="<f8"),
         "qvel": np.zeros((101, 1), dtype="<f8"),
     }
-    control = {"frames": deepcopy(frames), "trajectory": {k: v.copy() for k, v in trajectory.items()}}
-    candidate = {"frames": deepcopy(frames), "trajectory": {k: v.copy() for k, v in trajectory.items()}}
+    control = {
+        "frames": deepcopy(frames),
+        "trajectory": {k: v.copy() for k, v in trajectory.items()},
+    }
+    candidate = {
+        "frames": deepcopy(frames),
+        "trajectory": {k: v.copy() for k, v in trajectory.items()},
+    }
     candidate["frames"][71]["changed"] = True
     candidate["trajectory"]["current_reference"][71, 0] = 1.0
+
     def replay(index: int):
         transition = {
             "action_index": index,
@@ -311,12 +326,19 @@ def test_control_verification_requires_all_three_byte_identical_outputs(
     module, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     common = {
-        "scorer_sha256": "a", "protocol_sha256": "b", "dependency_sha256": {},
-        "source_commit": "c", "source_tree_sha256": "d", "source_file_count": 1,
+        "scorer_sha256": "a",
+        "protocol_sha256": "b",
+        "dependency_sha256": {},
+        "source_commit": "c",
+        "source_tree_sha256": "d",
+        "source_file_count": 1,
     }
     outputs = {name: name.encode() for name in module.shared._COMPARABLE_OUTPUTS}
-    retained = {"config_bytes": b"config", "outputs": outputs,
-                "feedback": {"feedback": {"sha256": module.PARENT_FEEDBACK_SHA256}}}
+    retained = {
+        "config_bytes": b"config",
+        "outputs": outputs,
+        "feedback": {"feedback": {"sha256": module.PARENT_FEEDBACK_SHA256}},
+    }
     control = deepcopy(retained)
     monkeypatch.setattr(module, "_validate_common", lambda *_args, **_kwargs: common)
     monkeypatch.setattr(module, "_retained", lambda *_args: "retained-pins")
@@ -408,7 +430,9 @@ def test_proposal_uses_actual_firewall_and_requires_labeled_hypothesis(
             "sha256": module.PARENT_FEEDBACK_SHA256,
         },
     }
-    assert module._proposal(inputs, control, candidate, run)["proposal_id"] == proposal["proposal_id"]
+    assert (
+        module._proposal(inputs, control, candidate, run)["proposal_id"] == proposal["proposal_id"]
+    )
 
     proposal["hypothesis"] = "unlabeled test"
     proposal_sha = _write_json(proposal_path, proposal)
@@ -438,7 +462,14 @@ def test_local_repository_tree_is_recomputed_and_import_is_local(module) -> None
 def test_cli_exposes_separate_control_and_pair_modes(module, tmp_path: Path) -> None:
     for command in ("control", "pair"):
         args = module._arguments(
-            [command, "--inputs", str(tmp_path / "inputs.json"),
-             "--inputs-sha256", "a" * 64, "--output", str(tmp_path / "output.json")]
+            [
+                command,
+                "--inputs",
+                str(tmp_path / "inputs.json"),
+                "--inputs-sha256",
+                "a" * 64,
+                "--output",
+                str(tmp_path / "output.json"),
+            ]
         )
         assert args.command == command
