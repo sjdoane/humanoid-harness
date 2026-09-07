@@ -30,6 +30,13 @@
   states are diagnostics, never observations or evidence that a guard fired.
 - Require explicit reset/phase/frame/handover rules; do not splice height or
   velocity channels alone and call the result a consistent whole-body motion.
+- Predict executable transitions, including dwell and loop-exit eligibility,
+  not just spatial crossings. O7b cannot exit its crouch between loop boundaries.
+- Recomputed crossing time need not be monotone as velocity changes. Report
+  prediction error and jumps; deterministic target entry removes phase-search
+  uncertainty, not joint/contact incompatibility.
+- A null handover-speed result rejects that speed prediction only; it does not
+  prove the future window has no anticipatory effect on other variables.
 - No implementation, run, training admission or source-family conclusion is
   authorized by this note. Study017's current bundle and gates stay unchanged.
 - Existing graph source: `2403.04205`; this note is project interpretation,
