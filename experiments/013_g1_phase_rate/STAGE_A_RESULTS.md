@@ -21,13 +21,15 @@
 | All-region posture compliance | 100/147 (68.03%) | 56/220 (25.45%) |
 | Minimum inside height | 0.494438 m | 0.515773 m |
 | Inside mean forward speed | 0.009208 m/s | 0.208818 m/s |
-| Maximum lateral error | 2.369565 m, fall-censored | 5.659565 m |
+| Maximum lateral error | 2.369911 m, fall-censored | 5.659565 m |
 | Full-task gates | 3/11 | 6/11 |
 
 - All predeclared Stage A admission conditions pass: survival, spatial exit,
   actual rise and actual after execution. This is not full-task success.
 - Crouch enters at command 92, exits at its first-pass boundary 239; rise
   exits at 263. No repeated crouch cycle or sustained loop balance is established.
+- The longer first pass reaches the exit guard before any repeat. It includes
+  the newly exposed source interval 4.86–5.64 s; loop-start balance was not tested.
 - The first region crossing has 74 samples; later revisits add 146. All visits
   count. The one-way oracle stays in `after` during backtracking instead of
   re-entering crouch. This is a recovery-design limitation, not evaluator noise.
