@@ -7,6 +7,8 @@ import numpy as np
 import torch
 
 from oracle_composition.adapters.gmt import course_run as module
+from oracle_composition.adapters.gmt.contracts import OBSERVATION_DIM, PROPRIOCEPTION_DIM
+from oracle_composition.adapters.gmt.control_runtime import PreparedControl
 from oracle_composition.adapters.gmt.course_run import (
     _numeric_policy,
     _rollout,
@@ -89,9 +91,7 @@ def test_zero_initial_mean_is_exact_and_seeded_state_is_repeatable(tmp_path):
             assert archive[name].tobytes() == tensor.numpy().tobytes()
 
 
-def test_real_ppo_adapter_completes_exact_fixture_budget_and_logs_transitions(
-    capsys, tmp_path
-):
+def test_real_ppo_adapter_completes_exact_fixture_budget_and_logs_transitions(capsys, tmp_path):
     torch.set_num_threads(1)
     model = make_policy(NumericFixture(), 29)
     before = model.policy.action_net.weight.detach().clone()
@@ -162,9 +162,27 @@ class _ZeroRolloutFixture:
         )
 
 
-def test_zero_residual_artifacts_are_exact_across_trainer_profiles(
-    tmp_path, monkeypatch
-) -> None:
+class _ObservedZeroRolloutFixture(_ZeroRolloutFixture):
+    def reset(self, *, seed: int):
+        result = super().reset(seed=seed)
+        self._prepared = self._prepared_at(0)
+        return result
+
+    def _prepared_at(self, step: int) -> PreparedControl:
+        return PreparedControl(
+            control_step=step,
+            proprio=np.full(PROPRIOCEPTION_DIM, step, dtype="<f8"),
+            obs=np.full(OBSERVATION_DIM, step, dtype="<f4"),
+            base_raw=np.full(23, step, dtype="<f4"),
+        )
+
+    def step(self, action: np.ndarray):
+        result = super().step(action)
+        self._prepared = self._prepared_at(len(self.actions))
+        return result
+
+
+def test_zero_residual_artifacts_are_exact_across_trainer_profiles(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "evaluate_episode", lambda **_: {"fixture": True})
     task = SimpleNamespace(horizon_steps=2)
     outputs = []
@@ -184,11 +202,41 @@ def test_zero_residual_artifacts_are_exact_across_trainer_profiles(
         report, artifacts = _rollout(config, env, None, output, "zero_residual")
         assert report["residual_rms"] == 0.0
         assert all(np.count_nonzero(action) == 0 for action in env.actions)
-        outputs.append(
-            {
-                name: (output / name).read_bytes()
-                for name in artifacts
-            }
-        )
+        outputs.append({name: (output / name).read_bytes() for name in artifacts})
 
     assert outputs[0] == outputs[1] == outputs[2]
+
+
+def test_rollout_observer_sees_pre_step_input_without_changing_standard_artifacts(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(module, "evaluate_episode", lambda **_: {"fixture": True})
+    config = SimpleNamespace(raw={"seed": 17}, task=SimpleNamespace(horizon_steps=2))
+    baseline_dir = tmp_path / "baseline"
+    observed_dir = tmp_path / "observed"
+    baseline_dir.mkdir()
+    observed_dir.mkdir()
+    _, baseline = _rollout(
+        config, _ObservedZeroRolloutFixture(), None, baseline_dir, "zero_residual"
+    )
+    seen: list[tuple[int, bytes]] = []
+
+    def observe(prepared: PreparedControl, action: np.ndarray) -> None:
+        seen.append((prepared.control_step, action.tobytes()))
+
+    _, observed = _rollout(
+        config,
+        _ObservedZeroRolloutFixture(),
+        None,
+        observed_dir,
+        "zero_residual",
+        step_observer=observe,
+    )
+
+    assert seen == [
+        (0, np.zeros(23, dtype="<f4").tobytes()),
+        (1, np.zeros(23, dtype="<f4").tobytes()),
+    ]
+    assert {name: (baseline_dir / name).read_bytes() for name in baseline} == {
+        name: (observed_dir / name).read_bytes() for name in observed
+    }

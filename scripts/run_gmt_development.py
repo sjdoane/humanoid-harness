@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Request or supervise one fixed GMT parity or course development run."""
+"""Request or supervise one fixed GMT parity, course, or reference ablation."""
 
 from __future__ import annotations
 
@@ -23,6 +23,15 @@ from oracle_composition.adapters.gmt.course_runtime import (
     frozen_runtime_contract,
 )
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
+from oracle_composition.adapters.gmt.reference_ablation import (
+    REFERENCE_ABLATION_ARTIFACT,
+    REFERENCE_ABLATION_EVIDENCE_CLASS,
+    REFERENCE_ABLATION_MANIFEST_FILENAME,
+    reference_ablation_contract,
+)
+from oracle_composition.adapters.gmt.reference_ablation_artifact import (
+    validate_reference_ablation_artifact,
+)
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
 from oracle_composition.adapters.gmt.training_contract import (
@@ -394,7 +403,20 @@ def _load_workload(workload: str, path: Path) -> _LoadedWorkload:
         return _load_parity(path)
     if workload == "course":
         return _load_course(path)
-    raise supervisor.ProbeError("development workload must be parity or course")
+    if workload == "reference-ablation":
+        loaded = _load_course(path)
+        if (
+            loaded.course_mode != "probe"
+            or loaded.raw.get("training_steps") != 0
+            or loaded.course_trainer is not None
+        ):
+            raise supervisor.ProbeError(
+                "reference ablation requires a probe config with zero training"
+            )
+        return loaded
+    raise supervisor.ProbeError(
+        "development workload must be parity, course, or reference-ablation"
+    )
 
 
 def _profile(workload: str, course_mode: str | None) -> tuple[supervisor.ProbeLimits, str, str]:
@@ -408,6 +430,14 @@ def _profile(workload: str, course_mode: str | None) -> tuple[supervisor.ProbeLi
             supervisor.ProbeLimits(wall_seconds=120, cpu_seconds=120, **common),
             "gmt_g1_runtime_parity_development_resource_receipt",
             "development_runtime_parity_only_not_task_success",
+        )
+    if workload == "reference-ablation":
+        if course_mode != "probe":
+            raise supervisor.ProbeError("reference ablation config mode must be probe")
+        return (
+            supervisor.ProbeLimits(wall_seconds=1_200, cpu_seconds=1_200, **common),
+            "gmt_g1_reference_ablation_development_resource_receipt",
+            REFERENCE_ABLATION_EVIDENCE_CLASS,
         )
     if course_mode not in {"probe", "train"}:
         raise supervisor.ProbeError("course config mode must be probe or train")
@@ -424,6 +454,16 @@ def _child_argv(request: DevelopmentRequest, root: Path) -> tuple[str, ...]:
             str(request.venv_python),
             str(root / "scripts/run_gmt_development.py"),
             "parity-child",
+            "--config",
+            str(request.config_path),
+            "--output",
+            str(request.output_directory),
+        )
+    if request.workload == "reference-ablation":
+        return (
+            str(request.venv_python),
+            "-m",
+            "oracle_composition.adapters.gmt.reference_ablation_run",
             "--config",
             str(request.config_path),
             "--output",
@@ -455,7 +495,11 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         output_directory=supervisor._absolute(request.output_directory),
     )
     inputs: dict[str, object] = {
-        "artifact_contract": "gmt_g1_fixed_development_launcher/v1",
+        "artifact_contract": (
+            "gmt_g1_fixed_reference_ablation_launcher/v1"
+            if request.workload == "reference-ablation"
+            else "gmt_g1_fixed_development_launcher/v1"
+        ),
         "workload": request.workload,
         "course_mode": loaded.course_mode,
         "config": {
@@ -467,6 +511,8 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         "venv": venv,
         "gmt_assets": loaded.assets,
     }
+    if request.workload == "reference-ablation":
+        inputs["reference_ablation"] = reference_ablation_contract()
     if loaded.course_trainer is not None:
         inputs["trainer"] = effective_training_contract(loaded.course_trainer)
     if loaded.course_runtime is not None:
@@ -938,12 +984,68 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     }
 
 
+def _verify_reference_ablation(plan: supervisor.ProbePlan) -> dict[str, object]:
+    output = plan.config.output_directory
+    manifest_path = output / REFERENCE_ABLATION_MANIFEST_FILENAME
+    manifest, manifest_sha256 = _json_file(
+        manifest_path,
+        maximum=MAX_MANIFEST_BYTES,
+        label="reference ablation manifest",
+    )
+    config_binding = plan.inputs.get("config")
+    if (
+        not isinstance(config_binding, Mapping)
+        or type(config_binding.get("path")) is not str
+        or type(config_binding.get("sha256")) is not str
+    ):
+        raise supervisor.ProbeError("reference ablation plan config binding is malformed")
+    try:
+        verified = validate_reference_ablation_artifact(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=manifest_sha256,
+            config_path=Path(config_binding["path"]),
+            expected_config_sha256=config_binding["sha256"],
+        )
+    except (GMTAdmissionError, OSError, ValueError) as exc:
+        raise supervisor.ProbeError(str(exc)) from exc
+    stdout, _ = _json_file(
+        output / supervisor.STDOUT_FILENAME,
+        maximum=MAX_LOG_BYTES,
+        label="reference ablation child stdout",
+    )
+    supervisor._read_bounded(
+        output / supervisor.STDERR_FILENAME,
+        MAX_LOG_BYTES,
+        "reference ablation child stderr",
+    )
+    if (
+        set(stdout) != {"manifest_sha256", "arms", "treated_vs_exact"}
+        or stdout["manifest_sha256"] != manifest_sha256
+        or stdout["arms"] != manifest["arms"]
+        or stdout["treated_vs_exact"] != manifest["treated_vs_exact"]
+        or plan.inputs.get("reference_ablation") != reference_ablation_contract()
+        or plan.artifact_label != "gmt_g1_reference_ablation_development_resource_receipt"
+        or plan.evidence_class != REFERENCE_ABLATION_EVIDENCE_CLASS
+        or manifest.get("artifact") != REFERENCE_ABLATION_ARTIFACT
+    ):
+        raise supervisor.ProbeError("reference ablation child or accepted binding differs")
+    return {
+        "reference_ablation_manifest": verified["manifest"],
+        "outputs": verified["outputs"],
+        "arms": verified["arms"],
+        "treated_vs_exact": verified["treated_vs_exact"],
+        "claim_ceiling": verified["claim_ceiling"],
+    }
+
+
 def verify_development_completed(plan: supervisor.ProbePlan) -> dict[str, object]:
     workload = plan.inputs.get("workload")
     if workload == "parity":
         return _verify_parity(plan)
     if workload == "course":
         return _verify_course(plan)
+    if workload == "reference-ablation":
+        return _verify_reference_ablation(plan)
     raise supervisor.ProbeError("development workload binding is invalid")
 
 
@@ -984,7 +1086,11 @@ def _run_parity_child(config_path: Path, output: Path) -> dict[str, object]:
 
 
 def _shared_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--workload", choices=("parity", "course"), required=True)
+    parser.add_argument(
+        "--workload",
+        choices=("parity", "course", "reference-ablation"),
+        required=True,
+    )
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--python", dest="venv_python", type=Path, required=True)
     parser.add_argument("--config", dest="config_path", type=Path, required=True)

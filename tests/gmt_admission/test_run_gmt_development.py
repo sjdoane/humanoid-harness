@@ -125,15 +125,17 @@ def _plan(
         output_directory=output,
         owner="astra-development",
     )
-    limits, artifact_label, evidence_class = DEVELOPMENT._profile(
-        workload, loaded.course_mode
-    )
+    limits, artifact_label, evidence_class = DEVELOPMENT._profile(workload, loaded.course_mode)
     plan = DEVELOPMENT.supervisor.ProbePlan(
         config=config,
         commit="d" * 40,
         canonical_argv=(str(config.venv_python), "fixed-child"),
         inputs={
-            "artifact_contract": "gmt_g1_fixed_development_launcher/v1",
+            "artifact_contract": (
+                "gmt_g1_fixed_reference_ablation_launcher/v1"
+                if workload == "reference-ablation"
+                else "gmt_g1_fixed_development_launcher/v1"
+            ),
             "workload": workload,
             "course_mode": loaded.course_mode,
             "config": {
@@ -152,6 +154,8 @@ def _plan(
         artifact_label=artifact_label,
         evidence_class=evidence_class,
     )
+    if workload == "reference-ablation":
+        plan.inputs["reference_ablation"] = DEVELOPMENT.reference_ablation_contract()
     runtime = loaded.course_runtime.manifest_contract()
     if runtime is not None:
         plan.inputs["course_runtime"] = runtime
@@ -172,9 +176,7 @@ def _summary(*, residual_rms: float) -> dict[str, object]:
     }
 
 
-def _write_course_result(
-    plan: Any, loaded: Any, *, telemetry: bool = False
-) -> dict[str, object]:
+def _write_course_result(plan: Any, loaded: Any, *, telemetry: bool = False) -> dict[str, object]:
     output = plan.config.output_directory
     (output / DEVELOPMENT.supervisor.STDOUT_FILENAME).write_text("{}\n", encoding="utf-8")
     (output / DEVELOPMENT.supervisor.STDERR_FILENAME).write_text("", encoding="utf-8")
@@ -196,9 +198,7 @@ def _write_course_result(
     telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
     if telemetry:
         reward_scale = TRAINING_REWARD_SCALE if scaled else None
-        with TrainingTelemetry(
-            output / telemetry_filename, reward_scale=reward_scale
-        ) as writer:
+        with TrainingTelemetry(output / telemetry_filename, reward_scale=reward_scale) as writer:
             writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
             writer.final_update({}, None)
             telemetry_descriptor = writer.descriptor(512)
@@ -226,9 +226,7 @@ def _write_course_result(
         if telemetry_descriptor is not None:
             training["telemetry"] = telemetry_descriptor
         if loaded.course_trainer is not None:
-            training["reward_preconditioning"] = training_reward_metadata(
-                loaded.course_trainer
-            )
+            training["reward_preconditioning"] = training_reward_metadata(loaded.course_trainer)
         final_policy = _summary(residual_rms=0.02)
     manifest = {
         "schema_version": 1,
@@ -269,9 +267,7 @@ def test_course_verifier_accepts_only_mode_bound_complete_artifacts(
     artifacts = DEVELOPMENT.verify_development_completed(plan)
 
     assert set(artifacts["outputs"]) == (
-        DEVELOPMENT.COURSE_PROBE_OUTPUTS
-        if mode == "probe"
-        else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
+        DEVELOPMENT.COURSE_PROBE_OUTPUTS if mode == "probe" else DEVELOPMENT.COURSE_TRAIN_OUTPUTS
     )
 
 
@@ -471,7 +467,12 @@ def test_profiles_and_commands_are_fixed(tmp_path: Path) -> None:
         owner="owner",
     )
     course_argv = DEVELOPMENT._child_argv(request, request.repository_root)
-    parity_argv = DEVELOPMENT._child_argv(replace(request, workload="parity"), request.repository_root)
+    parity_argv = DEVELOPMENT._child_argv(
+        replace(request, workload="parity"), request.repository_root
+    )
+    ablation_argv = DEVELOPMENT._child_argv(
+        replace(request, workload="reference-ablation"), request.repository_root
+    )
 
     assert course_argv == (
         str(request.venv_python),
@@ -483,8 +484,81 @@ def test_profiles_and_commands_are_fixed(tmp_path: Path) -> None:
         str(request.output_directory),
     )
     assert "parity-child" in parity_argv
+    assert ablation_argv == (
+        str(request.venv_python),
+        "-m",
+        "oracle_composition.adapters.gmt.reference_ablation_run",
+        "--config",
+        str(request.config_path),
+        "--output",
+        str(request.output_directory),
+    )
     assert DEVELOPMENT._profile("parity", None)[0].wall_seconds == 120
     assert DEVELOPMENT._profile("course", "train")[0].wall_seconds == 1_200
+    limits, label, evidence = DEVELOPMENT._profile("reference-ablation", "probe")
+    assert limits.wall_seconds == 1_200
+    assert label == "gmt_g1_reference_ablation_development_resource_receipt"
+    assert evidence == DEVELOPMENT.REFERENCE_ABLATION_EVIDENCE_CLASS
+
+
+def test_reference_ablation_workload_rejects_training_and_binds_fixed_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe = _loaded(tmp_path)
+    monkeypatch.setattr(DEVELOPMENT, "_load_course", lambda _: probe)
+    loaded = DEVELOPMENT._load_workload("reference-ablation", tmp_path / "config.json")
+    assert loaded is probe
+
+    training = replace(
+        probe,
+        raw={**probe.raw, "mode": "train", "training_steps": 512},
+        course_mode="train",
+    )
+    monkeypatch.setattr(DEVELOPMENT, "_load_course", lambda _: training)
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="zero training"):
+        DEVELOPMENT._load_workload("reference-ablation", tmp_path / "config.json")
+
+
+def test_reference_ablation_verifier_binds_child_and_distinct_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan, _ = _plan(tmp_path, workload="reference-ablation")
+    output = plan.config.output_directory
+    manifest = {
+        "artifact": DEVELOPMENT.REFERENCE_ABLATION_ARTIFACT,
+        "arms": {"fixed": True},
+        "treated_vs_exact": {"fixed": True},
+    }
+    manifest_digest = _write_json(
+        output / DEVELOPMENT.REFERENCE_ABLATION_MANIFEST_FILENAME, manifest
+    )
+    _write_json(
+        output / DEVELOPMENT.supervisor.STDOUT_FILENAME,
+        {
+            "manifest_sha256": manifest_digest,
+            "arms": manifest["arms"],
+            "treated_vs_exact": manifest["treated_vs_exact"],
+        },
+    )
+    (output / DEVELOPMENT.supervisor.STDERR_FILENAME).write_bytes(b"")
+    monkeypatch.setattr(
+        DEVELOPMENT,
+        "validate_reference_ablation_artifact",
+        lambda **_: {
+            "manifest": {"sha256": manifest_digest},
+            "outputs": {"fixed": True},
+            "arms": {"fixed": True},
+            "treated_vs_exact": {"fixed": True},
+            "claim_ceiling": "fixed",
+        },
+    )
+
+    result = DEVELOPMENT.verify_development_completed(plan)
+
+    assert result["reference_ablation_manifest"]["sha256"] == manifest_digest
+    plan.inputs["reference_ablation"]["shift_control_steps"] = 251
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="accepted binding"):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 @pytest.mark.parametrize(
@@ -509,9 +583,7 @@ def test_exact_request_pins_opt_in_trainer_without_changing_raw_input_shape(
         output_directory=tmp_path / "new-output",
         owner="owner",
     )
-    monkeypatch.setattr(
-        DEVELOPMENT, "_repository_sources", lambda _: (root, "a" * 40, {})
-    )
+    monkeypatch.setattr(DEVELOPMENT, "_repository_sources", lambda _: (root, "a" * 40, {}))
     monkeypatch.setattr(DEVELOPMENT.supervisor, "_venv_identity", lambda _: {})
     monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
     plan = DEVELOPMENT.build_development_plan(request)
@@ -598,10 +670,12 @@ def test_compact_source_tree_binding_is_order_stable_and_name_sensitive() -> Non
     identity = DEVELOPMENT._source_tree_binding(baseline)
     assert identity == DEVELOPMENT._source_tree_binding(reordered)
     assert identity["file_count"] == 2
-    assert identity["canonical_tree_sha256"] != DEVELOPMENT._source_tree_binding(changed)[
-        "canonical_tree_sha256"
-    ]
-    assert identity["canonical_tree_sha256"] != DEVELOPMENT._source_tree_binding(renamed)[
-        "canonical_tree_sha256"
-    ]
+    assert (
+        identity["canonical_tree_sha256"]
+        != DEVELOPMENT._source_tree_binding(changed)["canonical_tree_sha256"]
+    )
+    assert (
+        identity["canonical_tree_sha256"]
+        != DEVELOPMENT._source_tree_binding(renamed)["canonical_tree_sha256"]
+    )
     assert DEVELOPMENT._source_tree_binding(added)["file_count"] == 3

@@ -7,6 +7,7 @@ import hashlib
 import json
 import platform
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import gymnasium as gym
@@ -16,7 +17,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
 from .composition import ComposedReference
-from .control_runtime import G1ControlRuntime, GMTActorSession
+from .control_runtime import G1ControlRuntime, GMTActorSession, PreparedControl
 from .course_config import CourseRunConfig, load_run_config
 from .course_evaluation import evaluate_episode
 from .course_runtime import frozen_runtime_contract
@@ -112,8 +113,17 @@ def _frozen_actor_digest(env: GMTResidualEnv) -> str:
     return digest.hexdigest()
 
 
+RolloutStepObserver = Callable[[PreparedControl, np.ndarray], None]
+
+
 def _rollout(
-    config: CourseRunConfig, env: GMTResidualEnv, model: PPO | None, output: Path, label: str
+    config: CourseRunConfig,
+    env: GMTResidualEnv,
+    model: PPO | None,
+    output: Path,
+    label: str,
+    *,
+    step_observer: RolloutStepObserver | None = None,
 ) -> tuple[dict, dict[str, str]]:
     observation, reset_info = env.reset(seed=config.raw["seed"])
     initial_qpos, initial_qvel = env._boundary.qpos.copy(), env._boundary.qvel.copy()
@@ -125,6 +135,8 @@ def _rollout(
             if model is None
             else model.predict(observation, deterministic=True)[0].astype(np.float32)
         )
+        if step_observer is not None:
+            step_observer(env._prepared, action)
         observation, scalar_reward, terminated, truncated, info = env.step(action)
         if not np.isfinite(observation).all() or not np.isfinite(scalar_reward):
             raise ValueError("non-finite evaluation trajectory")

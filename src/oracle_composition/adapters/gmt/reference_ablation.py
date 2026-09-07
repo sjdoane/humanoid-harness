@@ -26,6 +26,8 @@ from .io import GMTAdmissionError
 REFERENCE_ABLATION_CONTRACT_ID = "gmt_g1_closed_loop_actor_reference_ablation/v1"
 REFERENCE_ABLATION_ARTIFACT = "gmt_g1_closed_loop_reference_ablation"
 REFERENCE_ABLATION_EVIDENCE_CLASS = "development_closed_loop_reference_input_effect"
+REFERENCE_ABLATION_MANIFEST_FILENAME = "reference_ablation_manifest.json"
+REFERENCE_AUDIT_SCHEMA_ID = "gmt_g1_reference_input_audit/v1"
 REFERENCE_ABLATION_ARMS = (
     "exact",
     "zero_reference",
@@ -161,6 +163,13 @@ def reference_ablation_contract() -> dict[str, object]:
     }
 
 
+def require_reference_ablation_config(config: Any) -> None:
+    if config.raw["mode"] != "probe" or config.raw["training_steps"] != 0:
+        raise GMTAdmissionError("reference ablation requires a probe config with zero training")
+    if config.trainer is not None:
+        raise GMTAdmissionError("reference ablation cannot select a trainer")
+
+
 def actor_reference_window(
     arm: str,
     original: ReferenceCommand,
@@ -283,6 +292,8 @@ __all__ = [
     "REFERENCE_ABLATION_ARTIFACT",
     "REFERENCE_ABLATION_CONTRACT_ID",
     "REFERENCE_ABLATION_EVIDENCE_CLASS",
+    "REFERENCE_ABLATION_MANIFEST_FILENAME",
+    "REFERENCE_AUDIT_SCHEMA_ID",
     "ROOT_ORIENTATION_DIVERGENCE_RAD",
     "ROOT_TRANSLATION_DIVERGENCE_M",
     "SHIFT_CONTROL_STEPS",
@@ -294,5 +305,6 @@ __all__ = [
     "actor_reference_window",
     "fixed_shuffle_permutation",
     "reference_ablation_contract",
+    "require_reference_ablation_config",
     "validate_reference_input_audit",
 ]

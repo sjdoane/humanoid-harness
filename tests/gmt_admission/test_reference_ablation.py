@@ -197,6 +197,35 @@ def test_shift_uses_the_active_segment_without_inventing_a_future_transition() -
     )
 
 
+def test_shift_uses_canonical_entry_loop_phase_mapping() -> None:
+    segment = ReferenceSegment(
+        _motion(0.8),
+        "c" * 64,
+        0.0,
+        12.0,
+        entry_phase_end_seconds=2.0,
+        boundary="entry_once_then_loop",
+        loop_start_seconds=4.0,
+    )
+    original = _command(_oracle(), 0)
+    original = replace(
+        original,
+        behavior="loop",
+        segment_sha256=segment.sha256,
+        phase_seconds=10.0,
+    )
+
+    observed = actor_reference_window("shifted_reference", original, {"loop": segment})
+    shifted_phases = (
+        torch.tensor(10.0, dtype=torch.float32)
+        + torch.tensor(REFERENCE_OFFSETS, dtype=torch.float32) * 0.02
+        + SHIFT_SECONDS
+    )
+
+    np.testing.assert_array_equal(observed, segment.features(shifted_phases).numpy())
+    assert not np.array_equal(observed, original.window)
+
+
 def test_contract_freezes_arms_permutation_shift_and_claim_thresholds() -> None:
     contract = reference_ablation_contract()
     assert contract["artifact"] == "gmt_g1_closed_loop_reference_ablation"
