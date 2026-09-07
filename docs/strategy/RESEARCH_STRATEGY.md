@@ -565,15 +565,17 @@ What follows for strategy:
    region is entered at phase 1.1 s, on the high peak; 15 of the 24
    non-compliant samples in A were commanded above the ceiling by the
    reference itself, and the executed height sits 0.07 to 0.08 m above the
-   contact-inconsistent troughs in both arms. The reference alone caps
-   compliance near 0.79 for A's visit under exact tracking and near 0.59 with
-   the measured tracking offset, so the 0.75 admission floor was set by a
-   phase accident. The cheapest next test is therefore a data-only oracle
+   troughs (whose static forward kinematics penetrate the plane) in both
+   arms. As a descriptive replay count, not a feasibility claim, rows whose
+   retained post-step target exceeds the ceiling bound compliance near 0.79
+   for A's visit under exact tracking and near 0.59 with the measured
+   tracking offset, so the 0.75 admission floor was set by a phase accident. The cheapest next test is therefore a data-only oracle
    probe, not a training: lower the before-to-inside guard from 0.65 m to
    about 0.40 m so the region is entered on the 1.70 s trough (kinematic
    estimate from the retained trace: entry near phase 1.56 s), with a
    manipulation check on the entry phase and a preregistered compliance row
-   at or above 0.85; depth is not expected to change. Astra declared this
+   at or above 0.85; depth is not expected to change (the troughs are not
+   tracked in either arm). Astra declared this
    probe as study 019 (2026-09-07 12:26Z, guard 0.40 m, exploratory oracle
    screen); Fable holds a firewall-validated proposal to be re-pinned on the
    fresh same-source control's feedback packet; the course-signal training
