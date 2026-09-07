@@ -19,7 +19,10 @@
 - Reviewed exposure accumulator `1c0d52e` remains unwired/unimported, as do
   phase-rate and fallback patches. Do not merge ancestors incidentally.
 - Candidate GIF: sibling `gmt_course_o7b_recorded_20260907.gif`, rendered from
-  401 recorded qpos frames, not trained behavior. UI registry still predates015.
+  401 recorded qpos frames, not trained behavior. UI registry includes015;
+  all12 selected runs validate, zero task passes. Previous selection archived.
+  Registry SHA `a55abbe8fd91ad90f6c76cddc7c7f7c6bfd1432579c3dc6a69daf0b5daa39ca2`.
+  HTTP verified; Mac locked, so fresh interactive browser QA remains unavailable.
 - Main/Fable checkout remains separate; no push. Live mailbox and ignored
   active-run record govern current work; older checkpoints below are historical.
 

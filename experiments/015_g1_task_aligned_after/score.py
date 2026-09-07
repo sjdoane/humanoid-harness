@@ -153,6 +153,8 @@ def _verify_resource(
     manifest_size: int,
     resource: dict,
     reservation: dict | None,
+    expected_source_tree_sha256: str | None = None,
+    expected_source_file_count: int | None = None,
 ) -> dict:
     if (
         resource.get("schema_version") != 1
@@ -208,8 +210,21 @@ def _verify_resource(
         length=64,
         field="repository source tree",
     )
-    expected_tree = FRESH_SOURCE_TREE_SHA256 if reservation is not None else BASE_SOURCE_TREE_SHA256
-    if tree != expected_tree or repository["file_count"] != SOURCE_FILE_COUNT:
+    if (expected_source_tree_sha256 is None) != (expected_source_file_count is None):
+        raise ValueError("explicit executable identity requires both tree and file count")
+    if expected_source_tree_sha256 is None:
+        expected_tree = (
+            FRESH_SOURCE_TREE_SHA256 if reservation is not None else BASE_SOURCE_TREE_SHA256
+        )
+        expected_count = SOURCE_FILE_COUNT
+    else:
+        expected_tree = _digest(
+            expected_source_tree_sha256, length=64, field="expected executable source tree"
+        )
+        expected_count = expected_source_file_count
+        if type(expected_count) is not int or expected_count < 1:
+            raise ValueError("expected executable file count must be a positive integer")
+    if tree != expected_tree or repository["file_count"] != expected_count:
         raise ValueError("probe executable source tree differs from its predeclared identity")
     argv = resource.get("canonical_argv")
     if (
@@ -277,7 +292,13 @@ def _require_zero_residual(report: dict, trajectory: dict[str, np.ndarray]) -> N
         raise ValueError("Study015 requires an exact zero-residual probe")
 
 
-def _verify_run(pins: RunPins, feedback_root: Path) -> dict:
+def _verify_run(
+    pins: RunPins,
+    feedback_root: Path,
+    *,
+    expected_source_tree_sha256: str | None = None,
+    expected_source_file_count: int | None = None,
+) -> dict:
     root = pins.root.resolve(strict=True)
     if not root.is_dir() or root != pins.root:
         raise ValueError("run directory must be an exact absolute directory")
@@ -323,6 +344,8 @@ def _verify_run(pins: RunPins, feedback_root: Path) -> dict:
         manifest_size=len(manifest_bytes),
         resource=resource,
         reservation=reservation,
+        expected_source_tree_sha256=expected_source_tree_sha256,
+        expected_source_file_count=expected_source_file_count,
     )
     feedback = _feedback_builder(
         manifest_path=manifest_path,

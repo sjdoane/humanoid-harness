@@ -35,6 +35,9 @@ retained states/commands → independent scorer → next LLM proposal (between r
 - Feedback uses the observed **pre-action** boundary, not target orientation or
   post-action state. The native motion remains immutable; transformed windows
   receive their own trace identities.
+- Both coordinates use the evaluator's reset-anchored `TaskFrame`; lateral and
+  heading are left-positive. Required sign fixture: `y=+1 m, psi=0` gives
+  target `-0.3 rad` and a negative correction, including in a rotated task frame.
 
 ## Fixed law (no gain search)
 
@@ -53,6 +56,10 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
   exceedance and output saturation; do not claim correction-only causality.
 - Hold that exact pre-action correction for the matching `current_after_step`
   reference. Do not recompute it from the resulting state or next prepared mode.
+- At the retained entry boundary, `psi=+0.092443 rad` and `y` is about `+1.42 m`:
+  initial correction is about `-0.392443 rad/s`. Native rows below `+0.092443`
+  therefore saturate at `-0.3 rad/s`. An immediate handover fall is a meaningful
+  rejection; neither survival nor smooth recentering is presumed.
 - Record pre-action heading/lateral, target/correction, before/after window
   hashes and saturation. Reconstruct these from raw states and pinned native
   motion in validation; self-reported receipts alone are insufficient.

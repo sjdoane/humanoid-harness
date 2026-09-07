@@ -434,6 +434,38 @@ def test_resource_and_native_reservation_bind_source_inputs_argv_and_output(
             reservation=reservation,
         )
 
+    # A later study supplies its predeclared source identity, not new global defaults.
+    explicit = {
+        "expected_source_tree_sha256": scorer.FRESH_SOURCE_TREE_SHA256,
+        "expected_source_file_count": scorer.SOURCE_FILE_COUNT,
+    }
+    scorer._verify_resource(
+        pins=pins,
+        manifest=manifest,
+        manifest_size=10,
+        resource=resource,
+        reservation=reservation,
+        **explicit,
+    )
+    for overrides in (
+        {"expected_source_tree_sha256": "0" * 64, "expected_source_file_count": 194},
+        {"expected_source_tree_sha256": scorer.FRESH_SOURCE_TREE_SHA256},
+        {"expected_source_file_count": 194},
+        {**explicit, "expected_source_file_count": True},
+        {**explicit, "expected_source_file_count": 0},
+        {**explicit, "expected_source_file_count": 193},
+        {**explicit, "expected_source_tree_sha256": "not-a-digest"},
+    ):
+        with pytest.raises(ValueError):
+            scorer._verify_resource(
+                pins=pins,
+                manifest=manifest,
+                manifest_size=10,
+                resource=resource,
+                reservation=reservation,
+                **overrides,
+            )
+
     wrong_count = copy.deepcopy(resource)
     wrong_count["inputs"]["repository_sources"]["file_count"] = 193
     with pytest.raises(ValueError, match="predeclared identity"):
