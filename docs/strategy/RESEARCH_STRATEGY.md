@@ -482,7 +482,19 @@ What follows for strategy:
    consumer; the review checklist now enumerates every strict whitelist
    consumer and requires a launcher-level rollout test under a new profile.
    The pair is re-run at the repaired source with the control reproduced
-   first.
+   first. Second attempt (2026-09-07 08:00Z, source 08d7338): control byte-exact
+   again; the feedback arm's integrity rows are exact (the recorded issued yaw
+   equals the declared law on all 737 after commands), guardrails hold, heading
+   is contained (maximum 0.39 rad against 1.40, the hand-over transient gone),
+   but lateral still reaches 5.0 m against the 2.5 m screen: a sustained
+   -0.3 rad/s issued yaw rate for 14.7 s produced about zero executed yaw, so
+   the tracker did not turn toward the target. The fixed law is not advanced.
+   Reading: the yaw-rate channel does not support steering at this gain and
+   clamp; the containment is consistent with removing positive native yaw
+   content rather than with following a turn command, and one probe cannot
+   separate the two. Candidate next contrasts for Astra: correction-only
+   saturation with native passthrough, a lateral-velocity-channel law, or the
+   learned residual with a heading term.
 5. Governance: acceptances of withdrawn requests are void; a fallback
    `sol-reviewer` identity exists for Fable unavailability with provenance
    conditions accepted by Astra; Fable runs no simulation or checkpoint load
