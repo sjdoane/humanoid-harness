@@ -44,6 +44,27 @@ changed, so tracking error is not an independent measure of task quality.
 - The scorer reconstructs windows from recorded boundary states. Windows were
   not directly retained by this probe; no policy or dynamics rerun is claimed.
 
+## Matched donor intervals
+
+- Match105 executed20 ms intervals by local phase, not by nearest physical pose.
+  Both velocities are reset-task-frame finite differences; smoothed body-local
+  reference commands are a different quantity and are excluded from this contrast.
+- Mean forward speed: donor0.664032 m/s; candidate0.429790 m/s.
+  Candidate covers0.902560 m versus donor1.394467 m over2.10 s (64.7%).
+- Progress lag exceeds5 cm at0.56 s,10 cm at0.72 s, and reaches0.491907 m
+  at2.10 s. Physical-region entry is0.22 s later in local phase.
+- Candidate's first, deeper dip occurs before physical-region entry. Region
+  membership comes from measured position, not the oracle's inside label.
+- First-window-row and post-step-target arrays differ exactly on111 actions.
+  On107, maximum row difference is≤0.00002152; four inside rows straddle
+  float32 sampling knots with piecewise-constant velocity differences up to
+  0.035674. Every independently reconstructed post-step target matches its
+  retained target. Do not label the two sampling expressions byte-identical.
+- Local descriptive comparison:
+  `artifacts/gmt/course_configs/study017_phase_matched_donor_comparison_20260907.json`,
+  SHA `86417aa2cb173d698b681ad2e490b0975342ddda6c0234b84bebe619913f5aed`.
+  This adds no post-hoc gate and does not isolate a causal mechanism.
+
 ## Integrity and dispatch deviation
 
 - Both runs use clean source `d189d5aa0fbbcd0a46b3e64b4ce3694da3c30046`.

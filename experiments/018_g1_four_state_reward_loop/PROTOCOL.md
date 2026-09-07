@@ -78,6 +78,8 @@ OUTPUT: both final policies, synchronized traces, reward lineage, scores, replay
 - P2: B maximum absolute unwrapped reset-relative heading during executed after
   mode≤A's. Unwrap the entire reset-relative heading sequence first, then select
   post-step samples whose executed mode is after; never reset unwrapping at entry.
+  Use signed `metrics.heading_error_signed_rad`, prefixed by reset value0;
+  `heading_error_rad` is already absolute and cannot retain winding direction.
 - B must retain A's substrate gates, except the headroom requirement is not a
   B guardrail. Posture compliance must also be≥A's, without a rounding tolerance.
   This deliberately treats even a one-sample fractional regression as a failure.

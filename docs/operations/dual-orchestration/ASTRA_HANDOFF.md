@@ -3,9 +3,34 @@
 | progress | 37 training runs / 2,293,760 transitions. Study017 paired probes completed and scored; new replay available. |
 |---|---|
 | bottleneck | No full-task pass. Study017 reference survives but misses depth fidelity and worsens posture compliance. |
-| next step | Reject that exact bundle for training. Finish review of the isolated four-state training prerequisite and choose the next bounded contrast with Fable. |
+| next step | Seal/review the Study018 scorer; train native O7b baseline A, then one reward-only B only if A passes predeclared admission. |
 
-## Current checkpoint: 2026-09-07 09:03 UTC
+## Current checkpoint: 2026-09-07 09:20 UTC
+
+- Four-state prerequisite imported as `4aa3385`, `7017f58`, `834c72d`,
+  `aef3d7d`. Both independent review and parent inspection pass after the
+  legacy/v4 feedback repair and shared scorer runtime/telemetry plumbing.
+- Root GMT+feedback suite:592 passed, no skips;152 focused tests and Ruff pass.
+- New source tree:196 files,
+  `6010bf0ce11bb56c30fe71fdb8b368235f7c5cde867dba8179571dff0ba11f15`.
+  Fresh legacy O7b probe at `aef3d7d` reproduces all three retained015 outputs
+  byte-exact. Receipt `.orchestration/study018_legacy_parity_20260907.json`;
+  manifest `923236b692259d5e06161f76d54adf657ff1fc6aa42af9f43ed9495aae83a27c`.
+- [Study018 protocol](../../../experiments/018_g1_four_state_reward_loop/PROTOCOL.md)
+  is predata. Exact baseline config SHA
+  `a9e52ba706e4ddfd394c757cf525bf210d553906430c7f08e11e0495affdf289`.
+  A/B use native O7b, schema5,2172D, trainer3, seed20260906,131072 transitions.
+  B is conditional on A's substrate/headroom gates, then one feedback-linked
+  bounded lateral/heading weight revision. No A/B training started.
+- Sol `study017_scorer` now builds018 scorer/tests in the separate
+  `humanoid-harness-study018-scorer` worktree. Require exact clean handoff and
+  independent review before sealing A. No duplicate builder.
+- UI restarted as session48274 at8766; HTTP and actual browser show12 valid
+  selected runs,0 full-task passes, including017. Previous registry retained.
+  Study017 donor comparison confirms49.2 cm phase-aligned lag by2.10 s.
+- Fable remains reviewer/ideator only. No push or main-checkout change.
+
+## Earlier checkpoint: 2026-09-07 09:03 UTC
 
 - [Study017 result](../../../experiments/017_g1_execution_derived_reference/RESULTS.md):
   sealed pair at `d189d5a`, both terminal/released. Score SHA
