@@ -2,8 +2,16 @@
 
 | progress | 38 bounded training runs / 2,424,832 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | No full-task pass. Study019 earlier entry falls; Study018 B remains stopped. |
-| next step | Diagnose saved initial/final018 policies under matched noise before changing training. |
+| bottleneck | No full-task pass. Study 020 confirms worse sampled survival for the trained policy; Study 018 B remains stopped. |
+| next step | Declare a small oracle-exit probe with exact control and handover diagnostics before more training. |
+
+- [Study 020 result](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
+  both saved checkpoints evaluated on 16 paired noise sequences at one reset.
+  Initial falls 5/16; trained falls 11/16; neither passes the full task.
+  Paired raw return difference averages −1,180.257; falls shorten the observation
+  window. All pairs retained; independent score reproduces exactly. No new
+  training, no training-seed replication claim, no policy adoption.
+  [Figure](../../../experiments/020_g1_saved_policy_diagnostic/FIGURE.md).
 
 - [Study019 result](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
   one LLM guard revision tested against an exact control. Candidate falls at4.34 s,

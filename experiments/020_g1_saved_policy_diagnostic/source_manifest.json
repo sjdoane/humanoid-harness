@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "evidence_id": "E001",
+      "title": "Study 020 predata protocol",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "experiments/020_g1_saved_policy_diagnostic/PROTOCOL.md; SHA256=f0151c82cc097fe4b3160eb83539ef0ce56e8e663783a0188cdb838a3d5dea4c",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E002",
+      "title": "Study 020 independently reproduced diagnosis",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "artifacts/gmt/course_configs/study020_diagnosis_20260907.json; SHA256=0a58b19ceb71fce8ee8dc301ab5e59a9170e4f312363c900ec8fb49cc24bece0",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E003",
+      "title": "Study 020 native run manifest",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-probe-runs/gmt_course_study020_saved_policy_diagnostic_20260907/saved_policy_diagnostic_manifest.json; SHA256=2c6962c519eea04d458e0f3f7dbd582ff535eb5e3bda63a92d90bcda1f90f289",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E004",
+      "title": "Study 020 independent Sol diagnosis",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": ".orchestration/study020_diagnosis_independent_20260907.json; SHA256=0a58b19ceb71fce8ee8dc301ab5e59a9170e4f312363c900ec8fb49cc24bece0",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    }
+  ]
+}

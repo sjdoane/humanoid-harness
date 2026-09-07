@@ -1,11 +1,43 @@
 # Astra orchestration handoff
 
-| progress | 38 training runs / 2,424,832 transitions. Study019 oracle probe scored and independently reproduced. |
+| progress | 38 training runs / 2,424,832 transitions. Study 020 evaluates both saved policies; independent scoring matches exactly. |
 |---|---|
-| bottleneck | No full-task pass. Earlier entry falls at4.34 s and misses its intended phase; reject. |
-| next step | Complete reviewed Study020 evaluation; preserve O7b and keep018 B stopped. |
+| bottleneck | No full-task pass. Trained policy falls in 11/16 paired tests versus 5/16 initially. |
+| next step | Declare a separate oracle-exit probe; preserve O7b and keep Study 018 B stopped. |
 
-## Current checkpoint: 2026-09-07 14:37 UTC
+## Current checkpoint: 2026-09-07 15:05 UTC
+
+- [Study 020 results](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
+  34 episodes, 139 declared outputs, zero training, no full-task pass. One reset,
+  one training seed and 16 paired noise sequences; not training replications.
+- Run and scoring source `615124f018e044a74b8ec564de0207237c7593fa`.
+  Manifest `2c6962c519eea04d458e0f3f7dbd582ff535eb5e3bda63a92d90bcda1f90f289`;
+  resource `3260b939b71bdce6ec895b057539f8acfa6d1bd23d68289bd9b1fb0f5f4e2559`.
+  Root and Sol diagnosis SHA
+  `0a58b19ceb71fce8ee8dc301ab5e59a9170e4f312363c900ec8fb49cc24bece0`;
+  Fable independently agrees with primary numbers and sampling arithmetic.
+- Legacy parity and both exact deterministic triplets verify. Source freeze
+  ended after independent scoring; worker terminal, heavy slot released.
+  Current slice is results/figure only; no next candidate or run launched.
+- Selected figure: local `artifacts/gmt/course_configs/study020_figures_20260907/paired_outcomes_final.png`.
+  All pairs visible with durations. Local development draft; human review pending.
+- Next priority: a small oracle-only test of the crouch exit-boundary rule,
+  before more trainer work. Require new protocol, exact control, one candidate,
+  handover pose/speed/height measurements, unchanged gates and resource approval.
+  Earlier exit may create a discontinuity. Smaller-noise evaluation remains a
+  separate rival; neither is admitted or authorized by this checkpoint.
+- Existing `course_config.py` admits an omitted `exit_at_loop_boundary` key
+  as false; `composition.py:allows_ordinary_transition` then permits ordinary
+  guards each command. The probe needs no new transition runtime feature.
+  Fable's review `20260907T150425.805865Z-92b3fc9d995a4cb9a37343e1a5a6c6a9`
+  supplies proposed prefix/guard definitions; verify them before freezing the
+  next scorer. A deterministic survival result would not establish sampled
+  robustness or justify immediate training.
+- Correct Fable's first interpretation: three final falls occur inside before
+  any rise; not every fall follows the rise handover. Later review corrected it.
+  No causal speed/deferral claim. Fable remains review/ideation only.
+
+## Earlier checkpoint: 2026-09-07 14:37 UTC
 
 - Study020 runner, strict policy loading and independent action arithmetic are
   implemented; no020 simulation or training has run.95 focused tests pass.
