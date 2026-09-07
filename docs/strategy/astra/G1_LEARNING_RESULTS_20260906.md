@@ -161,6 +161,32 @@ Independent read-only audit and parent recomputation at `57d2a2e`:
   A higher speed weight is a candidate expressiveness test, not an adopted
   reward; prior R2 improved mean speed while worsening other task measures.
 
+### Next learning decision: measure difficult-state exposure
+
+- Decision after Study014: no further depth-weight or residual-authority sweep
+  without evidence that distinguishes reference mismatch from learning failure.
+- Current training telemetry retains pooled observation-group moments and
+  episode endpoints. It cannot recover region occupancy or depth exposure.
+  Evaluation percentages must not be multiplied by the training budget and
+  presented as measured training counts.
+- Next training diagnostic, separately reviewed after Study015: per-rollout
+  physical-region counts, executed-mode counts, fixed inside-height bins, and
+  signed reference/robot height errors. Bounded summaries, no growing raw trace.
+- [GMT v1, sections 3.1 and 4.3.2](https://arxiv.org/html/2506.14770v1)
+  motivates measuring difficult-segment exposure: it reports adaptive sampling
+  to reduce easy-segment dominance. Whether our learner has that problem is
+  unknown; its method and training scale are not a drop-in prescription.
+- A held deepest locomotion pose is only a possible conditioning diagnostic.
+  Success establishes one reachable static depth at that handover; failure is
+  ambiguous among support geometry, conditioning, state entry and controller.
+  It cannot prove global controller incapability. No hold run is authorized here.
+- No curriculum, reset, controller, MDP or evaluator change is part of Study015.
+  A controller/MDP change remains an explicitly separate experiment family
+  under the system-lead authority, not an undeclared oracle intervention.
+- Fable review: `20260907T062027.763368Z-693a004a420d44e29fe851f36ea0367d`;
+  corrected interpretation accepted in
+  `20260907T062151.697756Z-2e671943f3d94de9a9d509549e891b70`.
+
 ### Earlier revision safeguards
 
 - O3 execution source: `1b501d6`; 32,768 transitions, seed `20260906`.
