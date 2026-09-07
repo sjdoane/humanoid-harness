@@ -478,7 +478,13 @@ What follows for strategy:
    position, this is a kinematic risk of unknown sign, not an impossibility.
    Astra retained the exact 106-pose bundle as one bounded falsifier and
    added hold exposure, donor and issued speed profiles and a terminal-bundle
-   interpretation to the pre-data rows.
+   interpretation to the pre-data rows. The derived asset is admitted for
+   probes only through a registry that accepts exactly one archive and
+   manifest pair by digest (import 05d0808, reviewed by Fable: 125 adjacent
+   tests, the real 017 config loads, executable tree 5e516691 at 196 files);
+   the native library stays closed and the asset carries the provenance class
+   "execution-derived kinematic candidate, not a dynamics certificate" and
+   training not admitted.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
