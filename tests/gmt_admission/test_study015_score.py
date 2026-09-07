@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import json
 import math
 import sys
 from pathlib import Path
@@ -98,6 +99,60 @@ def _qpos(yaws: list[float]) -> np.ndarray:
     return result
 
 
+def _write_json(path: Path, value: dict) -> str:
+    encoded = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    path.write_bytes(encoded)
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _native_reservation(scorer, tmp_path: Path, authoritative: dict):
+    coordination_root = tmp_path / "mailbox"
+    messages = coordination_root / "messages"
+    acknowledgments = coordination_root / "acks"
+    messages.mkdir(parents=True)
+    acknowledgments.mkdir()
+    message_id = "20260907T000100.000000Z-" + "1" * 32
+    message = {
+        "body": scorer.canonical_json_bytes(authoritative).decode(),
+        "from": "fable",
+        "id": message_id,
+        "kind": "acceptance",
+        "reply_to": authoritative["proposal_id"],
+        "schema_version": 1,
+        "sent_at": "2026-09-07T00:01:00.000000Z",
+        "subject": "accept fixed Study015 probe",
+        "to": "astra",
+    }
+    message_path = messages / f"{message_id}.json"
+    message_sha256 = _write_json(message_path, message)
+    acknowledgment = {
+        "acknowledged_at": "2026-09-07T00:01:01.000000Z",
+        "meaning": "read_not_agreement",
+        "message_id": message_id,
+        "recipient": "astra",
+        "schema_version": 1,
+    }
+    acknowledgment_path = acknowledgments / f"{message_id}.json"
+    acknowledgment_sha256 = _write_json(acknowledgment_path, acknowledgment)
+    reservation = {
+        "accepted": True,
+        "acceptance_message": {
+            "path": f"messages/{message_id}.json",
+            "sha256": message_sha256,
+        },
+        "acknowledgment": {
+            "path": f"acks/{message_id}.json",
+            "sha256": acknowledgment_sha256,
+        },
+        **authoritative,
+        "schema_version": 2,
+    }
+    reservation_path = tmp_path / "reservation.json"
+    _write_json(reservation_path, reservation)
+    reservation_sha256 = hashlib.sha256(scorer.canonical_json_bytes(reservation)).hexdigest()
+    return coordination_root, reservation_path, reservation_sha256, reservation
+
+
 def test_prefix_boundary_allows_first_difference_only_at_action263_and_state264(scorer) -> None:
     control = _prefix_run()
     candidate = copy.deepcopy(control)
@@ -123,6 +178,15 @@ def test_prefix_rejects_any_earlier_numeric_difference(scorer, field: str, index
         scorer.verify_prefix(control, candidate)
 
 
+def test_prefix_rejects_changed_reward_before_after_command(scorer) -> None:
+    control = _prefix_run()
+    candidate = copy.deepcopy(control)
+    candidate["frames"][100]["reward"]["total_reward"] = 2.0
+
+    with pytest.raises(ValueError, match="complete trace prefix"):
+        scorer.verify_prefix(control, candidate)
+
+
 def test_zero_residual_contract_rejects_nonzero_action(scorer) -> None:
     trajectory = _prefix_run()["trajectory"]
     trajectory["residual_action"] = np.zeros((265, 23), dtype=np.float32)
@@ -131,6 +195,15 @@ def test_zero_residual_contract_rejects_nonzero_action(scorer) -> None:
     trajectory["residual_action"][10, 2] = 1e-8
     with pytest.raises(ValueError, match="exact zero-residual"):
         scorer._require_zero_residual({"residual_rms": 0.0}, trajectory)
+
+
+def test_signed_commanded_yaw_prediction_is_a_separate_required_manipulation(scorer) -> None:
+    assert scorer.manipulation_check({"after_commanded_local_yaw_rate_mean_rad_s": 0.06}) == {
+        "signed_after_commanded_yaw_mean_at_most_0p06_rad_s": True
+    }
+    assert not all(
+        scorer.manipulation_check({"after_commanded_local_yaw_rate_mean_rad_s": 0.060001}).values()
+    )
 
 
 def test_unwrapped_full_yaw_rejects_wrapped_endpoint_uturn(scorer) -> None:
@@ -256,7 +329,7 @@ def test_candidate_config_is_exact_single_after_crop_change(scorer) -> None:
         scorer.verify_o7b_config(control, candidate)
 
 
-def test_resource_and_authority_must_bind_same_source_inputs_argv_and_output(
+def test_resource_and_native_reservation_bind_source_inputs_argv_and_output(
     scorer, tmp_path: Path
 ) -> None:
     root = tmp_path.resolve()
@@ -287,9 +360,37 @@ def test_resource_and_authority_must_bind_same_source_inputs_argv_and_output(
             "sha256": "c" * 64,
             "size": (root / "input_config.json").stat().st_size,
         },
-        "repository_sources": {"canonical_tree_sha256": "d" * 64, "file_count": 10},
+        "repository_sources": {
+            "canonical_tree_sha256": scorer.FRESH_SOURCE_TREE_SHA256,
+            "file_count": scorer.SOURCE_FILE_COUNT,
+        },
     }
-    pins = scorer.RunPins(root, "m" * 64, "r" * 64, "c" * 64, "a" * 40)
+    authoritative = {
+        "accepted_until_utc": "2026-09-07T00:10:00.000000Z",
+        "canonical_argv": argv,
+        "commit": "a" * 40,
+        "conflict_check": "no_other_heavy_repository_job",
+        "hard_wall_seconds": 1200,
+        "inputs": inputs,
+        "mode": "smoke",
+        "output": str(root),
+        "owner": "astra-system-lead-20260906",
+        "proposal_id": "20260907T000000.000000Z-" + "0" * 32,
+        "required_authorizer": "fable",
+    }
+    coordination_root, reservation_path, reservation_sha256, reservation = _native_reservation(
+        scorer, tmp_path, authoritative
+    )
+    pins = scorer.RunPins(
+        root,
+        "m" * 64,
+        "r" * 64,
+        "c" * 64,
+        "a" * 40,
+        reservation_path,
+        reservation_sha256,
+        coordination_root,
+    )
     manifest = {"outputs": outputs}
     resource = {
         "schema_version": 1,
@@ -297,46 +398,74 @@ def test_resource_and_authority_must_bind_same_source_inputs_argv_and_output(
         "status": "succeeded",
         "evidence_class": "development_course_probe_not_task_success",
         "commit": "a" * 40,
+        "reservation_sha256": reservation_sha256,
         "inputs": inputs,
         "canonical_argv": argv,
         "artifacts": {
-            "course_manifest": {"path": "course_run_manifest.json", "sha256": "m" * 64, "size": 10},
+            "course_manifest": {
+                "path": "course_run_manifest.json",
+                "sha256": "m" * 64,
+                "size": 10,
+            },
             "outputs": output_records,
         },
     }
-    authority = {
-        "commit": "a" * 40,
-        "inputs": copy.deepcopy(inputs),
-        "canonical_argv": list(argv),
-        "output": str(root),
-        "mode": "smoke",
-        "required_authorizer": "fable",
-    }
 
+    assert scorer._validated_reservation(pins) == reservation
     assert scorer._verify_resource(
         pins=pins,
         manifest=manifest,
         manifest_size=10,
         resource=resource,
-        authority=authority,
+        reservation=reservation,
     ) == {
-        "source_tree_sha256": "d" * 64,
+        "source_tree_sha256": scorer.FRESH_SOURCE_TREE_SHA256,
         "fixed_inputs": {name: value for name, value in inputs.items() if name != "config"},
     }
-    authority["commit"] = "b" * 40
-    with pytest.raises(ValueError, match="authority"):
+
+    wrong_tree = copy.deepcopy(resource)
+    wrong_tree["inputs"]["repository_sources"]["canonical_tree_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="predeclared identity"):
         scorer._verify_resource(
             pins=pins,
             manifest=manifest,
             manifest_size=10,
-            resource=resource,
-            authority=authority,
+            resource=wrong_tree,
+            reservation=reservation,
         )
+
+    wrong_count = copy.deepcopy(resource)
+    wrong_count["inputs"]["repository_sources"]["file_count"] = 193
+    with pytest.raises(ValueError, match="predeclared identity"):
+        scorer._verify_resource(
+            pins=pins,
+            manifest=manifest,
+            manifest_size=10,
+            resource=wrong_count,
+            reservation=reservation,
+        )
+
+    wrong_reservation = copy.deepcopy(resource)
+    wrong_reservation["reservation_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="native reservation"):
+        scorer._verify_resource(
+            pins=pins,
+            manifest=manifest,
+            manifest_size=10,
+            resource=wrong_reservation,
+            reservation=reservation,
+        )
+
+    acknowledgment = coordination_root / reservation["acknowledgment"]["path"]
+    acknowledgment.write_text("{}\n")
+    with pytest.raises(ValueError, match="acceptance chain"):
+        scorer._validated_reservation(pins)
 
 
 def test_positive_verified_fixture_scores_without_promoting_task_success(
     scorer, tmp_path: Path
 ) -> None:
+    coordination_root = tmp_path / "mailbox"
     baseline_pins = scorer.RunPins(
         tmp_path / "baseline",
         scorer.BASE_MANIFEST_SHA256,
@@ -350,8 +479,9 @@ def test_positive_verified_fixture_scores_without_promoting_task_success(
         "2" * 64,
         scorer.BASE_CONFIG_SHA256,
         "a" * 40,
-        tmp_path / "control-authority.json",
+        tmp_path / "control-reservation.json",
         "3" * 64,
+        coordination_root,
     )
     candidate_pins = scorer.RunPins(
         tmp_path / "candidate",
@@ -359,8 +489,9 @@ def test_positive_verified_fixture_scores_without_promoting_task_success(
         "5" * 64,
         scorer.CANDIDATE_CONFIG_SHA256,
         "a" * 40,
-        tmp_path / "candidate-authority.json",
+        tmp_path / "candidate-reservation.json",
         "6" * 64,
+        coordination_root,
     )
     control_run = _prefix_run()
     control_run["frames"][0]["metrics"]["progress_m"] = 1.5
@@ -385,7 +516,11 @@ def test_positive_verified_fixture_scores_without_promoting_task_success(
             "frames": run["frames"],
             "trajectory": run["trajectory"],
             "objective": objective,
-            "source_tree_sha256": "7" * 64,
+            "source_tree_sha256": (
+                scorer.BASE_SOURCE_TREE_SHA256
+                if pins is baseline_pins
+                else scorer.FRESH_SOURCE_TREE_SHA256
+            ),
             "resource_fixed_inputs": {"fixed": True},
             "feedback": {"feedback": {"sha256": "8" * 64, "byte_count": 1}},
         }
@@ -409,13 +544,28 @@ def test_positive_verified_fixture_scores_without_promoting_task_success(
 
     assert result["fresh_control_byte_reproduced_three_outputs"] is True
     assert result["mechanism_screen_passed"] is True
+    assert all(result["required_manipulation_check"].values())
     assert result["candidate_measures"][
         "after_commanded_local_yaw_rate_mean_rad_s"
     ] == pytest.approx(0.05)
     assert result["claim_scope"].endswith("not_task_success")
 
+    candidate_run["trajectory"]["current_reference"][263:, 6] = 0.061
+    failed_manipulation = scorer.score_study(
+        scorer.StudyInputs(
+            baseline_pins,
+            control_pins,
+            candidate_pins,
+            scorer.CANDIDATE_CONFIG_SHA256,
+        ),
+        run_verifier=lambda pins, _feedback: records[pins.root],
+    )
+    assert all(failed_manipulation["mechanism_screen"].values())
+    assert failed_manipulation["mechanism_screen_passed"] is False
+
 
 def test_candidate_verification_failure_cannot_publish_score(scorer, tmp_path: Path) -> None:
+    coordination_root = tmp_path / "mailbox"
     baseline = scorer.RunPins(
         tmp_path / "baseline",
         scorer.BASE_MANIFEST_SHA256,
@@ -429,8 +579,9 @@ def test_candidate_verification_failure_cannot_publish_score(scorer, tmp_path: P
         "2" * 64,
         scorer.BASE_CONFIG_SHA256,
         "a" * 40,
-        tmp_path / "control-authority.json",
+        tmp_path / "control-reservation.json",
         "3" * 64,
+        coordination_root,
     )
     candidate = scorer.RunPins(
         tmp_path / "candidate",
@@ -438,8 +589,9 @@ def test_candidate_verification_failure_cannot_publish_score(scorer, tmp_path: P
         "5" * 64,
         scorer.CANDIDATE_CONFIG_SHA256,
         "a" * 40,
-        tmp_path / "candidate-authority.json",
+        tmp_path / "candidate-reservation.json",
         "6" * 64,
+        coordination_root,
     )
     inputs = scorer.StudyInputs(baseline, control, candidate, scorer.CANDIDATE_CONFIG_SHA256)
 

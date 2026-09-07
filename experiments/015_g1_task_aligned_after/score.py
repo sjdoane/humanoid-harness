@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import fmean
 
@@ -17,12 +18,20 @@ import numpy as np
 
 from oracle_composition.adapters.gmt.io import write_json_receipt
 from oracle_composition.harness.contract import decode_json_object, read_json_object
+from oracle_composition.harness.resource_slot import (
+    ResourceSlotError,
+    canonical_json_bytes,
+    load_validated_reservation,
+)
 
 BASE_SOURCE_COMMIT = "031a0660401bda7cf887fab68eea686980c9a4fd"
 BASE_MANIFEST_SHA256 = "6141e860a018fcb0dfac89444234fe987351f188f29e14d3400d0a78db9fe34c"
 BASE_RESOURCE_SHA256 = "6fa316fc8b15eccf29e42920ac48914cf1baf67f885af0e93e2b1916d06db466"
 BASE_CONFIG_SHA256 = "430c6674485a4ec9ca7546389a71b485c7670f11d08a8b911b48758ee6a51ff4"
+BASE_SOURCE_TREE_SHA256 = "573560c9c9445a75275e135c96782a1a0ff29892c006ce5e3dd112efb28de024"
 CANDIDATE_CONFIG_SHA256 = "ba45dba36ef88bdc522ed2115e46a4b3d876e00a627a089fd56ddf0de623e18a"
+FRESH_SOURCE_TREE_SHA256 = "3ba7fe0ab72374e0667402848460c43915024fbcd2fe44f9ce5de791f0ab8b8e"
+SOURCE_FILE_COUNT = 194
 PREFIX_ACTION_COUNT = 263
 PREFIX_STATE_COUNT = 264
 _HEX = frozenset("0123456789abcdef")
@@ -55,8 +64,9 @@ class RunPins:
     resource_sha256: str
     config_sha256: str
     source_commit: str
-    authority_path: Path | None = None
-    authority_sha256: str | None = None
+    reservation_path: Path | None = None
+    reservation_sha256: str | None = None
+    coordination_root: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +95,43 @@ def _pinned_json(path: Path, expected_sha256: str, *, source: str) -> tuple[dict
     return value, encoded
 
 
+def _validated_reservation(pins: RunPins) -> dict:
+    if (
+        pins.reservation_path is None
+        or pins.reservation_sha256 is None
+        or pins.coordination_root is None
+    ):
+        raise ValueError("fresh run requires its native reservation and coordination root")
+    reservation, _ = read_json_object(pins.reservation_path)
+    expected = _digest(
+        pins.reservation_sha256,
+        length=64,
+        field="native reservation canonical SHA-256",
+    )
+    if _sha256(canonical_json_bytes(reservation)) != expected:
+        raise ValueError("native reservation differs from its canonical SHA-256")
+    expiry = reservation.get("accepted_until_utc")
+    if type(expiry) is not str:
+        raise ValueError("native reservation acceptance expiry is absent")
+    try:
+        retrospective_now = datetime.strptime(expiry, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+            tzinfo=UTC
+        ) - timedelta(microseconds=1)
+    except ValueError as error:
+        raise ValueError("native reservation acceptance expiry is malformed") from error
+    try:
+        validated = load_validated_reservation(
+            pins.coordination_root,
+            pins.reservation_path,
+            now=retrospective_now,
+        )
+    except ResourceSlotError as error:
+        raise ValueError("native reservation acceptance chain is invalid") from error
+    if validated != reservation:
+        raise ValueError("native reservation changed during validation")
+    return validated
+
+
 def _output_bytes(root: Path, outputs: dict) -> dict[str, bytes]:
     if set(outputs) != _OUTPUTS:
         raise ValueError("probe output ledger differs from the exact four-file contract")
@@ -105,7 +152,7 @@ def _verify_resource(
     manifest: dict,
     manifest_size: int,
     resource: dict,
-    authority: dict | None,
+    reservation: dict | None,
 ) -> dict:
     if (
         resource.get("schema_version") != 1
@@ -161,6 +208,9 @@ def _verify_resource(
         length=64,
         field="repository source tree",
     )
+    expected_tree = FRESH_SOURCE_TREE_SHA256 if reservation is not None else BASE_SOURCE_TREE_SHA256
+    if tree != expected_tree or repository["file_count"] != SOURCE_FILE_COUNT:
+        raise ValueError("probe executable source tree differs from its predeclared identity")
     argv = resource.get("canonical_argv")
     if (
         type(argv) is not list
@@ -172,15 +222,16 @@ def _verify_resource(
         or Path(argv[6]).resolve() != pins.root
     ):
         raise ValueError("resource command does not bind the exact config and output")
-    if authority is not None and (
-        authority.get("commit") != pins.source_commit
-        or authority.get("inputs") != inputs
-        or authority.get("canonical_argv") != argv
-        or authority.get("output") != str(pins.root)
-        or authority.get("mode") != "smoke"
-        or authority.get("required_authorizer") != "fable"
+    if reservation is not None and (
+        resource.get("reservation_sha256") != pins.reservation_sha256
+        or reservation.get("commit") != pins.source_commit
+        or reservation.get("inputs") != inputs
+        or reservation.get("canonical_argv") != argv
+        or reservation.get("output") != str(pins.root)
+        or reservation.get("mode") != "smoke"
+        or reservation.get("required_authorizer") != "fable"
     ):
-        raise ValueError("fresh authority does not exactly bind the successful resource run")
+        raise ValueError("native reservation does not exactly bind the successful resource run")
     return {
         "source_tree_sha256": tree,
         "fixed_inputs": {name: value for name, value in inputs.items() if name != "config"},
@@ -256,21 +307,22 @@ def _verify_run(pins: RunPins, feedback_root: Path) -> dict:
     outputs = manifest.get("outputs")
     if type(outputs) is not dict or outputs.get("input_config.json") != pins.config_sha256:
         raise ValueError("manifest output ledger does not bind its input config")
-    authority = None
-    if pins.authority_path is not None or pins.authority_sha256 is not None:
-        if pins.authority_path is None or pins.authority_sha256 is None:
-            raise ValueError("fresh run requires both authority path and SHA-256")
-        authority, _ = _pinned_json(
-            pins.authority_path,
-            pins.authority_sha256,
-            source="fresh authority",
+    reservation = None
+    if any(
+        value is not None
+        for value in (
+            pins.reservation_path,
+            pins.reservation_sha256,
+            pins.coordination_root,
         )
+    ):
+        reservation = _validated_reservation(pins)
     resource_binding = _verify_resource(
         pins=pins,
         manifest=manifest,
         manifest_size=len(manifest_bytes),
         resource=resource,
-        authority=authority,
+        reservation=reservation,
     )
     feedback = _feedback_builder(
         manifest_path=manifest_path,
@@ -348,10 +400,8 @@ def verify_prefix(control: dict, candidate: dict) -> dict[str, int]:
     ):
         raise ValueError("first after command is not the preregistered action index 263")
     for index in range(PREFIX_ACTION_COUNT):
-        left = {key: value for key, value in control_frames[index].items() if key != "reward"}
-        right = {key: value for key, value in candidate_frames[index].items() if key != "reward"}
-        if left != right:
-            raise ValueError(f"nonreward trace prefix differs before after command: {index}")
+        if control_frames[index] != candidate_frames[index]:
+            raise ValueError(f"complete trace prefix differs before after command: {index}")
     for name, count in (
         ("composite_raw_action", PREFIX_ACTION_COUNT),
         ("qpos", PREFIX_STATE_COUNT),
@@ -497,6 +547,15 @@ def mechanism_screen(objective: dict, measures: dict) -> dict[str, bool]:
     }
 
 
+def manipulation_check(measures: dict) -> dict[str, bool]:
+    commanded_yaw = measures["after_commanded_local_yaw_rate_mean_rad_s"]
+    return {
+        "signed_after_commanded_yaw_mean_at_most_0p06_rad_s": (
+            type(commanded_yaw) is float and commanded_yaw <= 0.06
+        )
+    }
+
+
 RunVerifier = Callable[[RunPins, Path], dict]
 
 
@@ -513,8 +572,11 @@ def score_study(inputs: StudyInputs, *, run_verifier: RunVerifier = _verify_run)
         raise ValueError("Study015 fixed baseline or candidate identities differ")
     if (
         inputs.control.source_commit != inputs.candidate.source_commit
-        or inputs.control.authority_path is None
-        or inputs.candidate.authority_path is None
+        or inputs.control.reservation_path is None
+        or inputs.candidate.reservation_path is None
+        or inputs.control.coordination_root is None
+        or inputs.candidate.coordination_root is None
+        or inputs.control.coordination_root != inputs.candidate.coordination_root
     ):
         raise ValueError("fresh control and candidate require one common authorized source")
     with tempfile.TemporaryDirectory(prefix="study015-feedback-") as raw:
@@ -528,7 +590,9 @@ def score_study(inputs: StudyInputs, *, run_verifier: RunVerifier = _verify_run)
         if baseline["outputs"][name] != control["outputs"][name]:
             raise ValueError(f"fresh control does not byte-reproduce retained O7: {name}")
     if (
-        control["source_tree_sha256"] != candidate["source_tree_sha256"]
+        baseline["source_tree_sha256"] != BASE_SOURCE_TREE_SHA256
+        or control["source_tree_sha256"] != FRESH_SOURCE_TREE_SHA256
+        or candidate["source_tree_sha256"] != FRESH_SOURCE_TREE_SHA256
         or control["resource_fixed_inputs"] != candidate["resource_fixed_inputs"]
         or control["pins"].source_commit != candidate["pins"].source_commit
     ):
@@ -542,6 +606,7 @@ def score_study(inputs: StudyInputs, *, run_verifier: RunVerifier = _verify_run)
         candidate["config"]["task"],
     )
     screen = mechanism_screen(candidate["objective"], measures)
+    manipulation = manipulation_check(measures)
     return {
         "schema_version": 1,
         "study": "015",
@@ -553,8 +618,9 @@ def score_study(inputs: StudyInputs, *, run_verifier: RunVerifier = _verify_run)
         "fresh_control_byte_reproduced_three_outputs": True,
         "prefix": prefix,
         "candidate_measures": measures,
+        "required_manipulation_check": manipulation,
         "mechanism_screen": screen,
-        "mechanism_screen_passed": all(screen.values()),
+        "mechanism_screen_passed": all(screen.values()) and all(manipulation.values()),
         "original_development_gate_results": candidate["objective"]["development_gate_results"],
         "original_objective": candidate["objective"],
         "run_bindings": {
@@ -562,7 +628,7 @@ def score_study(inputs: StudyInputs, *, run_verifier: RunVerifier = _verify_run)
                 "manifest_sha256": run["pins"].manifest_sha256,
                 "resource_sha256": run["pins"].resource_sha256,
                 "config_sha256": run["pins"].config_sha256,
-                "authority_sha256": run["pins"].authority_sha256,
+                "reservation_sha256": run["pins"].reservation_sha256,
                 "feedback": run["feedback"],
             }
             for name, run in (
@@ -603,13 +669,15 @@ def _arguments(argv: list[str] | None = None) -> tuple[StudyInputs, Path]:
         parser.add_argument(f"--{name}-dir", type=Path, required=True)
         parser.add_argument(f"--{name}-manifest-sha256", required=True)
         parser.add_argument(f"--{name}-resource-sha256", required=True)
-        parser.add_argument(f"--{name}-authority", type=Path, required=True)
-        parser.add_argument(f"--{name}-authority-sha256", required=True)
+        parser.add_argument(f"--{name}-reservation", type=Path, required=True)
+        parser.add_argument(f"--{name}-reservation-sha256", required=True)
+    parser.add_argument("--coordination-root", type=Path, required=True)
     parser.add_argument("--control-config-sha256", required=True)
     parser.add_argument("--candidate-config-sha256", required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    coordination_root = args.coordination_root.resolve(strict=True)
     baseline = RunPins(
         args.baseline_dir.resolve(),
         args.baseline_manifest_sha256,
@@ -623,8 +691,9 @@ def _arguments(argv: list[str] | None = None) -> tuple[StudyInputs, Path]:
         args.control_resource_sha256,
         args.control_config_sha256,
         args.source_commit,
-        args.control_authority.resolve(),
-        args.control_authority_sha256,
+        args.control_reservation.resolve(strict=True),
+        args.control_reservation_sha256,
+        coordination_root,
     )
     candidate = RunPins(
         args.candidate_dir.resolve(),
@@ -632,8 +701,9 @@ def _arguments(argv: list[str] | None = None) -> tuple[StudyInputs, Path]:
         args.candidate_resource_sha256,
         args.candidate_config_sha256,
         args.source_commit,
-        args.candidate_authority.resolve(),
-        args.candidate_authority_sha256,
+        args.candidate_reservation.resolve(strict=True),
+        args.candidate_reservation_sha256,
+        coordination_root,
     )
     return StudyInputs(baseline, control, candidate, args.candidate_config_sha256), args.output
 
@@ -647,6 +717,7 @@ def main(argv: list[str] | None = None) -> None:
                 "path": str(output),
                 "sha256": digest,
                 "mechanism_screen": result["mechanism_screen"],
+                "required_manipulation_check": result["required_manipulation_check"],
                 "mechanism_screen_passed": result["mechanism_screen_passed"],
                 "candidate_measures": result["candidate_measures"],
             },
