@@ -21,6 +21,7 @@ from oracle_composition.adapters.gmt.course_render import (
 )
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -107,11 +108,20 @@ def _fixture(
     low_rate: bool = False,
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     task = _task(steps)
-    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    if loop_runtime and finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     config = {
         "schema_version": runtime.config_schema_version,
         "mode": mode,
@@ -325,6 +335,27 @@ def test_admission_accepts_exact_probe_only_loop_runtime(tmp_path: Path) -> None
     assert admitted.label == "zero_residual"
     retained = json.loads((tmp_path / "input_config.json").read_text())
     assert retained["runtime"] == LOOP_RUNTIME.config_value
+
+
+def test_admission_accepts_exact_finite_horizon_training_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        fixed_normalizer=True,
+        finite_horizon_runtime=True,
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+    retained = json.loads((tmp_path / "input_config.json").read_text())
+    assert retained["runtime"] == FINITE_HORIZON_RUNTIME.config_value
 
 
 def test_admission_rejects_manifest_config_identity_disagreement(tmp_path: Path) -> None:

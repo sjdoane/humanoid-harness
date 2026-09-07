@@ -18,6 +18,7 @@ from .control_runtime import (
 )
 from .course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_GYM_RUNTIME_ID,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
@@ -40,6 +41,7 @@ STATE_SLOTS = LEGACY_RUNTIME.state_slots
 RESIDUAL_RAW_SCALE = np.float32(COURSE_RESIDUAL_RAW_SCALE)
 RESIDUAL_OBSERVATION_DIM = LEGACY_RUNTIME.observation_dim
 LOOP_RESIDUAL_OBSERVATION_DIM = LOOP_RUNTIME.observation_dim
+FINITE_HORIZON_RESIDUAL_OBSERVATION_DIM = FINITE_HORIZON_RUNTIME.observation_dim
 
 
 class GMTResidualEnv(gym.Env):
@@ -56,7 +58,7 @@ class GMTResidualEnv(gym.Env):
         record_trajectory: bool = False,
         runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
     ) -> None:
-        if runtime not in {LEGACY_RUNTIME, LOOP_RUNTIME}:
+        if runtime not in {LEGACY_RUNTIME, LOOP_RUNTIME, FINITE_HORIZON_RUNTIME}:
             raise ValueError("course runtime profile is not admitted")
         runtime.validate_program(oracle.program)
         self.plant, self.actor, self.oracle = plant, actor, oracle
@@ -212,9 +214,12 @@ class GMTResidualEnv(gym.Env):
             )
         breakdown = reward(spec=self.task, recipe=self.recipe, metrics=metrics)
         self._boundary, self._metrics = boundary, metrics
-        terminated, truncated = metrics.fallen, metrics.horizon_reached
+        if self.runtime.intrinsic_horizon_termination:
+            terminated, truncated = metrics.fallen or metrics.horizon_reached, False
+        else:
+            terminated, truncated = metrics.fallen, metrics.horizon_reached
         self._done = terminated or truncated
-        # Time-limit bootstrapping needs the actual next state, not the prior input.
+        # Preserve the actual final state; legacy timeout bootstrapping consumes it.
         observation = self._prepare()
         info = {
             "metrics": metrics.to_dict(),

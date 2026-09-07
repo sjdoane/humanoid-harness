@@ -11,7 +11,11 @@ import pytest
 
 from oracle_composition import cli
 from oracle_composition.adapters.gmt import course_revision as module
-from oracle_composition.adapters.gmt.course_runtime import LEGACY_RUNTIME, LOOP_RUNTIME
+from oracle_composition.adapters.gmt.course_runtime import (
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+)
 from oracle_composition.experiments.artifact_io import finite_pretty_json
 
 
@@ -84,10 +88,19 @@ def _install_fakes(
     packet_artifact: str = module.FEEDBACK_BUILD_RECEIPT_ARTIFACT,
     candidate: dict[str, object] | None = None,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
     receipt_runtime: dict[str, object] | None = None,
     omit_receipt_runtime: bool = False,
 ) -> None:
-    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    if loop_runtime and finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     parent = SimpleNamespace(
         raw=json.loads(inputs["parent_bytes"]),
         encoded=inputs["parent_bytes"],
@@ -248,6 +261,38 @@ def test_loop_runtime_revision_rejects_wrong_feedback_runtime_binding(
         _run(inputs, tmp_path / "revision")
 
     assert not (tmp_path / "revision").exists()
+
+
+def test_finite_horizon_revision_accepts_exact_profile_derived_feedback_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs, finite_horizon_runtime=True)
+
+    result = _run(inputs, tmp_path / "revision")
+
+    assert result["status"] == "completed"
+    receipt = json.loads(
+        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
+    )
+    assert receipt["inputs"]["course_runtime"] == (
+        FINITE_HORIZON_RUNTIME.manifest_contract()
+    )
+
+
+def test_finite_horizon_revision_rejects_tampered_runtime_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(
+        monkeypatch,
+        inputs,
+        finite_horizon_runtime=True,
+        receipt_runtime=LOOP_RUNTIME.manifest_contract(),
+    )
+
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "revision")
 
 
 def test_oracle_receipt_separates_actual_from_allowed_changed_fields(

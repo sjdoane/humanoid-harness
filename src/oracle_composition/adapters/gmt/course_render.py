@@ -31,7 +31,6 @@ from .contracts import (
 )
 from .course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
-    LOOP_CONFIG_SCHEMA_VERSION,
     frozen_runtime_contract,
     runtime_profile_from_config,
 )
@@ -75,6 +74,7 @@ _CONFIG_KEYS = {
 }
 _CONFIG_KEYS_WITH_TRAINER = {*_CONFIG_KEYS, "trainer"}
 _CONFIG_KEYS_WITH_RUNTIME = {*_CONFIG_KEYS, "runtime"}
+_CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER = {*_CONFIG_KEYS_WITH_RUNTIME, "trainer"}
 _REPORT_KEYS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -428,8 +428,11 @@ def load_course_render_inputs(
     except ValueError as exc:
         raise GMTAdmissionError("course runtime profile is invalid") from exc
     valid_fields = (
-        {frozenset(_CONFIG_KEYS_WITH_RUNTIME)}
-        if runtime.config_schema_version == LOOP_CONFIG_SCHEMA_VERSION
+        {
+            frozenset(_CONFIG_KEYS_WITH_RUNTIME),
+            frozenset(_CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER),
+        }
+        if runtime.config_value is not None
         else {frozenset(_CONFIG_KEYS), frozenset(_CONFIG_KEYS_WITH_TRAINER)}
     )
     if frozenset(config) not in valid_fields:
@@ -437,7 +440,7 @@ def load_course_render_inputs(
     if config["mode"] not in {"probe", "train"}:
         raise GMTAdmissionError("course config identity or mode differs")
     if not runtime.training_admitted and config["mode"] != "probe":
-        raise GMTAdmissionError("four-state loop runtime is probe-only")
+        raise GMTAdmissionError("course runtime profile is probe-only")
     try:
         trainer = CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
     except ValueError as exc:

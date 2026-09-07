@@ -16,6 +16,7 @@ from oracle_composition.adapters.gmt import training_normalizer as normalizer_mo
 from oracle_composition.adapters.gmt import training_telemetry as telemetry_module
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -66,9 +67,18 @@ def _loaded(
     low_rate: bool = False,
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
 ) -> Any:
     config_path = tmp_path / "config.json"
-    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    if loop_runtime and finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     raw = {
         "schema_version": runtime.config_schema_version,
         "mode": mode,
@@ -118,6 +128,7 @@ def _plan(
     scaled: bool = False,
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
 ) -> tuple[Any, Any]:
     loaded = _loaded(
         tmp_path,
@@ -125,6 +136,7 @@ def _plan(
         scaled=scaled,
         fixed_normalizer=fixed_normalizer,
         loop_runtime=loop_runtime,
+        finite_horizon_runtime=finite_horizon_runtime,
     )
     output = tmp_path / "output"
     output.mkdir()
@@ -377,6 +389,28 @@ def test_course_verifier_accepts_exact_probe_loop_runtime(
 
     assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_PROBE_OUTPUTS
     assert plan.inputs["course_runtime"] == LOOP_RUNTIME.manifest_contract()
+
+
+def test_course_verifier_accepts_exact_finite_horizon_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    plan, loaded = _plan(
+        tmp_path,
+        mode="train",
+        scaled=True,
+        fixed_normalizer=True,
+        finite_horizon_runtime=True,
+    )
+    _write_course_result(plan, loaded, telemetry=True, fixed_state=state)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == (
+        DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+    )
+    assert plan.inputs["course_runtime"] == FINITE_HORIZON_RUNTIME.manifest_contract()
 
 
 def test_course_verifier_accepts_exact_scaled_trainer_and_v2_telemetry(

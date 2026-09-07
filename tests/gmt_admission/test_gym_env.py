@@ -4,6 +4,10 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+import torch
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 from oracle_composition.adapters.gmt.composition import ComposedReference, ReferenceSegment
 from oracle_composition.adapters.gmt.contracts import (
@@ -19,9 +23,15 @@ from oracle_composition.adapters.gmt.control_runtime import (
     ControlInterval,
     PreparedControl,
 )
-from oracle_composition.adapters.gmt.course_runtime import LOOP_RUNTIME, CourseRuntimeProfile
+from oracle_composition.adapters.gmt.course_runtime import (
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    CourseRuntimeProfile,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskRewardRecipe
 from oracle_composition.adapters.gmt.gym_env import (
+    FINITE_HORIZON_RESIDUAL_OBSERVATION_DIM,
     LOOP_RESIDUAL_OBSERVATION_DIM,
     RESIDUAL_OBSERVATION_DIM,
     GMTResidualEnv,
@@ -201,6 +211,11 @@ class _FakeActorSession:
         self.pending = None
 
 
+class _ContinueCallback(BaseCallback):
+    def _on_step(self) -> bool:
+        return True
+
+
 def _env(
     positions: list[float],
     *,
@@ -259,6 +274,20 @@ def test_loop_profile_adds_fixed_rise_slot_for_three_state_matched_control() -> 
     np.testing.assert_array_equal(observations[1][-5:-1], [0.0, 1.0, 0.0, 0.0])
     np.testing.assert_array_equal(observations[2][-5:-1], [0.0, 0.0, 0.0, 1.0])
     assert all(observation[-3] == 0.0 for observation in observations)
+
+
+def test_finite_horizon_profile_preserves_legacy_observation_layout() -> None:
+    legacy, _legacy_plant, _legacy_actor = _env([0.0, 0.25], runtime=LEGACY_RUNTIME)
+    finite, _finite_plant, _finite_actor = _env(
+        [0.0, 0.25], runtime=FINITE_HORIZON_RUNTIME
+    )
+
+    legacy_observation, _ = legacy.reset(seed=7)
+    finite_observation, _ = finite.reset(seed=7)
+
+    assert FINITE_HORIZON_RESIDUAL_OBSERVATION_DIM == RESIDUAL_OBSERVATION_DIM == 2_171
+    np.testing.assert_array_equal(finite_observation, legacy_observation)
+    assert finite_observation[OBSERVATION_DIM + 10] == np.float32(1.0)
 
 
 def test_task_region_comes_from_actual_position_not_oracle_mode() -> None:
@@ -342,3 +371,98 @@ def test_truncation_returns_next_state_and_seeded_reset_remains_fixed() -> None:
     env.reset(seed=7)
     assert actor.stale_pending_clears == 2
     assert actor.pending is not terminal_pending and actor.pending.control_step == 0
+
+
+@pytest.mark.parametrize(
+    ("horizon_steps", "fall_substep", "expected"),
+    [
+        (10, None, (False, False)),
+        (10, 11, (True, False)),
+        (1, None, (True, False)),
+        (1, 11, (True, False)),
+    ],
+    ids=("ordinary", "fall", "horizon", "fall-and-horizon"),
+)
+def test_finite_horizon_profile_uses_only_intrinsic_termination(
+    horizon_steps: int,
+    fall_substep: int | None,
+    expected: tuple[bool, bool],
+) -> None:
+    env, _plant, _actor = _env(
+        [0.0, 0.25],
+        task=replace(_task(), horizon_steps=horizon_steps),
+        fall_substep=fall_substep,
+        runtime=FINITE_HORIZON_RUNTIME,
+    )
+    env.reset(seed=7)
+
+    observation, _reward, terminated, truncated, info = env.step(_zero_action())
+
+    assert (terminated, truncated) == expected
+    assert info["metrics"]["horizon_reached"] is (horizon_steps == 1)
+    assert bool(info["metrics"]["fallen"]) is (fall_substep is not None)
+    assert observation[OBSERVATION_DIM + 10] == np.float32(
+        0.0 if horizon_steps == 1 else (horizon_steps - 1) / horizon_steps
+    )
+
+
+def test_legacy_fall_at_timeout_keeps_historical_dual_flags() -> None:
+    env, _plant, _actor = _env(
+        [0.0, 0.25],
+        task=replace(_task(), horizon_steps=1),
+        fall_substep=11,
+        runtime=LEGACY_RUNTIME,
+    )
+    env.reset(seed=7)
+
+    _observation, _reward, terminated, truncated, _info = env.step(_zero_action())
+
+    assert terminated is True and truncated is True
+
+
+def _collect_horizon_rewards(runtime: CourseRuntimeProfile) -> np.ndarray:
+    vector_env = DummyVecEnv(
+        [
+            lambda: _env(
+                [0.0, 0.25],
+                task=replace(_task(), horizon_steps=1),
+                runtime=runtime,
+            )[0]
+        ]
+    )
+    model = PPO(
+        "MlpPolicy",
+        vector_env,
+        n_steps=2,
+        batch_size=2,
+        n_epochs=1,
+        gamma=0.9,
+        seed=11,
+        device="cpu",
+        verbose=0,
+    )
+    model.policy.predict_values = lambda observation: torch.full(
+        (observation.shape[0],), 2.0, dtype=torch.float32, device=observation.device
+    )
+    _, callback = model._setup_learn(
+        2,
+        callback=_ContinueCallback(),
+        reset_num_timesteps=True,
+        tb_log_name="finite-horizon-collector",
+        progress_bar=False,
+    )
+    callback.on_training_start({}, {})
+    assert model.collect_rollouts(vector_env, callback, model.rollout_buffer, n_rollout_steps=2)
+    return model.rollout_buffer.rewards[:, 0].copy()
+
+
+def test_sb3_collector_bootstraps_legacy_timeout_but_not_intrinsic_horizon() -> None:
+    legacy_rewards = _collect_horizon_rewards(LEGACY_RUNTIME)
+    finite_rewards = _collect_horizon_rewards(FINITE_HORIZON_RUNTIME)
+
+    np.testing.assert_allclose(
+        legacy_rewards,
+        finite_rewards + np.float32(0.9 * 2.0),
+        rtol=0,
+        atol=1e-6,
+    )

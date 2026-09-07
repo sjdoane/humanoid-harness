@@ -10,6 +10,7 @@ import pytest
 
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -45,10 +46,19 @@ def _fixture(
     fixed_normalizer: bool = False,
     manifest_scaled: bool | None = None,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
 ) -> tuple[Path, Path, dict[str, object]]:
     run = root / "runs" / "o2-seed7"
     run.mkdir(parents=True)
-    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    if loop_runtime and finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     mode = "probe" if loop_runtime else "train"
     label = "zero_residual" if loop_runtime else "final_policy"
     budget = 0 if loop_runtime else 512
@@ -293,6 +303,25 @@ def test_registered_probe_exposes_exact_loop_runtime_without_task_pass_claim(
     assert run["training"]["course_runtime_profile"] == LOOP_RUNTIME.profile_id
     assert run["training"]["observation_dim"] == 2172
     assert run["training"]["training_admitted_for_profile"] is False
+
+
+def test_registered_finite_horizon_run_exposes_exact_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _registry, _manifest, objective = _fixture(
+        tmp_path,
+        fixed_normalizer=True,
+        finite_horizon_runtime=True,
+    )
+    _install_validator(monkeypatch, objective)
+
+    payload = module.g1_learning_status(tmp_path)
+
+    run = payload["runs"][0]
+    assert run["selected_label"] == "final_policy"
+    assert run["training"]["course_runtime_profile"] == FINITE_HORIZON_RUNTIME.profile_id
+    assert run["training"]["observation_dim"] == 2_171
+    assert run["training"]["training_admitted_for_profile"] is True
 
 
 def test_missing_or_empty_registry_does_not_search_for_runs(tmp_path: Path) -> None:

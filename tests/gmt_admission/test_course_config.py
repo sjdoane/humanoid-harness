@@ -7,6 +7,8 @@ import pytest
 
 from oracle_composition.adapters.gmt import course_config as module
 from oracle_composition.adapters.gmt.course_runtime import (
+    FINITE_HORIZON_RUNTIME,
+    FINITE_HORIZON_RUNTIME_PROFILE_ID,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     LOOP_RUNTIME_PROFILE_ID,
@@ -328,6 +330,56 @@ def _enable_loop_runtime(raw: dict) -> None:
     raw["oracle"]["states"]["inside"]["behavior"] = "crouch"
 
 
+def _enable_finite_horizon_runtime(raw: dict) -> None:
+    raw["schema_version"] = 3
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    }
+
+
+def test_config_v3_admits_exact_three_state_finite_horizon_training(admitted_config):
+    raw, path = admitted_config
+    _enable_finite_horizon_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.runtime == FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.observation_dim == 2_171
+    assert admitted.trainer == trainer
+    assert admitted.runtime.manifest_contract() == {
+        "schema_version": 1,
+        "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "after"],
+        "training_admitted": True,
+        "termination": {
+            "fall": "terminated",
+            "intrinsic_horizon": "terminated",
+            "truncated": False,
+            "remaining_time_observation": "task_features.remaining_horizon_fraction",
+        },
+    }
+
+
+def test_config_v3_preserves_three_state_non_loop_runtime(admitted_config):
+    raw, path = admitted_config
+    _enable_finite_horizon_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.composition_runtime_id == LEGACY_RUNTIME.composition_runtime_id
+    assert admitted.runtime.state_slots == LEGACY_RUNTIME.state_slots
+    assert admitted.runtime.permits_entry_loop is False
+
+
 def test_config_v2_admits_loop_profile_and_three_state_control_subset(admitted_config):
     raw, path = admitted_config
     _enable_loop_runtime(raw)
@@ -424,6 +476,46 @@ def test_config_v2_requires_exact_runtime_profile(admitted_config, runtime):
 
     with pytest.raises(ValueError, match="runtime profile"):
         module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID},
+        {
+            "schema_version": 1,
+            "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+            "termination": "caller_authored",
+        },
+    ],
+)
+def test_config_v3_requires_exact_finite_horizon_runtime_profile(
+    admitted_config, runtime
+):
+    raw, path = admitted_config
+    raw["schema_version"] = 3
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+
+def test_existing_runtime_manifest_shapes_remain_exact() -> None:
+    assert LEGACY_RUNTIME.manifest_contract() is None
+    assert LOOP_RUNTIME.manifest_contract() == {
+        "schema_version": 1,
+        "profile_id": LOOP_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "rise", "after"],
+        "training_admitted": False,
+        "loop_exit_gate": {
+            "guard_sampling": "fresh_signals_only_at_first_50hz_boundary_crossing_loop_end",
+            "float32_boundary_tolerance": "four_eps_times_max_source_end_or_one",
+            "maximum_deferral": "one_loop_period_plus_one_control_interval",
+            "control_interval_seconds": 0.02,
+        },
+    }
 
 
 def test_loop_profile_rejects_unknown_states_recovery_and_state_only_transitions(

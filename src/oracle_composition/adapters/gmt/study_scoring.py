@@ -15,6 +15,14 @@ from oracle_composition.harness.contract import decode_json_object, read_json_ob
 
 from .contracts import CONTROL_DT_SECONDS
 from .course_config import load_run_config
+from .course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    CourseRuntimeProfile,
+    frozen_runtime_contract,
+)
 from .training_contract import CourseTrainerSpec, effective_training_contract
 from .training_normalizer import FIXED_NORMALIZER_STATE_SHA256
 from .training_telemetry import telemetry_filename
@@ -90,6 +98,7 @@ class CourseStudyExpectation:
     trainer: CourseTrainerSpec | None
     base_state_sha256: str
     source_commit: str
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME
 
     def __post_init__(self) -> None:
         if (
@@ -112,6 +121,8 @@ class CourseStudyExpectation:
         object.__setattr__(self, "identities", _identities(dict(self.identities)))
         if self.trainer is not None and type(self.trainer) is not CourseTrainerSpec:
             raise ValueError("expected trainer must be the admitted profile or None")
+        if self.runtime not in {LEGACY_RUNTIME, LOOP_RUNTIME, FINITE_HORIZON_RUNTIME}:
+            raise ValueError("expected course runtime profile is not admitted")
         _digest(self.base_state_sha256, length=64, field="expected base state SHA-256")
         _digest(self.source_commit, length=40, field="expected source commit")
 
@@ -168,11 +179,17 @@ def _resource_linkage(
     )
 
     expected_trainer = effective_training_contract(expectation.trainer)
+    expected_course_runtime = expectation.runtime.manifest_contract()
     if expectation.trainer is None:
         if "trainer" in inputs:
             raise ValueError("raw trainer receipt must preserve the legacy input shape")
     elif inputs.get("trainer") != expected_trainer:
         raise ValueError("resource receipt trainer differs from the expected trainer")
+    if expected_course_runtime is None:
+        if "course_runtime" in inputs:
+            raise ValueError("legacy resource receipt must preserve the runtime input shape")
+    elif inputs.get("course_runtime") != expected_course_runtime:
+        raise ValueError("resource receipt runtime differs from the expected course runtime")
 
     outputs = manifest.get("outputs")
     if type(outputs) is not dict or set(output_records) != set(outputs):
@@ -331,15 +348,19 @@ def _score_cell(
         or config.raw["seed"] != expectation.seed
         or config.raw["training_steps"] != expectation.training_steps
         or config.trainer != expectation.trainer
+        or config.runtime != expectation.runtime
         or manifest.get("identities") != expectation.identities
         or manifest.get("input_config_sha256") != config.sha256
     ):
         raise ValueError("retained run differs from its predeclared study cell")
     frozen_runtime = manifest.get("frozen_runtime")
-    if type(frozen_runtime) is not dict or frozen_runtime.get(
-        "trainer"
-    ) != effective_training_contract(expectation.trainer):
-        raise ValueError("effective trainer differs from its predeclared study cell")
+    expected_runtime = frozen_runtime_contract(
+        expectation.runtime,
+        trainer=effective_training_contract(expectation.trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime:
+        raise ValueError("effective runtime differs from its predeclared study cell")
     training = manifest.get("training")
     if (
         type(training) is not dict
@@ -377,7 +398,7 @@ def _score_cell(
         or training["falls"] != updates["fall_count"]
     ):
         raise ValueError("manifest training episode/fall totals differ from validated telemetry")
-    return {
+    result = {
         "cell_id": expectation.cell_id,
         "manifest": {"path": str(manifest_path), "sha256": binding.sha256},
         "resource": resource,
@@ -406,6 +427,10 @@ def _score_cell(
         },
         "learning": updates,
     }
+    course_runtime = expectation.runtime.manifest_contract()
+    if course_runtime is not None:
+        result["course_runtime"] = course_runtime
+    return result
 
 
 def score_course_study_pair(
@@ -443,17 +468,22 @@ def score_course_study_pair(
         for name in ("oracle", "reward", "segments")
         if first_expected.identities[name] != second_expected.identities[name]
     ]
+    pair = {
+        "seed": first_expected.seed,
+        "training_steps": first_expected.training_steps,
+        "task_sha256": first_expected.identities["task"],
+        "base_state_sha256": first_expected.base_state_sha256,
+        "semantic_identity_differences": identity_differences,
+    }
+    if first_expected.runtime != LEGACY_RUNTIME or second_expected.runtime != LEGACY_RUNTIME:
+        pair["course_runtime_profile_difference"] = (
+            first_expected.runtime != second_expected.runtime
+        )
     return {
         "schema_id": PAIR_SCORE_ID,
         "schema_version": 1,
         "claim_scope": "fixed_development_pair_not_heldout_or_universal",
-        "pair": {
-            "seed": first_expected.seed,
-            "training_steps": first_expected.training_steps,
-            "task_sha256": first_expected.identities["task"],
-            "base_state_sha256": first_expected.base_state_sha256,
-            "semantic_identity_differences": identity_differences,
-        },
+        "pair": pair,
         "cells": cells,
     }
 

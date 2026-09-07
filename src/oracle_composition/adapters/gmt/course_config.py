@@ -18,7 +18,6 @@ from .composition import ReferenceSegment
 from .contracts import MOTION_SPECS
 from .course_runtime import (
     LEGACY_RUNTIME,
-    LOOP_CONFIG_SCHEMA_VERSION,
     CourseRuntimeProfile,
     runtime_profile_from_config,
 )
@@ -51,6 +50,7 @@ CONFIG_KEYS = {
 }
 CONFIG_KEYS_WITH_TRAINER = {*CONFIG_KEYS, "trainer"}
 CONFIG_KEYS_WITH_RUNTIME = {*CONFIG_KEYS, "runtime"}
+CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER = {*CONFIG_KEYS_WITH_RUNTIME, "trainer"}
 
 
 def _keys(value: object, expected: set[str], field: str) -> dict:
@@ -91,8 +91,11 @@ def load_run_config(path: Path) -> CourseRunConfig:
         raise ValueError("course run fields differ")
     runtime = runtime_profile_from_config(raw)
     valid_fields = (
-        {frozenset(CONFIG_KEYS_WITH_RUNTIME)}
-        if runtime.config_schema_version == LOOP_CONFIG_SCHEMA_VERSION
+        {
+            frozenset(CONFIG_KEYS_WITH_RUNTIME),
+            frozenset(CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER),
+        }
+        if runtime.config_value is not None
         else {frozenset(CONFIG_KEYS), frozenset(CONFIG_KEYS_WITH_TRAINER)}
     )
     if frozenset(raw) not in valid_fields:
@@ -111,7 +114,7 @@ def load_run_config(path: Path) -> CourseRunConfig:
     if trainer is not None and raw["mode"] != "train":
         raise ValueError("trainer preconditioning is valid only for train mode")
     if not runtime.training_admitted and raw["mode"] != "probe":
-        raise ValueError("four-state loop runtime is probe-only until feasibility is measured")
+        raise ValueError("course runtime profile is probe-only until feasibility is measured")
     assets = _keys(raw["assets"], {"upstream_root", "weights", "motions"}, "assets")
     if type(assets["upstream_root"]) is not str or not Path(assets["upstream_root"]).is_absolute():
         raise ValueError("upstream_root must be an absolute path")

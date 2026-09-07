@@ -13,6 +13,7 @@ from oracle_composition.adapters.gmt import training_telemetry as telemetry_modu
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -170,6 +171,7 @@ def _run_fixture(
     low_rate: bool = False,
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -184,7 +186,15 @@ def _run_fixture(
     recipe = TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0)
     if loop_runtime and (telemetry or scaled or fixed_normalizer):
         raise ValueError("loop fixture is probe-only")
-    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    if loop_runtime and finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     mode = "probe" if loop_runtime else "train"
     raw = {
         "schema_version": runtime.config_schema_version,
@@ -408,6 +418,32 @@ def test_probe_loop_runtime_is_bound_in_feedback_receipt(tmp_path, monkeypatch) 
 
     receipt = json.loads((tmp_path / "feedback/feedback_receipt_v1.json").read_text())
     assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
+
+
+def test_finite_horizon_runtime_is_bound_in_feedback_receipt(
+    tmp_path, monkeypatch
+) -> None:
+    manifest, digest, _config = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        scaled=True,
+        fixed_normalizer=True,
+        finite_horizon_runtime=True,
+    )
+
+    output = tmp_path / "feedback"
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=output,
+    )
+
+    receipt = json.loads((output / "feedback_receipt_v1.json").read_text())
+    assert receipt["inputs"]["course_runtime"] == (
+        FINITE_HORIZON_RUNTIME.manifest_contract()
+    )
 
 
 def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:

@@ -12,6 +12,7 @@ from oracle_composition.adapters.gmt import study_scoring as module
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     frozen_runtime_contract,
 )
@@ -97,7 +98,7 @@ def _replace_budget_and_telemetry(
         }
     )
     manifest["frozen_runtime"] = frozen_runtime_contract(
-        LEGACY_RUNTIME,
+        updated.runtime,
         trainer=effective_training_contract(updated.trainer),
         residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
     )
@@ -115,7 +116,13 @@ def _replace_budget_and_telemetry(
     return updated
 
 
-def _write_resource_receipt(run: Path, manifest_sha256: str, *, scaled: bool) -> str:
+def _write_resource_receipt(
+    run: Path,
+    manifest_sha256: str,
+    *,
+    scaled: bool,
+    runtime=LEGACY_RUNTIME,
+) -> str:
     manifest = json.loads((run / "course_run_manifest.json").read_text())
     config_path = run / "input_config.json"
     inputs = {
@@ -134,6 +141,8 @@ def _write_resource_receipt(run: Path, manifest_sha256: str, *, scaled: bool) ->
     }
     if scaled:
         inputs["trainer"] = effective_training_contract(CourseTrainerSpec(TRAINING_REWARD_SCALE))
+    if runtime.manifest_contract() is not None:
+        inputs["course_runtime"] = runtime.manifest_contract()
     outputs = {
         name: {"path": name, "sha256": digest, "size": (run / name).stat().st_size}
         for name, digest in manifest["outputs"].items()
@@ -165,14 +174,33 @@ def _write_resource_receipt(run: Path, manifest_sha256: str, *, scaled: bool) ->
     return _write_json(run / module.RESOURCE_RECEIPT_FILENAME, receipt)
 
 
-def _pair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    finite_horizon_runtime: bool = False,
+    finite_horizon_cell: str | None = None,
+):
     records = {}
     for cell_id, scaled in (("raw", False), ("scaled", True)):
         run = tmp_path / cell_id
-        manifest_path, _, config = _run_fixture(run, monkeypatch, telemetry=True, scaled=scaled)
+        manifest_path, _, config = _run_fixture(
+            run,
+            monkeypatch,
+            telemetry=True,
+            scaled=scaled,
+            finite_horizon_runtime=(
+                finite_horizon_runtime or cell_id == finite_horizon_cell
+            ),
+        )
         config = _replace_budget_and_telemetry(run, config, scaled=scaled)
         manifest_sha256 = _sha(manifest_path)
-        receipt_sha256 = _write_resource_receipt(run, manifest_sha256, scaled=scaled)
+        receipt_sha256 = _write_resource_receipt(
+            run,
+            manifest_sha256,
+            scaled=scaled,
+            runtime=config.runtime,
+        )
         manifest = json.loads(manifest_path.read_text())
         records[cell_id] = (
             run,
@@ -186,6 +214,7 @@ def _pair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 trainer=config.trainer,
                 base_state_sha256=BASE_STATE,
                 source_commit=SOURCE_COMMIT,
+                runtime=config.runtime,
             ),
         )
 
@@ -246,6 +275,53 @@ def test_scores_both_cells_with_exact_raw_and_scaled_contracts(
         name: sorted(path.name for path in record[0].iterdir()) for name, record in records.items()
     }
     assert after == before
+
+
+def test_scores_matched_legacy_and_finite_horizon_runtime_cells(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _score(_pair(tmp_path, monkeypatch, finite_horizon_cell="scaled"))
+
+    assert result["pair"]["course_runtime_profile_difference"] is True
+    assert "course_runtime" not in result["cells"]["raw"]
+    assert result["cells"]["scaled"]["course_runtime"] == (
+        FINITE_HORIZON_RUNTIME.manifest_contract()
+    )
+
+
+def test_scores_pair_with_exact_finite_horizon_runtime_bindings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _score(_pair(tmp_path, monkeypatch, finite_horizon_runtime=True))
+
+    assert result["pair"]["course_runtime_profile_difference"] is False
+    for cell in result["cells"].values():
+        assert cell["course_runtime"] == FINITE_HORIZON_RUNTIME.manifest_contract()
+
+
+def test_rejects_finite_horizon_expectation_for_legacy_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records = _pair(tmp_path, monkeypatch)
+    run, config, binding, expected = records["scaled"]
+    records["scaled"] = (
+        run,
+        config,
+        binding,
+        module.CourseStudyExpectation(
+            cell_id=expected.cell_id,
+            seed=expected.seed,
+            training_steps=expected.training_steps,
+            identities=expected.identities,
+            trainer=expected.trainer,
+            base_state_sha256=expected.base_state_sha256,
+            source_commit=expected.source_commit,
+            runtime=FINITE_HORIZON_RUNTIME,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="predeclared study cell"):
+        _score(records)
 
 
 def test_failed_short_cell_is_retained_and_future_lateral_is_unavailable(
