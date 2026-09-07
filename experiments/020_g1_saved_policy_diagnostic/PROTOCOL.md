@@ -79,11 +79,19 @@ Retained run: sibling
   using an isolated Torch generator. Bind the exact generation algorithm and
   retained noise bytes before sampled execution. Both policies use the same row
   at the same control index; early termination does not shift another episode.
+- Generator: `torch_cpu_float32_rowwise_normal_1x23/v1`. For each seed, call
+  `torch.empty((1,23), dtype=torch.float32).normal_(generator=generator)`1000
+  times. A single1000×23 draw is not equivalent in the pinned Torch version.
+  Retain `seeds:int64[16]` and `standard_normal:float32[16,1000,23]` in one NPZ.
 - Sample from the **unclipped** policy mean and its own standard deviation,
   then use the exact training action clipping/scaling path. Adding noise to
   already-clipped deterministic actions is invalid. No stage-wise noise reset.
 - Test this sampling path against the installed SB3 Gaussian distribution and
   Box-action processing, including clipping tails and noise-disabled parity.
+- Retain each sampled episode's float32 policy means, standard deviations and
+  unclipped actions. Reconstruct every clipped action from these and the pinned
+  noise; independently recompute clipping counts. This audits recorded action
+  arithmetic, not the neural network's mean from independently retained inputs.
 
 ## Endpoints and interpretation
 

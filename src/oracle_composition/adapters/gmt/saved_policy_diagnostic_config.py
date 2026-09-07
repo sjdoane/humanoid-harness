@@ -510,6 +510,8 @@ def expected_diagnostic_outputs() -> frozenset[str]:
         "final_deterministic_parity.json",
     }
     for episode in diagnostic_episode_schedule():
+        if episode.noise_seed is not None:
+            names.add(f"{episode.label}_sampling.npz")
         names.update(
             {
                 f"{episode.label}_frames.jsonl",

@@ -152,6 +152,15 @@ def _complete_output(tmp_path: Path, config: Any) -> Path:
             ledger[evaluation.name] = _sha256(evaluation)
         sampling = None
         if episode.noise_seed is not None:
+            sidecar = output / f"{episode.label}_sampling.npz"
+            ledger[sidecar.name] = write_deterministic_npz(
+                sidecar,
+                {
+                    "policy_mean": np.zeros((summary["steps"], 23), dtype="<f4"),
+                    "policy_std": np.ones((summary["steps"], 23), dtype="<f4"),
+                    "unclipped_action": np.zeros((summary["steps"], 23), dtype="<f4"),
+                },
+            )
             total = summary["steps"] * ACTION_DIMENSION
             sampling = {
                 "noise_seed": episode.noise_seed,

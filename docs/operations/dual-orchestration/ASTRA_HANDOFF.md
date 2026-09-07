@@ -3,9 +3,49 @@
 | progress | 38 training runs / 2,424,832 transitions. Study019 oracle probe scored and independently reproduced. |
 |---|---|
 | bottleneck | No full-task pass. Earlier entry falls at4.34 s and misses its intended phase; reject. |
-| next step | Declare a paired saved-policy noise diagnostic; preserve O7b and keep018 B stopped. |
+| next step | Complete reviewed Study020 evaluation; preserve O7b and keep018 B stopped. |
 
-## Current checkpoint: 2026-09-07 13:40 UTC
+## Current checkpoint: 2026-09-07 14:37 UTC
+
+- Study020 runner, strict policy loading and independent action arithmetic are
+  implemented; no020 simulation or training has run.95 focused tests pass.
+- Builder's clean config/validator and supervisor commits imported as
+  `a456429` and `e7e34c0`. Root owns the runtime and diagnosis. Builder stopped
+  and released its separate worktree lease; Fable reviews/ideates only.
+- Predata review repairs: complete parity receipt identity; regenerate exact
+  canonical noise before environment construction; retain sampled mean/std/raw
+  action sidecars and independently reconstruct every executed residual.
+- Fixed input config `artifacts/gmt/course_configs/study020_inputs_20260907/diagnostic_config.json`:
+  SHA `b7b33a0976bc29e61ca9bcbdd9265f9eb253fd49f7542ef96bcbca2a6e7412ab`.
+  Noise SHA `61627836220ee63162812035555b3922a3e378ce4fc617d759c438e76ad9e9fe`.
+- Next: final independent source review; native approval for one legacy O7b
+  replay and020's34 episodes. Verify legacy parity in a separate completed call,
+  then020 proves both exact018 deterministic triplets before32 sampled episodes.
+  Freeze source through completed independent scoring. No automatic adoption.
+
+## Earlier checkpoint: 2026-09-07 14:11 UTC
+
+- [Study020 protocol](../../../experiments/020_g1_saved_policy_diagnostic/PROTOCOL.md)
+  committed `1664deb`; Fable accepts scientific scope. No020 evaluation yet.
+- Sol builder `derived_admission` initially owned saved-policy config/runtime and native
+  dispatch in separate `humanoid-harness-study020`, branch
+  `astra/study020-saved-policy`, from `1664deb`. No training/dynamics authorized
+  before reviewed handoff, sealed inputs and exact resource approval.
+- Root owns020 `diagnosis.py` and tests. Core helpers recheck frames, raw-state
+  metrics, rewards, transition markers, all16 pairs and censored exposure.
+  Independent reviewer accepts core fixes; full CLI acceptance waits on reuse
+  of the worker's exact ledger/noise/deterministic-parity artifact validator.
+- Both retained018 traces reproduce numerically through the new analysis:
+  returns3863.808886/3488.089072; handovers92/239/263 and97/244/268. No rollout.
+  Existing geometry/feedback imports Torch/SB3 indirectly, but no MuJoCo or
+  environment/actor instance is used by this numeric readback.
+- Planned worker labels: `initial_deterministic`, `final_deterministic`, then
+  `sample_{seed}_{initial|final}`. Manifest `saved_policy_diagnostic_manifest.json`.
+  Native receipt key: `artifacts.saved_policy_diagnostic_manifest`.
+- Next: complete/import reviewed worker; bind exact prepared noise/config and
+  native approval; prove both deterministic trajectories before any sampled data.
+
+## Earlier checkpoint: 2026-09-07 13:40 UTC
 
 - [Study019 results](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
   both supervisors terminal/released at clean `9d7396a`. Exact control and
