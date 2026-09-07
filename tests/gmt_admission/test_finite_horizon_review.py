@@ -9,8 +9,13 @@ import pytest
 from oracle_composition.adapters.gmt.course_config import load_run_config
 from oracle_composition.adapters.gmt.course_runtime import FINITE_HORIZON_RUNTIME
 from oracle_composition.adapters.gmt.training_telemetry import EpisodeAccumulator
-from tests.gmt_admission.test_course_config import admitted_config  # noqa: F401
+from tests.gmt_admission.test_course_config import admitted_config as admitted_fixture
 from tests.gmt_admission.test_gym_env import _env, _task
+
+
+@pytest.fixture
+def admitted_config(tmp_path, monkeypatch):
+    return admitted_fixture.__wrapped__(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("kind", ["loop_segment", "four_states"])
@@ -32,7 +37,7 @@ def test_finite_runtime_rejects_extra_composition_capability(admitted_config, ki
             {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 25"}
         )
     path.write_text(json.dumps(raw))
-    with pytest.raises(ValueError, match="loop|states"):
+    with pytest.raises(ValueError, match=r"loop|states"):
         load_run_config(path)
 
 
