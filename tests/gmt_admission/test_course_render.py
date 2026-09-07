@@ -5,6 +5,7 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -20,6 +21,7 @@ from oracle_composition.adapters.gmt.course_render import (
     select_frame_indices,
 )
 from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
@@ -109,14 +111,17 @@ def _fixture(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    heading_feedback_runtime: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     task = _task(steps)
-    if loop_runtime and finite_horizon_runtime:
+    if sum((loop_runtime, finite_horizon_runtime, heading_feedback_runtime)) > 1:
         raise ValueError("fixture runtime must be unique")
     runtime = (
-        LOOP_RUNTIME
+        AFTER_HEADING_FEEDBACK_RUNTIME
+        if heading_feedback_runtime
+        else LOOP_RUNTIME
         if loop_runtime
         else FINITE_HORIZON_RUNTIME
         if finite_horizon_runtime
@@ -335,6 +340,60 @@ def test_admission_accepts_exact_probe_only_loop_runtime(tmp_path: Path) -> None
     assert admitted.label == "zero_residual"
     retained = json.loads((tmp_path / "input_config.json").read_text())
     assert retained["runtime"] == LOOP_RUNTIME.config_value
+
+
+def test_admission_reconstructs_after_heading_feedback_trace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, heading_feedback_runtime=True)
+    encoded = (tmp_path / "input_config.json").read_bytes()
+    observed: dict[str, object] = {}
+    monkeypatch.setattr(
+        course_render,
+        "load_run_config",
+        lambda _path: SimpleNamespace(encoded=encoded),
+    )
+
+    def validate(**kwargs):
+        observed.update(kwargs)
+
+    monkeypatch.setattr(course_render, "validate_after_heading_feedback_trace", validate)
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="zero_residual",
+    )
+
+    assert admitted.label == "zero_residual"
+    assert len(observed["frames"]) == 3
+    assert observed["trajectory"]["qpos"].shape == (4, 30)
+
+
+def test_admission_rejects_invalid_after_heading_feedback_trace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, heading_feedback_runtime=True)
+    encoded = (tmp_path / "input_config.json").read_bytes()
+    monkeypatch.setattr(
+        course_render,
+        "load_run_config",
+        lambda _path: SimpleNamespace(encoded=encoded),
+    )
+
+    def reject(**_kwargs):
+        raise ValueError("tampered trace")
+
+    monkeypatch.setattr(course_render, "validate_after_heading_feedback_trace", reject)
+
+    with pytest.raises(GMTAdmissionError, match="trace is invalid"):
+        load_course_render_inputs(
+            manifest_path=manifest,
+            manifest_sha256=digest,
+            upstream_root=upstream,
+            label="zero_residual",
+        )
 
 
 def test_admission_accepts_exact_finite_horizon_training_runtime(tmp_path: Path) -> None:

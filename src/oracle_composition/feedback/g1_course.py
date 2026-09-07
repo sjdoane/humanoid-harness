@@ -29,6 +29,9 @@ from oracle_composition.adapters.gmt.course_runtime import (
     frozen_runtime_contract,
 )
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
+from oracle_composition.adapters.gmt.heading_feedback import (
+    validate_after_heading_feedback_trace,
+)
 from oracle_composition.adapters.gmt.io import validate_zip_members
 from oracle_composition.adapters.gmt.training_contract import (
     effective_training_contract,
@@ -636,6 +639,11 @@ def build_g1_course_feedback(
     trajectory = _load_trajectory(retained[f"{label}_trajectory.npz"], len(frames))
     _verify_frame_crosslinks(frames, trajectory)
     _verify_boundary_metrics(spec=config.task, frames=frames, trajectory=trajectory)
+    heading_feedback_validation = validate_after_heading_feedback_trace(
+        config=config,
+        frames=frames,
+        trajectory=trajectory,
+    )
     objective = evaluate_episode(spec=config.task, frames=frames)
     report = _json(
         retained[f"{label}_evaluation.json"], source=f"{label} course evaluation"
@@ -712,6 +720,10 @@ def build_g1_course_feedback(
     runtime = config.runtime.manifest_contract()
     if runtime is not None:
         receipt["inputs"]["course_runtime"] = runtime
+    if config.runtime.after_heading_reference_feedback:
+        receipt["inputs"]["after_heading_reference_feedback_validation"] = (
+            heading_feedback_validation
+        )
     receipt_artifact = publish_json_without_overwrite(
         destination / "feedback_receipt_v1.json", receipt
     )

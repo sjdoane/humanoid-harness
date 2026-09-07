@@ -714,3 +714,21 @@ def test_rejects_frame_to_npz_crosslink_drift(tmp_path, monkeypatch) -> None:
             label="final_policy",
             output=tmp_path / "feedback",
         )
+
+
+def test_legacy_feedback_rejects_heading_trace_field(tmp_path, monkeypatch) -> None:
+    manifest_path, _, _ = _run_fixture(tmp_path / "run", monkeypatch)
+    frames_path = tmp_path / "run/final_policy_frames.jsonl"
+    rows = [json.loads(line) for line in frames_path.read_text().splitlines()]
+    rows[0]["after_heading_reference_feedback"] = {"schema_version": 1}
+    manifest = json.loads(manifest_path.read_text())
+    manifest["outputs"][frames_path.name] = _write_frames(frames_path, rows)
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="forbidden"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )

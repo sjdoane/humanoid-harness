@@ -15,6 +15,7 @@ import pytest
 from oracle_composition.adapters.gmt import training_normalizer as normalizer_module
 from oracle_composition.adapters.gmt import training_telemetry as telemetry_module
 from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
@@ -68,12 +69,15 @@ def _loaded(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    heading_feedback_runtime: bool = False,
 ) -> Any:
     config_path = tmp_path / "config.json"
-    if loop_runtime and finite_horizon_runtime:
+    if sum((loop_runtime, finite_horizon_runtime, heading_feedback_runtime)) > 1:
         raise ValueError("fixture runtime must be unique")
     runtime = (
-        LOOP_RUNTIME
+        AFTER_HEADING_FEEDBACK_RUNTIME
+        if heading_feedback_runtime
+        else LOOP_RUNTIME
         if loop_runtime
         else FINITE_HORIZON_RUNTIME
         if finite_horizon_runtime
@@ -129,6 +133,7 @@ def _plan(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    heading_feedback_runtime: bool = False,
 ) -> tuple[Any, Any]:
     loaded = _loaded(
         tmp_path,
@@ -137,6 +142,7 @@ def _plan(
         fixed_normalizer=fixed_normalizer,
         loop_runtime=loop_runtime,
         finite_horizon_runtime=finite_horizon_runtime,
+        heading_feedback_runtime=heading_feedback_runtime,
     )
     output = tmp_path / "output"
     output.mkdir()
@@ -389,6 +395,49 @@ def test_course_verifier_accepts_exact_probe_loop_runtime(
 
     assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_PROBE_OUTPUTS
     assert plan.inputs["course_runtime"] == LOOP_RUNTIME.manifest_contract()
+
+
+def test_course_verifier_rebuilds_after_heading_feedback_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from oracle_composition.feedback import g1_course as feedback_module
+
+    plan, loaded = _plan(tmp_path, heading_feedback_runtime=True)
+    _write_course_result(plan, loaded)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+    observed: dict[str, object] = {}
+
+    def rebuild(**kwargs):
+        observed.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(feedback_module, "build_g1_course_feedback", rebuild)
+
+    DEVELOPMENT.verify_development_completed(plan)
+
+    assert observed["manifest_path"] == plan.config.output_directory / "course_run_manifest.json"
+    assert observed["label"] == "zero_residual"
+    assert plan.inputs["course_runtime"] == (
+        AFTER_HEADING_FEEDBACK_RUNTIME.manifest_contract()
+    )
+
+
+def test_course_verifier_rejects_unreconstructable_after_heading_feedback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from oracle_composition.feedback import g1_course as feedback_module
+
+    plan, loaded = _plan(tmp_path, heading_feedback_runtime=True)
+    _write_course_result(plan, loaded)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    def reject(**_kwargs):
+        raise ValueError("tampered heading trace")
+
+    monkeypatch.setattr(feedback_module, "build_g1_course_feedback", reject)
+
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="failed reconstruction"):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 def test_course_verifier_accepts_exact_finite_horizon_runtime(

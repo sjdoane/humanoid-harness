@@ -7,12 +7,15 @@ import pytest
 
 from oracle_composition.adapters.gmt import course_config as module
 from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
     FINITE_HORIZON_RUNTIME,
     FINITE_HORIZON_RUNTIME_PROFILE_ID,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     LOOP_RUNTIME_PROFILE_ID,
 )
+from oracle_composition.adapters.gmt.heading_feedback import after_heading_feedback_contract
 
 
 @pytest.fixture
@@ -336,6 +339,101 @@ def _enable_finite_horizon_runtime(raw: dict) -> None:
         "schema_version": 1,
         "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
     }
+
+
+def _enable_after_heading_feedback_runtime(raw: dict) -> None:
+    _enable_loop_runtime(raw)
+    raw["schema_version"] = 4
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
+    }
+    raw["segments"].update(
+        {
+            "rise": {
+                "motion_name": "walk_stand",
+                "start_seconds": 5.72,
+                "end_seconds": 6.5,
+                "entry_phase_end_seconds": 0.0,
+                "boundary": "hold_last_pose_zero_velocity",
+            },
+            "walk_after": {
+                "motion_name": "walk_stand",
+                "start_seconds": 6.5,
+                "end_seconds": 7.0,
+            },
+        }
+    )
+    raw["oracle"]["behaviors"] = ["walk", "crouch", "rise", "walk_after"]
+    raw["oracle"]["states"] = {
+        "before": {"behavior": "walk", "min_dwell": 25},
+        "inside": {"behavior": "crouch", "min_dwell": 25},
+        "rise": {"behavior": "rise", "min_dwell": 24},
+        "after": {"behavior": "walk_after", "min_dwell": 25},
+    }
+    raw["oracle"]["transitions"] = [
+        {"from": "before", "to": "inside", "priority": 0, "guard": "x_travelled >= 1"},
+        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2.05"},
+        {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 24"},
+    ]
+
+
+def test_config_v4_admits_only_exact_four_state_probe_with_fixed_law(admitted_config):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == AFTER_HEADING_FEEDBACK_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert set(admitted.program.states) == {"before", "inside", "rise", "after"}
+    manifest = admitted.runtime.manifest_contract()
+    assert manifest["after_heading_reference_feedback"] == after_heading_feedback_contract()
+    assert manifest["training_admitted"] is False
+
+
+def test_config_v4_is_probe_only_and_requires_four_states(admitted_config):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="probe-only"):
+        module.load_run_config(path)
+
+    raw.update(mode="probe", training_steps=0)
+    del raw["oracle"]["states"]["rise"]
+    raw["oracle"]["transitions"] = [
+        raw["oracle"]["transitions"][0],
+        {"from": "inside", "to": "after", "priority": 0, "guard": "x_travelled >= 2"},
+    ]
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="exact four-state"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID},
+        {
+            "schema_version": 1,
+            "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
+            "gain": 0.4,
+        },
+    ],
+)
+def test_config_v4_rejects_runtime_aliases_and_authorable_gains(
+    admitted_config, runtime
+):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
 
 
 def test_config_v3_admits_exact_three_state_finite_horizon_training(admitted_config):

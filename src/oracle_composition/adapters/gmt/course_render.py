@@ -29,12 +29,17 @@ from .contracts import (
     GMT_UPSTREAM_COMMIT,
     REFERENCE_FRAME_DIM,
 )
+from .course_config import load_run_config
 from .course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
     frozen_runtime_contract,
     runtime_profile_from_config,
 )
 from .course_task import CourseTaskSpec, TaskFrame
+from .heading_feedback import (
+    AFTER_HEADING_FEEDBACK_TRACE_KEY,
+    validate_after_heading_feedback_trace,
+)
 from .io import GMTAdmissionError, read_verified_bytes, sha256_file, write_json_receipt
 from .replay import _extract_model_abi, validate_model_abi
 from .training_contract import CourseTrainerSpec, effective_training_contract
@@ -293,6 +298,7 @@ def _read_rows(
     steps: int,
     arrays: dict[str, np.ndarray],
     task_sha256: str,
+    after_heading_feedback: bool = False,
 ) -> tuple[dict[str, object], ...]:
     payload = read_verified_bytes(path, expected_digest, maximum_size=32 * 1024 * 1024)
     if not payload.endswith(b"\n"):
@@ -302,9 +308,15 @@ def _read_rows(
         raise GMTAdmissionError("course frames row count differs from the trajectory")
     rows: list[dict[str, object]] = []
     for index, encoded in enumerate(encoded_rows):
-        row = _exact_object(
-            decode_json_object(encoded, source=f"course frame {index}"), _ROW_KEYS, "course frame"
+        decoded = decode_json_object(encoded, source=f"course frame {index}")
+        allowed_keys = (
+            (frozenset(_ROW_KEYS), frozenset({*_ROW_KEYS, AFTER_HEADING_FEEDBACK_TRACE_KEY}))
+            if after_heading_feedback
+            else (frozenset(_ROW_KEYS),)
         )
+        if frozenset(decoded) not in allowed_keys:
+            raise GMTAdmissionError("course frame fields differ from the course-render contract")
+        row = decoded
         metrics = _exact_object(row["metrics"], _METRIC_KEYS, "course metrics")
         _exact_object(row["reward"], _REWARD_KEYS, "course reward")
         trajectory = _exact_object(row["trajectory"], _TRAJECTORY_KEYS, "course trajectory row")
@@ -493,7 +505,20 @@ def load_course_render_inputs(
         steps=steps,
         arrays=arrays,
         task_sha256=task.sha256,
+        after_heading_feedback=runtime.after_heading_reference_feedback,
     )
+    if runtime.after_heading_reference_feedback:
+        try:
+            admitted_config = load_run_config(config_path)
+            if admitted_config.encoded != config_encoded:
+                raise ValueError("retained course config changed during admission")
+            validate_after_heading_feedback_trace(
+                config=admitted_config,
+                frames=rows,
+                trajectory=arrays,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise GMTAdmissionError("after-heading feedback trace is invalid") from exc
     support_files = verify_upstream_root(upstream_root)
     consumed = {
         "input_config.json": config_digest,

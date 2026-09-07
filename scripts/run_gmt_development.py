@@ -9,6 +9,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -1018,6 +1019,21 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         or not isinstance(manifest.get("runtime"), Mapping)
     ):
         raise supervisor.ProbeError("course runtime provenance is missing")
+    if loaded.course_runtime.after_heading_reference_feedback:
+        from oracle_composition.feedback.g1_course import build_g1_course_feedback
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="gmt-heading-feedback-check-") as temporary:
+                build_g1_course_feedback(
+                    manifest_path=manifest_path,
+                    expected_manifest_sha256=manifest_sha256,
+                    label="zero_residual",
+                    output=Path(temporary) / "feedback",
+                )
+        except ValueError as exc:
+            raise supervisor.ProbeError(
+                "after-heading feedback evidence failed reconstruction"
+            ) from exc
     return {
         "course_manifest": {
             "path": COURSE_MANIFEST_FILENAME,
