@@ -5,7 +5,23 @@
 | bottleneck | No full-task pass. Study017 reference survives but misses depth fidelity and worsens posture compliance. |
 | next step | Seal/review the Study018 scorer; train native O7b baseline A, then one reward-only B only if A passes predeclared admission. |
 
-## Current checkpoint: 2026-09-07 09:34 UTC
+## Current checkpoint: 2026-09-07 11:56 UTC
+
+- Study018 scorer imported as `30d966f` from clean peer `a386fb1`.
+  Root independently reran36 focused checks; reviewer ran122 focused/adjacent
+  checks and rebuilt retained015 through the actual verifier. Ruff passes.
+- The scorer checks its own imported package, clean commit and executable
+  tree against the run; criteria and imported experiment helpers are pinned.
+  No blocking review finding remains. No018 training has started.
+- Builder handed off its committed files, then its terminal turn reported a
+  provider policy flag. No retry of that request; independent file/test review
+  above, not the worker's terminal status, supports integration.
+- After an execution gap, Astra reviewed the free heavy slot, absent training
+  processes and clean worktree, then reacquired only its own expired lease.
+- Next: seal this reviewed source and completed legacy-parity receipt; obtain
+  exact native approval for A. Keep source fixed through scoring and conditional B.
+
+## Earlier checkpoint: 2026-09-07 09:34 UTC
 
 - Study018 pure admission/pair criteria committed as `a089491`;19 tests pass.
   Signed-heading logic also runs against the retained015 recorded trace.
