@@ -499,6 +499,21 @@ What follows for strategy:
    stands, labelled exploratory with a sequencing footnote and no
    outcome-selected repeat. The candidate next contrast on record is a
    donor-continuation positive control, not proposed.
+6. Study 018 (Astra's decision, 2026-09-07 09:05Z, contract reviewed by
+   Fable): the first trained pair on a surviving four-state composition.
+   Baseline A trains the reward r1 residual on the native O7b under the new
+   schema-5 four-state finite-horizon profile with the normalized trainer
+   (seed 20260906, 131,072 transitions, final checkpoint); admission rows are
+   survival, composition, region, finish, no re-entry, at least 25 samples,
+   compliance at or above 0.75 (zero-residual O7b's 0.757), tracking and
+   speed limits; depth and lateral are not required, and a baseline lateral
+   already inside 0.75 m stops the pair for lack of headroom. Candidate B is
+   one feedback-linked reward-only revision inside the admitted recipe,
+   predicted to cut the whole-run lateral maximum by at least 30 percent
+   without raising the after-window heading maximum or regressing survival,
+   composition, region, tracking, speed or compliance; depth and all eleven
+   gates are reported, not predicted. This is a development reward-effect
+   screen (`LG-03`), not a full-task qualification.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
