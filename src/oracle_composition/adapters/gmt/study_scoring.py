@@ -61,22 +61,21 @@ def _identities(value: object) -> dict[str, object]:
 
 @dataclass(frozen=True, slots=True)
 class RunManifestBinding:
-    """Content-address one retained run and, optionally, its resource receipt."""
+    """Content-address one retained run and its resource receipt."""
 
     path: Path
     sha256: str
-    resource_receipt_sha256: str | None = None
+    resource_receipt_sha256: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.path, Path):
             raise ValueError("run manifest path must be a Path")
         _digest(self.sha256, length=64, field="run manifest SHA-256")
-        if self.resource_receipt_sha256 is not None:
-            _digest(
-                self.resource_receipt_sha256,
-                length=64,
-                field="resource receipt SHA-256",
-            )
+        _digest(
+            self.resource_receipt_sha256,
+            length=64,
+            field="resource receipt SHA-256",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,10 +125,7 @@ def _resource_linkage(
     receipt_path = run_root / RESOURCE_RECEIPT_FILENAME
     receipt, encoded = read_json_object(receipt_path)
     observed_receipt_sha256 = hashlib.sha256(encoded).hexdigest()
-    if (
-        binding.resource_receipt_sha256 is not None
-        and observed_receipt_sha256 != binding.resource_receipt_sha256
-    ):
+    if observed_receipt_sha256 != binding.resource_receipt_sha256:
         raise ValueError("resource receipt bytes differ from their expected identity")
     if (
         receipt.get("schema_version") != 1
@@ -229,9 +225,13 @@ def _updates(
     values = [update["metrics"]["explained_variance"] for update in updates]
     tail = values[-16:]
     available = len(tail) == 16 and all(type(value) in {int, float} for value in tail)
+    completed_episodes = sum(row["episodes"]["completed"] for row in rows[:-1])
+    falls = sum(row["episodes"]["falls"] for row in rows[:-1])
     return {
         "telemetry_path": filename,
         "update_count": len(updates),
+        "completed_episode_count": completed_episodes,
+        "fall_count": falls,
         "trained_through_transitions": [
             update["trained_through_transitions"] for update in updates
         ],
@@ -364,6 +364,11 @@ def _score_cell(
     expected_updates = expectation.training_steps // 512
     if updates["update_count"] != expected_updates:
         raise ValueError("training update count differs from the fixed budget")
+    if (
+        training["episodes"] != updates["completed_episode_count"]
+        or training["falls"] != updates["fall_count"]
+    ):
+        raise ValueError("manifest training episode/fall totals differ from validated telemetry")
     return {
         "cell_id": expectation.cell_id,
         "manifest": {"path": str(manifest_path), "sha256": binding.sha256},

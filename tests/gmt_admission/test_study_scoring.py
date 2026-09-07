@@ -19,6 +19,7 @@ from oracle_composition.adapters.gmt.training_telemetry import (
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
+    validate_training_telemetry,
 )
 from oracle_composition.feedback import g1_course
 from tests.feedback.test_g1_course_feedback import (
@@ -223,6 +224,8 @@ def test_scores_both_cells_with_exact_raw_and_scaled_contracts(
     )
     for cell in result["cells"].values():
         assert cell["learning"]["update_count"] == 16
+        assert cell["learning"]["completed_episode_count"] == 0
+        assert cell["learning"]["fall_count"] == 0
         assert cell["learning"]["explained_variance_last16_mean"] == pytest.approx(0.55)
         assert cell["phase_measures"]["actual_task_region"]["sample_count"] == 2
         assert cell["phase_measures"]["executed_after_state"]["sample_count"] == 1
@@ -381,6 +384,82 @@ def test_rejects_manifest_binding_and_same_commit_source_tree_drift(
     )
     with pytest.raises(ValueError, match="different source trees"):
         _score(records)
+
+
+def test_resource_receipt_digest_is_required_and_binds_altered_tree_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records = _pair(tmp_path, monkeypatch)
+    run, _, binding, _ = records["scaled"]
+    with pytest.raises(TypeError):
+        module.RunManifestBinding(binding.path, binding.sha256)  # type: ignore[call-arg]
+    with pytest.raises(ValueError, match="resource receipt SHA-256"):
+        module.RunManifestBinding(binding.path, binding.sha256, None)  # type: ignore[arg-type]
+
+    receipt_path = run / module.RESOURCE_RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text())
+    receipt["inputs"]["repository_sources"]["canonical_tree_sha256"] = "e" * 64
+    _write_json(receipt_path, receipt)
+
+    with pytest.raises(ValueError, match="resource receipt bytes differ"):
+        _score(records)
+
+
+def test_rejects_manifest_episode_and_fall_totals_not_in_validated_telemetry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records = _pair(tmp_path, monkeypatch)
+    run, config, binding, expected = records["scaled"]
+    manifest = json.loads(binding.path.read_text())
+    manifest["training"]["episodes"] = 999
+    manifest["training"]["falls"] = 999
+    manifest_sha256 = _write_json(binding.path, manifest)
+
+    receipt_path = run / module.RESOURCE_RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text())
+    receipt["artifacts"]["course_manifest"].update(
+        {
+            "sha256": manifest_sha256,
+            "size": binding.path.stat().st_size,
+        }
+    )
+    receipt_sha256 = _write_json(receipt_path, receipt)
+    records["scaled"] = (
+        run,
+        config,
+        module.RunManifestBinding(binding.path, manifest_sha256, receipt_sha256),
+        expected,
+    )
+
+    with pytest.raises(ValueError, match="episode/fall totals differ"):
+        _score(records)
+
+
+def test_missing_explained_variance_is_unavailable_not_a_numeric_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records = _pair(tmp_path, monkeypatch)
+    run, _, _, expected = records["raw"]
+    telemetry_path = run / TELEMETRY_FILENAME
+    rows = [json.loads(line) for line in telemetry_path.read_text().splitlines()]
+    final_update = rows[-1]["update"]
+    final_update["metrics"]["explained_variance"] = None
+    final_update["metric_unavailable_reasons"]["explained_variance"] = "undefined_nonfinite"
+    encoded = b"".join(
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode() for row in rows
+    )
+    telemetry_path.write_bytes(encoded)
+
+    validate_training_telemetry(encoded, TRAINING_STEPS)
+    learning = module._updates(
+        run,
+        {"outputs": {TELEMETRY_FILENAME: hashlib.sha256(encoded).hexdigest()}},
+        expected.trainer,
+    )
+
+    assert learning["explained_variance_last16_mean"] is None
+    assert learning["explained_variance_last16_available"] is False
+    assert learning["explained_variance_last16_at_least_0_5"] is False
 
 
 def test_pair_rejects_mismatched_seed_before_reading_runs(
