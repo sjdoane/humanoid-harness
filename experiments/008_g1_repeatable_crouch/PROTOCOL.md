@@ -9,7 +9,11 @@
 
 1. O4b control: identical oracle/reward/reference bytes to retained O4b, with the
    explicit four-state observation vocabulary. Require byte-exact zero-residual
-   trajectory, frame ledger and evaluation against the legacy O4b probe.
+   trajectory and frame ledger against the legacy O4b probe. Evaluation must
+   match except for the independently validated runtime-profile fields in
+   `reset` (`runtime_id` and the added `course_runtime`). This exception was
+   recorded and peer-reviewed before the control ran; see the timing receipt
+   in `RESULTS.md`.
 2. Rebuild independent control feedback. Fable returns one retained JSON oracle
    proposal; the full `revise_g1_course` path verifies and applies it.
 3. O5 candidate: one descent, repeatable crouch, explicit rise, then walk.

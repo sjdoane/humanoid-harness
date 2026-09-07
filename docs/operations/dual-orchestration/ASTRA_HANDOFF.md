@@ -2,14 +2,16 @@
 
 | status | current truth |
 |---|---|
-| progress | 32 G1 training runs completed (1,638,400 transitions). Studies 006 and 007 are fully scored; source compatibility is byte-exact. |
-| bottleneck | No full task pass. Lower learning rate fails adoption: O2/r1 falls; O4b/r4 survives but backtracks and regresses on compliance. |
-| next step | Integrate repaired probe-only descent/loop/rise runtime, test its control and candidate, and close the separate reference causal-use gate. Fable reviews only. |
+| progress | 32 G1 training runs completed (1,638,400 transitions). Studies 006–008 are scored; O5 includes a real feedback-linked oracle revision and recorded failure GIF. |
+| bottleneck | No full task pass. O5 falls at 6.4 s before its rise guard; longer training and lower learning rate have not passed adoption. |
+| next step | Review/integrate the separate five-arm reference-input causal test. Evaluate an after-only walking crop and a code-grounded training-efficiency intervention. Fable reviews only. |
 
-- All study-007 workers are terminal and the heavy-job slot is free at 01:19 UTC.
+- All study-007/008 workers and O5 renderer are terminal at 01:50 UTC.
+- Study 008 result: `../../../experiments/008_g1_repeatable_crouch/RESULTS.md`.
+  The source freeze ended after both probes. Their exact source was `96d46c7`.
 - Current result: `../../../experiments/007_g1_learning_rate/RESULTS.md`.
 - O5 and its revision-path/scorer-fixture repairs are integrated through
-  `cc3922a`; 440 focused tests pass. No O5 simulation or training yet.
+  `cc3922a`; 440 focused tests pass. O5 simulation failed; no O5 training.
 - Next protocol: `../../../experiments/008_g1_repeatable_crouch/PROTOCOL.md`.
   The new profile is permanently probe-only; future training needs a versioned
   admission. A separate five-arm actor-reference ablation is being implemented;
@@ -18,8 +20,9 @@
   `1857cef`. No external motion has been admitted. The lower-yaw native crops
   remain kinematic candidates for a later oracle revision.
 - Main remains `9188ed0`; no push. Native family remains separate and blocked.
-- UI `http://127.0.0.1:8766/`: all 12 current registered snapshots validate
-  (six scaled replication cells, O4b zero reference, pilot, four larger arms).
+- UI `http://127.0.0.1:8766/`: selected registry now includes two low-rate
+  rows instead of two r0 replication rows. Server still needs a restart for
+  O5-profile evidence and current-registry API validation.
   The previous selection is archived locally; no run evidence was removed.
 - UI busy-state fix has executable DOM regression coverage. A new browser
   screenshot could not be checked because the Mac was locked.
