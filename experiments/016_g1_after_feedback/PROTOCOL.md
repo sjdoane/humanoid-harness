@@ -78,6 +78,11 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
 
 ## Controls and rejection rules
 
+- Both fresh arms use the reviewed 195-file executable tree
+  `c4f5a24e285c01bde06d0c5530631084284eacdf22106d614b6e5ad228d0174d`.
+  Native resource acceptances bind the exact final clean commit separately.
+- Before data, a 25-case independent arithmetic grid checks all 600 window
+  values, unchanged channels, held endpoint, counts, fractions and array hashes.
 - Retained O7b config SHA:
   `ba45dba36ef88bdc522ed2115e46a4b3d876e00a627a089fd56ddf0de623e18a`.
 - Retained manifest SHA:

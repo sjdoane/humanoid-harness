@@ -211,3 +211,17 @@ def test_partial_or_noncanonical_study_inputs_fail_closed(scorer):
     for value in ({}, {"schema_version": True}, [], None):
         with pytest.raises(ValueError, match="input fields"):
             scorer.score_study(value)
+
+
+@pytest.mark.parametrize("tree,count", [("0" * 64, 195), (None, 194), (None, 195.0)])
+def test_fresh_source_is_fixed_before_data(scorer, tree, count):
+    inputs = {
+        "schema_version": 1,
+        "baseline": {}, "control": {}, "candidate": {},
+        "coordination_root": "/must-not-be-read",
+        "fresh_source_tree_sha256": tree or scorer.FRESH_TREE,
+        "fresh_source_file_count": count,
+        "candidate_config_sha256": scorer.CANDIDATE_CONFIG,
+    }
+    with pytest.raises(ValueError, match="predata executable tree"):
+        scorer.score_study(inputs)

@@ -29,6 +29,8 @@ BASE_RESOURCE = "ea00072569e159b8f04b1b7c801296b19297559b0ed91f04ec4077551cb429b
 BASE_CONFIG = "ba45dba36ef88bdc522ed2115e46a4b3d876e00a627a089fd56ddf0de623e18a"
 BASE_SOURCE = "3cb3102d5cb2e3a8603663df13ed50b5d6cad0cb"
 BASE_TREE = "3ba7fe0ab72374e0667402848460c43915024fbcd2fe44f9ce5de791f0ab8b8e"
+FRESH_TREE = "c4f5a24e285c01bde06d0c5530631084284eacdf22106d614b6e5ad228d0174d"
+FRESH_FILE_COUNT = 195
 CANDIDATE_CONFIG = "8fe33d993c6226690e986e99de3d0d1ee436424239069c4cceb91c1a8fabfc8e"
 PROFILE = "gmt_g1_four_state_loop_after_heading_feedback_course/v1"
 GYM_PROFILE = "gmt_g1_residual_course_four_state_after_heading_feedback_50hz/v1"
@@ -226,6 +228,12 @@ def score_study(inputs: dict) -> dict:
         or inputs["schema_version"] != 1
     ):
         raise ValueError("Study016 input fields or schema differ")
+    if (
+        inputs["fresh_source_tree_sha256"] != FRESH_TREE
+        or type(inputs["fresh_source_file_count"]) is not int
+        or inputs["fresh_source_file_count"] != FRESH_FILE_COUNT
+    ):
+        raise ValueError("Study016 fresh source differs from the predata executable tree")
     coordination_root = Path(inputs["coordination_root"]).resolve(strict=True)
     pins = {
         name: _pins(inputs[name], coordination_root)
