@@ -1,11 +1,28 @@
 # Astra orchestration handoff
 
-| progress | 36 training runs / 2,162,688 transitions. Study012 finite ending verified; both arms survive 20 s. |
+| progress | 37 training runs / 2,293,760 transitions. Study014 completes the feedback → LLM reward revision → train → score loop. |
 |---|---|
-| bottleneck | No full-task pass. Finite candidate fails compliance and speed screen; task depth and lateral drift also fail. |
-| next step | Study014: one Fable-proposed depth reward on the exact finite baseline. Fable reviews and ideates only. |
+| bottleneck | No full-task pass. Study014 fails its depth prediction; drift and overall speed error worsen. |
+| next step | Study015: one matched O7b after-reference crop probe. Fable reviews and ideates only. |
 
-## Current checkpoint: 2026-09-07 05:32 UTC
+## Current checkpoint: 2026-09-07 05:56 UTC
+
+- [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
+  worker terminal/released; source freeze ended. Reject the depth candidate.
+  Exact source `be359a2`; all non-reward parity and reward reconstruction pass.
+- [Study015 protocol](../../../experiments/015_g1_task_aligned_after/PROTOCOL.md):
+  O7b proposal admitted, no simulation yet. Reproduce O7 control's three files
+  at new source, then one after-only crop probe. Scorer under isolated build.
+- Oracle task-geometry mismatch takes priority over a new reward sweep,
+  the phase-rate scheduler and structured-feature training. No mixed factors.
+- Source-only phase and fallback patches remain unimported. Fable available.
+- Baseline recorded GIF: sibling `gmt_course_finite_baseline_recorded_20260907.gif`.
+  UI now port8766/session24493 with Study012/014 and O7 included. All 12 selected
+  rows revalidate; zero task passes. Previous registry archived, no run deleted.
+  Registry SHA `c67f95e8cc613de7cd8781fe3201a4b336da89c428e2e16829a52c64e66c2b7c`.
+  HTTP readback verified; no fresh interactive browser QA. No push.
+
+## Earlier checkpoint: 2026-09-07 05:32 UTC
 
 - [Study012 result](../../../experiments/012_g1_finite_horizon/RESULTS.md):
   both jobs terminal/released. Source freeze ended. Correct finite semantics
