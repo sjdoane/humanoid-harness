@@ -8,10 +8,15 @@
 
 - All study-007 workers are terminal and the heavy-job slot is free at 01:19 UTC.
 - Current result: `../../../experiments/007_g1_learning_rate/RESULTS.md`.
-- O5 is isolated at `287cb95/e7e52e0/e552b21`, not yet integrated or simulated.
-  Required repairs: full feedback-to-revision runtime binding and the paired
-  scorer's legacy fixture. A separate five-arm actor-reference ablation is being
-  implemented; matched-state action sensitivity is not closed-loop evidence.
+- O5 and its revision-path/scorer-fixture repairs are integrated through
+  `cc3922a`; 440 focused tests pass. No O5 simulation or training yet.
+- Next protocol: `../../../experiments/008_g1_repeatable_crouch/PROTOCOL.md`.
+  The new profile is permanently probe-only; future training needs a versioned
+  admission. A separate five-arm actor-reference ablation is being implemented;
+  matched-state action sensitivity is not closed-loop evidence.
+- The external-reference and native walking-window audits are integrated at
+  `1857cef`. No external motion has been admitted. The lower-yaw native crops
+  remain kinematic candidates for a later oracle revision.
 - Main remains `9188ed0`; no push. Native family remains separate and blocked.
 - UI `http://127.0.0.1:8766/`: all 12 current registered snapshots validate
   (six scaled replication cells, O4b zero reference, pilot, four larger arms).
