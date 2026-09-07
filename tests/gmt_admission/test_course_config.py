@@ -381,6 +381,16 @@ def test_loop_profile_is_probe_only_and_legacy_profile_prohibits_loop(admitted_c
         module.load_run_config(path)
 
 
+def test_loop_profile_rejects_sub_control_repeat_window(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    raw["segments"]["crouch"]["loop_start_seconds"] = 4.859
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="at least one control interval"):
+        module.load_run_config(path)
+
+
 @pytest.mark.parametrize(
     "runtime",
     [

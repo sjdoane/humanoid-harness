@@ -55,14 +55,22 @@ class ReferenceSegment:
         ):
             raise ValueError("entry phase must lie within the segment")
         if self.boundary == "entry_once_then_loop":
+            loop_duration = (
+                self.end_seconds - self.loop_start_seconds
+                if self.loop_start_seconds is not None
+                else -1.0
+            )
             if (
                 type(self.loop_start_seconds) is not float
                 or not np.isfinite(self.loop_start_seconds)
                 or not self.start_seconds < self.loop_start_seconds < self.end_seconds
                 or self.entry_phase_end_seconds is None
                 or self.entry_phase_end_seconds >= self.loop_start_seconds - self.start_seconds
+                or np.float32(loop_duration) < np.float32(CONTROL_DT_SECONDS)
             ):
-                raise ValueError("entry-loop bounds must preserve an initial entry interval")
+                raise ValueError(
+                    "entry-loop bounds must preserve initial entry and at least one control interval"
+                )
         elif self.loop_start_seconds is not None:
             raise ValueError("loop start requires entry-once-then-loop boundary semantics")
         if type(self.exit_at_loop_boundary) is not bool or (

@@ -11,6 +11,7 @@ import pytest
 
 from oracle_composition import cli
 from oracle_composition.adapters.gmt import course_revision as module
+from oracle_composition.adapters.gmt.course_runtime import LEGACY_RUNTIME, LOOP_RUNTIME
 from oracle_composition.experiments.artifact_io import finite_pretty_json
 
 
@@ -82,11 +83,16 @@ def _install_fakes(
     source_config_sha256: str | None = None,
     packet_artifact: str = module.FEEDBACK_BUILD_RECEIPT_ARTIFACT,
     candidate: dict[str, object] | None = None,
+    loop_runtime: bool = False,
+    receipt_runtime: dict[str, object] | None = None,
+    omit_receipt_runtime: bool = False,
 ) -> None:
+    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
     parent = SimpleNamespace(
         raw=json.loads(inputs["parent_bytes"]),
         encoded=inputs["parent_bytes"],
         sha256=inputs["parent_sha256"],
+        runtime=runtime,
     )
     monkeypatch.setattr(module, "load_run_config", lambda path: parent)
 
@@ -122,6 +128,12 @@ def _install_fakes(
             },
             "claim_limits": ["development_only"],
         }
+        if runtime.manifest_contract() is not None and not omit_receipt_runtime:
+            receipt["inputs"]["course_runtime"] = (
+                receipt_runtime
+                if receipt_runtime is not None
+                else runtime.manifest_contract()
+            )
         receipt_path = output / "feedback_receipt_v1.json"
         receipt_path.write_bytes(finite_pretty_json(receipt))
         return {
@@ -202,6 +214,40 @@ def test_revision_retains_exact_inputs_candidate_and_lineage_receipt(
         assert receipt["retained_inputs"][name]["sha256"] == _sha256(encoded)
         assert receipt["retained_inputs"][name]["byte_count"] == len(encoded)
     assert "not_trained_or_evaluated" in receipt["claim_limits"]
+
+
+def test_loop_runtime_revision_accepts_exact_profile_derived_feedback_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs, loop_runtime=True)
+
+    result = _run(inputs, tmp_path / "revision")
+
+    assert result["status"] == "completed"
+    receipt = json.loads(
+        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
+    )
+    assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
+
+
+@pytest.mark.parametrize("omit", [False, True], ids=["tampered", "missing"])
+def test_loop_runtime_revision_rejects_wrong_feedback_runtime_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, omit: bool
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(
+        monkeypatch,
+        inputs,
+        loop_runtime=True,
+        receipt_runtime={"schema_version": 1, "profile_id": "wrong"},
+        omit_receipt_runtime=omit,
+    )
+
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "revision")
+
+    assert not (tmp_path / "revision").exists()
 
 
 def test_oracle_receipt_separates_actual_from_allowed_changed_fields(

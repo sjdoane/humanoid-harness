@@ -244,6 +244,33 @@ def test_malformed_entry_loop_bounds_are_rejected(kwargs):
         ReferenceSegment(motion(0.8), "a" * 64, 2.7, 4.86, **kwargs)
 
 
+def test_entry_loop_rejects_sub_control_interval_repeat_window():
+    with pytest.raises(ValueError, match="at least one control interval"):
+        ReferenceSegment(
+            motion(0.8),
+            "a" * 64,
+            2.7,
+            4.86,
+            entry_phase_end_seconds=0.15,
+            boundary="entry_once_then_loop",
+            loop_start_seconds=4.859,
+        )
+
+    # Decimal source bounds that quantize to exactly one 50 Hz interval remain valid.
+    segment = ReferenceSegment(
+        motion(0.8),
+        "a" * 64,
+        2.7,
+        4.86,
+        entry_phase_end_seconds=0.15,
+        boundary="entry_once_then_loop",
+        loop_start_seconds=4.84,
+    )
+    assert np.float32(segment.end_seconds - segment.loop_start_seconds) == np.float32(
+        CONTROL_DT_SECONDS
+    )
+
+
 def test_spatial_guard_is_rechecked_only_at_each_entry_loop_boundary():
     program = oracle_program_from_dict(
         {

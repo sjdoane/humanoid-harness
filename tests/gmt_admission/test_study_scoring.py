@@ -10,6 +10,11 @@ import pytest
 
 from oracle_composition.adapters.gmt import study_scoring as module
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LEGACY_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.training_contract import (
     TRAINING_REWARD_SCALE,
     CourseTrainerSpec,
@@ -89,7 +94,11 @@ def _replace_budget_and_telemetry(
             "telemetry": descriptor,
         }
     )
-    manifest["frozen_runtime"] = {"trainer": effective_training_contract(updated.trainer)}
+    manifest["frozen_runtime"] = frozen_runtime_contract(
+        LEGACY_RUNTIME,
+        trainer=effective_training_contract(updated.trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
 
     frames_path = run / "final_policy_frames.jsonl"
     frames = [json.loads(line) for line in frames_path.read_text().splitlines()]
