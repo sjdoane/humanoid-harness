@@ -40,6 +40,7 @@ _BUILD_INPUT_FIELDS = {
     "selected_outputs",
 }
 _BUILD_INPUT_FIELDS_WITH_RUNTIME = {*_BUILD_INPUT_FIELDS, "course_runtime"}
+_HEADING_VALIDATION_FIELD = "after_heading_reference_feedback_validation"
 _BUILD_OUTPUT_FIELDS = {"path", "sha256", "byte_count"}
 _LABELS = {"zero_residual", "final_policy"}
 
@@ -139,6 +140,10 @@ def _verify_current_feedback_packet(
             if expected_course_runtime is not None
             else _BUILD_INPUT_FIELDS
         )
+        if expected_course_runtime is not None and "after_heading_reference_feedback" in (
+            expected_course_runtime
+        ):
+            expected_input_fields = {*expected_input_fields, _HEADING_VALIDATION_FIELD}
         if (
             type(inputs) is not dict
             or set(inputs) != expected_input_fields
