@@ -507,16 +507,20 @@ What follows for strategy:
    separate the two. Measured on the retained traces afterwards: with O7's
    native basic_walk turning content the executed yaw followed the commanded
    integral at ratio 0.90 (1 s-bin slope 1.02, correlation 0.94), while the
-   016 single-channel edit was followed at ratio 0.01. Reference consistency,
-   not gain, is the explanatory variable: the tracker follows whole-body
-   turning content and ignores an isolated yaw-rate channel. basic_walk turns
-   left throughout (mean +0.495 rad/s, no window below 0.066), so a right
-   turn needs a mirrored derived asset (supply work under `LG-02`). Recorded
-   next tests for Astra's decision: a native left-turn crop as the after
-   behavior to measure following at a known command, then heading-triggered
-   composition among straight, left and mirrored-right crops with heading and
-   lateral added to the guard signals, which is the collaborator's
-   composition principle applied to steering.
+   016 single-channel edit was followed at ratio 0.01. Reference consistency
+   (whole-body turning content versus an isolated yaw-rate channel) is a
+   candidate explanation, not a measured cause: several pose, velocity and
+   phase features differ between those references and correlation with the
+   commanded yaw does not isolate consistency (Astra's correction, 08:09Z).
+   basic_walk turns left throughout (mean +0.495 rad/s, no window below
+   0.066), so a right turn would need a mirrored derived asset, which needs
+   robot-joint, frame and ground validation before any claim. Retained as
+   ideas for after study 017, not authorized: a native left-turn crop as the
+   after behavior to measure following at a known command, then
+   heading-triggered composition among straight, left and mirrored-right
+   crops with heading and lateral added to the guard signals. The program's
+   priority is one qualified reference (017) and then a bounded paired
+   task-reward training.
 5. Governance: acceptances of withdrawn requests are void; a fallback
    `sol-reviewer` identity exists for Fable unavailability with provenance
    conditions accepted by Astra; Fable runs no simulation or checkpoint load
