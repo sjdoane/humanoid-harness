@@ -72,6 +72,13 @@ Frozen: plant/reset, other oracle fields, controller, reward and evaluation.
   position, robot/source-target/destination-target heights, source/selected
   phase and normalized robot-to-destination pose distance. Distinguish target
   discontinuity from robot tracking error and use the native frame convention.
+- Record both unwrapped source clock and wrapped/reported source phase, plus
+  previous/current entry-loop boundary indices at the switch. At retained
+  control action 239, clock 2.94 s wraps to source phase 1.08 s; the preceding
+  command was 2.92 s. At guard action 227, source phase is 2.70 s, not 2.68 s.
+  The runtime's `normalized_pose_distance` is dimensionless mean squared
+  scaled pose error, not Euclidean distance. Any source-to-destination pose
+  diagnostic must use the declared pose columns and scales, not velocity columns.
 - Report rise dwell, fall/contact mode and time relative to rise, after-entry
   heading/lateral, region compliance/depth, speed errors and maximum lateral error.
   Missing rise/after stays null, not a zero-error or zero-deferral result.
@@ -94,6 +101,12 @@ Frozen: plant/reset, other oracle fields, controller, reward and evaluation.
   transition, wrong identity or unexpected differing field is an integrity error.
 - Reset metadata may differ only in its exact admitted oracle identity;
   initial plant/base state must be identical.
+- The manifest's frozen oracle identity must also match each arm's exact
+  admitted program. Other frozen components compare exactly. Run-specific paths,
+  outputs and authorization receipts retain their own bindings; this is not a
+  claim that the complete manifests are byte-identical.
+- A candidate ending before the expected changed command cannot supply the
+  required full prefix; treat it as an integrity failure, not oracle benefit/harm.
 
 ## Order, authorization and stopping
 

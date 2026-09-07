@@ -1,11 +1,41 @@
 # Astra orchestration handoff
 
-| progress | 38 training runs / 2,424,832 transitions. Study 020 evaluates both saved policies; independent scoring matches exactly. |
+| progress | Study 021 predata oracle-exit protocol committed; scorer building in a separate worktree. Training total unchanged: 38 runs / 2,424,832 transitions. |
 |---|---|
 | bottleneck | No full-task pass. Trained policy falls in 11/16 paired tests versus 5/16 initially. |
-| next step | Declare a separate oracle-exit probe; preserve O7b and keep Study 018 B stopped. |
+| next step | Finish and independently review the Study 021 scorer, then seal before any new native run. |
 
-## Current checkpoint: 2026-09-07 15:05 UTC
+## Current checkpoint: 2026-09-07 16:00 UTC
+
+- Continuity resumed from clean `fc9fff5`. No competing active user turn,
+  training process or claimed heavy slot. Root reacquired only its own lease.
+- [Study 021 protocol](../../../experiments/021_g1_immediate_crouch_exit/PROTOCOL.md)
+  starts at `de88205`: remove only the crouch exit-boundary restriction and
+  assign a new oracle ID. Two zero-residual episodes; no training. Existing
+  runtime supports the factor; no controller/MDP/evaluator change.
+- Sol `derived_admission` owns scorer/tests only in `humanoid-harness-study021`,
+  branch `astra/study021-immediate-exit`; no dynamics or actor execution allowed.
+  Sol `four_state_training` and Fable independently review the predata design.
+  Root owns protocol, source integration and retained boundary checks.
+- Root's oracle-only retained-state precheck:
+  `.orchestration/study021_boundary_precheck_v2_20260907.json`, SHA
+  `7522bdf70ddf86e4b809d6900f917694a4a83edf2862a4d21f49c4aa935d692e`.
+  It verifies 227 identical numeric reference commands and one expected
+  identity-only transition field difference at action 92. It is not a candidate
+  rollout and does not establish action or plant-state parity.
+- Prefix correction: removing the exit flag changes the crouch segment hash
+  before its numeric effect. Validate exact admitted hashes at frame 92;
+  every other prefix field remains exact. Candidate guard/switch prediction 227;
+  retained switch 239. Verify fresh control before candidate approval/dispatch.
+- Pre-action phase correction: guard clock 2.70 s; control switch clock 2.94 s
+  wraps to reported 1.08 s. Fable acknowledged the correction. The precheck v2
+  also fixes a draft mixed-feature pose norm to declared pose columns/scales;
+  original v1 receipt retained but superseded.
+- Fable proposal remains held until protocol/scorer lock; use retained O7b
+  feedback `6ea27ad8…7c795`. No Study 021 candidate outcome or dynamics yet.
+  A deterministic screen pass would not admit training or prove sampled robustness.
+
+## Earlier checkpoint: 2026-09-07 15:05 UTC
 
 - [Study 020 results](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
   34 episodes, 139 declared outputs, zero training, no full-task pass. One reset,
