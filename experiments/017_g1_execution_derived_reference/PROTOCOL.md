@@ -62,6 +62,20 @@ OUTPUT: raw states, contacts, commands → independent evaluator → LLM diagnos
 - Terminal hold is explicit because the reference ends at a mid-stride
   crouched pose (height `0.595443 m`). Report hold exposure and the exact exit
   phase; do not call the hold a balanced or stationary reference.
+- The 1.9 s lookahead sees this hold from about 0.2 s into the clip. Report
+  first lookahead exposure separately from endpoint hold entry and duration;
+  deceleration can precede the endpoint hold.
+- Exact archive endpoint is donor boundary **197**, not 198. Its rebased
+  float32 progress is `1.394466519355774 m`; added to O7b entry progress
+  `0.6549157893949207 m`, it gives `2.049382308750695 m`, about 0.000618 m
+  **short** of the unchanged `2.05 m` exit guard. This is a kinematic margin,
+  not an impossibility proof: the tracker does not exactly follow root x.
+- Keep this exact bundle for one bounded screen. Report inside speed over
+  phase against the donor and issued reference, plus progress at hold entry.
+  A stall or fall with terminal exposure rejects this bundle; it cannot
+  isolate crouch fidelity from anticipation and handover semantics. Do not
+  silently extend the clip, move the exit guard, or interpret a pass as
+  evidence that normalization or cadence alone caused an improvement.
 - Static screen: all 106 output poses have no non-foot ground contacts;
   maximum foot overlap `0.015431 m`. This is not a dynamics certificate.
 - Minimum target height `0.504942 m` is **not** a solution to the `0.50 m` task gate.
@@ -79,6 +93,8 @@ OUTPUT: raw states, contacts, commands → independent evaluator → LLM diagnos
 
 - The 2 cm depth window is a predeclared engineering feasibility tolerance,
   not a confidence interval or a replacement for the original task gate.
+  O7b's existing minimum of `0.515773 m` already meets this tolerance; passing
+  it would establish approximate fidelity, not improved depth.
 - Any failed screen rejects this exact extraction/conditioning/handover for
   automatic training admission. Integrity failure invalidates the trial.
 - Report all original gates unchanged, full trajectories, first/late physical

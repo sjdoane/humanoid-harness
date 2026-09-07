@@ -5,7 +5,21 @@
 | bottleneck | No full-task pass. After feedback reduces drift but fails its lateral screen; depth unresolved. |
 | next step | Admit and re-track the exact execution-derived reference in a separate probe. Fable reviews/ideates only. |
 
-## Current checkpoint: 2026-09-07 08:00 UTC
+## Current checkpoint: 2026-09-07 08:22 UTC
+
+- Feedback-to-revision repair now accepts the exact heading-validation receipt
+  only for its declared runtime. The retained016 rollout passes the full
+  feedback rebuild → proposal → candidate publication path; 76 focused tests
+  pass. The test proposal is a software fixture, not a new scientific trial.
+- Study017 is still predata. Its protocol now records early terminal-hold
+  lookahead and the exact endpoint: donor boundary197, not198. The relative
+  endpoint is about0.000618 m short of the unchanged exit guard. One bounded
+  bundle screen remains planned; no new reference extension or training.
+- The app restart ended prior subagents. Their assigned worktrees are preserved;
+  replacement Sol/max workers finish the admission and scorer slices there.
+  No heavy job is active; clean handoffs and exact resource approval remain.
+
+## Earlier checkpoint: 2026-09-07 08:00 UTC
 
 - [Study016 result](../../../experiments/016_g1_after_feedback/RESULTS.md):
   r2 pair at `08d7338` terminal/released; source freeze ended. Control reproduces
