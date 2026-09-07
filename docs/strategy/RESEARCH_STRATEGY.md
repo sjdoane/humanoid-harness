@@ -3,7 +3,7 @@
 | status | current strategy |
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 37 training runs and about 2.3M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
-| bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a crouch that never reaches the 0.50 m dip gate. Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration), so the dip gate rests on an inconsistent reference frame; the bounded depth reward (study 014) was active and did not deepen the crouch. |
+| bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a 0.50 m dip gate that no retained run has met (best 0.494 to 0.516 m). Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration); that bounds what the supplied reference specifies, not what the plant can reach, so depth stays a measured quantity rather than an established impossibility. The bounded depth reward (study 014) was active and did not deepen the crouch. |
 | next step | Studies 015 to 017 are done (after-crop, heading feedback and the execution-derived reference all rejected on their pre-registered screens; details below). The recommended next stage, Astra's call: one preregistered training pair on the native O7b under the new four-state finite-horizon trainable profile, a reward-r1 baseline then one feedback-linked reward revision inside the admitted recipe, predeclared on lateral and heading rows with depth reported only, exposure telemetry riding along; the transition-preview mechanism is deferred to a separate oracle-capability study. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed of the finding, and continuing to study the gate needs no new decision from him. |
 
 ## Fable's authority
@@ -513,7 +513,23 @@ What follows for strategy:
    without raising the after-window heading maximum or regressing survival,
    composition, region, tracking, speed or compliance; depth and all eleven
    gates are reported, not predicted. This is a development reward-effect
-   screen (`LG-03`), not a full-task qualification.
+   screen (`LG-03`), not a full-task qualification. Pre-data state
+   (2026-09-07 12:00Z): the four-state trainable profile and its telemetry
+   were imported (source e57f220, executable tree 6010bf0c at 196 files); a
+   fresh legacy O7b probe at the imported source reproduced the retained O7b
+   outputs byte-exact (two independent verifiers), so the runtime addition
+   changed no legacy behavior; the criteria and scorer were frozen before
+   any training (weight revision bounded to 0.5 to 4 times r1: lateral in
+   [0.5, 4.0], heading in [0.25, 2.0], one or both changed; heading rows use
+   the signed error unwrapped from the reset; compliance may not fall at all);
+   baseline A was accepted on the exact request and launched at 12:00Z. A
+   design caveat recorded before data: in the retained zero-residual O7b
+   trace the after-window lateral reward term is saturated near zero on 62
+   percent of samples (mean 0.007), so a lateral weight change can act only
+   while drift is still small, whereas the heading term (mean 0.19) carries
+   signal throughout; the one B revision is chosen from A's actual feedback
+   within the bounds, and any scale or formula change is a separately
+   declared study.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
@@ -659,3 +675,7 @@ goal ID.
   uploaded checkpoints; it changes with the importer closure slice.
 - Speaker attribution in the transcript remains inferential. No decision in
   this audit depends on disputed wording.
+- 2026-09-07 12:05Z: study 018 pre-data record added (legacy parity at the
+  imported source, frozen criteria and scorer, baseline A launched); the
+  bottleneck row now states that the contact finding bounds what the
+  reference specifies, not what the plant can reach.
