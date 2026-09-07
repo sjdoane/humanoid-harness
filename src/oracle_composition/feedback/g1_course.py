@@ -578,10 +578,15 @@ def build_g1_course_feedback(
     )
     if expected_train_outputs is not None and output_names != expected_train_outputs:
         raise ValueError("trainer requires its exact versioned telemetry output")
-    if config.trainer is None and output_names in (
-        _TRAIN_SCALED_TELEMETRY_OUTPUTS,
-        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
-        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
+    if (
+        config.runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME
+        and config.trainer is None
+        and output_names
+        in (
+            _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+            _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+            _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
+        )
     ):
         raise ValueError("versioned telemetry requires its exact trainer config")
     training = manifest["training"]

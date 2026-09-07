@@ -486,6 +486,26 @@ def test_four_state_finite_horizon_feedback_accepts_exact_v4_output_set(
     assert "Training telemetry:" in feedback["diagnosis"]
 
 
+def test_four_state_finite_horizon_feedback_accepts_v4_without_opt_in_trainer(
+    tmp_path, monkeypatch
+) -> None:
+    manifest, digest, _config = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        four_state_finite_horizon_runtime=True,
+    )
+
+    result = module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=tmp_path / "feedback",
+    )
+
+    assert result["feedback"]["sha256"] == _sha(tmp_path / "feedback/feedback_v1.json")
+
+
 def test_four_state_finite_horizon_feedback_rejects_historical_telemetry_set(
     tmp_path, monkeypatch
 ) -> None:

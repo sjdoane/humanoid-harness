@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     frozen_runtime_contract,
 )
@@ -23,7 +25,7 @@ from oracle_composition.adapters.gmt.training_contract import (
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
-    SCALED_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
     validate_training_telemetry,
@@ -58,11 +60,18 @@ def _replace_budget_and_telemetry(
     updated.sha256 = hashlib.sha256(encoded).hexdigest()
     (run / "input_config.json").write_bytes(encoded)
 
-    filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
+    filename = module.telemetry_filename(
+        reward_scale=(TRAINING_REWARD_SCALE if scaled else None),
+        runtime=config.runtime,
+    )
     telemetry_path = run / filename
     telemetry_path.unlink()
     reward_scale = TRAINING_REWARD_SCALE if scaled else None
-    with TrainingTelemetry(telemetry_path, reward_scale=reward_scale) as telemetry:
+    with TrainingTelemetry(
+        telemetry_path,
+        reward_scale=reward_scale,
+        runtime=config.runtime,
+    ) as telemetry:
         for index in range(1, 17):
             logger = (
                 {}
@@ -74,7 +83,7 @@ def _replace_budget_and_telemetry(
             )
             telemetry.rollout_boundary(
                 index * 512,
-                np.zeros((1, 2171), dtype=np.float32),
+                np.zeros((1, config.runtime.observation_dim), dtype=np.float32),
                 logger,
                 4 * (index - 1),
             )
@@ -180,7 +189,10 @@ def _pair(
     *,
     finite_horizon_runtime: bool = False,
     finite_horizon_cell: str | None = None,
+    four_state_finite_horizon_runtime: bool = False,
 ):
+    if finite_horizon_runtime and four_state_finite_horizon_runtime:
+        raise ValueError("fixture runtime must be unique")
     records = {}
     for cell_id, scaled in (("raw", False), ("scaled", True)):
         run = tmp_path / cell_id
@@ -192,6 +204,7 @@ def _pair(
             finite_horizon_runtime=(
                 finite_horizon_runtime or cell_id == finite_horizon_cell
             ),
+            four_state_finite_horizon_runtime=four_state_finite_horizon_runtime,
         )
         config = _replace_budget_and_telemetry(run, config, scaled=scaled)
         manifest_sha256 = _sha(manifest_path)
@@ -297,6 +310,53 @@ def test_scores_pair_with_exact_finite_horizon_runtime_bindings(
     assert result["pair"]["course_runtime_profile_difference"] is False
     for cell in result["cells"].values():
         assert cell["course_runtime"] == FINITE_HORIZON_RUNTIME.manifest_contract()
+
+
+def test_scores_pair_with_exact_four_state_finite_horizon_runtime_bindings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _score(
+        _pair(
+            tmp_path,
+            monkeypatch,
+            four_state_finite_horizon_runtime=True,
+        )
+    )
+
+    assert result["pair"]["course_runtime_profile_difference"] is False
+    for cell in result["cells"].values():
+        assert cell["course_runtime"] == (
+            FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract()
+        )
+        assert cell["learning"]["telemetry_path"] == (
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+        )
+
+
+def test_study_expectation_rejects_changed_four_state_runtime_profile() -> None:
+    expectation = module.CourseStudyExpectation(
+        cell_id="four-state",
+        seed=7,
+        training_steps=512,
+        identities={
+            "task": "1" * 64,
+            "oracle": "2" * 64,
+            "reward": "3" * 64,
+            "segments": {"walk": "4" * 64},
+        },
+        trainer=None,
+        base_state_sha256=BASE_STATE,
+        source_commit=SOURCE_COMMIT,
+        runtime=FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    )
+    changed = replace(
+        FOUR_STATE_FINITE_HORIZON_RUNTIME,
+        profile_id="gmt_g1_changed_four_state_finite_horizon_course/v1",
+    )
+
+    assert expectation.runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+    with pytest.raises(ValueError, match="runtime profile is not admitted"):
+        replace(expectation, runtime=changed)
 
 
 def test_rejects_finite_horizon_expectation_for_legacy_run(

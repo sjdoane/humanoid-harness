@@ -18,6 +18,7 @@ from .course_config import load_run_config
 from .course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     CourseRuntimeProfile,
@@ -121,7 +122,12 @@ class CourseStudyExpectation:
         object.__setattr__(self, "identities", _identities(dict(self.identities)))
         if self.trainer is not None and type(self.trainer) is not CourseTrainerSpec:
             raise ValueError("expected trainer must be the admitted profile or None")
-        if self.runtime not in {LEGACY_RUNTIME, LOOP_RUNTIME, FINITE_HORIZON_RUNTIME}:
+        if self.runtime not in {
+            LEGACY_RUNTIME,
+            LOOP_RUNTIME,
+            FINITE_HORIZON_RUNTIME,
+            FOUR_STATE_FINITE_HORIZON_RUNTIME,
+        }:
             raise ValueError("expected course runtime profile is not admitted")
         _digest(self.base_state_sha256, length=64, field="expected base state SHA-256")
         _digest(self.source_commit, length=40, field="expected source commit")
@@ -227,7 +233,11 @@ def _resource_linkage(
 
 
 def _updates(
-    run_root: Path, manifest: dict[str, object], trainer: CourseTrainerSpec | None
+    run_root: Path,
+    manifest: dict[str, object],
+    trainer: CourseTrainerSpec | None,
+    *,
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
 ) -> dict[str, object]:
     filename = telemetry_filename(
         reward_scale=(trainer.total_training_reward_scale if trainer is not None else None),
@@ -236,6 +246,7 @@ def _updates(
             if trainer is not None and trainer.uses_fixed_observation_normalizer
             else None
         ),
+        runtime=runtime,
     )
     outputs = manifest["outputs"]
     if type(outputs) is not dict or filename not in outputs:
@@ -389,7 +400,12 @@ def _score_cell(
         )
     ]
     objective = manifest["final_policy"]["objective_evaluation"]
-    updates = _updates(run_root, manifest, expectation.trainer)
+    updates = _updates(
+        run_root,
+        manifest,
+        expectation.trainer,
+        runtime=expectation.runtime,
+    )
     expected_updates = expectation.training_steps // 512
     if updates["update_count"] != expected_updates:
         raise ValueError("training update count differs from the fixed budget")
