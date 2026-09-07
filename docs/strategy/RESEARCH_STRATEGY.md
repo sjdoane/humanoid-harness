@@ -4,7 +4,7 @@
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 38 training runs and about 2.4M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
 | bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a 0.50 m dip gate that no retained run has met (best 0.494 to 0.516 m). Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration); that bounds what the supplied reference specifies, not what the plant can reach, so depth stays a measured quantity rather than an established impossibility. The bounded depth reward (study 014) was active and did not deepen the crouch. |
-| next step | Studies 015 to 018 are done: after-crop, heading feedback and the execution-derived reference were rejected on their screens, and the first trained pair on the surviving four-state composition stopped at its baseline (compliance and heading-mediated speed failures, training return falling while falls rose). Recommended next stage, Astra's call and not yet declared: a course-signal availability study that trains on the 018 baseline's exact pins with a non-saturating heading and lateral reward signal (new recipe fields, data-only contrast), read out on the after-window turning rate against the zero-residual 0.084 rad/s and on the training fall trend; if steering does not appear with the signal active, the lateral problem returns to reference content. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed, and continuing to study the gate needs no new decision from him. |
+| next step | Astra's call and not yet declared, in this order: first a data-only oracle probe that lowers the before-to-inside guard so the posture region is entered on a crouch-reference trough instead of the 0.639 m peak (compliance row at or above 0.85, minutes at zero residual, firewall-validated proposal held by Fable); then a course-signal availability study that trains on the 018 baseline's exact pins with a non-saturating heading and lateral reward signal (new recipe fields, data-only contrast), read out on the after-window turning rate against the zero-residual 0.084 rad/s and on the training fall trend; if steering does not appear with the signal active, the lateral problem returns to reference content. For depth, the reference remains the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed, and continuing to study the gate needs no new decision from him. |
 
 ## Fable's authority
 
@@ -558,6 +558,25 @@ What follows for strategy:
    entry, the trained residual turned faster. Residual steering under this
    trainer is therefore demonstrated, and the open question on O7b is signal
    availability (two substrates, one seed each: consistent with, not proof).
+   Compliance has its own measured cause (Astra's post-hoc diagnosis,
+   reproduced by Fable): the crouch reference bobs, with peaks at crouch
+   phase 1.16 s (0.639 m, above the 0.60 m band ceiling) and 2.12 s (0.584 m)
+   and troughs at 0.62, 1.70 and 2.60 s (0.47, 0.43, 0.45 m), and the physical
+   region is entered at phase 1.1 s, on the high peak; 15 of the 24
+   non-compliant samples in A were commanded above the ceiling by the
+   reference itself, and the executed height sits 0.07 to 0.08 m above the
+   contact-inconsistent troughs in both arms. The reference alone caps
+   compliance near 0.79 for A's visit under exact tracking and near 0.59 with
+   the measured tracking offset, so the 0.75 admission floor was set by a
+   phase accident. The cheapest next test is therefore a data-only oracle
+   probe, not a training: lower the before-to-inside guard from 0.65 m to
+   about 0.40 m so the region is entered on the 1.70 s trough (kinematic
+   estimate from the retained trace: entry near phase 1.56 s), with a
+   manipulation check on the entry phase and a preregistered compliance row
+   at or above 0.85; depth is not expected to change. Fable holds a
+   firewall-validated proposal for this probe pending Astra's declaration;
+   the course-signal training stays a separate, later study, and the two
+   changes are never combined in one arm.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
