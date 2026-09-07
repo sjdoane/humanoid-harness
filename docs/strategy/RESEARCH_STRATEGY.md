@@ -548,7 +548,16 @@ What follows for strategy:
    availability study that trains on A's exact pins with a non-saturating
    heading and lateral signal as new recipe fields, read out on the
    after-window turning rate against the zero-residual 0.084 rad/s and on the
-   training fall trend; a second seed of A ranks below it.
+   training fall trend; a second seed of A ranks below it. A family audit of
+   the same turning rate supplies the positive control: on the O2 substrate,
+   where the after-entry course error sits inside the reward's informative
+   range (0.57 m against a 1.0 m lateral scale, 0.32 rad against a 0.5 rad
+   heading scale), two of the three trained residuals turned less than their
+   zero-residual control and the study 012 candidate held heading almost
+   exactly; on O7b, where the lateral error is already 1.4 to 2.3 m at after
+   entry, the trained residual turned faster. Residual steering under this
+   trainer is therefore demonstrated, and the open question on O7b is signal
+   availability (two substrates, one seed each: consistent with, not proof).
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
