@@ -29,6 +29,7 @@ BASE_RESOURCE = "ea00072569e159b8f04b1b7c801296b19297559b0ed91f04ec4077551cb429b
 BASE_CONFIG = "ba45dba36ef88bdc522ed2115e46a4b3d876e00a627a089fd56ddf0de623e18a"
 BASE_SOURCE = "3cb3102d5cb2e3a8603663df13ed50b5d6cad0cb"
 BASE_TREE = "3ba7fe0ab72374e0667402848460c43915024fbcd2fe44f9ce5de791f0ab8b8e"
+CANDIDATE_CONFIG = "8fe33d993c6226690e986e99de3d0d1ee436424239069c4cceb91c1a8fabfc8e"
 PROFILE = "gmt_g1_four_state_loop_after_heading_feedback_course/v1"
 GYM_PROFILE = "gmt_g1_residual_course_four_state_after_heading_feedback_50hz/v1"
 TRACE_KEY = "after_heading_reference_feedback"
@@ -70,6 +71,21 @@ def verify_reset(control: dict, candidate: dict) -> None:
     ).manifest_contract()
     if observed != expected:
         raise ValueError("reset differs beyond the declared runtime metadata")
+
+
+def verify_runtime_inputs(control: dict, candidate: dict) -> None:
+    from oracle_composition.adapters.gmt.course_runtime import runtime_profile_from_config
+
+    normalized = []
+    for run in (control, candidate):
+        record = deepcopy(run["resource_fixed_inputs"])
+        declared = runtime_profile_from_config(run["config"]).manifest_contract()
+        if record.get("course_runtime") != declared:
+            raise ValueError("resource runtime metadata differs from its exact declared profile")
+        del record["course_runtime"]
+        normalized.append(record)
+    if normalized[0] != normalized[1]:
+        raise ValueError("fresh arms differ beyond declared runtime resource metadata")
 
 
 def steering_measures(run: dict) -> dict:
@@ -223,6 +239,7 @@ def score_study(inputs: dict) -> dict:
         or baseline.source_commit != BASE_SOURCE
         or control.config_sha256 != BASE_CONFIG
         or candidate.config_sha256 != inputs["candidate_config_sha256"]
+        or inputs["candidate_config_sha256"] != CANDIDATE_CONFIG
         or candidate.source_commit != control.source_commit
         or control.reservation_path is None
         or candidate.reservation_path is None
@@ -248,9 +265,8 @@ def score_study(inputs: dict) -> dict:
         baseline["outputs"][name] != control["outputs"][name] for name in shared._COMPARABLE_OUTPUTS
     ):
         raise ValueError("fresh legacy control must byte-reproduce all three retained outputs")
-    if control["resource_fixed_inputs"] != candidate["resource_fixed_inputs"]:
-        raise ValueError("fresh arms differ in non-config resource inputs")
     verify_config(control["config"], candidate["config"])
+    verify_runtime_inputs(control, candidate)
     verify_reset(control, candidate)
     prefix = verify_intervention(control, candidate)
     measures = shared.candidate_measures(

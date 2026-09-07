@@ -48,6 +48,29 @@ def test_only_declared_profile_change_is_allowed(scorer):
             scorer.verify_config(control, wrong)
 
 
+def test_resource_inputs_allow_only_exact_declared_runtime_metadata(scorer):
+    from oracle_composition.adapters.gmt.course_runtime import runtime_profile_from_config
+
+    control = {"config": _config()}
+    candidate = copy.deepcopy(control)
+    candidate["config"]["schema_version"] = 4
+    candidate["config"]["runtime"]["profile_id"] = scorer.PROFILE
+    for run in (control, candidate):
+        run["resource_fixed_inputs"] = {
+            "course_runtime": runtime_profile_from_config(run["config"]).manifest_contract(),
+            "all_other_inputs": {"source": "fixed", "actor": "fixed"},
+        }
+    scorer.verify_runtime_inputs(control, candidate)
+    wrong = copy.deepcopy(candidate)
+    wrong["resource_fixed_inputs"]["course_runtime"]["training_admitted"] = True
+    with pytest.raises(ValueError, match="exact declared profile"):
+        scorer.verify_runtime_inputs(control, wrong)
+    wrong = copy.deepcopy(candidate)
+    wrong["resource_fixed_inputs"]["all_other_inputs"]["actor"] = "changed"
+    with pytest.raises(ValueError, match="beyond declared runtime"):
+        scorer.verify_runtime_inputs(control, wrong)
+
+
 def _run(scorer, *, initial_yaw=0.0):
     qpos = np.zeros((267, 30), dtype=np.float64)
     qpos[:, :2] = [2.0, -3.0]

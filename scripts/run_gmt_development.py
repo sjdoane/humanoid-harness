@@ -299,9 +299,7 @@ def _load_parity(path: Path) -> _LoadedWorkload:
     weights = _file_binding(weights_path, weights_sha256, field="actor weights")
     motion = _file_binding(motion_path, motion_sha256, field="motion")
     trace = _file_binding(trace_path, trace_sha256, field="retained trace")
-    replay_manifest = _file_binding(
-        manifest_path, manifest_sha256, field="replay manifest"
-    )
+    replay_manifest = _file_binding(manifest_path, manifest_sha256, field="replay manifest")
     receipt_inputs = {
         "upstream_commit": GMT_UPSTREAM_COMMIT,
         "trace": {"path": trace_path.name, "sha256": trace_sha256},
@@ -403,9 +401,7 @@ def _load_course(path: Path) -> _LoadedWorkload:
             "task": config.task.sha256,
             "oracle": config.program.sha256,
             "reward": config.recipe.sha256,
-            "segments": {
-                name: segment.sha256 for name, segment in config.segments.items()
-            },
+            "segments": {name: segment.sha256 for name, segment in config.segments.items()},
         },
     )
 
@@ -830,9 +826,7 @@ def _validate_training_record(
         or type(value["falls"]) is not int
         or not 0 <= value["falls"] <= value["episodes"]
         or value["policy_artifact"] != "numeric_weights_not_optimizer_resume"
-        or _sha256(
-            value["frozen_base_state_before_sha256"], field="frozen base state before"
-        )
+        or _sha256(value["frozen_base_state_before_sha256"], field="frozen base state before")
         != _sha256(value["frozen_base_state_after_sha256"], field="frozen base state after")
     ):
         raise supervisor.ProbeError("course training record differs from the fixed budget")
@@ -842,21 +836,16 @@ def _validate_training_record(
                 value["telemetry"],
                 telemetry_encoded,
                 steps,
-                reward_scale=(
-                    trainer.total_training_reward_scale if trainer is not None else None
-                ),
+                reward_scale=(trainer.total_training_reward_scale if trainer is not None else None),
                 fixed_normalizer_sha256=(
                     FIXED_NORMALIZER_STATE_SHA256
-                    if trainer is not None
-                    and trainer.uses_fixed_observation_normalizer
+                    if trainer is not None and trainer.uses_fixed_observation_normalizer
                     else None
                 ),
             )
         except ValueError as exc:
             raise supervisor.ProbeError(str(exc)) from exc
-    if trainer is not None and value["reward_preconditioning"] != training_reward_metadata(
-        trainer
-    ):
+    if trainer is not None and value["reward_preconditioning"] != training_reward_metadata(trainer):
         raise supervisor.ProbeError("course reward preconditioning metadata differs")
     if (
         trainer is not None
@@ -1014,10 +1003,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         trainer=effective_training_contract(loaded.course_trainer),
         residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
     )
-    if (
-        frozen_runtime != expected_runtime
-        or not isinstance(manifest.get("runtime"), Mapping)
-    ):
+    if frozen_runtime != expected_runtime or not isinstance(manifest.get("runtime"), Mapping):
         raise supervisor.ProbeError("course runtime provenance is missing")
     if loaded.course_runtime.after_heading_reference_feedback:
         from oracle_composition.feedback.g1_course import build_g1_course_feedback
@@ -1028,7 +1014,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
                     manifest_path=manifest_path,
                     expected_manifest_sha256=manifest_sha256,
                     label="zero_residual",
-                    output=Path(temporary) / "feedback",
+                    output=Path(temporary).resolve(strict=True) / "feedback",
                 )
         except ValueError as exc:
             raise supervisor.ProbeError(
@@ -1121,10 +1107,15 @@ def _run_parity_child(config_path: Path, output: Path) -> dict[str, object]:
     from oracle_composition.adapters.gmt.parity import RuntimeParityConfig, run_runtime_parity
 
     output = supervisor._absolute(output)
-    if not output.is_dir() or output.is_symlink() or _output_names(output) != {
-        supervisor.STDOUT_FILENAME,
-        supervisor.STDERR_FILENAME,
-    }:
+    if (
+        not output.is_dir()
+        or output.is_symlink()
+        or _output_names(output)
+        != {
+            supervisor.STDOUT_FILENAME,
+            supervisor.STDERR_FILENAME,
+        }
+    ):
         raise supervisor.ProbeError("parity child requires the fresh supervisor output directory")
     loaded = _load_parity(config_path)
     raw = loaded.raw

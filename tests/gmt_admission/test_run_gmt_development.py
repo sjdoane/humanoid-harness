@@ -227,9 +227,7 @@ def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
     )
     monkeypatch.setattr(telemetry_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
     monkeypatch.setattr(DEVELOPMENT, "FIXED_NORMALIZER_STATE_SHA256", digest)
-    return FixedNormalizerState.from_arrays(
-        mean, standard_deviation, expected_sha256=digest
-    )
+    return FixedNormalizerState.from_arrays(mean, standard_deviation, expected_sha256=digest)
 
 
 def _write_course_result(
@@ -324,9 +322,7 @@ def _write_course_result(
         if loaded.course_trainer is not None:
             training["reward_preconditioning"] = training_reward_metadata(loaded.course_trainer)
         if fixed_state is not None:
-            training["observation_preconditioning"] = (
-                fixed_normalizer_policy_metadata()
-            )
+            training["observation_preconditioning"] = fixed_normalizer_policy_metadata()
         final_policy = _summary(residual_rms=0.02)
     manifest = {
         "schema_version": 1,
@@ -417,9 +413,7 @@ def test_course_verifier_rebuilds_after_heading_feedback_evidence(
 
     assert observed["manifest_path"] == plan.config.output_directory / "course_run_manifest.json"
     assert observed["label"] == "zero_residual"
-    assert plan.inputs["course_runtime"] == (
-        AFTER_HEADING_FEEDBACK_RUNTIME.manifest_contract()
-    )
+    assert plan.inputs["course_runtime"] == (AFTER_HEADING_FEEDBACK_RUNTIME.manifest_contract())
 
 
 def test_course_verifier_rejects_unreconstructable_after_heading_feedback(
@@ -438,6 +432,43 @@ def test_course_verifier_rejects_unreconstructable_after_heading_feedback(
 
     with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="failed reconstruction"):
         DEVELOPMENT.verify_development_completed(plan)
+
+
+def test_heading_verification_resolves_symlinked_temp_root_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from oracle_composition.experiments.artifact_io import publish_json_without_overwrite
+    from oracle_composition.feedback import g1_course as feedback_module
+
+    plan, loaded = _plan(tmp_path, heading_feedback_runtime=True)
+    _write_course_result(plan, loaded)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+    real_root = tmp_path.resolve() / "real-temporary-root"
+    real_root.mkdir()
+    linked_root = tmp_path.resolve() / "linked-temporary-root"
+    linked_root.symlink_to(real_root, target_is_directory=True)
+    temporary_directory = DEVELOPMENT.tempfile.TemporaryDirectory
+    monkeypatch.setattr(
+        DEVELOPMENT.tempfile,
+        "TemporaryDirectory",
+        lambda **kwargs: temporary_directory(dir=linked_root, **kwargs),
+    )
+    published = []
+
+    def rebuild(**kwargs):
+        output = kwargs["output"]
+        output.mkdir()
+        published.append(
+            publish_json_without_overwrite(
+                output / "feedback_v1.json", {"fixture": "real descriptor-bound publication"}
+            )
+        )
+        return {}
+
+    monkeypatch.setattr(feedback_module, "build_g1_course_feedback", rebuild)
+    DEVELOPMENT.verify_development_completed(plan)
+    assert len(published) == 1
+    assert published[0].path.is_relative_to(real_root)
 
 
 def test_course_verifier_accepts_exact_finite_horizon_runtime(
@@ -509,13 +540,9 @@ def test_course_verifier_rejects_changed_v3_normalizer_receipts(
         scaled=True,
         fixed_normalizer=True,
     )
-    manifest = _write_course_result(
-        plan, loaded, telemetry=True, fixed_state=state
-    )
+    manifest = _write_course_result(plan, loaded, telemetry=True, fixed_state=state)
     if mutation == "metadata":
-        manifest["training"]["observation_preconditioning"][
-            "normalizer_state_sha256"
-        ] = "0" * 64
+        manifest["training"]["observation_preconditioning"]["normalizer_state_sha256"] = "0" * 64
     else:
         path = plan.config.output_directory / "final_residual_policy.npz"
         with np.load(path, allow_pickle=False) as archive:
@@ -530,9 +557,7 @@ def test_course_verifier_rejects_changed_v3_normalizer_receipts(
     )
     monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
 
-    with pytest.raises(
-        DEVELOPMENT.supervisor.ProbeError, match=r"normalizer|preconditioning"
-    ):
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match=r"normalizer|preconditioning"):
         DEVELOPMENT.verify_development_completed(plan)
 
 

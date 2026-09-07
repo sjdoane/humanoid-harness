@@ -82,6 +82,12 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
   `ba45dba36ef88bdc522ed2115e46a4b3d876e00a627a089fd56ddf0de623e18a`.
 - Retained manifest SHA:
   `92e2a72f743bded8b2694760c7492f8d35f0829489415a05c3afff6ec459944a`.
+- Candidate config SHA:
+  `8fe33d993c6226690e986e99de3d0d1ee436424239069c4cceb91c1a8fabfc8e`.
+  Its only changes are schema version 4 and profile
+  `gmt_g1_four_state_loop_after_heading_feedback_course/v1`.
+- Saturation means the unclipped float32 total is **at or above** either
+  absolute limit; native-limit exceedance is strictly above the limit.
 - First run the legacy control at new source. All three evidence outputs must
   reproduce byte-for-byte before enabling feedback. No metadata exception here.
 - Enabled arm: seed `20260906`, zero residual, 1,000 steps, one bounded job.
