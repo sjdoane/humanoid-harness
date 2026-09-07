@@ -2,8 +2,8 @@
 
 | progress | 37 bounded training runs / 2,293,760 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | State feedback reduces heading and lateral drift but still fails containment. Depth remains unachieved. |
-| next step | Test the new execution-derived reference with the frozen tracker before further training. |
+| bottleneck | No full-task pass. Study017 completes four stages but the new reference fails depth fidelity and worsens posture compliance. |
+| next step | Reject the exact derived bundle for training; review native-reference four-state learning versus a narrowly controlled reference continuation. |
 
 - [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
   zero-residual four-stage composition survives, with no upright revisit.
@@ -14,10 +14,12 @@
   lateral drift 10.940→5.043 m, with 20 s survival and three switches.
   The fixed law fails its lateral screen and is rejected for advancement.
   Original 9/11 task gates remain; no new training or full-task pass.
-- Execution-derived reference generated from Study012: 106 poses at 50 Hz,
-  minimum height 0.504942 m, 106-pose static foot-only contact screen with
-  15.431 mm maximum foot overlap. Numeric archive and producer provenance are
-  pinned; **not yet admitted, re-tracked or dynamics certified**.
+- [Study017 result](../../../experiments/017_g1_execution_derived_reference/RESULTS.md):
+  an execution-derived reference was admitted for probes and re-tracked with
+  no falls and all four stages. Physical-region minimum height0.532951 m misses
+  the 0.020 m donor-fidelity tolerance; posture compliance falls to34.1%.
+  Reject training admission. The result includes a disclosed dispatch sequencing
+  deviation; exact control parity was established afterward. No dynamics certificate.
 - [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
   LLM depth reward revision completed 131,072 transitions and failed its depth
   prediction. Correct finite-horizon semantics from Study012 remain separate

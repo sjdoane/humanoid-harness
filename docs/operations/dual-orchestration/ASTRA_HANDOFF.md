@@ -1,11 +1,30 @@
 # Astra orchestration handoff
 
-| progress | 37 training runs / 2,293,760 transitions. Study016 completed; derived reference admitted for probes only. |
+| progress | 37 training runs / 2,293,760 transitions. Study017 paired probes completed and scored; new replay available. |
 |---|---|
-| bottleneck | No full-task pass. After feedback reduces drift but fails its lateral screen; depth unresolved. |
-| next step | Finish the Study017 scorer, seal the pair, and re-track the exact derived reference. Fable reviews/ideates only. |
+| bottleneck | No full-task pass. Study017 reference survives but misses depth fidelity and worsens posture compliance. |
+| next step | Reject that exact bundle for training. Finish review of the isolated four-state training prerequisite and choose the next bounded contrast with Fable. |
 
-## Current checkpoint: 2026-09-07 08:35 UTC
+## Current checkpoint: 2026-09-07 09:03 UTC
+
+- [Study017 result](../../../experiments/017_g1_execution_derived_reference/RESULTS.md):
+  sealed pair at `d189d5a`, both terminal/released. Score SHA
+  `8baebd4bd8ae2566c4460ab769dc23e331b51bad1cd995adbda8914815d2632f`.
+  Full control parity and prefix92/93 verify; feasibility fails depth28.0 mm
+  above donor against20 mm tolerance. Original8/11 gates; no training admission.
+- Dispatch preceded completion of the control verifier after its temp-path
+  error. Exact parity established afterward by root and Fable; retain the
+  deviation, no outcome-selected repeat. Verification/launch are separate calls.
+- Recorded-state GIF: sibling `gmt_course_study017_derived_recorded_20260907.gif`,
+  401 frames, no actor/dynamics rerun. Source freeze ended after sealed scoring.
+- Four-state training prerequisite delivered clean `b3cace5` + `6c4244a` in
+  `humanoid-harness-four-state-training`; root read both diffs and tests,
+  independent Sol review in progress. Not imported and no new training yet.
+- Root strategy question to Fable: native O7b fixed-oracle reward-learning pair
+  versus donor-continuation contrast. Do not promote the failed derived bundle
+  or silently combine a new reward, reference and runtime.
+
+## Earlier checkpoint: 2026-09-07 08:35 UTC
 
 - Exact derived admission imported as `05d0808` from clean peer `465c9c4`.
   Parent: 117 adjacent tests plus 33 launcher tests pass; Ruff clean. The
