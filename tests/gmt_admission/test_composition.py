@@ -5,6 +5,7 @@ import pytest
 import torch
 
 from oracle_composition.adapters.gmt.composition import ComposedReference, ReferenceSegment
+from oracle_composition.adapters.gmt.contracts import CONTROL_DT_SECONDS, REFERENCE_OFFSETS
 from oracle_composition.adapters.gmt.reference_runtime import ReferenceMotion
 from oracle_composition.harness.contract import oracle_program_from_dict
 
@@ -141,3 +142,101 @@ def test_invalid_entry_or_boundary_rejected():
         ReferenceSegment(motion(0.8), "a" * 64, 0.0, 10.0, 10.0)
     with pytest.raises(ValueError, match="boundary"):
         ReferenceSegment(motion(0.8), "a" * 64, 0.0, 10.0, boundary="guess")
+
+
+def test_entry_runs_once_then_only_the_declared_native_subwindow_repeats():
+    source = motion(0.8)
+    source.root_position[:, 2] = torch.arange(source.frame_count, dtype=torch.float32) / 30.0
+    segment = ReferenceSegment(
+        source,
+        "a" * 64,
+        2.7,
+        4.86,
+        entry_phase_end_seconds=0.15,
+        boundary="entry_once_then_loop",
+        loop_start_seconds=3.9,
+    )
+    phases = torch.tensor([0.0, 1.19, 2.159, 2.16, 2.26, 3.12], dtype=torch.float32)
+
+    observed = segment.features(phases)
+    expected_times = torch.tensor([2.7, 3.89, 4.859, 3.9, 4.0, 3.9], dtype=torch.float32)
+    expected = source.features(expected_times)
+
+    np.testing.assert_allclose(observed.numpy(), expected.numpy(), rtol=0, atol=1.0e-5)
+    assert segment.reported_phase(torch.tensor(2.16)) == pytest.approx(1.2)
+    assert segment.reported_phase(torch.tensor(3.12)) == pytest.approx(1.2)
+    assert segment.identity["loop_start_seconds"] == 3.9
+    assert segment.sha256 != ReferenceSegment(source, "a" * 64, 2.7, 4.86, 0.15).sha256
+
+
+def test_entry_loop_current_and_future_window_share_one_boundary_mapping():
+    source = motion(0.8)
+    source.root_position[:, 2] = torch.arange(source.frame_count, dtype=torch.float32) / 30.0
+    segment = ReferenceSegment(
+        source,
+        "a" * 64,
+        2.7,
+        4.86,
+        entry_phase_end_seconds=0.15,
+        boundary="entry_once_then_loop",
+        loop_start_seconds=3.9,
+    )
+    phase = torch.tensor(segment.duration - CONTROL_DT_SECONDS, dtype=torch.float32)
+    offsets = torch.tensor(REFERENCE_OFFSETS, dtype=torch.float32) * CONTROL_DT_SECONDS
+
+    current = segment.features(phase.reshape(1))[0]
+    window = segment.features(phase + offsets)
+
+    np.testing.assert_allclose(
+        current.numpy(), source.features(torch.tensor([4.84]))[0].numpy(), rtol=0, atol=1.0e-5
+    )
+    np.testing.assert_allclose(
+        window.numpy(),
+        source.features(
+            torch.tensor(
+                [
+                    3.9,
+                    3.98,
+                    4.08,
+                    4.18,
+                    4.28,
+                    4.38,
+                    4.48,
+                    4.58,
+                    4.68,
+                    4.78,
+                    3.92,
+                    4.02,
+                    4.12,
+                    4.22,
+                    4.32,
+                    4.42,
+                    4.52,
+                    4.62,
+                    4.72,
+                    4.82,
+                ]
+            )
+        ).numpy(),
+        rtol=0,
+        atol=1.0e-5,
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"boundary": "entry_once_then_loop"},
+        {"boundary": "entry_once_then_loop", "loop_start_seconds": 2.7},
+        {"boundary": "entry_once_then_loop", "loop_start_seconds": 4.86},
+        {
+            "entry_phase_end_seconds": 1.3,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+        },
+        {"boundary": "wrap_within_segment", "loop_start_seconds": 3.9},
+    ],
+)
+def test_malformed_entry_loop_bounds_are_rejected(kwargs):
+    with pytest.raises(ValueError, match="loop"):
+        ReferenceSegment(motion(0.8), "a" * 64, 2.7, 4.86, **kwargs)

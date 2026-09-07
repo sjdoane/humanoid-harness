@@ -13,9 +13,10 @@ from oracle_composition.contracts.reference_identity_v2 import canonical_json_by
 from oracle_composition.harness.contract import OracleMachine, OracleProgram
 
 from .contracts import CONTROL_DT_SECONDS, REFERENCE_OFFSETS
+from .course_runtime import LEGACY_COMPOSITION_RUNTIME_ID
 from .reference_runtime import ReferenceMotion
 
-COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_and_boundary/v2"
+COMPOSITION_RUNTIME_ID = LEGACY_COMPOSITION_RUNTIME_ID
 # Pose matching is a transfer heuristic, not the independent task evaluator.
 POSE_SCALES = np.asarray([0.15, 0.35, 0.35] + [0.35] * 23, dtype=np.float64)
 POSE_COLUMNS = [0, 1, 2, *range(7, 30)]
@@ -29,6 +30,7 @@ class ReferenceSegment:
     end_seconds: float
     entry_phase_end_seconds: float | None = None
     boundary: str = "wrap_within_segment"
+    loop_start_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -39,14 +41,29 @@ class ReferenceSegment:
             or self.duration < CONTROL_DT_SECONDS
         ):
             raise ValueError("reference segment bounds or parent identity differ")
-        if self.boundary not in {"wrap_within_segment", "hold_last_pose_zero_velocity"}:
-            raise ValueError("segment boundary must declare wrap or stationary terminal hold")
+        if self.boundary not in {
+            "wrap_within_segment",
+            "hold_last_pose_zero_velocity",
+            "entry_once_then_loop",
+        }:
+            raise ValueError("segment boundary semantics differ")
         if self.entry_phase_end_seconds is not None and (
             type(self.entry_phase_end_seconds) is not float
             or not np.isfinite(self.entry_phase_end_seconds)
             or not 0.0 <= self.entry_phase_end_seconds < self.duration
         ):
             raise ValueError("entry phase must lie within the segment")
+        if self.boundary == "entry_once_then_loop":
+            if (
+                type(self.loop_start_seconds) is not float
+                or not np.isfinite(self.loop_start_seconds)
+                or not self.start_seconds < self.loop_start_seconds < self.end_seconds
+                or self.entry_phase_end_seconds is None
+                or self.entry_phase_end_seconds >= self.loop_start_seconds - self.start_seconds
+            ):
+                raise ValueError("entry-loop bounds must preserve an initial entry interval")
+        elif self.loop_start_seconds is not None:
+            raise ValueError("loop start requires entry-once-then-loop boundary semantics")
 
     @property
     def duration(self) -> float:
@@ -64,11 +81,30 @@ class ReferenceSegment:
         }
         if self.entry_phase_end_seconds is not None:
             result["entry_phase_end_seconds"] = self.entry_phase_end_seconds
+        if self.loop_start_seconds is not None:
+            result["loop_start_seconds"] = self.loop_start_seconds
         return result
 
     @property
     def sha256(self) -> str:
         return hashlib.sha256(canonical_json_bytes(self.identity)).hexdigest()
+
+    def _entry_loop_phase(self, phase_seconds: torch.Tensor) -> torch.Tensor:
+        assert self.loop_start_seconds is not None
+        loop_start = self.loop_start_seconds - self.start_seconds
+        loop_duration = self.end_seconds - self.loop_start_seconds
+        tolerance = torch.finfo(phase_seconds.dtype).eps * max(self.end_seconds, 1.0) * 4
+        remainder = torch.remainder(phase_seconds - self.duration, loop_duration)
+        remainder = torch.where(
+            torch.abs(remainder - loop_duration) <= tolerance,
+            torch.zeros_like(remainder),
+            remainder,
+        )
+        return torch.where(
+            phase_seconds < self.duration - tolerance,
+            phase_seconds,
+            loop_start + remainder,
+        )
 
     def features(self, phase_seconds: torch.Tensor) -> torch.Tensor:
         if self.boundary == "hold_last_pose_zero_velocity":
@@ -78,6 +114,8 @@ class ReferenceSegment:
             features = self.motion.features(times)
             features[phase_seconds >= self.duration, 3:7] = 0.0
             return features
+        if self.boundary == "entry_once_then_loop":
+            return self.motion.features(self.start_seconds + self._entry_loop_phase(phase_seconds))
         if self.start_seconds == 0 and self.end_seconds == float(self.motion.duration):
             # Preserve the original full-clip interpolation's exact arithmetic.
             return self.motion.features(phase_seconds)
@@ -99,6 +137,8 @@ class ReferenceSegment:
     def reported_phase(self, phase: torch.Tensor) -> float:
         if self.boundary == "hold_last_pose_zero_velocity":
             return float(phase.clamp(0, self.duration))
+        if self.boundary == "entry_once_then_loop":
+            return float(self._entry_loop_phase(phase))
         return float(phase.remainder(self.duration))
 
 

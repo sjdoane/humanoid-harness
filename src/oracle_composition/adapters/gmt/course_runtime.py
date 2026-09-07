@@ -1,0 +1,142 @@
+"""Versioned runtime profiles for the bounded G1 course family."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+from .contracts import OBSERVATION_DIM
+from .course_task import TASK_FEATURE_NAMES
+
+LEGACY_CONFIG_SCHEMA_VERSION = 1
+LOOP_CONFIG_SCHEMA_VERSION = 2
+LOOP_RUNTIME_PROFILE_ID = "gmt_g1_four_state_loop_course/v1"
+LEGACY_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_and_boundary/v2"
+LOOP_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_loop_boundary/v3"
+LEGACY_GYM_RUNTIME_ID = "gmt_g1_residual_course_50hz/v1"
+LOOP_GYM_RUNTIME_ID = "gmt_g1_residual_course_four_state_50hz/v2"
+LEGACY_STATE_SLOTS = ("before", "inside", "after")
+LOOP_STATE_SLOTS = ("before", "inside", "rise", "after")
+_REQUIRED_STATES = frozenset(LEGACY_STATE_SLOTS)
+_LOOP_CONFIG_VALUE = {
+    "schema_version": 1,
+    "profile_id": LOOP_RUNTIME_PROFILE_ID,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class CourseRuntimeProfile:
+    """One closed runtime vocabulary; not an authorable hyperparameter bundle."""
+
+    config_schema_version: int
+    profile_id: str | None
+    composition_runtime_id: str
+    gym_runtime_id: str
+    state_slots: tuple[str, ...]
+    permits_entry_loop: bool
+    training_admitted: bool
+
+    @property
+    def observation_dim(self) -> int:
+        return OBSERVATION_DIM + len(TASK_FEATURE_NAMES) + 3 + len(self.state_slots)
+
+    @property
+    def config_value(self) -> dict[str, object] | None:
+        return None if self.profile_id is None else dict(_LOOP_CONFIG_VALUE)
+
+    def validate_states(self, states: Mapping[str, object]) -> None:
+        observed = set(states)
+        valid = observed == _REQUIRED_STATES
+        if self.permits_entry_loop:
+            valid = valid or observed == frozenset(LOOP_STATE_SLOTS)
+        if not valid:
+            family = (
+                "three-state legacy or four-state loop" if self.permits_entry_loop else "legacy"
+            )
+            raise ValueError(f"oracle states differ from the {family} runtime profile")
+
+    def manifest_contract(self) -> dict[str, object] | None:
+        if self.profile_id is None:
+            return None
+        return {
+            "schema_version": 1,
+            "profile_id": self.profile_id,
+            "state_observation_slots": list(self.state_slots),
+            "training_admitted": self.training_admitted,
+        }
+
+
+LEGACY_RUNTIME = CourseRuntimeProfile(
+    config_schema_version=LEGACY_CONFIG_SCHEMA_VERSION,
+    profile_id=None,
+    composition_runtime_id=LEGACY_COMPOSITION_RUNTIME_ID,
+    gym_runtime_id=LEGACY_GYM_RUNTIME_ID,
+    state_slots=LEGACY_STATE_SLOTS,
+    permits_entry_loop=False,
+    training_admitted=True,
+)
+LOOP_RUNTIME = CourseRuntimeProfile(
+    config_schema_version=LOOP_CONFIG_SCHEMA_VERSION,
+    profile_id=LOOP_RUNTIME_PROFILE_ID,
+    composition_runtime_id=LOOP_COMPOSITION_RUNTIME_ID,
+    gym_runtime_id=LOOP_GYM_RUNTIME_ID,
+    state_slots=LOOP_STATE_SLOTS,
+    permits_entry_loop=True,
+    training_admitted=False,
+)
+
+
+def runtime_profile_from_config(value: Mapping[str, object]) -> CourseRuntimeProfile:
+    """Resolve only the implicit legacy profile or the exact opt-in loop profile."""
+
+    schema_version = value.get("schema_version")
+    if type(schema_version) is not int:
+        raise ValueError("course run schema version differs")
+    if schema_version == LEGACY_CONFIG_SCHEMA_VERSION:
+        if "runtime" in value:
+            raise ValueError("legacy course config cannot declare a runtime profile")
+        return LEGACY_RUNTIME
+    if schema_version == LOOP_CONFIG_SCHEMA_VERSION:
+        if value.get("runtime") != _LOOP_CONFIG_VALUE:
+            raise ValueError("course loop runtime profile differs")
+        return LOOP_RUNTIME
+    raise ValueError("course run schema version differs")
+
+
+def frozen_runtime_contract(
+    profile: CourseRuntimeProfile,
+    *,
+    trainer: Mapping[str, object],
+    residual_raw_scale: float,
+) -> dict[str, object]:
+    """Return the exact manifest payload while preserving legacy shape."""
+
+    result: dict[str, object] = {
+        "gym": profile.gym_runtime_id,
+        "composition": profile.composition_runtime_id,
+        "observation_dim": profile.observation_dim,
+        "residual_raw_scale": residual_raw_scale,
+        "trainer": dict(trainer),
+    }
+    runtime = profile.manifest_contract()
+    if runtime is not None:
+        result["course_runtime"] = runtime
+    return result
+
+
+__all__ = [
+    "LEGACY_COMPOSITION_RUNTIME_ID",
+    "LEGACY_CONFIG_SCHEMA_VERSION",
+    "LEGACY_GYM_RUNTIME_ID",
+    "LEGACY_RUNTIME",
+    "LEGACY_STATE_SLOTS",
+    "LOOP_COMPOSITION_RUNTIME_ID",
+    "LOOP_CONFIG_SCHEMA_VERSION",
+    "LOOP_GYM_RUNTIME_ID",
+    "LOOP_RUNTIME",
+    "LOOP_RUNTIME_PROFILE_ID",
+    "LOOP_STATE_SLOTS",
+    "CourseRuntimeProfile",
+    "frozen_runtime_contract",
+    "runtime_profile_from_config",
+]
