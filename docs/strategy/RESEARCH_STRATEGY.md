@@ -468,13 +468,17 @@ What follows for strategy:
    predeclared study 017: the asset replaces only the inside segment of the
    unchanged four-state O7b, with a terminal hold and a 2 cm depth-fidelity
    tolerance that is explicitly not the task gate. Fable's review (2026-09-07
-   08:09Z) found the comparison sound and one structural risk: the donor's
-   passage ends only 0.03 m past the 2.05 m exit guard under exact tracking,
-   and the terminal hold is visible in the tracker's 1.9 s lookahead almost
-   from entry, so a stall or fall in the hold would test the bundle's terminal
-   semantics rather than crouch tracking; the recommended remedies are to
-   extend the asset with the donor's following contact-valid rows or to
-   predeclare hold exposure as a bundle-semantics failure.
+   08:09Z, corrected by Astra's indexing at 08:20Z) found the comparison sound
+   and one structural risk: under exact absolute tracking the asset's last
+   boundary lands 0.0006 m short of the 2.05 m exit guard (rebased progress
+   1.394 m from O7b's entry at 0.655 m), and the terminal hold is visible in
+   the tracker's 1.9 s lookahead almost from entry, so a stall or fall in the
+   hold would test the bundle's terminal semantics rather than crouch
+   tracking. Since the tracker follows local velocities rather than absolute
+   position, this is a kinematic risk of unknown sign, not an impossibility.
+   Astra retained the exact 106-pose bundle as one bounded falsifier and
+   added hold exposure, donor and issued speed profiles and a terminal-bundle
+   interpretation to the pre-data rows.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
