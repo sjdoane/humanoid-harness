@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
 import math
+import stat
 import zipfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -20,6 +20,7 @@ from oracle_composition.feedback.g1_course import (
     _verify_boundary_metrics,
     _verify_frame_crosslinks,
 )
+from oracle_composition.harness.contract import decode_json_object
 
 from .actor import load_actor
 from .composition import ComposedReference, ReferenceCommand
@@ -131,6 +132,8 @@ _MAX_MANIFEST_BYTES = 1024 * 1024
 _MAX_CONFIG_BYTES = 256 * 1024
 _MAX_FRAMES_BYTES = 128 * 1024 * 1024
 _MAX_NUMERIC_BYTES = 256 * 1024 * 1024
+_MAX_SUPERVISOR_RECEIPT_BYTES = 512 * 1024
+_SUPERVISOR_RECEIPT_FILENAME = "gmt_probe_resource_receipt_v1.json"
 
 
 def _sha256(value: object, *, field: str) -> str:
@@ -173,13 +176,47 @@ def expected_reference_ablation_outputs() -> set[str]:
 
 
 def _load_json(encoded: bytes, *, source: str) -> dict[str, Any]:
+    return decode_json_object(encoded, source=source)
+
+
+def _validate_optional_supervisor_receipt(output: Path) -> None:
+    path = output / _SUPERVISOR_RECEIPT_FILENAME
     try:
-        value = json.loads(encoded)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise GMTAdmissionError(f"{source} is not valid JSON") from exc
-    if type(value) is not dict:
-        raise GMTAdmissionError(f"{source} must be one JSON object")
-    return value
+        before = path.lstat()
+    except FileNotFoundError:
+        return
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
+    ):
+        raise GMTAdmissionError("supervisor receipt must be a regular non-linked file")
+    if not 0 < before.st_size <= _MAX_SUPERVISOR_RECEIPT_BYTES:
+        raise GMTAdmissionError("supervisor receipt size is outside its bound")
+    encoded = path.read_bytes()
+    after = path.lstat()
+
+    def identity(value: Any) -> tuple[int, int, int, int]:
+        return (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns)
+
+    if identity(before) != identity(after) or len(encoded) != before.st_size:
+        raise GMTAdmissionError("supervisor receipt changed while it was read")
+
+
+def _expected_reset_metadata(config: CourseRunConfig) -> dict[str, object]:
+    result: dict[str, object] = {
+        "runtime_id": config.runtime.gym_runtime_id,
+        "signal_contract_id": "gmt_initial_heading_frame_boundary_signals/v1",
+        "reset_distribution": "fixed_home_keyframe_one_warmup_step",
+        "seed_effect": "policy_training_rng_only_no_reset_randomization",
+        "task_sha256": config.task.sha256,
+        "oracle_sha256": config.program.sha256,
+        "reward_sha256": config.recipe.sha256,
+    }
+    runtime = config.runtime.manifest_contract()
+    if runtime is not None:
+        result["course_runtime"] = runtime
+    return result
 
 
 def _load_audit(encoded: bytes, frame_count: int) -> list[dict[str, Any]]:
@@ -574,12 +611,14 @@ def validate_reference_ablation_artifact(
         REFERENCE_ABLATION_MANIFEST_FILENAME,
         "child_stdout.json",
         "child_stderr.log",
+        _SUPERVISOR_RECEIPT_FILENAME,
     }
     if (
         not {REFERENCE_ABLATION_MANIFEST_FILENAME, *outputs} <= actual_names
         or not actual_names <= allowed
     ):
         raise GMTAdmissionError("reference ablation has unknown or missing output files")
+    _validate_optional_supervisor_receipt(output)
     artifacts = {}
     for name, raw_digest in outputs.items():
         digest = _sha256(raw_digest, field=f"reference ablation output {name}")
@@ -640,9 +679,15 @@ def validate_reference_ablation_artifact(
         )
         trajectories[arm] = trajectory
         reports[arm] = report
-    exact_reset = reports["exact"]["reset"]
-    if any(report["reset"] != exact_reset for report in reports.values()):
-        raise GMTAdmissionError("reference ablation arms did not use the same fixed reset")
+    expected_reset = _expected_reset_metadata(config)
+    if any(report["reset"] != expected_reset for report in reports.values()):
+        raise GMTAdmissionError("reference ablation reset metadata differs from the fixed profile")
+    exact_initial = trajectories["exact"]
+    for arm in REFERENCE_ABLATION_ARMS[1:]:
+        if not _same_bytes(trajectories[arm]["qpos"][0], exact_initial["qpos"][0]):
+            raise GMTAdmissionError("reference ablation initial qpos differs across arms")
+        if not _same_bytes(trajectories[arm]["qvel"][0], exact_initial["qvel"][0]):
+            raise GMTAdmissionError("reference ablation initial qvel differs across arms")
     expected_comparisons = {
         arm: measure_practical_trajectory_divergence(
             trajectories["exact"]["qpos"], trajectories[arm]["qpos"]
