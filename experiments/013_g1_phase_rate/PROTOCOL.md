@@ -3,11 +3,35 @@
 | progress | The current oracle selects modes from robot state but advances within-mode phase on a clock. |
 |---|---|
 | bottleneck | O5 loses forward progress during repeated crouch loops. Clock desynchronization is a hypothesis, not an established cause. |
-| next step | Implement one bounded continuous-rate mechanism; review it before an exact-control/candidate zero-residual pair. |
+| next step | Qualify one balanced reference-loop candidate, then review phase-rate feedback separately. |
+
+## Pre-data amendment: qualify the reference first
+
+- Amended after independent review of `0151e7c`, before any Study013 simulation.
+  No old result or prediction is rewritten. Phase-rate core is still unwired.
+- Stage A: one data-only O7 oracle proposal from O5 feedback. Change only
+  crouch `loop_start_seconds: 3.90 -> 3.78` and `end_seconds: 4.86 -> 5.64`;
+  a new oracle ID records lineage. All other O5 values remain exact.
+- Retain four-state probe-only runtime, zero residual, seed `20260906`, all
+  guards/entry/rise/walk/reward/reset/task/evaluator. No finite-horizon correction
+  or phase-rate code is imported into this source before the probe finishes.
+- Motivation: parent numeric-only audit of pinned motion `a67c364e...2be964`,
+  50 Hz float32 offsets strictly below each window duration. Old/new local
+  sideways velocity means are -0.139243 / +0.000066 m/s (48/93 samples);
+  forward means 0.615116 / 0.608843 m/s. These are reference features, not world
+  displacement, measured robot motion, contact labels or feasibility evidence.
+- Stage A admission: 20 s/no fall, observed region exit, and actual rise/after
+  execution. Report every original task gate; no training follows automatically.
+- A failure ends this qualification; no extra crop or new seed in Stage A.
+- Stage B may proceed only after a successful Stage A and a separate pinned
+  matched protocol using O7 as the fixed reference in both clock/rate arms.
+  The O5-only phase contrast below is superseded before execution; it remains
+  a design record, not permission to select whichever baseline looks better.
 
 ## Frozen hypothesis
 
-- O5 retains its exact clips, crops, guards, base controller, reset, reward,
+- Within a later Stage B, the qualified reference retains its exact clips,
+  crops, guards, base controller, reset, reward,
   task and evaluator. Only the within-crouch phase scheduler changes.
 - No training. No residual policy. No inference of original GMT equivalence.
 - O5 is deliberately a failed development case; this is not held-out evidence.
@@ -29,6 +53,9 @@
   Score mean squared normalized error. Velocity features of each candidate are
   multiplied by its hypothesized rate; pose features are not.
 - This score is a heuristic for selecting phase rate, never an objective gate.
+- It matches a retimed plan, coupling phase and speed; it is not pure phase
+  estimation. Pose/velocity partial costs and opposite-sign choices are useful
+  diagnostics. Velocity discontinuities at the plan's rate boundary are a risk.
 
 ## Issued window and causal order
 
