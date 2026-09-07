@@ -79,8 +79,15 @@ issued_yaw[j]  = clip(native_yaw[j] + correction, -0.3, +0.3) rad/s
 ## Controls and rejection rules
 
 - Both fresh arms use the reviewed 195-file executable tree
-  `c4f5a24e285c01bde06d0c5530631084284eacdf22106d614b6e5ad228d0174d`.
+  `4730ba29718e6aea7c16399eee7249dc784d77693ca1571e13fde9c0d1caee07`.
   Native resource acceptances bind the exact final clean commit separately.
+- Integration-only attempt at `e865a80`: legacy control reproduced all outputs,
+  but the enabled child failed because the evaluator rejected the new trace
+  field. No candidate trajectory/evaluation was published. Failure receipt:
+  `60900382fe4f8d8f2102d8a4d5065859b3cfc0488af726ae170e10bc45a16e8f`.
+  Repair `1decb52` passes the declared profile into the unchanged objective
+  calculations, with a real rollout-to-evaluator publication regression.
+  Fresh `r2` outputs replace neither earlier directory; both arms rerun.
 - Before data, a 25-case independent arithmetic grid checks all 600 window
   values, unchanged channels, held endpoint, counts, fractions and array hashes.
 - Retained O7b config SHA:
