@@ -577,8 +577,10 @@ What follows for strategy:
    at or above 0.85; depth is not expected to change (the troughs are not
    tracked in either arm). Astra declared this
    probe as study 019 (2026-09-07 12:26Z, guard 0.40 m, exploratory oracle
-   screen); Fable holds a firewall-validated proposal to be re-pinned on the
-   fresh same-source control's feedback packet; the course-signal training
+   screen); Astra locked the scorer at 13:15Z and Fable sent its single
+   proposal at 13:16Z (guard 0.40 m, parent O7b, retained feedback packet,
+   hypothesis carrying the post-step manipulation definition); the
+   course-signal training
    is deferred to a separately declared, not yet numbered study, and the two
    changes are never combined in one arm. Route critique on record (2026-09-07 13:50Z,
    retained traces): on every four-state composition the whole-run 0.75 m
