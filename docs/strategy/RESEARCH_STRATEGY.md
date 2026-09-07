@@ -580,7 +580,23 @@ What follows for strategy:
    screen); Fable holds a firewall-validated proposal to be re-pinned on the
    fresh same-source control's feedback packet; the course-signal training
    is deferred to a separately declared study 020, and the two changes are
-   never combined in one arm.
+   never combined in one arm. Route critique on record (2026-09-07 13:50Z,
+   retained traces): on every four-state composition the whole-run 0.75 m
+   lateral gate is lost before the after window (maximum before after entry
+   1.41 m on O7b, 2.31 m on the trained A, 0.97 m with the yaw-free derived
+   inside asset), while the three-state O2 keeps it intact at after entry
+   (0.58 m) and loses it to the after-window direction offset. The pre-after
+   accrual has a hand-over turn of about 0.5 rad between the inside switch
+   and region entry that appears even under a yaw-free inside reference,
+   plus a traverse at that heading that inside content does steer (the
+   derived asset recovered heading by region exit). After-window laws,
+   kernels or crops cannot repair the pre-after loss; the steerable lever is
+   content before and during the crouch, and the library has no right-turn
+   content, so a mirrored asset is the supply prerequisite. Fable's ranking
+   after 019: the paired stochastic diagnostic (gates any learned demo), then
+   a pre-crouch right-turn compensation probe once a mirrored asset is
+   validated, then the reward-tail study on the O2 pins where the course
+   signal is alive and the gate is intact at after entry.
 4. Lateral drift is a separate structural failure: the tracker's reference frame
    carries no global yaw, so heading is left to clip content and the residual.
    Study 015 removed the commanded-turn class and the backtracking but still
