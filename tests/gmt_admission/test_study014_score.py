@@ -1,6 +1,8 @@
 """Keep the Study014 screen distinct from the unchanged task gates."""
 
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -94,3 +96,12 @@ def test_reward_only_reset_difference_is_declared():
     b["objective"] = {"same": False}
     with pytest.raises(AssertionError):
         verify(a, b, "r1", "r4")
+
+
+def test_optimized_python_cannot_publish_unchecked_claims():
+    path = Path(__file__).resolve().parents[2] / "experiments/014_g1_finite_depth_reward/score.py"
+    result = subprocess.run(
+        [sys.executable, "-O", str(path), "--help"], capture_output=True, text=True, check=False
+    )
+    assert result.returncode != 0
+    assert "requires Python assertions enabled" in result.stderr

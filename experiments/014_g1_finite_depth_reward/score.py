@@ -73,11 +73,17 @@ def verify_rewards(path, cfg):
             ceiling = cfg.task.posture_band_low_m + cfg.recipe.ceiling_fraction * (
                 cfg.task.posture_band_high_m - cfg.task.posture_band_low_m
             )
-            active += int(cfg.recipe.recipe_version == 2 and metrics.root_height_m > ceiling)
+            active += int(
+                cfg.recipe.recipe_version == 2
+                and cfg.recipe.depth_strength > 0
+                and metrics.root_height_m > ceiling
+            )
     return active
 
 
 def main():
+    if not __debug__:
+        raise RuntimeError("Study014 verifier requires Python assertions enabled")
     parser = argparse.ArgumentParser()
     for field in ("baseline", "candidate", "output"):
         parser.add_argument(f"--{field}", type=Path, required=True)
@@ -152,6 +158,7 @@ def main():
     for name, path, cfg in (("r1", args.baseline, old), ("r4", args.candidate, new)):
         for label in ("zero_residual", "final_policy"):
             active_counts[f"{name}_{label}"] = verify_rewards(path / f"{label}_frames.jsonl", cfg)
+    assert active_counts["r4_zero_residual"] == 58
     objective = pair["cells"]["r4"]["objective"]
     gates = criteria(objective)
     result = {
@@ -160,6 +167,7 @@ def main():
         "criteria": gates,
         "screen_passed": all(gates.values()),
         "active_depth_rows": active_counts,
+        "active_depth_rows_scope": "saved_evaluation_traces_not_training_activation_telemetry",
         "source_tree_equal": True,
         "zero_nonreward_parity": True,
         "initial_policy_byte_equal": True,

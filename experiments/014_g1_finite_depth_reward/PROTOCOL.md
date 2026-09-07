@@ -72,6 +72,9 @@ not the proposal's rounded prose.
   telemetry, training falls and intrinsic-horizon completions.
 - Reconstruct active reward terms from raw states. A failed P1 with active
   multiplier and intact guardrails rejects this depth intervention here.
+  The matched zero trace must contain exactly 58 active multiplier rows,
+  precomputed from the retained baseline. Final activation is descriptive;
+  saved evaluation rows do not certify per-step training activation telemetry.
   Failed guardrails also reject it; no causal diagnosis follows from one seed.
 - No automatic replication, stronger reward, oracle edit, extra budget,
   checkpoint selection or success claim. Record result, diagnose, and declare
