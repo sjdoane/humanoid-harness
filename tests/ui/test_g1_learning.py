@@ -344,3 +344,20 @@ def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None
     assert "setInterval" not in script
     assert 'request.path == "/api/g1-learning"' in server
     assert "g1_learning_validation_lock.acquire(blocking=False)" in server
+
+
+def test_busy_validation_preserves_last_snapshot_for_manual_retry() -> None:
+    script = (
+        Path(module.__file__).with_name("static") / "app.js"
+    ).read_text(encoding="utf-8")
+    busy_renderer = script.split("function renderG1LearningBusy(payload) {", 1)[1].split(
+        "function renderG1Learning(payload) {", 1
+    )[0]
+
+    assert "const hasValidatedSnapshot = !results.hidden;" in busy_renderer
+    assert "Showing the last validated snapshot." in busy_renderer
+    assert "Choose Validate runs to retry." in busy_renderer
+    assert "results.hidden =" not in busy_renderer
+    assert 'if (payload.state === "busy") {' in script
+    assert "return false;" in script
+    assert "if (snapshotAccepted) g1LearningLoaded = true;" in script

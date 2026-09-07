@@ -715,13 +715,31 @@ function renderG1LearningUnavailable(payload) {
   document.querySelector("#g1-learning-results").hidden = true;
 }
 
+function renderG1LearningBusy(payload) {
+  const results = document.querySelector("#g1-learning-results");
+  const hasValidatedSnapshot = !results.hidden;
+  const detail =
+    typeof payload.detail === "string" && payload.detail.trim()
+      ? payload.detail.trim().replace(/[.\s]+$/, "")
+      : "Another G1 evidence validation is running";
+  const badge = document.querySelector("#g1-learning-badge");
+  badge.className = "badge badge-neutral";
+  badge.textContent = "validation busy";
+  document.querySelector("#g1-learning-state").textContent =
+    `${detail}. ${hasValidatedSnapshot ? "Showing the last validated snapshot." : "No validated snapshot is loaded."} Choose Validate runs to retry.`;
+}
+
 function renderG1Learning(payload) {
   if (!payload || !Array.isArray(payload.runs)) {
     throw new Error("G1 snapshot contract is invalid.");
   }
-  if (["unavailable", "empty", "busy"].includes(payload.state) || !payload.summary) {
+  if (payload.state === "busy") {
+    renderG1LearningBusy(payload);
+    return false;
+  }
+  if (["unavailable", "empty"].includes(payload.state) || !payload.summary) {
     renderG1LearningUnavailable(payload);
-    return;
+    return true;
   }
   if (!["available", "partial", "rejected"].includes(payload.state)) {
     throw new Error("G1 snapshot state is invalid.");
@@ -767,6 +785,7 @@ function renderG1Learning(payload) {
   document.querySelector("#g1-learning-body").replaceChildren();
   payload.runs.forEach(appendG1Run);
   document.querySelector("#g1-learning-results").hidden = false;
+  return true;
 }
 
 async function loadG1Learning() {
@@ -778,8 +797,8 @@ async function loadG1Learning() {
   document.querySelector("#g1-learning-state").textContent =
     "Sequentially validating registered manifests and retained development evidence…";
   try {
-    renderG1Learning(await loadJson("/api/g1-learning"));
-    g1LearningLoaded = true;
+    const snapshotAccepted = renderG1Learning(await loadJson("/api/g1-learning"));
+    if (snapshotAccepted) g1LearningLoaded = true;
   } catch (error) {
     renderG1LearningUnavailable({ state: "rejected", detail: error.message });
   } finally {
