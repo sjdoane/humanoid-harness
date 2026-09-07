@@ -15,6 +15,9 @@
 - The earlier equal-lane ownership and promotion rules below are historical
   where they conflict with this directive. The mailbox and evidence rules remain.
 - Current plan: `docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`.
+- During Fable unavailability, use the explicitly named, separately tasked
+  reviewer in [the fallback protocol](INDEPENDENT_REVIEW_FALLBACK.md). Exact
+  approval, resource exclusion and scientific gates remain mandatory.
 
 ## Historical dual-lane checkpoint
 
