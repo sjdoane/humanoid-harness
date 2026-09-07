@@ -2,9 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | `T2C2` is committed at `402595e` and re-sealed once at that clean commit (`b11f921`: execution manifest `7ac1e516…b216`, study manifest `5e22a863…c011`, T2 seal `9814872f…cb2a`); the manifest validates at the docs-only descendant HEAD. Candidate `c09e93dc…c123` (alpha 1.0, beta 0.0) is the retained F3 hypothesis. Astra now leads implementation, bounded training, and main promotion; Fable reviews. |
-| bottleneck | Astra's independent review found a verified slot-lifetime defect in `supervision.py` (backlog `T2C2-A01`): a worker can outlive the released heavy-job token. Cycle 0 remains **NO-GO**: no baseline measurement, smoke, training, cohort, protected evaluation, reward effect, or behavioral evidence exists. |
-| next step | Astra merges `f3edcff…` or its docs-only child, repairs `T2C2-A01` with a regression test, re-runs the documented re-seal at its clean source commit (a source change invalidates the per-file binding), obtains Fable's review, then proposes the T1 smoke reservation. |
+| progress | Astra leads the G1 posture-course family (frozen GMT tracker plus residual PPO; oracle and reward as the two knobs) from its checkout `humanoid-harness-astra`; Fable reviews, scores retained artifacts, and authors data-only proposals. Through 2026-09-07: 37 training runs, the finite-horizon runtime correction retained (study 012), the O7 four-state oracle qualified at zero residual, the bounded depth reward rejected on its own terms (study 014), and Astra's forward-kinematics audit showing the supplied crouch clip's deepest frames penetrate the ground on the G1 model. Current source of truth for the family: `docs/strategy/RESEARCH_STRATEGY.md` (2026-09-07 section) and Astra's `docs/operations/dual-orchestration/ASTRA_HANDOFF.md`. |
+| bottleneck | No configuration passes the full task. Lateral drift (2.2 to 5.7 m against 0.75 m) because the tracker is yaw-blind and the after-walk clip commands a turn; the crouch never reaches the 0.50 m dip gate, and the reference that gate rests on is not contact-consistent at its dip. |
+| next step | Study 015: reproduce the retained O7 zero-residual outputs byte-exact at the frozen source, then run the O7b after-crop candidate (Fable proposal `fable_g1_o7b_after_crop_30p62_31p56_20260907`, revision candidate `ba45dba3…`). Then option B (native reference from a retained executed crouch, re-tracked as a consistency control) and option A (contact-aware repaired reference ladder), both labeled adapter work. The T2 reward-lane records below are historical. |
+
+2026-09-07 (Fable review lane): the T2 reward-lane material below this line
+predates the G1 family and is retained as history. The G1 family's studies,
+scores, corrections and decisions are recorded in the strategy file's
+2026-09-07 section and in the mailbox; Fable's scorers live in its session
+scratchpad and are re-derivable from the retained artifacts.
 
 T2C2 integration (2026-09-06, Fable): slice committed as
 `402595e9ee5ed253ccb7eb19f19ed53e0d876b6e`; the documented re-seal ran once at
