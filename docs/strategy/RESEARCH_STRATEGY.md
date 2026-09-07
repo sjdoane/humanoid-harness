@@ -2,9 +2,9 @@
 
 | status | current strategy |
 |---|---|
-| progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |
-| bottleneck | Neither lane has a trained result. Both wait on the combined re-review of FT2R1 to FT2R3, the disposable smoke under a mailbox reservation, and Samuel's authorization for any five-seed cohort. |
-| next step | Role change relayed from Samuel on 2026-09-06 (Astra messages `20260906T164045` and `164341`): Astra leads all implementation and bounded local training through a trained, evaluated full-loop demonstration; Fable reviews, critiques, and ideates and launches no further builder. Fable finishes the T2C2 checkpoint (commit, one clean-commit re-seal, handoff of HEAD and findings), then answers Astra's review questions. |
+| progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 37 training runs and about 2.3M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
+| bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a crouch that never reaches the 0.50 m dip gate. Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration), so the dip gate rests on an inconsistent reference frame; the bounded depth reward (study 014) was active and did not deepen the crouch. |
+| next step | Study 015 (O7 with a balanced after-walk crop) isolates the commanded-turn failure at zero residual. For depth, the reference is the suspect: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both labeled reference-supply adapter work, never oracle composition. The frozen 0.50 m dip gate is preserved with its uncertainty reported; Samuel is informed of the finding, and continuing to study the gate needs no new decision from him. |
 
 ## Fable's authority
 
@@ -412,6 +412,55 @@ against the Lokesh goal ledger, resource-conflict acknowledgment, and joint
 ideation. Fable keeps its identity and writer guards; the mailbox remains the
 channel.
 
+## G1 course: horizon semantics, depth reward, and the reference contact finding (2026-09-07)
+
+Fable's review-lane record for the G1 posture-course family run by Astra.
+Every number below is from retained artifacts scored independently; one seed
+per arm; development gates only.
+
+| study | change under test | result | reading |
+|---|---|---|---|
+| 011 | fixed actor-normalizer trainer profile (O2/r1, 131k) | first trained O2 policy to survive 20 s with both switches; all-visits compliance 0.642 below the 0.684 control | retained, not adopted |
+| 012 | finite-horizon runtime: the 20 s ending is a termination, not a timeout bootstrap | control reproduced byte-exact at the new source; candidate survives with compliance 0.517 and inside-speed deviation 0.184 against the 0.642 and 0.10 rows | semantics correct and retained as default; behavioral screen failed; no attribution across one-seed arms |
+| O7 (013 stage A) | balanced crouch loop [3.78, 5.64] s on the four-state oracle | 20 s, three transitions, rise and after executed; the loop never ran because the longer entry pass reached the exit first; after-walk U-turn under basic_walk's commanded yaw (0.466 rad/s) | qualified transitions only |
+| 014 | admitted r4 depth multiplier (strength 1.0, ceiling 0.48 m) on the finite-horizon substrate | multiplier verified active on every inside frame; guardrails and compliance held; minimum height 0.516 m against the 0.485 m prediction | depth intervention rejected on its own terms |
+| FK audit (Astra, preliminary then confirmed) | literal crouch reference pose at the dip on the exact G1 model | 0.146 m foot penetration and five non-foot overlaps at root height 0.425 m; persists with a unit quaternion; retained executed poses show foot contact only | the supplied reference is not contact-consistent at its deepest frames |
+
+What follows for strategy:
+
+1. The depth failure is not evidence against the reward knob. The reference's
+   joint configuration at the dip, placed with feet on the plane, sits near
+   0.57 m; the retained executions at 0.49 to 0.52 m are deeper than the
+   reference joints imply. The frozen 0.50 m dip gate therefore asks for more
+   flexion than the supplied reference specifies. The gate is preserved with
+   this uncertainty reported; whether it is ever re-derived from a
+   contact-consistent crouch on the G1 model is a goal-level question
+   (`LG-01`, `LG-03`) that Samuel is informed of, and continuing to study the
+   gate needs no new decision from him. A failed option B rejects only the
+   extracted clip, its conditioning and its handover; an option A rung bounds
+   only the tested repaired references; IK is one route among others.
+2. Reference repair is dataset cleaning or retargeting under `LG-02`, never
+   oracle composition. Any repaired reference gets a new motion identity, an
+   adapter label, and its own tracking test; no oracle or reward claim may rest
+   on it until the tracking test is recorded. The harness's product role here is
+   to detect and report a contact-inconsistent supplied reference, which it did
+   only after four studies; a static contact check on admitted references
+   belongs in the admission path.
+3. Order recommended to Astra: study 015 as scheduled; then option B (native
+   reference from a retained contact-valid executed crouch, re-tracked at zero
+   residual as the consistency control); then option A (contact-aware IK repair
+   on the named model, a three-rung depth ladder tracked at zero residual);
+   only then are residual-authority or reward questions well posed again.
+4. Lateral drift is a separate structural failure: the tracker's reference frame
+   carries no global yaw, so heading is left to clip content and the residual.
+   Study 015 tests the commanded-turn class; a reference-side heading feedback
+   probe on the yaw-rate channel is recorded as the candidate for the
+   uncommanded class, as a separate zero-residual study, not a proven primitive.
+5. Governance: acceptances of withdrawn requests are void; a fallback
+   `sol-reviewer` identity exists for Fable unavailability with provenance
+   conditions accepted by Astra; Fable runs no simulation or checkpoint load
+   outside a shared reservation.
+
 ## Current research hypothesis
 
 Given a fixed policy-training MDP, fixed tracker, supplied reference clips, and
@@ -496,6 +545,7 @@ goal ID.
 | 2026-09-06 | `LG-01`, `LG-02`, `LG-03`, `LG-05`, `LG-13` | Answer the first-principles challenge: drop the necessity claim, frame the harness as design-level in-context learning measured as conditional adaptation benefit and cost against fixed-schedule, handwritten, and prompt-conditioned baselines; adopt the tracker stop rule (capped mechanism smoke, then a supplied or existing tracker); stage the joint demonstration after the reward study. | Samuel's challenge via Astra `20260906T073336`; Astra advisory `d47f528`; project evidence (switching failures, authority gap, failed screen) | mechanism smoke result and T2 cycle 0 and 1 | recorded 2026-09-06T08:36Z |
 | 2026-09-06 | `LG-03`, `LG-05`, `LG-15`, `LG-16` | First real LLM reward hypothesis retained under the one-call protocol after an independent APPROVE_DISPATCH: alpha `1.0`, beta `0.0` for the F2 target-speed family on T2; hypothesis only; candidate admission next. | `F3_INITIAL_CALL_RESULT.md`; readback `20260906T144450Z-48272687` | admission seals final-ready; cycle 0 after reservation and authorization | recorded 2026-09-06T15:35Z |
 | 2026-09-06 | all | Role change relayed from Samuel: Astra leads implementation and bounded training; Fable reviews and ideates; Fable stops dispatching after the T2C2 checkpoint. | Astra messages `20260906T164045`, `164341`, `164747`, `171815`, `173107` | Fable's reviews are requested and answered through the mailbox | recorded 2026-09-06T17:58Z |
+| 2026-09-07 | `LG-01`, `LG-02`, `LG-03`, `LG-08`, `LG-13` | Record the G1 family results (011, 012, O7, 014) and the reference contact finding; treat reference repair as adapter-side dataset cleaning with its own tracking test; ask Samuel whether the frozen 0.50 m dip gate is re-derived from a contact-consistent crouch; order 015, then option B, then option A. | Retained run artifacts scored by Fable; Astra FK audit messages `20260907T062856` and `063156`; Fable review `20260907T063231` | 015 result; option B consistency control; option A depth ladder; Samuel's answer on the gate | recorded 2026-09-07T06:40Z |
 
 ## Known strategy inconsistencies
 
