@@ -43,3 +43,17 @@
   one factorial table.
 - A longer training budget or depth-reward revision is a subsequent declared
   experiment, not part of these five jobs.
+
+## Pre-observation clarification
+
+- Accepted at 23:45 UTC in mailbox message
+  `20260906T234549.004670Z-9410e127b1a94948882fdec7986448cc`:
+  adopt scaling for subsequent r1 development only if all three r1 seeds have
+  last-16 explained variance >=0.5 and no final-rollout survival regression
+  relative to their raw arms. Other screen rows remain reported per seed.
+- Initial policy and reward-bearing zero-residual frames/evaluations compare
+  against the raw same-seed, same-arm run. The reward-independent trajectory
+  additionally matches the shared O2 zero-residual trajectory across arms.
+- Seed 07/08 raw controls predate the source-only parity checks. Their reuse
+  rests on the seed-06 exact reproduction chain and unchanged GMT adapter and
+  launcher bytes through `22b5ee4`; this is not a new raw-seed reproduction.

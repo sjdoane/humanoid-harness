@@ -2,9 +2,9 @@
 
 | status | current truth |
 |---|---|
-| progress | 19 G1 training runs completed. Single-seed trainer scaling passes its screen; the new UI validates 12 registered snapshots. |
+| progress | 24 G1 training runs completed (786,432 transitions). Three r1 seeds pass the trainer screen; O4b survives both reference transitions. UI validates 12 selected snapshots. |
 | bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Run the five predefined scaled-trainer replication/reward jobs; diagnose O4 exit before training that oracle. |
+| next step | Freeze the reviewed r4 proposal and the matched O2/O4b x r1/r4 larger-budget study, then train all four arms. |
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
@@ -24,8 +24,13 @@
   adapter/feedback/CLI/UI tests pass. No full task pass; main remains `9188ed0`.
 - Scale64 seed 06: explained variance 0.924, lateral 0.526 m, 20 s/no fall;
   posture/timing/inside-speed still fail. O4 zero-residual probe falls at 5.4 s.
+- All five replication jobs and O4b probe completed at frozen `22b5ee4`.
+  Every retained output/parity check and feedback recomputation passes.
+- O4b: 20 s/no fall,83.1% compliance, joint/roll-pitch p95 0.249/0.247;
+  depth, lateral and overall-speed gates still fail. Do not repeat O2b or
+  start the unnecessary dwell/destination probes after this admission pass.
 - Refresh `.orchestration/astra-active-run.json` and mailbox before launching.
-  No heavy job at 23:30 UTC. Local G1 UI is on port 8766, separate from old 8765.
+  No heavy job at 23:58 UTC. Local G1 UI is on port 8766, separate from old 8765.
 - Whole-suite failures remain; see `../TEST_MATRIX_20260906.md`. Focused G1 checks pass.
 - Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
 - Everything below is historical context, not current dispatch authority.

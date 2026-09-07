@@ -2,9 +2,38 @@
 
 | status | evidence |
 |---|---|
-| progress | The 1/64 trainer passes the preregistered single-seed screen. |
-| bottleneck | Full task still fails: inside speed, posture compliance and depth. |
-| next step | Run predetermined seeds 20260907/08 and re-establish the reward contrast under the scaled trainer. |
+| progress | All three scaled r1 seeds pass the original trainer screen; all five replication jobs completed and verified. |
+| bottleneck | No full task pass. The scaled reward contrast improves overall speed error and lateral drift, but inside-speed effects are mixed. |
+| next step | Test the admitted O4b oracle and a depth-directed reward under matched larger-budget controls. |
+
+## Completed replication
+
+- Source `22b5ee4`; GMT adapter and launcher bytes equal `4ed558e`.
+- Every output digest, initial/zero parity, exact trainer object and final
+  objective recomputation passes. All runs use 32,768 transitions.
+- Seeds 06/07/08 are training RNG repetitions at one fixed start, not held-out
+  tasks, reset distributions or reference libraries.
+
+| seed | reward | EV, last 16 | survival | compliance | depth min, m | inside speed deviation, m/s | overall MAE, m/s | lateral max, m |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 06 | r1 | 0.924 | 20 s | 0.548 | 0.515 | 0.165 | 0.268 | 0.526 |
+| 07 | r1 | 0.657 | 20 s | 0.660 | 0.512 | 0.118 | 0.283 | 1.530 |
+| 08 | r1 | 0.637 | 20 s | 0.608 | 0.527 | 0.017 | 0.296 | 1.033 |
+| 06 | r0 | 0.055 | 20 s | 0.594 | 0.507 | 0.129 | 0.359 | 5.285 |
+| 07 | r0 | 0.567 | 20 s | 0.615 | 0.513 | 0.117 | 0.616 | 7.625 |
+| 08 | r0 | 0.032 | 20 s | 0.515 | 0.517 | 0.085 | 0.352 | 1.131 |
+
+- All six final rollouts survive, make two switches and pass joint/roll-pitch
+  tracking gates. None passes posture compliance or depth; full task is 0/6.
+- r1 reduces overall MAE and lateral deviation versus r0 in all three seeds.
+  Inside mean-speed deviation worsens on 06/07 and improves on 08. Survival
+  ties. Do not retain the old raw-trainer claim that inside speed improves 3/3.
+- Scaling is adopted for subsequent r1 development under the stated rule.
+  Low r0 explained variance on 06/08 prevents a universal trainer-quality claim.
+- Exact six-row scores/feedback receipts: local ignored
+  `artifacts/gmt/course_configs/scaled_replication_results_20260906.json`.
+
+## Original single-seed screen
 
 - Execution: `4ed558eeac27d2c0391d0514fa4d999938d70df5`.
 - Both arms: O2/r1, seed 20260906, 32,768 transitions, final checkpoint only.
@@ -62,3 +91,21 @@
 - Reject O4 as a ready-to-train reference. Diagnose its exit transition first.
 - The shorter rollout's lower lateral maximum is not a full-horizon improvement.
 - Manifest: `a014cd4545a1ec4e4955ba4890b869b0720987785cb13aad11c968c161b22ff1`.
+
+## O4b: observed-height exit
+
+- Only O4's exit guard changes to
+  `x_travelled >= 2.05 and z_root >= 0.72`, plus its oracle identity.
+- Exact first 225 recorded frames match O4. The second switch moves to tick262;
+  pose-match cost is 0.566 versus 2.932. Full 20 s survives with two switches.
+- Joint/roll-pitch p95: 0.249/0.247 rad; the predeclared gait screen passes.
+  Transition-local roll/pitch p95 remains 0.297 rad and is not concealed.
+- Inside region: unchanged 83.1% compliance, 0.702 m/s mean speed and minimum
+  height 0.516 m. Full task fails depth, lateral deviation (7.988 m) and overall
+  speed MAE (0.836 m/s). Trainable candidate, not task success.
+- Manifest: `ade71ffbb4c67ebf6237ca462aa8e4a10a935727138de70e5c90b99094031334`.
+- Resource: `7b905d5d0c1b454fe8e653abf2c6866a0f5819d330762eaf67970f58849bb188`.
+- Feedback: `4a07e57faf6685121aef778572063860aa85688db366b76140974b4a25d1b54f`.
+- A closed guard is not a safety guarantee. O2b already showed that holding
+  the prior reference can cause a fall; its infeasible height condition is not
+  repeated. O4b's different entry/history makes this a distinct measured case.
