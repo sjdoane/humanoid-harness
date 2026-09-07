@@ -51,6 +51,18 @@ def rows(path):
     return [json.loads(line) for line in path.read_bytes().splitlines()]
 
 
+def verify_zero_evaluation(first, second, first_recipe, second_recipe):
+    assert first["reset"]["reward_sha256"] == first_recipe
+    assert second["reset"]["reward_sha256"] == second_recipe
+    assert {k: v for k, v in first["reset"].items() if k != "reward_sha256"} == {
+        k: v for k, v in second["reset"].items() if k != "reward_sha256"
+    }
+    allowed = {"reset", "training_reward_sum_not_success_metric"}
+    assert {k: v for k, v in first.items() if k not in allowed} == {
+        k: v for k, v in second.items() if k not in allowed
+    }
+
+
 def verify_rewards(path, cfg):
     active = 0
     for row in rows(path):
@@ -101,9 +113,7 @@ def main():
         }
     a = json.loads((args.baseline / "zero_residual_evaluation.json").read_bytes())
     b = json.loads((args.candidate / "zero_residual_evaluation.json").read_bytes())
-    assert {k: v for k, v in a.items() if k != "training_reward_sum_not_success_metric"} == {
-        k: v for k, v in b.items() if k != "training_reward_sum_not_success_metric"
-    }
+    verify_zero_evaluation(a, b, old.recipe.sha256, new.recipe.sha256)
 
     def binding(root, cfg, cell, commit, manifest, resource):
         identities = {

@@ -47,6 +47,8 @@
 - Verify zero-residual numeric trajectory and initial policy equality.
   Reward identities/components/totals may differ in frame/evaluation metadata;
   every non-reward field and independent objective must remain equal.
+  Specifically, reset `reward_sha256` must equal each arm's exact recipe;
+  all other reset fields remain equal. Evaluation reward sum may differ.
 - One exact independently accepted resource reservation: CPU local,
   1,200 s / 8 GiB; one heavy job, source freeze through terminal.
 

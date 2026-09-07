@@ -6,12 +6,16 @@ from pathlib import Path
 import pytest
 
 
-def _criteria():
+def _module():
     path = Path(__file__).resolve().parents[2] / "experiments/014_g1_finite_depth_reward/score.py"
     spec = importlib.util.spec_from_file_location("study014_score", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.criteria
+    return module
+
+
+def _criteria():
+    return _module().criteria
 
 
 @pytest.fixture
@@ -66,3 +70,27 @@ def test_missing_or_excess_speed_rejects(objective, value):
 def test_deep_fall_is_not_success(objective):
     objective["fall_count"] = 1
     assert not all(_criteria()(objective).values())
+
+
+def test_reward_only_reset_difference_is_declared():
+    a = {
+        "reset": {"reward_sha256": "r1", "runtime": "fixed"},
+        "training_reward_sum_not_success_metric": 10,
+        "objective": {"same": True},
+    }
+    b = {
+        "reset": {"reward_sha256": "r4", "runtime": "fixed"},
+        "training_reward_sum_not_success_metric": 8,
+        "objective": {"same": True},
+    }
+    verify = _module().verify_zero_evaluation
+    verify(a, b, "r1", "r4")
+    with pytest.raises(AssertionError):
+        verify(a, b, "r1", "wrong")
+    b["reset"]["runtime"] = "changed"
+    with pytest.raises(AssertionError):
+        verify(a, b, "r1", "r4")
+    b["reset"]["runtime"] = "fixed"
+    b["objective"] = {"same": False}
+    with pytest.raises(AssertionError):
+        verify(a, b, "r1", "r4")
