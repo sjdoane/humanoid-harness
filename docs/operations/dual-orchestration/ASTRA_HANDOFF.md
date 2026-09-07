@@ -1,11 +1,30 @@
 # Astra orchestration handoff
 
-| progress | 32 training runs / 1,638,400 transitions. Study 009 verifies closed-loop reference-input dependence; O5 and O6 completed real feedback-linked oracle revisions. |
+| progress | 34 training runs / 1,900,544 transitions. Study 011 candidate survives 20 s with both switches; control reproduces all ten retained outputs. |
 |---|---|
-| bottleneck | No full-task pass. O5 falls at 6.4 s; O6 falls at 6.76 s. Longer training and lower learning rate have not passed adoption. |
-| next step | Review the isolated fixed-normalizer implementation, then run one separately frozen matched training study on O2r1. Fable reviews and ideates only. |
+| bottleneck | No full-task pass. Normalization misses the locked compliance floor; posture depth/compliance and lateral drift still fail. |
+| next step | Retain the opt-in profile without adoption; select a bounded next comparison. Fable reviews and ideates only. |
 
-## Current checkpoint: 2026-09-07 02:28 UTC
+## Current checkpoint: 2026-09-07 03:05 UTC
+
+- [Study 011](../../../experiments/011_g1_fixed_normalization/RESULTS.md): source
+  `1e5d84b`, both jobs terminal/successful/released. Source freeze ended.
+- Parent and Fable independently verify control's ten-file parity, candidate's
+  zero-residual parity, initial tensors, buffer pins and feedback reconstruction.
+- Candidate: 20 s/no fall, two switches, 64.20% compliance, 0.513356 m minimum
+  height, 0.032732 m/s inside mean-speed deviation, 3.419531 m lateral maximum.
+- Failed advancement floor: 68.35% compliance. No seed replication/default
+  promotion follows automatically. No new intervention is yet dispatched.
+- Recorded-state GIF: sibling
+  `humanoid-harness-probe-runs/gmt_course_fixed_normalizer_recorded_20260907.gif`.
+- UI restarted as session 79716 at current source; registry includes both
+  Study011 arms. Previous selection retained in a local archive.
+- Next training is paused for the intrinsic-horizon correction in
+  [Study 012](../../../experiments/012_g1_finite_horizon/PROTOCOL.md). Depth
+  reward and online phase alignment are separate deferred comparisons.
+- Main remains `9188ed0`; no push. Read the live mailbox/active-run before work.
+
+## Earlier checkpoint: 2026-09-07 02:28 UTC
 
 - [Study 009](../../../experiments/009_g1_reference_input/RESULTS.md): two
   five-arm simulations. Every intervention changes the first action and next

@@ -1,9 +1,14 @@
 # G1 learning loop — measured results
 
-| progress | 32 bounded training runs / 1,638,400 transitions. Closed-loop reference-input dependence is verified in two configurations. |
+| progress | 34 bounded training runs / 1,900,544 transitions. The fixed-normalizer O2 policy survives 20 s with both switches. |
 |---|---|
-| bottleneck | No full task pass. Longer training and lower learning rate have not passed adoption; O5/O6 oracle candidates fall. |
-| next step | Test fixed observation normalization as a separate training factor; keep the surviving O2 reference baseline. |
+| bottleneck | No full task pass. Study 011 misses its compliance floor and three task gates; no trainer default is changed. |
+| next step | Diagnose posture timing/depth and lateral drift; choose the next bounded oracle/reward comparison from verified feedback. |
+
+- [Study 011: fixed input normalization](../../../experiments/011_g1_fixed_normalization/RESULTS.md):
+  exact control reproduction; candidate survives, but 64.2% compliance misses
+  the locked 68.35% floor. Retained, not adopted. Normalization alone is not a
+  complete-task result; conditioning and transition feasibility remain distinct.
 
 - [Study 009: actual reference use](../../../experiments/009_g1_reference_input/RESULTS.md):
   two five-arm interventions change actions and trajectories; exact controls
