@@ -1,11 +1,26 @@
 # Astra orchestration handoff
 
-| progress | 37 training runs / 2,293,760 transitions. Study017 paired probes completed and scored; new replay available. |
+| progress | 38 training runs / 2,424,832 transitions. Study018 baseline trained, scored and replayed. |
 |---|---|
-| bottleneck | No full-task pass. Study017 reference survives but misses depth fidelity and worsens posture compliance. |
-| next step | Seal/review the Study018 scorer; train native O7b baseline A, then one reward-only B only if A passes predeclared admission. |
+| bottleneck | No full-task pass. Study018 A fails posture and speed admission; B is stopped. |
+| next step | Declare one earlier crouch-transition probe; keep any later reward-tail training contrast separate. |
 
-## Current checkpoint: 2026-09-07 11:56 UTC
+## Current checkpoint: 2026-09-07 12:26 UTC
+
+- [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
+  131072 transitions at `e57f220`;20 s survival, three switches,7/11 task gates.
+  Posture47/71 and speed MAE0.474331 fail admission. No B proposal or launch.
+- Root scorer and Fable independently verify the failed result. Source freeze
+  ended after scoring. Heavy worker is terminal/released; no training active.
+- UI at8766 shows018 with correct FAIL7/11; recorded-state GIF shown to Samuel.
+  Local selected registry has12 valid runs,0 full passes. No run was deleted.
+- Retained post-step targets exceed the ceiling on15/24 posture failures.
+  This motivates a separately declared earlier-entry guard probe, not a claim
+  that phase alignment or physical feasibility is solved.
+- Fable reviews/ideates only. Consider a later fixed-scale Cauchy reward-tail
+  contrast, but do not combine it with an oracle change or lower018 gates.
+
+## Earlier checkpoint: 2026-09-07 11:56 UTC
 
 - Study018 scorer imported as `30d966f` from clean peer `a386fb1`.
   Root independently reran36 focused checks; reviewer ran122 focused/adjacent

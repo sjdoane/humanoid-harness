@@ -1,9 +1,15 @@
 # G1 learning loop — measured results
 
-| progress | 37 bounded training runs / 2,293,760 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
+| progress | 38 bounded training runs / 2,424,832 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| bottleneck | No full-task pass. Study017 completes four stages but the new reference fails depth fidelity and worsens posture compliance. |
-| next step | Reject the exact derived bundle for training; review native-reference four-state learning versus a narrowly controlled reference continuation. |
+| bottleneck | No full-task pass. Study018's trained four-stage baseline fails posture and speed admission. |
+| next step | Stop Study018 B; test earlier crouch entry separately from any reward-tail revision. |
+
+- [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
+  native four-state baseline trains for131072 transitions and survives20 s,
+  but compliance66.2% and speed MAE0.474 m/s fail the locked admission screen.
+  Original7/11 gates pass. B is stopped; no reward contrast was performed.
+  The replay and UI display the failed trained run, not a complete task result.
 
 - [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
   zero-residual four-stage composition survives, with no upright revisit.
