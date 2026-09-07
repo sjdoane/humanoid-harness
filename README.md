@@ -31,6 +31,7 @@ FROZEN: scene/reset, observations/actions, base weights, trainer/budget,
 | Active implementation | GMT/G1 through Gymnasium; state-triggered motion selection; bounded residual PPO; separate tracking/task rewards; recorded-state feedback; immutable candidate admission |
 | Measured development result | Walk → crouch → walk survives 20 seconds after training in three of three seeds with the initial task reward; tracking-only training survives one of three. No full posture-course gate pass. |
 | Real revision loop | Retained LLM reward and oracle proposals were admitted, trained, evaluated, and rejected when their fixed criteria failed. Negative outcomes are not task success. |
+| Reference use | Two five-arm closed-loop tests change actions and trajectories; exact arms reproduce their retained controls. This is input dependence, not composition quality. |
 | Limits | One flat-ground course and fixed start. Within-clip playback still uses a local clock. No held-out generalization, obstacle clearance, locomanipulation, or foolproof-system claim. |
 
 See the [measured results and replay receipts](docs/strategy/astra/G1_LEARNING_RESULTS_20260906.md)
@@ -56,8 +57,9 @@ uv run humanoid-harness g1 --help
   producing proposal-safe feedback.
 - Training uses the exact-source, resource-bounded launcher documented in the
   [G1 pilot](docs/strategy/astra/G1_COURSE_PILOT_20260906.md).
-- `humanoid-harness ui` starts the older read-only evidence UI. It does not yet
-  display the G1 learning results; use the linked report and recorded replay.
+- `humanoid-harness ui --help` documents the read-only evidence UI and its
+  explicitly registered G1 results. The local development instance is on port
+  8766; linked reports retain studies outside the selected UI registry.
 
 ## Research ownership
 
@@ -90,7 +92,7 @@ src/oracle_composition/
   harness/        contracts, execution, evaluation, resource coordination
   research/       literature index and retrieval
   sources/        data-only source admission
-  ui/             older read-only evidence surface
+  ui/             read-only research and registered G1 evidence
 docs/             contracts, strategy, runbooks, measured results
 experiments/      earlier frozen study definitions and receipts
 tests/            positive, negative, and integration checks

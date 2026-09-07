@@ -1,10 +1,36 @@
 # Astra orchestration handoff
 
-| status | current truth |
+| progress | 32 training runs / 1,638,400 transitions. Study 009 verifies closed-loop reference-input dependence; O5 and O6 completed real feedback-linked oracle revisions. |
 |---|---|
-| progress | 32 G1 training runs completed (1,638,400 transitions). Studies 006–008 are scored; O5 includes a real feedback-linked oracle revision and recorded failure GIF. |
-| bottleneck | No full task pass. O5 falls at 6.4 s before its rise guard; longer training and lower learning rate have not passed adoption. |
-| next step | Review/integrate the separate five-arm reference-input causal test. Evaluate an after-only walking crop and a code-grounded training-efficiency intervention. Fable reviews only. |
+| bottleneck | No full-task pass. O5 falls at 6.4 s; O6 falls at 6.76 s. Longer training and lower learning rate have not passed adoption. |
+| next step | Review the isolated fixed-normalizer implementation, then run one separately frozen matched training study on O2r1. Fable reviews and ideates only. |
+
+## Current checkpoint: 2026-09-07 02:28 UTC
+
+- [Study 009](../../../experiments/009_g1_reference_input/RESULTS.md): two
+  five-arm simulations. Every intervention changes the first action and next
+  robot boundary; both exact arms reproduce all three positive-control files.
+  This establishes input dependence, not composition quality.
+- [Study 010](../../../experiments/010_g1_after_reference/RESULTS.md): O6's
+  exact unchanged prefix passes; after-only crop falls. Reject, no training.
+- Source freeze ended at O6 terminal; exact probe source `1d60c46`, result
+  committed `8392cdd`. Heavy-job slot released. No active training.
+- Fixed-normalizer builder owns sibling `humanoid-harness-fixed-normalizer`.
+  No import until a clean handoff and focused review. Keep old profiles exact.
+- A separate read-only audit is checking reward-family incentives; no new
+  reward proposal, training, or evaluator edit is authorized by that audit.
+- Queryable supplemental reference audit index exists locally at
+  `artifacts/knowledge/g1_reference_audits_20260907.db`. Two typed records,
+  12 findings; no external motion admitted. Source pins are version-specific.
+- UI `http://127.0.0.1:8766/`, server session 5442: 12 registered snapshots
+  validated, including O5 and low-learning-rate runs. Not every run is shown.
+  Mac locked; no fresh interactive browser QA.
+- O6 recorded-state GIF: sibling
+  `humanoid-harness-probe-runs/gmt_course_o6_recorded_failure_20260907.gif`.
+- Main remains `9188ed0`; no push. Native Humanoid-v5 remains a separate,
+  blocked family. Consult the live mailbox and active-run record before dispatch.
+
+## Earlier 01:50 UTC checkpoint (historical)
 
 - All study-007/008 workers and O5 renderer are terminal at 01:50 UTC.
 - Study 008 result: `../../../experiments/008_g1_repeatable_crouch/RESULTS.md`.

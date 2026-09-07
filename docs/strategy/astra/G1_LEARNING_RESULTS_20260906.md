@@ -1,10 +1,21 @@
 # G1 learning loop — measured results
 
-| status | evidence |
+| progress | 32 bounded training runs / 1,638,400 transitions. Closed-loop reference-input dependence is verified in two configurations. |
 |---|---|
-| progress | 29 bounded training runs completed (1,343,488 transitions); the fixed composition/depth-reward study is independently verified. |
-| bottleneck | No full task pass. Longer training falls or stops; zero-residual admission did not guarantee learned transitions. |
-| next step | Test a smaller learning rate separately from a descent/loop/rise oracle runtime. |
+| bottleneck | No full task pass. Longer training and lower learning rate have not passed adoption; O5/O6 oracle candidates fall. |
+| next step | Test fixed observation normalization as a separate training factor; keep the surviving O2 reference baseline. |
+
+- [Study 009: actual reference use](../../../experiments/009_g1_reference_input/RESULTS.md):
+  two five-arm interventions change actions and trajectories; exact controls
+  reproduce retained bytes. No learning or composition-quality claim.
+- [Study 010: after-only crop](../../../experiments/010_g1_after_reference/RESULTS.md):
+  unchanged-prefix parity passes, robot falls at 6.76 s; candidate rejected.
+- [Study 008: repeatable crouch](../../../experiments/008_g1_repeatable_crouch/RESULTS.md):
+  falls at 6.4 s before rising; probe-only profile remains ineligible for training.
+- [Study 007: lower learning rate](../../../experiments/007_g1_learning_rate/RESULTS.md):
+  both predefined adoption criteria fail. No successful task policy is established.
+- These are development results. The earlier studies below retain their
+  original settings and evidence; they are not current launch instructions.
 
 - Latest: [composition x depth results](../../../experiments/006_g1_composition_depth/RESULTS.md).
   Three of four larger arms fall; one stops. All failures are retained.
@@ -24,7 +35,7 @@
   unchanged 83.1% compliance. It passes gait admission but still misses three
   full-task gates. Phase matching remains entry-only, not continuous estimation.
 - The G1 UI validates 12 explicitly registered snapshots through the same
-  feedback/evaluator path. It is a selected evidence view, not all 24 runs.
+  feedback/evaluator path. It is a selected evidence view, not the complete run ledger.
 
 ## Architecture actually used
 
