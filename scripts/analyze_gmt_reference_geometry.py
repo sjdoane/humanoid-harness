@@ -18,10 +18,12 @@ from oracle_composition.adapters.gmt import (
     checkpoint,
     contracts,
     control_runtime,
+    motions,
     reference_math,
     reference_runtime,
     replay,
 )
+from oracle_composition.adapters.gmt import io as gmt_io
 
 ARTIFACT_ROOT = Path(
     "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/"
@@ -35,6 +37,8 @@ SOURCE_HASHES = {
     "checkpoint.py": "02d30bdffbda5ffbd6b9bd907064537b7521ad8d4f592b3d2ac21e3abdfedfff",
     "contracts.py": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31",
     "control_runtime.py": "271cbb52c8286d24a2fecca8815eb2d4e9b26e2049d8ad3d54153fa1b0444877",
+    "io.py": "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3",
+    "motions.py": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be",
     "reference_math.py": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e",
     "reference_runtime.py": "19039aac4223a47c4131131304f266b2e87bcc90647947e933d5cc1ddb2b725f",
     "replay.py": "8927557818d20e26801d30f6504423172281619f0a32b6b9ca9dc1e46bd84b6b",
@@ -87,6 +91,8 @@ def source_identity() -> dict[str, str]:
         checkpoint,
         contracts,
         control_runtime,
+        gmt_io,
+        motions,
         reference_math,
         reference_runtime,
         replay,
@@ -100,6 +106,22 @@ def source_identity() -> dict[str, str]:
         require_hash(path, SOURCE_HASHES[path.name])
         result[str(path.relative_to(source_root))] = SOURCE_HASHES[path.name]
     return result
+
+
+def producer_identity(source_hashes: dict[str, str]) -> dict[str, str]:
+    path = Path(__file__).resolve()
+    repository_root = path.parents[1]
+    producer_path = str(path.relative_to(repository_root))
+    producer_sha = sha256(path)
+    source_set = {**source_hashes, producer_path: producer_sha}
+    source_set_sha = hashlib.sha256(
+        json.dumps(source_set, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "path": producer_path,
+        "sha256": producer_sha,
+        "executed_source_set_sha256": source_set_sha,
+    }
 
 
 def read_run(root: Path, record: tuple[Any, ...]) -> dict[str, Any]:
@@ -183,6 +205,17 @@ def feature_qpos(features: np.ndarray) -> np.ndarray:
     cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
     quaternion_wxyz = np.asarray([cr * cp, sr * cp, cr * sp, -sr * sp])
     return np.concatenate(([0.0, 0.0, height], quaternion_wxyz, value[7:]))
+
+
+def native_features(
+    motion: reference_runtime.ReferenceMotion, euler: torch.Tensor, index: int
+) -> np.ndarray:
+    """Build only pose-bearing consumed features from one exact native row."""
+    value = np.zeros(30, dtype="<f4")
+    value[0] = motion.root_position[index, 2].item()
+    value[1:3] = euler[index, :2].numpy()
+    value[7:] = motion.dof_position[index].numpy()
+    return value
 
 
 def geometry(model: Any, data: Any, qpos: np.ndarray) -> dict[str, Any]:
@@ -349,6 +382,7 @@ def main() -> None:
     if any(values[0] != values[1] for values in shared.values()):
         raise ValueError("runs resolve to different shared reference poses")
 
+    native_euler = reference_math.quaternion_to_euler_xyzw(motion.root_rotation_xyzw)
     center = int(torch.argmin(motion.root_position[:, 2]))
     neighbors = []
     for index in range(center - 4, center + 5):
@@ -360,13 +394,14 @@ def main() -> None:
             dof_position=motion.dof_position[index : index + 1],
             dof_velocity=motion.dof_velocity[index : index + 1],
         )
-        time = torch.tensor([index / float(motion.fps)], dtype=torch.float32)
         literal = geometry(model, data, literal_qpos(frame))
-        consumed = geometry(model, data, feature_qpos(motion.features(time)[0].numpy()))
+        consumed = geometry(
+            model, data, feature_qpos(native_features(motion, native_euler, index))
+        )
         neighbors.append(
             [
                 index,
-                float(time[0]),
+                index / float(motion.fps),
                 literal["deepest_contact_dist_m"],
                 literal["deepest_nonfoot_dist_m"],
                 consumed["deepest_contact_dist_m"],
@@ -375,12 +410,59 @@ def main() -> None:
         )
     if any(row[5] is None or row[5] >= 0 for row in neighbors):
         raise ValueError("consumed-feature nonfoot overlap did not persist across neighbors")
-    if any(
-        count
+
+    low_rows = np.flatnonzero(motion.root_position[:, 2].numpy() <= 0.50).tolist()
+    low_geometry = [
+        geometry(model, data, feature_qpos(native_features(motion, native_euler, index)))
+        for index in low_rows
+    ]
+    penetrations = [-float(item["deepest_contact_dist_m"]) for item in low_geometry]
+    required_heights = [
+        float(motion.root_position[index, 2]) + penetration
+        for index, penetration in zip(low_rows, penetrations, strict=True)
+    ]
+    low_segment = {
+        "selection": "exact native rows with source root_z <= 0.50 m",
+        "native_frame_indices": low_rows,
+        "sample_count": len(low_rows),
+        "consumed_pose": "native root_z and exact joints; source quaternion-derived roll/pitch converted to unit wxyz at yaw 0",
+        "floor_penetration_over_0_01_m_count": int(
+            sum(value > 0.01 for value in penetrations)
+        ),
+        "floor_penetration_m_min_max": [min(penetrations), max(penetrations)],
+        "nonfoot_overlap_count": int(sum(bool(item["nonfoot_bodies"]) for item in low_geometry)),
+        "translation_only_required_root_height_m_min_max": [
+            min(required_heights),
+            max(required_heights),
+        ],
+        "translation_only_semantics": "source root_z minus deepest signed plane distance, preserving roll/pitch and joints; descriptive only, not a repair or feasibility bound",
+    }
+
+    residual_saturation = any(
+        result["residual_authority"]["whole_max_abs_residual"] >= 0.99
         for result in results.values()
-        for key in ("oracle_saturation_counts_23", "physical_saturation_counts_23")
-        for count in result["residual_authority"][key]
-    ):
+    )
+    literal_overlap = any(
+        shared[name][0]["deepest_nonfoot_dist_m"] is not None
+        and shared[name][0]["deepest_nonfoot_dist_m"] < 0
+        for name in ("literal_at_reference_min", "literal_at_actual_min_time")
+    )
+    feature_overlap = any(
+        shared[name][0]["deepest_nonfoot_dist_m"] is not None
+        and shared[name][0]["deepest_nonfoot_dist_m"] < 0
+        for name in ("feature_at_reference_min", "feature_at_actual_min_time")
+    )
+    selected_actual = [
+        result["actual_geometry"][name]
+        for result in results.values()
+        for name in ("at_reference_min", "at_actual_min")
+    ]
+    selected_actual_overlap = any(
+        item["deepest_nonfoot_dist_m"] is not None
+        and item["deepest_nonfoot_dist_m"] < 0
+        for item in selected_actual
+    )
+    if residual_saturation:
         raise ValueError("residual saturation observation changed")
 
     output = {
@@ -404,6 +486,7 @@ def main() -> None:
             "model_xml": [str(xml_path), XML_SHA],
             "mesh_tree_sha256": MESH_TREE_SHA,
             "source_sha256": source_hashes,
+            "producer": producer_identity(source_hashes),
             "runs": [
                 {
                     "study": run["study"],
@@ -426,12 +509,14 @@ def main() -> None:
         "shared_reference_geometry": {name: values[0] for name, values in shared.items()},
         "neighbor_columns": ["native_frame", "source_time_s", "literal_deepest_m", "literal_nonfoot_m", "consumed_deepest_m", "consumed_nonfoot_m"],
         "neighboring_native_frames": neighbors,
+        "native_low_root_segment": low_segment,
         "runs": results,
         "observations": {
-            "residual_saturation_observed": False,
-            "nonfoot_overlap_literal_source_pose": True,
-            "nonfoot_overlap_consumed_feature_pose": True,
-            "nonfoot_overlap_matched_actual_qpos": False,
+            "residual_saturation_observed": residual_saturation,
+            "nonfoot_overlap_literal_selected_reference_poses_observed": literal_overlap,
+            "nonfoot_overlap_consumed_selected_reference_poses_observed": feature_overlap,
+            "nonfoot_overlap_selected_matched_actual_qpos_observed": selected_actual_overlap,
+            "selected_matched_actual_qpos_count": len(selected_actual),
             "interpretation": "The issued height, roll/pitch, and joint reference is statically ground-inconsistent near the retained minimum; this is a rival explanation for the height gap, not proof of dynamic or causal contribution.",
         },
     }
