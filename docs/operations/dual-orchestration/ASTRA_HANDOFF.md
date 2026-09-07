@@ -1,11 +1,25 @@
 # Astra orchestration handoff
 
-| progress | 34 training runs / 1,900,544 transitions. Study 011 candidate survives 20 s with both switches; control reproduces all ten retained outputs. |
+| progress | 36 training runs / 2,162,688 transitions. Study012 finite ending verified; both arms survive 20 s. |
 |---|---|
-| bottleneck | No full-task pass. Normalization misses the locked compliance floor; posture depth/compliance and lateral drift still fail. |
-| next step | Retain the opt-in profile without adoption; select a bounded next comparison. Fable reviews and ideates only. |
+| bottleneck | No full-task pass. Finite candidate fails compliance and speed screen; task depth and lateral drift also fail. |
+| next step | Study014: one Fable-proposed depth reward on the exact finite baseline. Fable reviews and ideates only. |
 
-## Current checkpoint: 2026-09-07 04:53 UTC
+## Current checkpoint: 2026-09-07 05:32 UTC
+
+- [Study012 result](../../../experiments/012_g1_finite_horizon/RESULTS.md):
+  both jobs terminal/released. Source freeze ended. Correct finite semantics
+  retained for new studies, not promoted as a behavioral improvement.
+- [Study014 protocol](../../../experiments/014_g1_finite_depth_reward/PROTOCOL.md):
+  one reward-only candidate; exact executable-tree equality required to reuse
+  baseline. No candidate launched at this checkpoint.
+- Source `9bca23b`; no phase/fallback imports before Study014 source freeze.
+- Phase core `0e1ae8a` + `667c561` independently accepted, still unwired.
+  Fallback reviewer role `eb59aea` separately accepted, still unimported.
+- Fable is available; superseded draft and withdrawn old reservations are void.
+- UI remains port8766/session79716, registry through Study011. No push.
+
+## Earlier checkpoint: 2026-09-07 04:53 UTC
 
 - [O7 Stage A](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
   20 s/no fall, walk/crouch/rise/walk executed. All qualification conditions pass;
