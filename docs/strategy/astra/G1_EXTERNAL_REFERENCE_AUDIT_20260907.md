@@ -2,15 +2,17 @@
 
 | status | current evidence |
 |---|---|
-| progress | Three public sources were checked against the current task gate. The first five MotionDecode low-height files all miss `root_z <= 0.50`; one CLAW kinematic reference reaches it; CMU supplies human crouched-walk trials only. |
+| progress | Three public sources were checked for a low-height reference suited to this diagnostic. The first five MotionDecode files all miss the preferred `root_z <= 0.50`; one CLAW kinematic reference reaches it; CMU supplies human crouched-walk trials only. |
 | bottleneck | No new reference has both resolved rights/schema and evidence of trackability by the frozen 23-DoF GMT controller. MotionDecode has unit/cadence conflicts; CLAW has no visible license; CMU requires a new retargeting path. |
-| next step | Keep the eight admitted GMT clips for the current study. Treat external admission as blocked; first request CLAW data terms and its 00454 annotation/cadence reconciliation. Do not screen MotionDecode sample 00006 onward without a new sampling rule. |
+| next step | Keep the eight admitted GMT clips for the current study. Treat external admission as blocked; first resolve source metadata and rights. The remaining MotionDecode files may be searched later under an explicit retrieval objective. |
 
 ## Decision boundary
 
 - **Result:** no external motion is admitted or certified by this audit.
-- **Task screen:** a candidate must spend a sustained interval at
-  `0.30 <= root_z <= 0.60` and reach `root_z <= 0.50` at least briefly.
+- **Retrieval preference for this diagnostic:** prioritize a reference that
+  spends a sustained interval at `0.30 <= root_z <= 0.60` and reaches
+  `root_z <= 0.50` at least briefly. This is not a general motion-admission
+  requirement or a necessary condition for learned task success.
 - **Method:** public text/source was inspected statically. Numeric CSV bytes were
   streamed through a bounded data-only calculation; no remote file was retained.
   No upstream Python, policy, simulator, retargeter, pickle, or model was run.
@@ -39,7 +41,7 @@ The ordered joint names are left leg
 same order; `waist_yaw, waist_roll, waist_pitch`; left then right
 `shoulder_pitch, shoulder_roll, shoulder_yaw, elbow`.
 
-## Candidate 1: MotionDecode G1 CSV samples -- structurally close, task-negative
+## Candidate 1: MotionDecode G1 CSV samples -- structurally close, preference missed
 
 **Source identity.** Hugging Face dataset pin
 [`80b489e0378b60bb44d495d5437475ce0e084283`](https://huggingface.co/datasets/CMRobot/MotionDecode/tree/80b489e0378b60bb44d495d5437475ce0e084283),
@@ -80,8 +82,12 @@ competing hosting. The README also says both fully public and request access for
 the complete data. Resolve the linked-license and access contradictions with
 the publisher before admission.
 
-**Disposition:** reject these five for the current task gate even under the
-favorable meter/120 Hz assumptions. This audit deliberately stops at file 00005.
+**Disposition:** none of these first five matches the diagnostic retrieval
+preference, even under the favorable meter/120 Hz assumptions. That bounded
+screen neither establishes that all 35 public clips are unsuitable nor predicts
+learned-policy failure: a tracker can deviate from reference height, and task
+reward learning need not copy the reference exactly. No further files were
+searched because the metadata and rights blockers already stop admission.
 
 ## Candidate 2: CLAW `00454_crouch` -- best shape, rights-blocked
 
@@ -140,7 +146,7 @@ labels trials 09 and 10 `Walk Crouched` at 120 Hz:
 
 These hashes freeze the bytes observed in this audit; CMU supplies no
 versioned release pin at those URLs. Human-root height and speed do not answer
-the G1 `.30..60` task gate before retargeting.
+the diagnostic G1 height preference before retargeting.
 
 **Credible but separate conversion project.** GMR commit
 [`bb1bbe40774794fceb2a7c579a3464a28e68c844`](https://github.com/YanjieZe/GMR/tree/bb1bbe40774794fceb2a7c579a3464a28e68c844)
@@ -178,8 +184,9 @@ consider only after near-native rights/schema routes fail.
 3. A reviewed data-only converter emits a new immutable GMT artifact with
    `fps`, root `xyz`, root quaternion `xyzw`, and the named 23 joints; no pickle
    or executable model crosses admission.
-4. Recompute the task screen from the converted bytes. Reject if the strict
-   height gate is missed; do not alter the gate to fit a clip.
+4. Report converted-reference fitness against the declared retrieval objective.
+   A mismatch may motivate a separately designed training study; it is not an
+   automatic admission rejection or a relaxation of robot evaluator gates.
 5. Run a separately authorized frozen-GMT Tier-D probe with survival, all-contact,
    root-height, heading, and joint-tracking metrics. Until then, label it Tier K
    only and make no dynamics or trackability claim.
