@@ -130,6 +130,10 @@ def test_prefix_still_rejects_reward_and_boundary_changes(scorer):
     run["trajectory"]["composite_raw_action"] = np.zeros((266, 23), dtype=np.float32)
     candidate = copy.deepcopy(run)
     scorer.shared.verify_prefix(run, candidate)
+    with pytest.raises(ValueError, match="must change"):
+        scorer.verify_intervention(run, candidate)
+    candidate["trajectory"]["current_reference"][263, 6] += np.float32(0.1)
+    assert scorer.verify_intervention(run, candidate)["first_after_reference_changed"] is True
     candidate["frames"][100]["reward"]["total_reward"] = 2.0
     with pytest.raises(ValueError, match="complete trace prefix"):
         scorer.shared.verify_prefix(run, candidate)

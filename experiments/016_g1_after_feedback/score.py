@@ -48,6 +48,16 @@ def verify_config(control: dict, candidate: dict) -> None:
         raise ValueError("candidate changes more than the declared feedback profile")
 
 
+def verify_intervention(control: dict, candidate: dict) -> dict:
+    prefix = shared.verify_prefix(control, candidate)
+    if np.array_equal(
+        control["trajectory"]["current_reference"][shared.PREFIX_ACTION_COUNT],
+        candidate["trajectory"]["current_reference"][shared.PREFIX_ACTION_COUNT],
+    ):
+        raise ValueError("feedback must change the first after reference target")
+    return {**prefix, "first_after_reference_changed": True}
+
+
 def verify_reset(control: dict, candidate: dict) -> None:
     from oracle_composition.adapters.gmt.course_runtime import runtime_profile_from_config
 
@@ -131,6 +141,9 @@ def steering_measures(run: dict) -> dict:
         "first_two_seconds_boundary_count": boundary_end - first_after,
         "first_two_seconds_heading_abs_max_rad": float(
             np.max(np.abs(heading[first_after:boundary_end]))
+        ),
+        "first_two_seconds_entry_relative_heading_excursion_max_rad": float(
+            np.max(np.abs(heading[first_after:boundary_end] - heading[first_after]))
         ),
         "first_two_seconds_lateral_abs_max_m": max(abs(value) for value in early),
         "series_authority": "pinned raw trajectory and per-action steering receipts",
@@ -229,7 +242,7 @@ def score_study(inputs: dict) -> dict:
         raise ValueError("fresh arms differ in non-config resource inputs")
     verify_config(control["config"], candidate["config"])
     verify_reset(control, candidate)
-    prefix = shared.verify_prefix(control, candidate)
+    prefix = verify_intervention(control, candidate)
     measures = shared.candidate_measures(
         candidate["frames"],
         candidate["trajectory"],
