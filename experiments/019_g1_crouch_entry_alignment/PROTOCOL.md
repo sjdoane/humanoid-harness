@@ -51,8 +51,10 @@ Frozen: plant/reset, all other oracle fields, reward, tracker, evaluation.
 
 Physical-region rows use measured progress in [1.0,2.0), not the oracle mode.
 Use all visits for compliance. First physical entry is the first post-step row
-in that interval. Its phase and height target are the retained **post-step**
-target; do not substitute a pre-action future-window row.
+in that interval. Read height from the retained **post-step** target and
+reconstruct its reported local phase at boundary i+1. The row's
+`executed_phase_seconds` instead describes the pre-action command at index i;
+report it separately. Do not substitute a pre-action future-window row.
 
 | Row | Candidate requirement |
 |---|---|
@@ -84,8 +86,9 @@ target; do not substitute a pre-action future-window row.
   all survival, exposure, re-entry and tracking checks still apply.
 - Before candidate data, retained O7b first reaches0.40 m after control step71
   (progress0.407975 m; step70 is0.392494 m). Confirm dispatch semantics in the
-  scorer: expected first changed command72, with71 identical executed rows and
-  72 identical state boundaries. A differing prefix is an integrity failure.
+  scorer: expected first change at the72nd command (zero-based action/control
+  index71), with71 identical executed rows and72 identical state boundaries.
+  A differing prefix is an integrity failure.
 
 ## Verification and launch order
 
