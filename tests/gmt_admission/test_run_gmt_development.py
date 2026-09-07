@@ -18,6 +18,7 @@ from oracle_composition.adapters.gmt.course_runtime import (
     AFTER_HEADING_FEEDBACK_RUNTIME,
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -35,6 +36,7 @@ from oracle_composition.adapters.gmt.training_normalizer import (
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -69,14 +71,27 @@ def _loaded(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    four_state_finite_horizon_runtime: bool = False,
     heading_feedback_runtime: bool = False,
 ) -> Any:
     config_path = tmp_path / "config.json"
-    if sum((loop_runtime, finite_horizon_runtime, heading_feedback_runtime)) > 1:
+    if (
+        sum(
+            (
+                loop_runtime,
+                finite_horizon_runtime,
+                four_state_finite_horizon_runtime,
+                heading_feedback_runtime,
+            )
+        )
+        > 1
+    ):
         raise ValueError("fixture runtime must be unique")
     runtime = (
         AFTER_HEADING_FEEDBACK_RUNTIME
         if heading_feedback_runtime
+        else FOUR_STATE_FINITE_HORIZON_RUNTIME
+        if four_state_finite_horizon_runtime
         else LOOP_RUNTIME
         if loop_runtime
         else FINITE_HORIZON_RUNTIME
@@ -133,6 +148,7 @@ def _plan(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    four_state_finite_horizon_runtime: bool = False,
     heading_feedback_runtime: bool = False,
 ) -> tuple[Any, Any]:
     loaded = _loaded(
@@ -142,6 +158,7 @@ def _plan(
         fixed_normalizer=fixed_normalizer,
         loop_runtime=loop_runtime,
         finite_horizon_runtime=finite_horizon_runtime,
+        four_state_finite_horizon_runtime=four_state_finite_horizon_runtime,
         heading_feedback_runtime=heading_feedback_runtime,
     )
     output = tmp_path / "output"
@@ -245,7 +262,9 @@ def _write_course_result(
         if loaded.course_mode == "probe"
         else (
             (
-                DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+                DEVELOPMENT.COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS
+                if loaded.course_runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+                else DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
                 if fixed_state is not None
                 else DEVELOPMENT.COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS
                 if loaded.course_trainer is not None
@@ -258,7 +277,9 @@ def _write_course_result(
     telemetry_descriptor = None
     scaled = loaded.course_trainer is not None
     telemetry_filename = (
-        FIXED_NORMALIZER_TELEMETRY_FILENAME
+        FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+        if loaded.course_runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+        else FIXED_NORMALIZER_TELEMETRY_FILENAME
         if fixed_state is not None
         else SCALED_TELEMETRY_FILENAME
         if scaled
@@ -270,8 +291,14 @@ def _write_course_result(
             output / telemetry_filename,
             reward_scale=reward_scale,
             fixed_normalizer=fixed_state,
+            runtime=loaded.course_runtime,
         ) as writer:
-            writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
+            writer.rollout_boundary(
+                512,
+                np.zeros((1, loaded.course_runtime.observation_dim), dtype=np.float32),
+                {},
+                None,
+            )
             writer.final_update({}, None)
             telemetry_descriptor = writer.descriptor(512)
     outputs = {}
@@ -283,6 +310,7 @@ def _write_course_result(
             TELEMETRY_FILENAME,
             SCALED_TELEMETRY_FILENAME,
             FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
         }:
             pass
         elif fixed_state is not None and name in {
@@ -491,6 +519,56 @@ def test_course_verifier_accepts_exact_finite_horizon_runtime(
         DEVELOPMENT.COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
     )
     assert plan.inputs["course_runtime"] == FINITE_HORIZON_RUNTIME.manifest_contract()
+
+
+def test_course_verifier_accepts_only_v4_for_four_state_finite_horizon_training(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    plan, loaded = _plan(
+        tmp_path,
+        mode="train",
+        scaled=True,
+        fixed_normalizer=True,
+        four_state_finite_horizon_runtime=True,
+    )
+    _write_course_result(plan, loaded, telemetry=True, fixed_state=state)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == (
+        DEVELOPMENT.COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS
+    )
+    assert artifacts["outputs"][FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME]["size"] > 0
+    assert plan.inputs["course_runtime"] == (FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract())
+
+
+def test_course_verifier_rejects_historical_telemetry_filename_for_new_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _fixed_state(monkeypatch)
+    plan, loaded = _plan(
+        tmp_path,
+        mode="train",
+        scaled=True,
+        fixed_normalizer=True,
+        four_state_finite_horizon_runtime=True,
+    )
+    manifest = _write_course_result(plan, loaded, telemetry=True, fixed_state=state)
+    output = plan.config.output_directory
+    old_path = output / FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+    historical_path = output / FIXED_NORMALIZER_TELEMETRY_FILENAME
+    old_path.rename(historical_path)
+    manifest["outputs"][FIXED_NORMALIZER_TELEMETRY_FILENAME] = manifest["outputs"].pop(
+        FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+    )
+    manifest["training"]["telemetry"]["path"] = FIXED_NORMALIZER_TELEMETRY_FILENAME
+    _write_json(output / DEVELOPMENT.COURSE_MANIFEST_FILENAME, manifest)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="output hash ledger differs"):
+        DEVELOPMENT.verify_development_completed(plan)
 
 
 def test_course_verifier_accepts_exact_scaled_trainer_and_v2_telemetry(

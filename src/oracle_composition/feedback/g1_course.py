@@ -26,6 +26,7 @@ from oracle_composition.adapters.gmt.course_proposal import (
 )
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     frozen_runtime_contract,
 )
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
@@ -45,6 +46,7 @@ from oracle_composition.adapters.gmt.training_normalizer import (
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
     MAX_TELEMETRY_BYTES,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
@@ -86,6 +88,10 @@ _TRAIN_SCALED_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, SCALED_TELEMETRY_FILENAME}
 _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
     *_TRAIN_OUTPUTS,
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+}
+_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS = {
+    *_TRAIN_OUTPUTS,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
 }
 _SUMMARY_FIELDS = {
     "objective_evaluation",
@@ -500,6 +506,7 @@ def build_g1_course_feedback(
         _TRAIN_TELEMETRY_OUTPUTS,
         _TRAIN_SCALED_TELEMETRY_OUTPUTS,
         _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
     )
     mode_hint = "train" if train_output else "probe"
     if output_names not in (
@@ -508,6 +515,7 @@ def build_g1_course_feedback(
         _TRAIN_TELEMETRY_OUTPUTS,
         _TRAIN_SCALED_TELEMETRY_OUTPUTS,
         _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
     ):
         raise ValueError("course run output ledger differs")
     retained: dict[str, bytes] = {}
@@ -529,6 +537,7 @@ def build_g1_course_feedback(
                 TELEMETRY_FILENAME,
                 SCALED_TELEMETRY_FILENAME,
                 FIXED_NORMALIZER_TELEMETRY_FILENAME,
+                FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
             }
             else _MAX_FRAMES_BYTES
             if name.endswith("_frames.jsonl")
@@ -541,6 +550,7 @@ def build_g1_course_feedback(
             TELEMETRY_FILENAME,
             SCALED_TELEMETRY_FILENAME,
             FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
         }:
             telemetry_encoded = encoded
         if name in selected:
@@ -558,7 +568,9 @@ def build_g1_course_feedback(
         and config.trainer.uses_fixed_observation_normalizer
     )
     expected_train_outputs = (
-        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS
+        if config.runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+        else _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
         if fixed_normalizer
         else _TRAIN_SCALED_TELEMETRY_OUTPUTS
         if config.trainer is not None
@@ -590,6 +602,7 @@ def build_g1_course_feedback(
             fixed_normalizer_sha256=(
                 FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
             ),
+            runtime=config.runtime,
         )
     has_preconditioning = type(training) is dict and "reward_preconditioning" in training
     if config.trainer is None:

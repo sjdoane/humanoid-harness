@@ -13,6 +13,14 @@ import numpy as np
 from oracle_composition.harness.contract import decode_json_object
 
 from .contracts import OBSERVATION_DIM
+from .course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    CourseRuntimeProfile,
+)
 from .course_task import TASK_FEATURE_NAMES
 from .training_contract import TRAINING_REWARD_INFO_ID, TRAINING_REWARD_SCALE
 from .training_normalizer import (
@@ -27,10 +35,19 @@ SCALED_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v2"
 SCALED_TELEMETRY_FILENAME = "training_telemetry_v2.jsonl"
 FIXED_NORMALIZER_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v3"
 FIXED_NORMALIZER_TELEMETRY_FILENAME = "training_telemetry_v3.jsonl"
+FOUR_STATE_FINITE_HORIZON_TELEMETRY_ID = "gmt_g1_ppo_training_telemetry/v4"
+FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME = "training_telemetry_v4.jsonl"
 ROLLOUT_STEPS = 512
 MAX_TELEMETRY_BYTES = 4 * 1024**2
 
-_GROUP_WIDTHS = {"base": OBSERVATION_DIM, "task": len(TASK_FEATURE_NAMES), "phase": 6}
+_LEGACY_GROUP_WIDTHS = {"base": OBSERVATION_DIM, "task": len(TASK_FEATURE_NAMES), "phase": 6}
+_ADMITTED_RUNTIMES = {
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    FINITE_HORIZON_RUNTIME,
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+}
 _LOGGER_FIELDS = {
     "approx_kl": "train/approx_kl",
     "clip_fraction": "train/clip_fraction",
@@ -80,8 +97,13 @@ _UNAVAILABLE_REASONS = {"missing", "undefined_nonfinite"}
 
 
 def _telemetry_identity(
-    reward_scale: float | None, fixed_normalizer_sha256: str | None = None
+    reward_scale: float | None,
+    fixed_normalizer_sha256: str | None = None,
+    *,
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
 ) -> tuple[str, str, int]:
+    if runtime not in _ADMITTED_RUNTIMES:
+        raise ValueError("training telemetry runtime profile is not admitted")
     if fixed_normalizer_sha256 is not None:
         if (
             type(reward_scale) is not float
@@ -89,18 +111,50 @@ def _telemetry_identity(
             or fixed_normalizer_sha256 != FIXED_NORMALIZER_STATE_SHA256
         ):
             raise ValueError("fixed-normalizer telemetry requires the exact v3 trainer")
-        return FIXED_NORMALIZER_TELEMETRY_ID, FIXED_NORMALIZER_TELEMETRY_FILENAME, 2
-    if reward_scale is None:
-        return TELEMETRY_ID, TELEMETRY_FILENAME, 1
-    if type(reward_scale) is not float or reward_scale != TRAINING_REWARD_SCALE:
-        raise ValueError("scaled telemetry requires the fixed 1/64 trainer factor")
-    return SCALED_TELEMETRY_ID, SCALED_TELEMETRY_FILENAME, 1
+        identity = FIXED_NORMALIZER_TELEMETRY_ID, FIXED_NORMALIZER_TELEMETRY_FILENAME, 2
+    elif reward_scale is None:
+        identity = TELEMETRY_ID, TELEMETRY_FILENAME, 1
+    else:
+        if type(reward_scale) is not float or reward_scale != TRAINING_REWARD_SCALE:
+            raise ValueError("scaled telemetry requires the fixed 1/64 trainer factor")
+        identity = SCALED_TELEMETRY_ID, SCALED_TELEMETRY_FILENAME, 1
+    if runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME:
+        return (
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_ID,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+            3,
+        )
+    return identity
 
 
 def telemetry_filename(
-    *, reward_scale: float | None, fixed_normalizer_sha256: str | None = None
+    *,
+    reward_scale: float | None,
+    fixed_normalizer_sha256: str | None = None,
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
 ) -> str:
-    return _telemetry_identity(reward_scale, fixed_normalizer_sha256)[1]
+    return _telemetry_identity(reward_scale, fixed_normalizer_sha256, runtime=runtime)[1]
+
+
+def _runtime_contract(runtime: CourseRuntimeProfile) -> dict[str, object] | None:
+    if runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME:
+        return None
+    contract = runtime.manifest_contract()
+    if contract is None:
+        raise ValueError("four-state telemetry lacks its exact runtime contract")
+    return contract
+
+
+def _group_widths(runtime: CourseRuntimeProfile) -> dict[str, int]:
+    if runtime not in _ADMITTED_RUNTIMES:
+        raise ValueError("training telemetry runtime profile is not admitted")
+    if runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME:
+        return dict(_LEGACY_GROUP_WIDTHS)
+    return {
+        "base": OBSERVATION_DIM,
+        "task": len(TASK_FEATURE_NAMES),
+        "phase": 3 + len(runtime.state_slots),
+    }
 
 
 def _float(value: object, name: str) -> float:
@@ -143,20 +197,21 @@ def _moments(values: object, name: str) -> dict[str, float | int] | None:
     }
 
 
-def observation_group_moments(observations: object) -> dict[str, dict[str, float | int]]:
+def observation_group_moments(
+    observations: object, *, runtime: CourseRuntimeProfile = LEGACY_RUNTIME
+) -> dict[str, dict[str, float | int]]:
     """Summarize only values already present in one rollout buffer."""
 
     array = np.asarray(observations)
-    width = sum(_GROUP_WIDTHS.values())
-    if array.ndim < 2 or array.shape[-1] != width or not np.issubdtype(
-        array.dtype, np.floating
-    ):
+    widths = _group_widths(runtime)
+    width = sum(widths.values())
+    if array.ndim < 2 or array.shape[-1] != width or not np.issubdtype(array.dtype, np.floating):
         raise ValueError(f"rollout observations must be floating-point [..., {width}]")
     if not array.size or not np.isfinite(array).all():
         raise ValueError("rollout observations must be nonempty and finite")
     rows, start = array.reshape(-1, width).astype(np.float64, copy=False), 0
     result = {}
-    for name, group_width in _GROUP_WIDTHS.items():
+    for name, group_width in widths.items():
         summary = _moments(rows[:, start : start + group_width], f"{name} observations")
         assert summary is not None
         result[name] = {"observations": len(rows), "width": group_width, **summary}
@@ -346,17 +401,19 @@ class TrainingTelemetry:
         *,
         reward_scale: float | None = None,
         fixed_normalizer: FixedNormalizerState | None = None,
+        runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
     ) -> None:
         self.path = Path(path)
         fixed_sha256 = fixed_normalizer.sha256 if fixed_normalizer is not None else None
         self.telemetry_id, self.filename, self.schema_version = _telemetry_identity(
-            reward_scale, fixed_sha256
+            reward_scale, fixed_sha256, runtime=runtime
         )
         if self.path.name != self.filename:
             raise ValueError("training telemetry filename differs from its version")
         self.handle = self.path.open("xb")
         self.reward_scale = reward_scale
         self.fixed_normalizer = fixed_normalizer
+        self.runtime = runtime
         self.episodes, self.last_boundary = EpisodeAccumulator(reward_scale), None
         self.records = self.rollouts = self.bytes_written = 0
         self.finished = False
@@ -406,8 +463,11 @@ class TrainingTelemetry:
             "collected_through_transitions": through,
             "previous_update": previous,
             "episodes": self.episodes.take_summary(),
-            "observation_groups": observation_group_moments(observations),
+            "observation_groups": observation_group_moments(observations, runtime=self.runtime),
         }
+        runtime_contract = _runtime_contract(self.runtime)
+        if runtime_contract is not None:
+            row["course_runtime"] = runtime_contract
         if self.fixed_normalizer is not None:
             row["fixed_normalized_base_range"] = {
                 "source": "current_rollout_buffer_raw_observations",
@@ -422,16 +482,18 @@ class TrainingTelemetry:
     def final_update(self, logger_values: Mapping[str, object], model_n_updates: object) -> None:
         if self.finished or self.last_boundary is None:
             raise ValueError("training telemetry lacks a unique final rollout")
-        self._write(
-            {
-                "schema_version": self.schema_version,
-                "telemetry_id": self.telemetry_id,
-                "event": "final_update",
-                "collected_through_transitions": self.last_boundary,
-                "update": ppo_update_record(self.last_boundary, logger_values, model_n_updates),
-                "incomplete_episodes": self.episodes.incomplete(),
-            }
-        )
+        row = {
+            "schema_version": self.schema_version,
+            "telemetry_id": self.telemetry_id,
+            "event": "final_update",
+            "collected_through_transitions": self.last_boundary,
+            "update": ppo_update_record(self.last_boundary, logger_values, model_n_updates),
+            "incomplete_episodes": self.episodes.incomplete(),
+        }
+        runtime_contract = _runtime_contract(self.runtime)
+        if runtime_contract is not None:
+            row["course_runtime"] = runtime_contract
+        self._write(row)
         self.finished = True
 
     def descriptor(self, expected_transitions: int) -> dict[str, object]:
@@ -446,9 +508,11 @@ class TrainingTelemetry:
             fixed_normalizer_sha256=(
                 self.fixed_normalizer.sha256 if self.fixed_normalizer is not None else None
             ),
+            runtime=self.runtime,
         )
         if counts["record_count"] != self.records:
             raise ValueError("training telemetry writer and validator disagree")
+        runtime_contract = _runtime_contract(self.runtime)
         descriptor = {
             "schema_version": self.schema_version,
             "telemetry_id": self.telemetry_id,
@@ -464,6 +528,8 @@ class TrainingTelemetry:
                 fixed_normalizer_state_sha256=self.fixed_normalizer.sha256,
                 normalized_base_range_semantics=_NORMALIZED_RANGE_SEMANTICS,
             )
+        if runtime_contract is not None:
+            descriptor["course_runtime"] = runtime_contract
         return descriptor
 
 
@@ -587,11 +653,12 @@ def _valid_episode_counts(value: object, *, scaled: bool) -> bool:
     )
 
 
-def _valid_observation_counts(value: object) -> bool:
-    if type(value) is not dict or set(value) != set(_GROUP_WIDTHS):
+def _valid_observation_counts(value: object, *, runtime: CourseRuntimeProfile) -> bool:
+    widths = _group_widths(runtime)
+    if type(value) is not dict or set(value) != set(widths):
         return False
     moment_fields = {"count", "minimum", "maximum", "mean", "standard_deviation"}
-    for name, width in _GROUP_WIDTHS.items():
+    for name, width in widths.items():
         summary = value[name]
         if (
             type(summary) is not dict
@@ -650,6 +717,7 @@ def validate_training_telemetry(
     *,
     reward_scale: float | None = None,
     fixed_normalizer_sha256: str | None = None,
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
 ) -> dict[str, object]:
     """Validate the bounded identity and previous-update transition alignment."""
 
@@ -662,8 +730,9 @@ def validate_training_telemetry(
     ):
         raise ValueError("training telemetry bytes or budget is invalid")
     telemetry_id, _filename, schema_version = _telemetry_identity(
-        reward_scale, fixed_normalizer_sha256
+        reward_scale, fixed_normalizer_sha256, runtime=runtime
     )
+    runtime_contract = _runtime_contract(runtime)
     scaled = reward_scale is not None
     lines, rollouts = encoded.splitlines(), expected_transitions // ROLLOUT_STEPS
     if len(lines) != rollouts + 1 or any(not line for line in lines):
@@ -688,6 +757,8 @@ def validate_training_telemetry(
     }
     if fixed_normalizer_sha256 is not None:
         rollout_keys.add("fixed_normalized_base_range")
+    if runtime_contract is not None:
+        rollout_keys.add("course_runtime")
     for index, row in enumerate(rows[:-1], start=1):
         through = index * ROLLOUT_STEPS
         if (
@@ -700,7 +771,8 @@ def validate_training_telemetry(
             or (index == 1 and row["previous_update"] is not None)
             or (index > 1 and not _valid_update(row["previous_update"], through - ROLLOUT_STEPS))
             or not _valid_episode_counts(row["episodes"], scaled=scaled)
-            or not _valid_observation_counts(row["observation_groups"])
+            or not _valid_observation_counts(row["observation_groups"], runtime=runtime)
+            or (runtime_contract is not None and row["course_runtime"] != runtime_contract)
             or (
                 fixed_normalizer_sha256 is not None
                 and not _valid_normalized_range(
@@ -710,21 +782,24 @@ def validate_training_telemetry(
         ):
             raise ValueError("training rollout telemetry fields or sequence differ")
     final = rows[-1]
+    final_keys = {
+        "schema_version",
+        "telemetry_id",
+        "event",
+        "collected_through_transitions",
+        "update",
+        "incomplete_episodes",
+    }
+    if runtime_contract is not None:
+        final_keys.add("course_runtime")
     if (
-        set(final)
-        != {
-            "schema_version",
-            "telemetry_id",
-            "event",
-            "collected_through_transitions",
-            "update",
-            "incomplete_episodes",
-        }
+        set(final) != final_keys
         or final["event"] != "final_update"
         or type(final["collected_through_transitions"]) is not int
         or final["collected_through_transitions"] != expected_transitions
         or not _valid_update(final["update"], expected_transitions)
         or not _valid_incomplete(final["incomplete_episodes"], scaled=scaled)
+        or (runtime_contract is not None and final["course_runtime"] != runtime_contract)
     ):
         raise ValueError("training final-update telemetry differs")
     return {
@@ -741,6 +816,7 @@ def validate_training_telemetry_descriptor(
     *,
     reward_scale: float | None = None,
     fixed_normalizer_sha256: str | None = None,
+    runtime: CourseRuntimeProfile = LEGACY_RUNTIME,
 ) -> dict[str, object]:
     """Bind an exact optional descriptor to its retained JSONL bytes."""
 
@@ -749,6 +825,9 @@ def validate_training_telemetry_descriptor(
         descriptor_fields.update(
             {"fixed_normalizer_state_sha256", "normalized_base_range_semantics"}
         )
+    runtime_contract = _runtime_contract(runtime)
+    if runtime_contract is not None:
+        descriptor_fields.add("course_runtime")
     if type(value) is not dict or set(value) != descriptor_fields:
         raise ValueError("training telemetry descriptor fields differ")
     if any(
@@ -757,13 +836,14 @@ def validate_training_telemetry_descriptor(
     ):
         raise ValueError("training telemetry descriptor counts differ")
     telemetry_id, filename, schema_version = _telemetry_identity(
-        reward_scale, fixed_normalizer_sha256
+        reward_scale, fixed_normalizer_sha256, runtime=runtime
     )
     counts = validate_training_telemetry(
         encoded,
         expected_transitions,
         reward_scale=reward_scale,
         fixed_normalizer_sha256=fixed_normalizer_sha256,
+        runtime=runtime,
     )
     expected = {
         "schema_version": schema_version,
@@ -780,6 +860,8 @@ def validate_training_telemetry_descriptor(
             fixed_normalizer_state_sha256=fixed_normalizer_sha256,
             normalized_base_range_semantics=_NORMALIZED_RANGE_SEMANTICS,
         )
+    if runtime_contract is not None:
+        expected["course_runtime"] = runtime_contract
     if value != expected:
         raise ValueError("training telemetry descriptor differs from retained bytes")
     return expected
@@ -788,6 +870,8 @@ def validate_training_telemetry_descriptor(
 __all__ = [
     "FIXED_NORMALIZER_TELEMETRY_FILENAME",
     "FIXED_NORMALIZER_TELEMETRY_ID",
+    "FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME",
+    "FOUR_STATE_FINITE_HORIZON_TELEMETRY_ID",
     "MAX_TELEMETRY_BYTES",
     "SCALED_TELEMETRY_FILENAME",
     "SCALED_TELEMETRY_ID",

@@ -20,6 +20,7 @@ from oracle_composition.adapters.gmt.checkpoint import verify_upstream_root
 from oracle_composition.adapters.gmt.contracts import GMT_UPSTREAM_COMMIT, MOTION_SPECS
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     CourseRuntimeProfile,
     frozen_runtime_contract,
 )
@@ -52,6 +53,7 @@ from oracle_composition.adapters.gmt.training_normalizer import (
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
     MAX_TELEMETRY_BYTES,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
@@ -104,6 +106,10 @@ COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS = {
 COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
     *COURSE_TRAIN_OUTPUTS,
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+}
+COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
 }
 LAUNCHER_SOURCES = ("scripts/run_gmt_probe.py", "scripts/run_gmt_development.py")
 PARITY_CONFIG_FIELDS = {
@@ -808,6 +814,7 @@ def _validate_training_record(
     steps: int,
     telemetry_encoded: bytes | None,
     trainer: CourseTrainerSpec | None,
+    runtime: CourseRuntimeProfile,
 ) -> None:
     if mode == "probe":
         if value is not None:
@@ -852,6 +859,7 @@ def _validate_training_record(
                     if trainer is not None and trainer.uses_fixed_observation_normalizer
                     else None
                 ),
+                runtime=runtime,
             )
         except ValueError as exc:
             raise supervisor.ProbeError(str(exc)) from exc
@@ -892,6 +900,8 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     valid_output_sets = (
         {frozenset(COURSE_PROBE_OUTPUTS)}
         if mode == "probe"
+        else {frozenset(COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS)}
+        if loaded.course_runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
         else {frozenset(COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS)}
         if loaded.course_trainer is not None
         and loaded.course_trainer.uses_fixed_observation_normalizer
@@ -924,6 +934,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             TELEMETRY_FILENAME,
             SCALED_TELEMETRY_FILENAME,
             FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
         }:
             telemetry_encoded = supervisor._read_bounded(
                 path, MAX_TELEMETRY_BYTES, "course training telemetry"
@@ -993,6 +1004,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         steps=training_steps,
         telemetry_encoded=telemetry_encoded,
         trainer=loaded.course_trainer,
+        runtime=loaded.course_runtime,
     )
     if manifest.get("identities") != loaded.course_identities:
         raise supervisor.ProbeError("course semantic identities differ from admitted config")

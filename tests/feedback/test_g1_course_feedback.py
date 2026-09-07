@@ -14,6 +14,7 @@ from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
 from oracle_composition.adapters.gmt.course_runtime import (
     COURSE_RESIDUAL_RAW_SCALE,
     FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
     frozen_runtime_contract,
@@ -38,6 +39,7 @@ from oracle_composition.adapters.gmt.training_normalizer import (
 )
 from oracle_composition.adapters.gmt.training_telemetry import (
     FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
     SCALED_TELEMETRY_FILENAME,
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -172,6 +174,7 @@ def _run_fixture(
     fixed_normalizer: bool = False,
     loop_runtime: bool = False,
     finite_horizon_runtime: bool = False,
+    four_state_finite_horizon_runtime: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -186,11 +189,13 @@ def _run_fixture(
     recipe = TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0)
     if loop_runtime and (telemetry or scaled or fixed_normalizer):
         raise ValueError("loop fixture is probe-only")
-    if loop_runtime and finite_horizon_runtime:
+    if sum((loop_runtime, finite_horizon_runtime, four_state_finite_horizon_runtime)) > 1:
         raise ValueError("fixture runtime must be unique")
     runtime = (
         LOOP_RUNTIME
         if loop_runtime
+        else FOUR_STATE_FINITE_HORIZON_RUNTIME
+        if four_state_finite_horizon_runtime
         else FINITE_HORIZON_RUNTIME
         if finite_horizon_runtime
         else LEGACY_RUNTIME
@@ -286,7 +291,9 @@ def _run_fixture(
     training = None if loop_runtime else {"completed_transitions": 512}
     if telemetry:
         telemetry_filename = (
-            FIXED_NORMALIZER_TELEMETRY_FILENAME
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+            if runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+            else FIXED_NORMALIZER_TELEMETRY_FILENAME
             if fixed_normalizer
             else SCALED_TELEMETRY_FILENAME
             if scaled
@@ -307,9 +314,15 @@ def _run_fixture(
             root / telemetry_filename,
             reward_scale=reward_scale,
             fixed_normalizer=fixed_state,
+            runtime=runtime,
         ) as writer:
             writer.observe_step([observed_reward], [True], [info])
-            writer.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
+            writer.rollout_boundary(
+                512,
+                np.zeros((1, runtime.observation_dim), dtype=np.float32),
+                {},
+                None,
+            )
             writer.final_update(
                 {
                     "train/approx_kl": 0.01,
@@ -444,6 +457,61 @@ def test_finite_horizon_runtime_is_bound_in_feedback_receipt(
     assert receipt["inputs"]["course_runtime"] == (
         FINITE_HORIZON_RUNTIME.manifest_contract()
     )
+
+
+def test_four_state_finite_horizon_feedback_accepts_exact_v4_output_set(
+    tmp_path, monkeypatch
+) -> None:
+    manifest, digest, _config = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        fixed_normalizer=True,
+        four_state_finite_horizon_runtime=True,
+    )
+
+    output = tmp_path / "feedback"
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=output,
+    )
+
+    receipt = json.loads((output / "feedback_receipt_v1.json").read_text())
+    assert receipt["inputs"]["course_runtime"] == (
+        FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract()
+    )
+    feedback = json.loads((output / "feedback_v1.json").read_text())
+    assert "Training telemetry:" in feedback["diagnosis"]
+
+
+def test_four_state_finite_horizon_feedback_rejects_historical_telemetry_set(
+    tmp_path, monkeypatch
+) -> None:
+    manifest_path, _, _config = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        fixed_normalizer=True,
+        four_state_finite_horizon_runtime=True,
+    )
+    root = manifest_path.parent
+    current = root / FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
+    historical = root / FIXED_NORMALIZER_TELEMETRY_FILENAME
+    current.rename(historical)
+    manifest = json.loads(manifest_path.read_text())
+    manifest["outputs"][historical.name] = manifest["outputs"].pop(current.name)
+    manifest["training"]["telemetry"]["path"] = historical.name
+    digest = _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="exact versioned telemetry output"):
+        module.build_g1_course_feedback(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=digest,
+            label="final_policy",
+            output=tmp_path / "feedback",
+        )
 
 
 def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:

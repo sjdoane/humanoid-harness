@@ -93,3 +93,29 @@ maximum absolute transformed value over only that rollout buffer's raw 2,154-val
 This range is descriptive and has no pass threshold; evaluation calls and PPO minibatch calls are
 not pooled into it. V1/v2 telemetry filenames and row shapes remain unchanged. The fixed
 normalizer is not admitted for the separate probe-only four-state runtime.
+
+## Four-state finite-horizon training runtime
+
+Schema 5 admits one new closed runtime profile:
+
+```json
+{"profile_id":"gmt_g1_four_state_finite_horizon_course/v1","schema_version":1}
+```
+
+It requires the exact ordered observation slots `before`, `inside`, `rise`, and `after`, retains
+the loop-entry dispatch contract, disables after-heading reference feedback, and treats both a
+fall and the intrinsic task horizon as `terminated`; `truncated` remains false. The older
+three-state finite-horizon profile, probe-only loop profiles, and their identities are unchanged.
+In particular, the existing loop runtime remains ineligible for training.
+
+This profile has 2,172 observations: the unchanged 2,154-value base prefix, 11 task values, and
+a seven-value phase tail. Its training output is the exact
+`training_telemetry_v4.jsonl`/`gmt_g1_ppo_training_telemetry/v4` pair. Every rollout row, final row,
+and descriptor carries the exact course-runtime contract; validation derives the seven-value tail
+from that admitted runtime rather than accepting it from width alone. Fixed normalization still
+touches only `[0, 2154)` and leaves all 18 task-plus-phase values unchanged.
+
+A bounded synthetic-environment test executes the real SB3 callback through its first 512-step
+rollout and final PPO update. This is software interface evidence only: it uses no MuJoCo robot,
+demonstrates no task behavior, and authorizes no derived motion or scientific result. Runtime use
+still depends on separately admitted upstream motion assets.

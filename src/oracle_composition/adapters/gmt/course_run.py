@@ -311,11 +311,13 @@ def run_course(config_path: Path, output: Path) -> dict:
             fixed_normalizer_sha256=(
                 fixed_normalizer.sha256 if fixed_normalizer is not None else None
             ),
+            runtime=config.runtime,
         )
         with TrainingTelemetry(
             output / telemetry_name,
             reward_scale=reward_scale,
             fixed_normalizer=fixed_normalizer,
+            runtime=config.runtime,
         ) as telemetry:
             callback = _TrainingProgress(telemetry)
             model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
