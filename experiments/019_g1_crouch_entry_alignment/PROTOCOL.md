@@ -77,6 +77,15 @@ target; do not substitute a pre-action future-window row.
   and controller history. It does not isolate phase from every coupled effect.
 - One paired episode, with correlated samples and no uncertainty estimate.
   A future learned pair needs a newly declared zero/trained control.
+- Keep the existing loop-boundary exit rule: satisfying progress≥2.05 m does
+  not immediately force rise. Report first guard satisfaction, actual switch
+  command, elapsed deferral, source phase and handover heights. A further loop
+  caused by the unchanged boundary rule is reported, not a new screen failure;
+  all survival, exposure, re-entry and tracking checks still apply.
+- Before candidate data, retained O7b first reaches0.40 m after control step71
+  (progress0.407975 m; step70 is0.392494 m). Confirm dispatch semantics in the
+  scorer: expected first changed command72, with71 identical executed rows and
+  72 identical state boundaries. A differing prefix is an integrity failure.
 
 ## Verification and launch order
 
