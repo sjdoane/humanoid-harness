@@ -22,6 +22,7 @@ from .course_runtime import (
     runtime_profile_from_config,
 )
 from .course_task import CourseTaskSpec, TaskRewardRecipe
+from .derived_reference import admit_derived_reference, is_derived_reference_name
 from .io import sha256_file
 from .reference_runtime import ReferenceMotion
 from .training_contract import CourseTrainerSpec
@@ -130,15 +131,21 @@ def load_run_config(path: Path) -> CourseRunConfig:
         raise ValueError("one to eight segment records are required")
     loaded = {}
     for name, asset in motions.items():
-        if name not in MOTION_SPECS:
+        if name in MOTION_SPECS:
+            if (
+                type(asset) is not dict
+                or asset.get("sha256") != ADMITTED_CONVERTED_MOTION_SHA256[name]
+            ):
+                raise ValueError("motion bytes are outside the admitted converted GMT library")
+            loaded[name] = ReferenceMotion.from_converted(
+                _asset(asset),
+                name=name,
+                expected_sha256=ADMITTED_CONVERTED_MOTION_SHA256[name],
+            )
+        elif is_derived_reference_name(name):
+            loaded[name] = admit_derived_reference(name, asset, mode=raw["mode"]).motion
+        else:
             raise ValueError("motion name is outside the admitted GMT library")
-        if type(asset) is not dict or asset.get("sha256") != ADMITTED_CONVERTED_MOTION_SHA256[name]:
-            raise ValueError("motion bytes are outside the admitted converted GMT library")
-        loaded[name] = ReferenceMotion.from_converted(
-            _asset(asset),
-            name=name,
-            expected_sha256=ADMITTED_CONVERTED_MOTION_SHA256[name],
-        )
     admitted = {}
     for behavior, value in segments.items():
         required = {"motion_name", "start_seconds", "end_seconds"}

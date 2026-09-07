@@ -23,6 +23,10 @@ from oracle_composition.adapters.gmt.course_runtime import (
     CourseRuntimeProfile,
     frozen_runtime_contract,
 )
+from oracle_composition.adapters.gmt.derived_reference import (
+    admit_derived_reference,
+    is_derived_reference_name,
+)
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
 from oracle_composition.adapters.gmt.reference_ablation import (
     REFERENCE_ABLATION_ARTIFACT,
@@ -363,11 +367,17 @@ def _load_course(path: Path) -> _LoadedWorkload:
     for name in sorted(motions_raw):
         binding = motions_raw[name]
         assert isinstance(name, str) and isinstance(binding, dict)
-        if name not in MOTION_SPECS:
+        if name in MOTION_SPECS:
+            motion_path = _absolute_json_path(binding["path"], field=f"motion {name}")
+            motion_sha256 = _sha256(binding["sha256"], field=f"motion {name} SHA-256")
+            motions[name] = _file_binding(motion_path, motion_sha256, field=f"motion {name}")
+        elif is_derived_reference_name(name):
+            admission = admit_derived_reference(name, binding, mode=config.raw["mode"])
+            motion_path = admission.path
+            motion_sha256 = str(admission.resource_binding["sha256"])
+            motions[name] = admission.resource_binding
+        else:
             raise supervisor.ProbeError("course motion is outside the admitted GMT catalog")
-        motion_path = _absolute_json_path(binding["path"], field=f"motion {name}")
-        motion_sha256 = _sha256(binding["sha256"], field=f"motion {name} SHA-256")
-        motions[name] = _file_binding(motion_path, motion_sha256, field=f"motion {name}")
         motion_paths[name] = motion_path
     if not motions:
         raise supervisor.ProbeError("course config has no admitted motions")
