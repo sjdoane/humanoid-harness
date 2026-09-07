@@ -51,6 +51,11 @@ OUTPUT: both final policies, synchronized traces, reward lineage, scores, replay
 | Lateral headroom | Maximum lateral error>0.75 m |
 
 - Stop B if any row fails. Keep A and diagnose; do not relax gates after seeing A.
+- The0.75 compliance floor is the original task gate; zero-residual O7b achieves
+  56/74=0.756757, so this is a demanding baseline check with little headroom.
+- Before A, run one fresh legacy O7b probe at the imported source. Require all
+  three retained Study015 outputs byte-exact in a separate successful check.
+  The runtime addition must not silently change legacy behavior.
 - A's zero-residual numeric trajectory/actions must reproduce retained O7b.
   Explicit runtime/reset termination metadata may differ; independent objective
   values must not. A failed parity check is not a behavioral experiment result.
