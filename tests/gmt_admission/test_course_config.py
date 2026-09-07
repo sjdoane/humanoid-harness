@@ -339,13 +339,18 @@ def test_config_v2_admits_full_four_state_oracle(admitted_config):
     raw["oracle"]["states"] = {
         "before": {"behavior": "walk", "min_dwell": 25},
         "inside": {"behavior": "crouch", "min_dwell": 25},
-        "rise": {"behavior": "rise", "min_dwell": 25},
+        "rise": {"behavior": "rise", "min_dwell": 24},
         "after": {"behavior": "walk", "min_dwell": 25},
     }
     raw["oracle"]["transitions"] = [
         {"from": "before", "to": "inside", "priority": 0, "guard": "x_travelled >= 1"},
-        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2"},
-        {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 25"},
+        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2.05"},
+        {
+            "from": "rise",
+            "to": "after",
+            "priority": 0,
+            "guard": "(dwell >= 24 and z_root >= 0.70) or dwell >= 40",
+        },
     ]
     path.write_text(json.dumps(raw))
 

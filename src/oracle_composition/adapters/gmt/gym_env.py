@@ -17,6 +17,7 @@ from .control_runtime import (
     compose_residual_raw_action,
 )
 from .course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
     LEGACY_GYM_RUNTIME_ID,
     LEGACY_RUNTIME,
     LOOP_RUNTIME,
@@ -36,7 +37,7 @@ from .reference_math import quaternion_to_euler_wxyz
 GYM_RUNTIME_ID = LEGACY_GYM_RUNTIME_ID
 ORACLE_SIGNAL_CONTRACT_ID = "gmt_initial_heading_frame_boundary_signals/v1"
 STATE_SLOTS = LEGACY_RUNTIME.state_slots
-RESIDUAL_RAW_SCALE = np.float32(0.25)
+RESIDUAL_RAW_SCALE = np.float32(COURSE_RESIDUAL_RAW_SCALE)
 RESIDUAL_OBSERVATION_DIM = LEGACY_RUNTIME.observation_dim
 LOOP_RESIDUAL_OBSERVATION_DIM = LOOP_RUNTIME.observation_dim
 

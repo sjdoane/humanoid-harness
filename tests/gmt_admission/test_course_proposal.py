@@ -253,7 +253,7 @@ def _o5_replacement() -> dict:
             "states": {
                 "before": {"behavior": "walk", "min_dwell": 25},
                 "inside": {"behavior": "crouch", "min_dwell": 25},
-                "rise": {"behavior": "rise", "min_dwell": 25},
+                "rise": {"behavior": "rise", "min_dwell": 24},
                 "after": {"behavior": "walk", "min_dwell": 25},
             },
             "transitions": [
@@ -267,13 +267,13 @@ def _o5_replacement() -> dict:
                     "from": "inside",
                     "to": "rise",
                     "priority": 0,
-                    "guard": "(dwell >= 24 and z_root >= 0.70) or dwell >= 40",
+                    "guard": "x_travelled >= 2.05",
                 },
                 {
                     "from": "rise",
                     "to": "after",
                     "priority": 0,
-                    "guard": "dwell >= 39",
+                    "guard": "(dwell >= 24 and z_root >= 0.70) or dwell >= 40",
                 },
             ],
         },
@@ -392,6 +392,8 @@ def test_loop_profile_proposal_admits_o5_and_cannot_change_runtime() -> None:
     assert candidate["segments"]["crouch"]["loop_start_seconds"] == 3.9
     assert candidate["segments"]["crouch"]["exit_at_loop_boundary"] is True
     assert set(candidate["oracle"]["states"]) == {"before", "inside", "rise", "after"}
+    assert candidate["oracle"]["states"]["inside"]["min_dwell"] == 25
+    assert candidate["oracle"]["states"]["rise"]["min_dwell"] == 24
     proposal["replacement"]["runtime"] = parent.raw["runtime"]
     with pytest.raises(ValueError, match="exactly oracle and segments"):
         apply_proposal(parent, proposal, feedback)

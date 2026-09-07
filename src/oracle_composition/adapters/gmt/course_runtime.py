@@ -17,6 +17,7 @@ LEGACY_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_and_boundary/
 LOOP_COMPOSITION_RUNTIME_ID = "gmt_state_triggered_segment_entry_loop_boundary/v3"
 LEGACY_GYM_RUNTIME_ID = "gmt_g1_residual_course_50hz/v1"
 LOOP_GYM_RUNTIME_ID = "gmt_g1_residual_course_four_state_50hz/v2"
+COURSE_RESIDUAL_RAW_SCALE = 0.25
 LEGACY_STATE_SLOTS = ("before", "inside", "after")
 LOOP_STATE_SLOTS = ("before", "inside", "rise", "after")
 _REQUIRED_STATES = frozenset(LEGACY_STATE_SLOTS)
@@ -151,6 +152,7 @@ def frozen_runtime_contract(
 
 
 __all__ = [
+    "COURSE_RESIDUAL_RAW_SCALE",
     "LEGACY_COMPOSITION_RUNTIME_ID",
     "LEGACY_CONFIG_SCHEMA_VERSION",
     "LEGACY_GYM_RUNTIME_ID",

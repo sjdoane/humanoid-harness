@@ -11,6 +11,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    frozen_runtime_contract,
+    runtime_profile_from_config,
+)
 from oracle_composition.adapters.gmt.training_contract import (
     CourseTrainerSpec,
     effective_training_contract,
@@ -258,16 +263,27 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
         raise G1LearningError("probe_training_record_invalid")
 
     try:
+        runtime = runtime_profile_from_config(config)
+    except ValueError as exc:
+        raise G1LearningError("runtime_config_invalid") from exc
+    try:
         trainer_spec = (
             CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
         )
     except ValueError as exc:
         raise G1LearningError("trainer_config_invalid") from exc
     frozen = manifest.get("frozen_runtime")
-    trainer = frozen.get("trainer") if type(frozen) is dict else None
     expected_trainer = effective_training_contract(trainer_spec)
-    if trainer != expected_trainer:
-        raise G1LearningError("trainer_config_manifest_mismatch")
+    expected_runtime = frozen_runtime_contract(
+        runtime,
+        trainer=expected_trainer,
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen != expected_runtime:
+        if type(frozen) is dict and frozen.get("trainer") != expected_trainer:
+            raise G1LearningError("trainer_config_manifest_mismatch")
+        raise G1LearningError("runtime_config_manifest_mismatch")
+    trainer = expected_trainer
     if trainer_spec is None:
         base_contract = trainer
         trainer_variant = "legacy_raw_training_reward"
@@ -329,6 +345,9 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
             "producer_recorded_trainer": trainer,
             "full_trainer_contract_sha256": hashlib.sha256(trainer_bytes).hexdigest(),
             "trainer_payload_identity_sha256": payload_identity,
+            "course_runtime_profile": runtime.profile_id or "implicit_legacy_config_v1",
+            "observation_dim": runtime.observation_dim,
+            "training_admitted_for_profile": runtime.training_admitted,
         },
         "receipts": {
             "manifest_sha256": entry.manifest_sha256,
@@ -340,6 +359,9 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
                 f"{name}_sha256": _digest(identities.get(name), name)
                 for name in ("task", "oracle", "reward")
             },
+            "frozen_runtime_sha256": hashlib.sha256(
+                canonical_json_bytes(expected_runtime)
+            ).hexdigest(),
         },
         "limitations": list(_LIMITATIONS),
     }

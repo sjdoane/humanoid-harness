@@ -675,6 +675,11 @@ function appendG1Run(row) {
   );
   appendG1Line(
     training,
+    "course runtime",
+    `${g1Text(row.training.course_runtime_profile, "course runtime profile")} · ${g1Count(row.training.observation_dim, "observation dimension")}D`,
+  );
+  appendG1Line(
+    training,
     "budget",
     `${g1Count(row.training.completed_transitions, "completed budget").toLocaleString("en-US")} / ${g1Count(row.training.requested_transitions, "requested budget").toLocaleString("en-US")} transitions`,
   );
@@ -692,6 +697,12 @@ function appendG1Run(row) {
         full_contract_sha256: row.training.full_trainer_contract_sha256,
         payload_identity_sha256: row.training.trainer_payload_identity_sha256,
         producer_recorded_contract: contract,
+      },
+      course_runtime: {
+        profile: row.training.course_runtime_profile,
+        observation_dim: row.training.observation_dim,
+        training_admitted: row.training.training_admitted_for_profile,
+        frozen_runtime_sha256: row.receipts.frozen_runtime_sha256,
       },
       claim_limits: row.limitations,
     },

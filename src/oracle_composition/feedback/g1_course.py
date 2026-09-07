@@ -24,6 +24,10 @@ from oracle_composition.adapters.gmt.course_proposal import (
     COURSE_FEEDBACK_EVIDENCE_CLASS,
     MAX_DIAGNOSIS_CHARACTERS,
 )
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
 from oracle_composition.adapters.gmt.io import validate_zip_members
 from oracle_composition.adapters.gmt.training_contract import (
@@ -543,14 +547,13 @@ def build_g1_course_feedback(
     ):
         raise ValueError("scaled training reward metadata differs")
     frozen_runtime = manifest["frozen_runtime"]
-    if (
-        type(frozen_runtime) is not dict
-        or (
-            config.trainer is not None
-            and frozen_runtime.get("trainer") != effective_training_contract(config.trainer)
-        )
-    ):
-        raise ValueError("course trainer runtime differs from retained config")
+    expected_runtime = frozen_runtime_contract(
+        config.runtime,
+        trainer=effective_training_contract(config.trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime:
+        raise ValueError("course runtime differs from retained config")
     identities = {
         "task": config.task.sha256,
         "oracle": config.program.sha256,
@@ -634,6 +637,9 @@ def build_g1_course_feedback(
             "transient_substep_failures_remain_producer_evidence",
         ],
     }
+    runtime = config.runtime.manifest_contract()
+    if runtime is not None:
+        receipt["inputs"]["course_runtime"] = runtime
     receipt_artifact = publish_json_without_overwrite(
         destination / "feedback_receipt_v1.json", receipt
     )

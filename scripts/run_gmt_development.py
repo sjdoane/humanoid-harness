@@ -17,6 +17,11 @@ import run_gmt_probe as supervisor
 
 from oracle_composition.adapters.gmt.checkpoint import verify_upstream_root
 from oracle_composition.adapters.gmt.contracts import GMT_UPSTREAM_COMMIT, MOTION_SPECS
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    CourseRuntimeProfile,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
@@ -131,6 +136,7 @@ class _LoadedWorkload:
     course_mode: str | None = None
     course_identities: dict[str, object] | None = None
     course_trainer: CourseTrainerSpec | None = None
+    course_runtime: CourseRuntimeProfile | None = None
     parity_receipt_inputs: dict[str, object] | None = None
 
 
@@ -371,6 +377,7 @@ def _load_course(path: Path) -> _LoadedWorkload:
         weights_sha256=weights_sha256,
         course_mode=mode,
         course_trainer=config.trainer,
+        course_runtime=config.runtime,
         course_identities={
             "task": config.task.sha256,
             "oracle": config.program.sha256,
@@ -462,6 +469,10 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
     }
     if loaded.course_trainer is not None:
         inputs["trainer"] = effective_training_contract(loaded.course_trainer)
+    if loaded.course_runtime is not None:
+        runtime = loaded.course_runtime.manifest_contract()
+        if runtime is not None:
+            inputs["course_runtime"] = runtime
     return _PlanMaterial(
         root=root,
         commit=commit,
@@ -905,13 +916,15 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     if manifest.get("claims") != expected_claims:
         raise supervisor.ProbeError("course run claim limits differ")
     frozen_runtime = manifest.get("frozen_runtime")
+    if loaded.course_runtime is None:
+        raise supervisor.ProbeError("course runtime profile binding is missing")
+    expected_runtime = frozen_runtime_contract(
+        loaded.course_runtime,
+        trainer=effective_training_contract(loaded.course_trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
     if (
-        not isinstance(frozen_runtime, Mapping)
-        or (
-            loaded.course_trainer is not None
-            and frozen_runtime.get("trainer")
-            != effective_training_contract(loaded.course_trainer)
-        )
+        frozen_runtime != expected_runtime
         or not isinstance(manifest.get("runtime"), Mapping)
     ):
         raise supervisor.ProbeError("course runtime provenance is missing")

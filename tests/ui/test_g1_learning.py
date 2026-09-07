@@ -8,6 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.training_contract import (
     TRAINING_REWARD_SCALE,
     CourseTrainerSpec,
@@ -37,10 +43,22 @@ def _fixture(
     scaled: bool = False,
     low_rate: bool = False,
     manifest_scaled: bool | None = None,
+    loop_runtime: bool = False,
 ) -> tuple[Path, Path, dict[str, object]]:
     run = root / "runs" / "o2-seed7"
     run.mkdir(parents=True)
-    config = {"mode": "train", "seed": 7, "training_steps": 512}
+    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    mode = "probe" if loop_runtime else "train"
+    label = "zero_residual" if loop_runtime else "final_policy"
+    budget = 0 if loop_runtime else 512
+    config = {
+        "schema_version": runtime.config_schema_version,
+        "mode": mode,
+        "seed": 7,
+        "training_steps": budget,
+    }
+    if runtime.config_value is not None:
+        config["runtime"] = runtime.config_value
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
@@ -54,7 +72,7 @@ def _fixture(
     config_bytes = _json(config)
     (run / "input_config.json").write_bytes(config_bytes)
     evaluation_bytes = _json({"retained": True})
-    (run / "final_policy_evaluation.json").write_bytes(evaluation_bytes)
+    (run / f"{label}_evaluation.json").write_bytes(evaluation_bytes)
     task_sha = "1" * 64
     gates = {"finish_reached": True, "inside_posture_compliance": False}
     objective = {
@@ -89,7 +107,7 @@ def _fixture(
         "input_config_sha256": _sha(config_bytes),
         "outputs": {
             "input_config.json": _sha(config_bytes),
-            "final_policy_evaluation.json": _sha(evaluation_bytes),
+            f"{label}_evaluation.json": _sha(evaluation_bytes),
         },
         "identities": {
             "task": task_sha,
@@ -97,19 +115,21 @@ def _fixture(
             "reward": "3" * 64,
             "segments": {"walk": "4" * 64},
         },
-        "frozen_runtime": {
-            "trainer": effective_training_contract(
+        "frozen_runtime": frozen_runtime_contract(
+            runtime,
+            trainer=effective_training_contract(
                 CourseTrainerSpec(
                     TRAINING_REWARD_SCALE,
                     profile_version=2 if low_rate else 1,
                 )
                 if (scaled if manifest_scaled is None else manifest_scaled)
                 else None
-            )
-        },
-        "training": {"completed_transitions": 512},
-        "zero_residual": None,
-        "final_policy": {"objective_evaluation": objective},
+            ),
+            residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+        ),
+        "training": None if loop_runtime else {"completed_transitions": 512},
+        "zero_residual": {"objective_evaluation": objective} if loop_runtime else None,
+        "final_policy": None if loop_runtime else {"objective_evaluation": objective},
         "runtime": {},
         "claims": {},
     }
@@ -123,7 +143,7 @@ def _fixture(
                 "run_id": "o2-seed7",
                 "manifest_path": str(manifest_path),
                 "manifest_sha256": _sha(manifest_bytes),
-                "label": "final_policy",
+                "label": label,
             }
         ],
     }
@@ -230,6 +250,23 @@ def test_low_rate_run_exposes_validated_optimizer_rate(tmp_path, monkeypatch) ->
     assert training["producer_recorded_trainer"]["base_ppo_contract"][
         "learning_rate"
     ] == 3e-5
+
+
+def test_registered_probe_exposes_exact_loop_runtime_without_task_pass_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _registry, _manifest, objective = _fixture(tmp_path, loop_runtime=True)
+    _install_validator(monkeypatch, objective)
+
+    payload = module.g1_learning_status(tmp_path)
+
+    assert payload["state"] == "available"
+    run = payload["runs"][0]
+    assert run["selected_label"] == "zero_residual"
+    assert run["evaluator"]["episode_success"] is None
+    assert run["training"]["course_runtime_profile"] == LOOP_RUNTIME.profile_id
+    assert run["training"]["observation_dim"] == 2172
+    assert run["training"]["training_admitted_for_profile"] is False
 
 
 def test_missing_or_empty_registry_does_not_search_for_runs(tmp_path: Path) -> None:

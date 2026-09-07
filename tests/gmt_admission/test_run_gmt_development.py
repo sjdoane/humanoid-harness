@@ -12,6 +12,12 @@ from typing import Any
 import numpy as np
 import pytest
 
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.training_contract import (
     TRAINING_REWARD_SCALE,
     CourseTrainerSpec,
@@ -50,13 +56,18 @@ def _loaded(
     *,
     scaled: bool = False,
     low_rate: bool = False,
+    loop_runtime: bool = False,
 ) -> Any:
     config_path = tmp_path / "config.json"
+    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
     raw = {
+        "schema_version": runtime.config_schema_version,
         "mode": mode,
         "training_steps": 0 if mode == "probe" else 512,
         "task": {"horizon_steps": 50},
     }
+    if runtime.config_value is not None:
+        raw["runtime"] = runtime.config_value
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
@@ -80,6 +91,7 @@ def _loaded(
         weights_sha256=DEVELOPMENT.supervisor.OFFICIAL_ACTOR_SHA256,
         course_mode=mode,
         course_trainer=trainer,
+        course_runtime=runtime,
         course_identities={
             "task": "1" * 64,
             "oracle": "2" * 64,
@@ -95,8 +107,9 @@ def _plan(
     mode: str = "probe",
     *,
     scaled: bool = False,
+    loop_runtime: bool = False,
 ) -> tuple[Any, Any]:
-    loaded = _loaded(tmp_path, mode, scaled=scaled)
+    loaded = _loaded(tmp_path, mode, scaled=scaled, loop_runtime=loop_runtime)
     output = tmp_path / "output"
     output.mkdir()
     config_path = tmp_path / "config.json"
@@ -139,6 +152,9 @@ def _plan(
         artifact_label=artifact_label,
         evidence_class=evidence_class,
     )
+    runtime = loaded.course_runtime.manifest_contract()
+    if runtime is not None:
+        plan.inputs["course_runtime"] = runtime
     return plan, loaded
 
 
@@ -221,14 +237,11 @@ def _write_course_result(
         "input_config_sha256": loaded.sha256,
         "outputs": outputs,
         "identities": loaded.course_identities,
-        "frozen_runtime": {
-            "gym": "fixed",
-            **(
-                {"trainer": effective_training_contract(loaded.course_trainer)}
-                if loaded.course_trainer is not None
-                else {}
-            ),
-        },
+        "frozen_runtime": frozen_runtime_contract(
+            loaded.course_runtime,
+            trainer=effective_training_contract(loaded.course_trainer),
+            residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+        ),
         "training": training,
         "zero_residual": _summary(residual_rms=0.0),
         "final_policy": final_policy,
@@ -273,6 +286,19 @@ def test_course_verifier_accepts_only_exact_paired_telemetry(
 
     assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_TRAIN_TELEMETRY_OUTPUTS
     assert artifacts["outputs"][TELEMETRY_FILENAME]["size"] > 0
+
+
+def test_course_verifier_accepts_exact_probe_loop_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan, loaded = _plan(tmp_path, loop_runtime=True)
+    _write_course_result(plan, loaded)
+    monkeypatch.setattr(DEVELOPMENT, "_load_workload", lambda *_: loaded)
+
+    artifacts = DEVELOPMENT.verify_development_completed(plan)
+
+    assert set(artifacts["outputs"]) == DEVELOPMENT.COURSE_PROBE_OUTPUTS
+    assert plan.inputs["course_runtime"] == LOOP_RUNTIME.manifest_contract()
 
 
 def test_course_verifier_accepts_exact_scaled_trainer_and_v2_telemetry(

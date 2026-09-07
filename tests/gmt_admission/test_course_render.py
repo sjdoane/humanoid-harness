@@ -19,6 +19,12 @@ from oracle_composition.adapters.gmt.course_render import (
     load_course_render_inputs,
     select_frame_indices,
 )
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, write_deterministic_npz
 from oracle_composition.adapters.gmt.training_contract import (
@@ -99,12 +105,14 @@ def _fixture(
     contact_substeps: int = 20,
     scaled: bool = False,
     low_rate: bool = False,
+    loop_runtime: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     task = _task(steps)
+    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
     config = {
-        "schema_version": 1,
+        "schema_version": runtime.config_schema_version,
         "mode": mode,
         "assets": {
             "upstream_root": str(upstream),
@@ -118,6 +126,8 @@ def _fixture(
         "seed": 7,
         "training_steps": 0 if mode == "probe" else 512,
     }
+    if runtime.config_value is not None:
+        config["runtime"] = runtime.config_value
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
@@ -203,10 +213,10 @@ def _fixture(
         "input_config_sha256": config_sha,
         "outputs": outputs,
         "identities": {"task": task.sha256, "oracle": "a" * 64, "reward": "b" * 64},
-        "frozen_runtime": (
-            {"trainer": effective_training_contract(trainer)}
-            if trainer is not None
-            else {}
+        "frozen_runtime": frozen_runtime_contract(
+            runtime,
+            trainer=effective_training_contract(trainer),
+            residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
         ),
         "training": {} if mode == "train" else None,
         "zero_residual": report if label == "zero_residual" else None,
@@ -279,6 +289,21 @@ def test_admission_accepts_exact_low_rate_trainer_runtime(tmp_path: Path) -> Non
     )
 
     assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_probe_only_loop_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, loop_runtime=True)
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="zero_residual",
+    )
+
+    assert admitted.label == "zero_residual"
+    retained = json.loads((tmp_path / "input_config.json").read_text())
+    assert retained["runtime"] == LOOP_RUNTIME.config_value
 
 
 def test_admission_rejects_manifest_config_identity_disagreement(tmp_path: Path) -> None:

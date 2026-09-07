@@ -15,11 +15,12 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
-from .composition import COMPOSITION_RUNTIME_ID, ComposedReference
+from .composition import ComposedReference
 from .control_runtime import G1ControlRuntime, GMTActorSession
 from .course_config import CourseRunConfig, load_run_config
 from .course_evaluation import evaluate_episode
-from .gym_env import GYM_RUNTIME_ID, RESIDUAL_OBSERVATION_DIM, RESIDUAL_RAW_SCALE, GMTResidualEnv
+from .course_runtime import frozen_runtime_contract
+from .gym_env import RESIDUAL_RAW_SCALE, GMTResidualEnv
 from .io import sha256_file, write_deterministic_npz, write_json_receipt
 from .training_contract import (
     CourseTrainerSpec,
@@ -45,6 +46,7 @@ def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMT
         task=config.task,
         recipe=config.recipe,
         record_trajectory=record_trajectory,
+        runtime=config.runtime,
     )
 
 
@@ -301,13 +303,11 @@ def run_course(config_path: Path, output: Path) -> dict:
             "reward": config.recipe.sha256,
             "segments": {name: segment.sha256 for name, segment in config.segments.items()},
         },
-        "frozen_runtime": {
-            "gym": GYM_RUNTIME_ID,
-            "composition": COMPOSITION_RUNTIME_ID,
-            "observation_dim": RESIDUAL_OBSERVATION_DIM,
-            "residual_raw_scale": float(RESIDUAL_RAW_SCALE),
-            "trainer": effective_training_contract(config.trainer),
-        },
+        "frozen_runtime": frozen_runtime_contract(
+            config.runtime,
+            trainer=effective_training_contract(config.trainer),
+            residual_raw_scale=float(RESIDUAL_RAW_SCALE),
+        ),
         "training": training,
         "zero_residual": initial,
         "final_policy": final,

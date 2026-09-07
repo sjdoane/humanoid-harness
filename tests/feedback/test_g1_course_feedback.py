@@ -9,6 +9,12 @@ import numpy as np
 import pytest
 
 from oracle_composition.adapters.gmt.course_evaluation import evaluate_episode
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.course_task import (
     CourseTaskSpec,
     TaskFrame,
@@ -132,6 +138,7 @@ def _run_fixture(
     telemetry: bool = False,
     scaled: bool = False,
     low_rate: bool = False,
+    loop_runtime: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -144,17 +151,23 @@ def _run_fixture(
         horizon_steps=4,
     )
     recipe = TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0)
+    if loop_runtime and (telemetry or scaled):
+        raise ValueError("loop fixture is probe-only")
+    runtime = LOOP_RUNTIME if loop_runtime else LEGACY_RUNTIME
+    mode = "probe" if loop_runtime else "train"
     raw = {
-        "schema_version": 1,
-        "mode": "train",
+        "schema_version": runtime.config_schema_version,
+        "mode": mode,
         "assets": {},
         "task": task.to_dict(),
         "oracle": {},
         "segments": {},
         "reward": recipe.to_dict(),
         "seed": 7,
-        "training_steps": 512,
+        "training_steps": 0 if loop_runtime else 512,
     }
+    if runtime.config_value is not None:
+        raw["runtime"] = runtime.config_value
     trainer = (
         CourseTrainerSpec(
             TRAINING_REWARD_SCALE,
@@ -176,6 +189,7 @@ def _run_fixture(
         program=SimpleNamespace(sha256="1" * 64),
         segments={"walk": SimpleNamespace(sha256="2" * 64)},
         trainer=trainer,
+        runtime=runtime,
     )
     monkeypatch.setattr(module, "load_run_config", lambda path: config)
     root.mkdir()
@@ -184,7 +198,12 @@ def _run_fixture(
     summaries = {}
     rows, arrays = _rows(task)
     score = evaluate_episode(spec=task, frames=rows)
-    for label, residual_rms in (("zero_residual", 0.0), ("final_policy", 0.1)):
+    labels = (
+        (("zero_residual", 0.0),)
+        if loop_runtime
+        else (("zero_residual", 0.0), ("final_policy", 0.1))
+    )
+    for label, residual_rms in labels:
         outputs[f"{label}_frames.jsonl"] = _write_frames(
             root / f"{label}_frames.jsonl", rows
         )
@@ -202,10 +221,11 @@ def _run_fixture(
             root / f"{label}_evaluation.json", summary
         )
         summaries[label] = summary
-    for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
-        (root / name).write_bytes(b"numeric policy fixture")
-        outputs[name] = _sha(root / name)
-    training = {"completed_transitions": 512}
+    if not loop_runtime:
+        for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
+            (root / name).write_bytes(b"numeric policy fixture")
+            outputs[name] = _sha(root / name)
+    training = None if loop_runtime else {"completed_transitions": 512}
     if telemetry:
         telemetry_filename = SCALED_TELEMETRY_FILENAME if scaled else TELEMETRY_FILENAME
         reward_scale = TRAINING_REWARD_SCALE if scaled else None
@@ -234,9 +254,11 @@ def _run_fixture(
                 },
                 4,
             )
+            assert training is not None
             training["telemetry"] = writer.descriptor(512)
         outputs[telemetry_filename] = _sha(root / telemetry_filename)
     if trainer is not None:
+        assert training is not None
         training["reward_preconditioning"] = training_reward_metadata(trainer)
     manifest = {
         "schema_version": 1,
@@ -250,20 +272,20 @@ def _run_fixture(
             "reward": recipe.sha256,
             "segments": {"walk": "2" * 64},
         },
-        "frozen_runtime": (
-            {"trainer": effective_training_contract(trainer)}
-            if trainer is not None
-            else {}
+        "frozen_runtime": frozen_runtime_contract(
+            runtime,
+            trainer=effective_training_contract(trainer),
+            residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
         ),
         "training": training,
         "zero_residual": summaries["zero_residual"],
-        "final_policy": summaries["final_policy"],
+        "final_policy": summaries.get("final_policy"),
         "runtime": {},
         "claims": {
             "development_only": True,
             "heldout_generalization_tested": False,
             "physical_obstacle_scene": False,
-            "training_performed": True,
+            "training_performed": not loop_runtime,
             "full_llm_revision_loop_demonstrated": False,
         },
     }
@@ -309,8 +331,24 @@ def test_builds_exact_feedback_and_input_receipt(tmp_path, monkeypatch) -> None:
     assert receipt["inputs"]["label"] == "final_policy"
     assert receipt["output"]["sha256"] == result["feedback"]["sha256"]
     assert result["feedback"]["sha256"] == (
-        "a0be2faf3b05be313c120ede02bcd9dadaba2c9258600a99fa8eb2f94c9f22c7"
+        "dbda2f0b682be381c29fac39f7f5dfb694c413eb92943395626970d30debdba1"
     )
+
+
+def test_probe_loop_runtime_is_bound_in_feedback_receipt(tmp_path, monkeypatch) -> None:
+    manifest, digest, _config = _run_fixture(
+        tmp_path / "run", monkeypatch, loop_runtime=True
+    )
+
+    module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="zero_residual",
+        output=tmp_path / "feedback",
+    )
+
+    receipt = json.loads((tmp_path / "feedback/feedback_receipt_v1.json").read_text())
+    assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
 
 
 def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:

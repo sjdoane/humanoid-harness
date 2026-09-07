@@ -29,6 +29,12 @@ from .contracts import (
     GMT_UPSTREAM_COMMIT,
     REFERENCE_FRAME_DIM,
 )
+from .course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    LOOP_CONFIG_SCHEMA_VERSION,
+    frozen_runtime_contract,
+    runtime_profile_from_config,
+)
 from .course_task import CourseTaskSpec, TaskFrame
 from .io import GMTAdmissionError, read_verified_bytes, sha256_file, write_json_receipt
 from .replay import _extract_model_abi, validate_model_abi
@@ -68,6 +74,7 @@ _CONFIG_KEYS = {
     "training_steps",
 }
 _CONFIG_KEYS_WITH_TRAINER = {*_CONFIG_KEYS, "trainer"}
+_CONFIG_KEYS_WITH_RUNTIME = {*_CONFIG_KEYS, "runtime"}
 _REPORT_KEYS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -414,13 +421,23 @@ def load_course_render_inputs(
     config, config_encoded = read_json_object(config_path)
     if hashlib.sha256(config_encoded).hexdigest() != config_digest:
         raise GMTAdmissionError("retained course config SHA-256 differs")
-    if type(config) is not dict or set(config) not in (
-        _CONFIG_KEYS,
-        _CONFIG_KEYS_WITH_TRAINER,
-    ):
+    if type(config) is not dict:
         raise GMTAdmissionError("course config fields differ from the course-render contract")
-    if config["schema_version"] != 1 or config["mode"] not in {"probe", "train"}:
+    try:
+        runtime = runtime_profile_from_config(config)
+    except ValueError as exc:
+        raise GMTAdmissionError("course runtime profile is invalid") from exc
+    valid_fields = (
+        {frozenset(_CONFIG_KEYS_WITH_RUNTIME)}
+        if runtime.config_schema_version == LOOP_CONFIG_SCHEMA_VERSION
+        else {frozenset(_CONFIG_KEYS), frozenset(_CONFIG_KEYS_WITH_TRAINER)}
+    )
+    if frozenset(config) not in valid_fields:
+        raise GMTAdmissionError("course config fields differ from the course-render contract")
+    if config["mode"] not in {"probe", "train"}:
         raise GMTAdmissionError("course config identity or mode differs")
+    if not runtime.training_admitted and config["mode"] != "probe":
+        raise GMTAdmissionError("four-state loop runtime is probe-only")
     try:
         trainer = CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
     except ValueError as exc:
@@ -428,14 +445,13 @@ def load_course_render_inputs(
     if trainer is not None and config["mode"] != "train":
         raise GMTAdmissionError("course trainer preconditioning requires train mode")
     frozen_runtime = manifest["frozen_runtime"]
-    if (
-        type(frozen_runtime) is not dict
-        or (
-            trainer is not None
-            and frozen_runtime.get("trainer") != effective_training_contract(trainer)
-        )
-    ):
-        raise GMTAdmissionError("course trainer runtime differs from the retained config")
+    expected_runtime = frozen_runtime_contract(
+        runtime,
+        trainer=effective_training_contract(trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime:
+        raise GMTAdmissionError("course runtime differs from the retained config")
     if label == "final_policy" and config["mode"] != "train":
         raise GMTAdmissionError("final_policy rendering requires a retained train-mode run")
     if type(config["assets"]) is not dict or type(config["assets"].get("upstream_root")) is not str:
