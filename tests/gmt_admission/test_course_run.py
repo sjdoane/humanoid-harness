@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import gymnasium as gym
 import numpy as np
 import torch
 
+from oracle_composition.adapters.gmt import course_run as module
 from oracle_composition.adapters.gmt.course_run import (
     _numeric_policy,
+    _rollout,
     _TrainingProgress,
     make_policy,
 )
 from oracle_composition.adapters.gmt.io import sha256_file
+from oracle_composition.adapters.gmt.training_contract import (
+    BASE_LEARNING_RATE,
+    LOW_LEARNING_RATE,
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+)
 from oracle_composition.adapters.gmt.training_telemetry import (
     TELEMETRY_FILENAME,
     TrainingTelemetry,
@@ -94,3 +104,91 @@ def test_real_ppo_adapter_completes_exact_fixture_budget_and_logs_transitions(
     assert not torch.equal(before, model.policy.action_net.weight)
     assert descriptor["rollout_boundary_count"] == 1
     assert '"transitions": 512' in capsys.readouterr().out
+
+
+def test_low_rate_profile_changes_optimizer_rate_not_initial_policy() -> None:
+    torch.set_num_threads(1)
+    v1 = CourseTrainerSpec(TRAINING_REWARD_SCALE)
+    v2 = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=2)
+
+    raw = make_policy(NumericFixture(), 31)
+    control = make_policy(NumericFixture(), 31, v1)
+    low_rate = make_policy(NumericFixture(), 31, v2)
+
+    assert raw.learning_rate == BASE_LEARNING_RATE
+    assert control.learning_rate == BASE_LEARNING_RATE
+    assert low_rate.learning_rate == LOW_LEARNING_RATE
+    assert control.lr_schedule(1.0) == BASE_LEARNING_RATE
+    assert low_rate.lr_schedule(1.0) == LOW_LEARNING_RATE
+    assert control.policy.optimizer.param_groups[0]["lr"] == BASE_LEARNING_RATE
+    assert low_rate.policy.optimizer.param_groups[0]["lr"] == LOW_LEARNING_RATE
+    for name, tensor in control.policy.state_dict().items():
+        assert torch.equal(tensor, raw.policy.state_dict()[name])
+        assert torch.equal(tensor, low_rate.policy.state_dict()[name])
+
+
+class _ZeroRolloutFixture:
+    def __init__(self) -> None:
+        self._boundary = SimpleNamespace(
+            qpos=np.zeros(30, dtype=np.float64),
+            qvel=np.zeros(29, dtype=np.float64),
+        )
+        self.actions: list[np.ndarray] = []
+
+    def reset(self, *, seed: int):
+        assert seed == 17
+        return np.zeros(4, dtype=np.float32), {"seed": seed}
+
+    def step(self, action: np.ndarray):
+        self.actions.append(action.copy())
+        step = len(self.actions)
+        qpos = np.zeros(30, dtype=np.float64)
+        qpos[0] = step * 0.01
+        qvel = np.zeros(29, dtype=np.float64)
+        self._boundary = SimpleNamespace(qpos=qpos, qvel=qvel)
+        return (
+            np.full(4, step, dtype=np.float32),
+            1.0,
+            False,
+            step == 2,
+            {
+                "trajectory": {
+                    "qpos": qpos.tolist(),
+                    "qvel": qvel.tolist(),
+                    "current_reference": np.zeros(30, dtype=np.float32).tolist(),
+                    "composite_raw_action": np.zeros(23, dtype=np.float32).tolist(),
+                }
+            },
+        )
+
+
+def test_zero_residual_artifacts_are_exact_across_trainer_profiles(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(module, "evaluate_episode", lambda **_: {"fixture": True})
+    task = SimpleNamespace(horizon_steps=2)
+    outputs = []
+    for version in (None, 1, 2):
+        output = tmp_path / ("raw" if version is None else f"v{version}")
+        output.mkdir()
+        config = SimpleNamespace(
+            raw={"seed": 17},
+            task=task,
+            trainer=(
+                None
+                if version is None
+                else CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=version)
+            ),
+        )
+        env = _ZeroRolloutFixture()
+        report, artifacts = _rollout(config, env, None, output, "zero_residual")
+        assert report["residual_rms"] == 0.0
+        assert all(np.count_nonzero(action) == 0 for action in env.actions)
+        outputs.append(
+            {
+                name: (output / name).read_bytes()
+                for name in artifacts
+            }
+        )
+
+    assert outputs[0] == outputs[1] == outputs[2]

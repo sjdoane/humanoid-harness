@@ -162,9 +162,9 @@ def _feedback(parent: CourseRunConfig) -> bytes:
     )
 
 
-def _parent_with_trainer() -> CourseRunConfig:
+def _parent_with_trainer(profile_version: int = 1) -> CourseRunConfig:
     parent = _parent()
-    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE)
+    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=profile_version)
     raw = {**copy.deepcopy(parent.raw), "trainer": trainer.to_dict()}
     encoded = canonical_json_bytes(raw)
     return replace(
@@ -277,8 +277,11 @@ def test_oracle_proposal_changes_only_oracle_and_segments() -> None:
         assert canonical_json_bytes(candidate[field]) == canonical_json_bytes(parent.raw[field])
 
 
-def test_proposal_preserves_explicit_trainer_and_cannot_author_it() -> None:
-    parent = _parent_with_trainer()
+@pytest.mark.parametrize("profile_version", [1, 2])
+def test_proposal_preserves_explicit_trainer_and_cannot_author_it(
+    profile_version: int,
+) -> None:
+    parent = _parent_with_trainer(profile_version)
     feedback = _feedback(parent)
 
     candidate = apply_proposal(parent, _proposal(parent, feedback), feedback)

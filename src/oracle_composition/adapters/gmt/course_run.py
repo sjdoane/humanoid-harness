@@ -22,7 +22,7 @@ from .course_evaluation import evaluate_episode
 from .gym_env import GYM_RUNTIME_ID, RESIDUAL_OBSERVATION_DIM, RESIDUAL_RAW_SCALE, GMTResidualEnv
 from .io import sha256_file, write_deterministic_npz, write_json_receipt
 from .training_contract import (
-    TRAINING_CONTRACT,
+    CourseTrainerSpec,
     effective_training_contract,
     training_reward_metadata,
 )
@@ -48,9 +48,13 @@ def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMT
     )
 
 
-def make_policy(env: gym.Env, seed: int) -> PPO:
+def make_policy(env: gym.Env, seed: int, trainer: CourseTrainerSpec | None = None) -> PPO:
+    effective = effective_training_contract(trainer)
+    contract = effective if trainer is None else effective["base_ppo_contract"]
+    if type(contract) is not dict:
+        raise ValueError("effective PPO contract is malformed")
     kwargs = {
-        key: TRAINING_CONTRACT[key]
+        key: contract[key]
         for key in (
             "n_steps",
             "batch_size",
@@ -71,7 +75,10 @@ def make_policy(env: gym.Env, seed: int) -> PPO:
         seed=seed,
         device="cpu",
         verbose=0,
-        policy_kwargs={"net_arch": [128, 128], "log_std_init": -1.5},
+        policy_kwargs={
+            "net_arch": contract["net_arch"],
+            "log_std_init": contract["log_std_init"],
+        },
         **kwargs,
     )
     # Deterministic initialization preserves the verified frozen-base behavior.
@@ -239,7 +246,7 @@ def run_course(config_path: Path, output: Path) -> dict:
         raw_training_env = make_env(config)
         training_env = precondition_training_env(raw_training_env, config.trainer)
         base_before = _frozen_actor_digest(raw_training_env)
-        model = make_policy(training_env, config.raw["seed"])
+        model = make_policy(training_env, config.raw["seed"], config.trainer)
         outputs["initial_residual_policy.npz"] = _numeric_policy(
             model, output / "initial_residual_policy.npz"
         )

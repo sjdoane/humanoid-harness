@@ -670,6 +670,11 @@ function appendG1Run(row) {
   );
   appendG1Line(
     training,
+    "learning rate",
+    g1Metric(row.training.learning_rate, 6),
+  );
+  appendG1Line(
+    training,
     "budget",
     `${g1Count(row.training.completed_transitions, "completed budget").toLocaleString("en-US")} / ${g1Count(row.training.requested_transitions, "requested budget").toLocaleString("en-US")} transitions`,
   );

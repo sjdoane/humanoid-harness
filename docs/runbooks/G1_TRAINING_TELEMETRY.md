@@ -35,21 +35,34 @@ trainer family, or evaluation gates.
 ## Opt-in training reward preconditioning
 
 The legacy config omits `trainer`; that path, manifest contract, and v1 telemetry serialization
-remain unchanged. The sole admitted opt-in profile is:
+remain unchanged. The original opt-in profile is:
 
 ```json
 {"schema_id":"gmt_g1_total_training_reward_preconditioning/v1","schema_version":1,"total_training_reward_scale":0.015625}
 ```
 
+One versioned optimization hypothesis changes only PPO's fixed learning rate:
+
+```json
+{"learning_rate":0.00003,"schema_id":"gmt_g1_scaled_ppo_training_profile/v2","schema_version":2,"total_training_reward_scale":0.015625}
+```
+
+The v2 profile admits only `3e-5`; it is not a free-form sweep interface. Its matched control is
+the v1 profile at `3e-4`, with reward scale `1/64`, policy initialization, task, oracle, base
+controller, evaluator, budget, seed, and final-checkpoint rule held fixed. This profile is an
+untested optimization hypothesis, not a bug fix or evidence of improved learning.
+
 The training-only wrapper sends `float32(raw total reward / 64)` to PPO. Evaluation remains on
-the unwrapped raw environment. It does not change task-reward weights, reward components,
-observations, actions, termination, the base actor, PPO hyperparameters, or checkpoint selection.
-Timeout bootstrap values therefore share the scaled PPO value units.
+the unwrapped raw environment. Reward scaling does not change task-reward weights, reward
+components, observations, actions, termination, the base actor, or checkpoint selection. The v1
+profile keeps the original PPO hyperparameters; v2 differs only in its declared learning rate.
+Timeout bootstrap values share the scaled PPO value units.
 
 Opt-in runs emit `training_telemetry_v2.jsonl`. Complete-episode summaries use the literal fields
 `scaled_environment_returns` and `raw_environment_returns`. Both exclude the later
 PPO timeout bootstrap; the latter are accumulated from retained
 unscaled step info, not reconstructed by multiplying quantized scaled values. Value loss is in
 scaled optimization-reward units, so its magnitude is not comparable with raw-reward runs.
-The config, effective trainer identity, reward-unit metadata, v2 descriptor, and v2 output must
-appear as one exact validated set. Proposals preserve the parent `trainer` field and cannot edit it.
+Both opt-in profiles emit the same scaled-reward telemetry schema. The config, effective trainer
+identity, reward-unit metadata, v2 descriptor, and v2 output must appear as one exact validated
+set. Proposals preserve the parent `trainer` field and cannot edit it.

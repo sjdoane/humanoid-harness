@@ -35,12 +35,20 @@ def _fixture(
     root: Path,
     *,
     scaled: bool = False,
+    low_rate: bool = False,
     manifest_scaled: bool | None = None,
 ) -> tuple[Path, Path, dict[str, object]]:
     run = root / "runs" / "o2-seed7"
     run.mkdir(parents=True)
     config = {"mode": "train", "seed": 7, "training_steps": 512}
-    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    trainer = (
+        CourseTrainerSpec(
+            TRAINING_REWARD_SCALE,
+            profile_version=2 if low_rate else 1,
+        )
+        if scaled
+        else None
+    )
     if trainer is not None:
         config["trainer"] = trainer.to_dict()
     config_bytes = _json(config)
@@ -91,7 +99,10 @@ def _fixture(
         },
         "frozen_runtime": {
             "trainer": effective_training_contract(
-                CourseTrainerSpec(TRAINING_REWARD_SCALE)
+                CourseTrainerSpec(
+                    TRAINING_REWARD_SCALE,
+                    profile_version=2 if low_rate else 1,
+                )
                 if (scaled if manifest_scaled is None else manifest_scaled)
                 else None
             )
@@ -188,6 +199,7 @@ def test_registered_raw_and_v2_runs_use_authoritative_trainer_contract(
     )
     training = run["training"]
     assert training["algorithm"] == "stable_baselines3.PPO"
+    assert training["learning_rate"] == 3e-4
     assert training["producer_recorded_trainer"] == expected
     assert training["full_trainer_contract_sha256"] == _sha(canonical_json_bytes(expected))
     if scaled:
@@ -200,6 +212,24 @@ def test_registered_raw_and_v2_runs_use_authoritative_trainer_contract(
     serialized = json.dumps(payload)
     assert str(tmp_path) not in serialized
     assert str(manifest_path) not in serialized
+
+
+def test_low_rate_run_exposes_validated_optimizer_rate(tmp_path, monkeypatch) -> None:
+    _registry, _manifest, objective = _fixture(
+        tmp_path,
+        scaled=True,
+        low_rate=True,
+    )
+    _install_validator(monkeypatch, objective)
+
+    payload = module.g1_learning_status(tmp_path)
+
+    training = payload["runs"][0]["training"]
+    assert training["learning_rate"] == 3e-5
+    assert training["trainer_variant"] == "gmt_g1_ppo_training_contract/v3"
+    assert training["producer_recorded_trainer"]["base_ppo_contract"][
+        "learning_rate"
+    ] == 3e-5
 
 
 def test_missing_or_empty_registry_does_not_search_for_runs(tmp_path: Path) -> None:
@@ -342,6 +372,7 @@ def test_static_view_is_manual_and_separates_g1_from_historical_native() -> None
     assert "contract.algorithm" not in script
     assert "full_contract_sha256" in script
     assert "payload_identity_sha256" in script
+    assert "row.training.learning_rate" in script
     assert 'appendG1Line(source, "manifest"' not in script
     assert "setInterval" not in script
     assert 'request.path == "/api/g1-learning"' in server

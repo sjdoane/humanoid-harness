@@ -131,6 +131,7 @@ def _run_fixture(
     observe_region: bool = True,
     telemetry: bool = False,
     scaled: bool = False,
+    low_rate: bool = False,
 ) -> tuple[Path, str, SimpleNamespace]:
     task = CourseTaskSpec(
         region_entry_distance_m=0.20 if observe_region else 2.0,
@@ -154,7 +155,14 @@ def _run_fixture(
         "seed": 7,
         "training_steps": 512,
     }
-    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    trainer = (
+        CourseTrainerSpec(
+            TRAINING_REWARD_SCALE,
+            profile_version=2 if low_rate else 1,
+        )
+        if scaled
+        else None
+    )
     if trainer is not None:
         raw["trainer"] = trainer.to_dict()
     config_bytes = (json.dumps(raw, sort_keys=True, separators=(",", ":")) + "\n").encode()
@@ -360,6 +368,25 @@ def test_scaled_feedback_names_ppo_input_and_raw_return_units(tmp_path, monkeypa
     assert "raw environment return means 64/64" in diagnosis
     assert "value loss is in scaled optimization-reward units" in diagnosis
     assert "not comparable to value loss from raw-reward runs" in diagnosis
+
+
+def test_feedback_accepts_exact_low_rate_trainer_receipts(tmp_path, monkeypatch) -> None:
+    manifest, digest, _ = _run_fixture(
+        tmp_path / "run",
+        monkeypatch,
+        telemetry=True,
+        scaled=True,
+        low_rate=True,
+    )
+
+    result = module.build_g1_course_feedback(
+        manifest_path=manifest,
+        expected_manifest_sha256=digest,
+        label="final_policy",
+        output=tmp_path / "feedback",
+    )
+
+    assert result["feedback"]["sha256"] == _sha(tmp_path / "feedback/feedback_v1.json")
 
 
 def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:

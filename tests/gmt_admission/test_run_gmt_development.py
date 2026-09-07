@@ -44,14 +44,27 @@ def _write_json(path: Path, value: object) -> str:
     return _digest(path)
 
 
-def _loaded(tmp_path: Path, mode: str = "probe", *, scaled: bool = False) -> Any:
+def _loaded(
+    tmp_path: Path,
+    mode: str = "probe",
+    *,
+    scaled: bool = False,
+    low_rate: bool = False,
+) -> Any:
     config_path = tmp_path / "config.json"
     raw = {
         "mode": mode,
         "training_steps": 0 if mode == "probe" else 512,
         "task": {"horizon_steps": 50},
     }
-    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    trainer = (
+        CourseTrainerSpec(
+            TRAINING_REWARD_SCALE,
+            profile_version=2 if low_rate else 1,
+        )
+        if scaled
+        else None
+    )
     if trainer is not None:
         raw["trainer"] = trainer.to_dict()
     config_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
@@ -448,11 +461,18 @@ def test_profiles_and_commands_are_fixed(tmp_path: Path) -> None:
     assert DEVELOPMENT._profile("course", "train")[0].wall_seconds == 1_200
 
 
-@pytest.mark.parametrize("scaled", [False, True])
+@pytest.mark.parametrize(
+    ("scaled", "low_rate"),
+    [(False, False), (True, False), (True, True)],
+    ids=["raw", "scaled-v1", "scaled-low-rate-v2"],
+)
 def test_exact_request_pins_opt_in_trainer_without_changing_raw_input_shape(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scaled: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    scaled: bool,
+    low_rate: bool,
 ) -> None:
-    loaded = _loaded(tmp_path, mode="train", scaled=scaled)
+    loaded = _loaded(tmp_path, mode="train", scaled=scaled, low_rate=low_rate)
     root = tmp_path / "repo"
     root.mkdir()
     request = DEVELOPMENT.DevelopmentRequest(
@@ -474,6 +494,9 @@ def test_exact_request_pins_opt_in_trainer_without_changing_raw_input_shape(
         assert "trainer" not in plan.inputs
         return
     assert plan.inputs["trainer"] == effective_training_contract(loaded.course_trainer)
+    assert plan.inputs["trainer"]["base_ppo_contract"]["learning_rate"] == (
+        3e-5 if low_rate else 3e-4
+    )
     plan.inputs["trainer"]["reward_preconditioning"]["total_training_reward_scale"] = 1.0
     with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="bound inputs changed"):
         DEVELOPMENT.validate_development_plan(plan)

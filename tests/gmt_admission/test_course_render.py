@@ -98,6 +98,7 @@ def _fixture(
     row_qpos_offset: float = 0.0,
     contact_substeps: int = 20,
     scaled: bool = False,
+    low_rate: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
@@ -117,7 +118,14 @@ def _fixture(
         "seed": 7,
         "training_steps": 0 if mode == "probe" else 512,
     }
-    trainer = CourseTrainerSpec(TRAINING_REWARD_SCALE) if scaled else None
+    trainer = (
+        CourseTrainerSpec(
+            TRAINING_REWARD_SCALE,
+            profile_version=2 if low_rate else 1,
+        )
+        if scaled
+        else None
+    )
     if trainer is not None:
         config["trainer"] = trainer.to_dict()
     config_path = tmp_path / "input_config.json"
@@ -242,6 +250,25 @@ def test_admission_crosslinks_data_without_importing_mujoco(tmp_path: Path) -> N
 def test_admission_accepts_exact_scaled_trainer_runtime(tmp_path: Path) -> None:
     manifest, digest, upstream = _fixture(
         tmp_path, mode="train", label="final_policy", scaled=True
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_low_rate_trainer_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        scaled=True,
+        low_rate=True,
     )
 
     admitted = load_course_render_inputs(

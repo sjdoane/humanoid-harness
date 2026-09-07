@@ -324,6 +324,7 @@ def _summary(preflight: _Preflight) -> dict[str, object]:
             "completed_transitions": completed,
             "seed": seed,
             "algorithm": base_contract["algorithm"],
+            "learning_rate": base_contract["learning_rate"],
             "trainer_variant": trainer_variant,
             "producer_recorded_trainer": trainer,
             "full_trainer_contract_sha256": hashlib.sha256(trainer_bytes).hexdigest(),

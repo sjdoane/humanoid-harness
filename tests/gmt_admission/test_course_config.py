@@ -121,6 +121,26 @@ def test_exact_opt_in_trainer_profile_is_admitted_without_rewriting_input(
     assert admitted.trainer == module.CourseTrainerSpec(1.0 / 64.0)
 
 
+def test_exact_low_rate_trainer_profile_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(
+        1.0 / 64.0,
+        profile_version=2,
+    )
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == trainer
+
+
 @pytest.mark.parametrize("scale", [1.0, True, float("nan"), float("inf"), "0.015625"])
 def test_unadmitted_training_reward_scales_fail_closed(admitted_config, scale):
     raw, path = admitted_config
@@ -166,6 +186,25 @@ def test_trainer_rejects_unknown_fields_and_probe_mode(admitted_config):
     path.write_text(json.dumps(raw))
     with pytest.raises(ValueError, match="train mode"):
         module.load_run_config(path)
+
+
+def test_low_rate_trainer_rejects_rate_or_field_authoring(admitted_config):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(
+        1.0 / 64.0,
+        profile_version=2,
+    ).to_dict()
+    raw["trainer"] = trainer
+    for update in (
+        {"learning_rate": 1e-4},
+        {"learning_rate": True},
+        {"learning_rate_schedule": "linear"},
+    ):
+        raw["trainer"] = {**trainer, **update}
+        path.write_text(json.dumps(raw))
+        with pytest.raises(ValueError, match="trainer"):
+            module.load_run_config(path)
 
 
 def test_course_config_admits_exact_reward_v2(admitted_config):
