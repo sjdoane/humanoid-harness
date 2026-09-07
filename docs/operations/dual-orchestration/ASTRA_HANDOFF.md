@@ -3,9 +3,29 @@
 | progress | 38 training runs / 2,424,832 transitions. Study018 baseline trained, scored and replayed. |
 |---|---|
 | bottleneck | No full-task pass. Study018 A fails posture and speed admission; B is stopped. |
-| next step | Declare one earlier crouch-transition probe; keep any later reward-tail training contrast separate. |
+| next step | Finish Study019 scorer review, then test one earlier crouch-entry guard against the exact control. |
 
-## Current checkpoint: 2026-09-07 12:26 UTC
+## Current checkpoint: 2026-09-07 12:56 UTC
+
+- [Study019 protocol](../../../experiments/019_g1_crouch_entry_alignment/PROTOCOL.md)
+  is reviewed at `29219b0`: one native O7b guard change, 0.65 → 0.40 m;
+  two zero-residual episodes, no training. Scorer/test handoff remains pending.
+- First changed command is zero-based index71:71 shared executed rows and72
+  shared state boundaries. Physical-entry phase uses the reconstructed
+  post-step target boundary, not the pre-action phase field.
+- Lock scorer before Fable's one final feedback-linked proposal. Fresh control
+  must verify in a separate successful call before candidate approval/dispatch.
+  All11 original task gates remain unchanged. No019 simulation yet.
+- [Height diagnostic](../../../experiments/018_g1_four_state_reward_loop/FIGURE.md)
+  shows retained states/targets; no dynamics rerun. Numeric/receipt review passes;
+  manuscript claim audit remains incomplete and human verification is pending.
+- Fable and Astra favor a separately declared paired stochastic initial/final
+  policy diagnostic after019. It is not implemented or authorized. On-policy
+  training episode shares do not estimate either exact checkpoint's fall rate.
+- Study018 B stays stopped. Reward-tail and trainer changes remain separate
+  hypotheses, not the automatic next experiment. No heavy job is active.
+
+## Earlier checkpoint: 2026-09-07 12:26 UTC
 
 - [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
   131072 transitions at `e57f220`;20 s survival, three switches,7/11 task gates.
