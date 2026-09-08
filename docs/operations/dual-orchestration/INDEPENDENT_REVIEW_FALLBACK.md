@@ -1,5 +1,10 @@
 # Independent review during provider unavailability
 
+Current update (2026-09-08): Fable is no longer involved, per Samuel. The
+separately tasked Sol reviewer is now the default, not a temporary fallback.
+Keep the exact acceptance, non-self-approval and resource boundaries below.
+Do not wait for, impersonate or automatically request Fable.
+
 | progress | Astra owns execution; Fable's source review is retained. |
 |---|---|
 | bottleneck | Fable reported a usage limit before signing the exact Study012 launch requests. |

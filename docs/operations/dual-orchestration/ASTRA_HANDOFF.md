@@ -1,9 +1,35 @@
 # Astra orchestration handoff
 
-| progress | Study 021 scorer integrated; 115 focused/adjacent checks pass locally. Training total unchanged: 38 runs / 2,424,832 transitions. |
+| progress | Updated proposal adopted; Astra owns all work. Selected-receipt effort reporting is implemented, tested and independently reviewed. |
 |---|---|
-| bottleneck | No full-task pass. Trained policy falls in 11/16 paired tests versus 5/16 initially. |
-| next step | Close independent scorer review, seal source, then request the one proposal and separate native approvals. |
+| bottleneck | VIBE interface and four task environments are not admitted. GMT evidence remains 38 training runs / 2,424,832 transitions with no full-task pass. |
+| next step | Locate exact VIBE and loaded-cart assets; bind remaining effort measurements to native receipts. Do not resume Study 021 from an old handoff. |
+
+## Current checkpoint: 2026-09-08
+
+- Authority and task sequence: `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md`.
+- Native Google proposal unchanged; exact read retained privately in
+  `.orchestration/proposal-source-20260908.json`.
+- At restart: clean `cddd323`; own writer lease unclaimed; shared heavy slot
+  free; no matching GMT/training/detached-worker process observed.
+- Study 021 remains unrun; old source/seal preserved. Its scorer was already
+  independently accepted at 16:38, superseding the pending state below.
+- No Fable review/polling dependency; use independently tasked Sol reviewers.
+- The 30-minute continuity automation was removed after the audit. No recurring
+  work is promised by this checkpoint.
+- New command: `humanoid-harness effort --run MANIFEST SHA256`. It reads exact
+  completed GMT receipts without importing training/simulator libraries. It is
+  not a complete search-cost ledger or an execution/effectiveness certificate.
+- Separate Sol reviews accepted the context changes and final code. Root's final
+  focused slice plus project CLI/status: 45 passed; feature-only review: 33 passed.
+- Broad non-slow suite: 2,723 passed, 89 failed, 40 skipped, 2 deselected; no setup
+  errors. All four Humanoid runtime checks passed. See [verification](../EFFORT_REPORTING.md).
+- The earlier broad run overlapped the module relocation and failed source
+  identity checks; it is not final-tree evidence. No source changed during the
+  fresh final broad run. No historical seal or validation guard was relaxed.
+- No research experiment ran. Full fixed/manual/harness comparisons, VIBE
+  compatibility and improved learning efficiency remain unestablished.
+- Earlier checkpoints below are historical, not instructions to launch.
 
 ## Current checkpoint: 2026-09-07 16:30 UTC
 

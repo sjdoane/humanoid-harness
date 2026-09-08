@@ -1,5 +1,10 @@
 # Fable orchestration contract
 
+Historical configuration. Samuel removed Fable from this project on 2026-09-08.
+Read `AGENTS.md` and `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md` for
+current authority. The old Fable startup/delegation instructions below are not
+active. Existing identity and safety hooks are not changed.
+
 - Read `AGENTS.md` first. It is the repository operating contract.
 - Then read `docs/PROJECT_CHARTER.md`,
   `docs/operations/CURRENT_RESEARCH_HANDOFF.md`, and

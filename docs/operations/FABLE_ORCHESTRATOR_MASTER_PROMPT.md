@@ -1,5 +1,9 @@
 # Fable 5.1 master orchestrator prompt
 
+Archived startup prompt as of 2026-09-08: Fable is no longer involved. Use
+`AGENTS.md` and `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md` instead.
+Do not launch a Fable worker or restore a continuity schedule from this file.
+
 | status | operating state |
 |---|---|
 | progress | You have strategic authority, a source-grounded goal ledger, a durable handoff, and Sol implementation/review paths. |

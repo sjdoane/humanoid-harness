@@ -2,9 +2,15 @@
 
 | status | current truth |
 |---|---|
-| progress | Astra leads both knobs; Fable reviews. GMT/G1 has 29 completed training runs and a verified composition x depth-reward study. Main remains `9188ed0`; no push. |
-| bottleneck | No full G1 task pass. Longer training falls or stops. Native Humanoid-v5 remains a separate family with an unresolved likelihood audit. |
-| next step | Separate lower-learning-rate training from a probe-only repeatable crouch/rise runtime; preserve all failed controls. |
+| progress | Updated proposal governs four planned VIBE tasks; Astra owns all work. Selected-receipt effort reporting is implemented and independently reviewed. |
+| bottleneck | No admitted VIBE interface/task assets. GMT has 38 training runs, not 29, and no full-task pass. |
+| next step | Follow the current post-training plan and Astra handoff, not historical native/GMT launch instructions below. |
+
+- Current direction: [post-training plan](../strategy/astra/POST_TRAINING_PLAN_20260908.md).
+- Study 021 is deferred; old seals and results are preserved. No research
+  experiment was launched. Validation exercised existing bounded simulator and
+  training fixtures; it supplies no new behavioral or learning result.
+- Current verification and limits: [effort reporting](EFFORT_REPORTING.md).
 
 - Current: [G1 results](../strategy/astra/G1_LEARNING_RESULTS_20260906.md),
   [Astra handoff](dual-orchestration/ASTRA_HANDOFF.md), and the live mailbox.

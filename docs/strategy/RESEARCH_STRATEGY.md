@@ -1,5 +1,17 @@
 # Research strategy and Lokesh goal ledger
 
+## Current direction — 2026-09-08
+
+- [Current post-training plan](astra/POST_TRAINING_PLAN_20260908.md) and the
+  project charter supersede the composition-first hypothesis, task shortlist,
+  role assignments and next actions below. Earlier entries remain history.
+- Target: automated VIBE/SONIC post-training, comparing fixed, manual and
+  harness revision using independent success and complete tuning costs.
+- Planned tasks: loaded-cart interception, changing obstacle course, floor
+  hockey and volleyball. No task or VIBE interface is admitted yet.
+- Astra owns all work; Fable is no longer involved. Separate Sol review remains
+  required. Study 021 is deferred with its old source/evidence preserved.
+
 | status | current strategy |
 |---|---|
 | progress | Lanes swapped on Samuel's instruction (ADR 0009): Astra leads oracle composition and tracker integration; Fable leads reward generation and feedback. The tracker lane is handed over at FT2R3 with the fine-tuning runtime implemented and repaired and no training run; the reward lane arrives with accepted static plumbing (A1, R1, F1, F2, F3) and no executed reward cycle. |

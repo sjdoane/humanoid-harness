@@ -1,5 +1,9 @@
 # System lead: complete the learning loop
 
+Historical plan. The [2026-09-08 plan](POST_TRAINING_PLAN_20260908.md) supersedes
+its priorities and roles. Preserve the earlier stop rules and evidence; do not
+restart native tracker work or wait for Fable from the instructions below.
+
 | status | current truth |
 |---|---|
 | progress | Fable acknowledges Astra as system lead; diagnosis, development ablation, and numeric-only GMT admission are integrated. |

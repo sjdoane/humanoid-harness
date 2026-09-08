@@ -1,5 +1,20 @@
 # System leadership and independent review
 
+## Current authority: 2026-09-08
+
+- Samuel removed Fable from the project. Astra owns all direction, development,
+  integration and review coordination. Use separately tasked Sol reviewers;
+  existing exact acceptance/resource checks remain, without self-approval.
+- Read `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md` and the charter.
+- The Astra checkout remains the active workspace. Preserve the former Fable
+  checkout, old messages and source seals; no merge or promotion is implied.
+- There is no active peer to poll or notify. The mailbox remains a historical
+  record and existing resource/reviewer mechanism, not a Fable dependency.
+- Earlier roles, Fable-first review and recurring-message instructions below
+  are historical. The independent reviewer protocol remains applicable.
+- No automatic schedule is currently active; the old continuity task was
+  removed after the audit. No provider/model safeguard is changed.
+
 ## Current authority: 2026-09-06
 
 - Samuel assigns Astra leadership of both implementation lanes through a trained,

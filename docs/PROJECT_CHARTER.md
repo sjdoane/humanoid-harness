@@ -1,15 +1,24 @@
-# Agentic oracle-and-reward project charter
+# Automated post-training project charter
 
 **Status:** current program contract
 
 **Established:** 2026-09-02
 
-**Revised:** 2026-09-02 after proposal and meeting review
+**Revised:** 2026-09-08 from Samuel's updated proposal and sole-lead instruction
 
 ## One-sentence goal
 
-Build an auditable LLM-driven harness that improves state-aware reference
-composition and executable task rewards around a fixed policy-training MDP.
+Automate task-specific post-training in SONIC-based VIBE by revising reference
+guidance and task reward from rollout feedback, testing whether this improves
+task success with fewer training interactions and less manual tuning.
+
+- Composition supports learning; transitions alone are not the research goal.
+- The scene, sensing, controller family, training algorithm, initial checkpoint,
+  permitted trainable components and evaluator come from the supplied system.
+- That trainer may update its designated policy parameters. It cannot be
+  replaced or silently retuned to make a guidance candidate win.
+- Scaling and context-only control are empirical alternatives, not presumed
+  failures. Check the actual checkpoint and interface before asserting a limit.
 
 ## System contract
 
@@ -49,20 +58,40 @@ task + reference set R + initial reward r0
 | Candidate generation and bounded patch decisions | Training algorithm and controller interface |
 | Experiment design and immutable receipts | Policy checkpoint and raw trajectory signals |
 | Independent evaluation and failure diagnosis | Adapter runtime fingerprint |
-| Literature graph and decision memory | Later: lab VIBE/SONIC-compatible integration |
-| Optional targeted human questions | Current: Gymnasium/PPO development integration |
+| Literature graph and decision memory | Semester target: lab VIBE/SONIC integration |
+| Optional targeted human questions | Current proxy: GMT/G1 through Gymnasium/PPO |
 
-The controller is not the research contribution. Gymnasium Humanoid is the
-first public development adapter, not the identity of the complete system.
+The controller is not the research contribution. Native Gymnasium Humanoid is
+an earlier adapter; GMT/G1 is the current proxy. Neither establishes VIBE
+compatibility or success on the proposed dynamic tasks.
 
 ## Research questions
 
 | ID | Question | Frozen counterpart |
 |---|---|---|
-| `RQ-O` | Does closed-loop, state- and phase-aware oracle composition improve held-out transitions and recovery? | Task reward |
+| `RQ-O` | Does rollout-informed reference guidance improve post-training task success or effort? | Task reward |
 | `RQ-R` | Does generated task-reward revision improve predeclared task success without violating protected guardrails? | Oracle |
 | `RQ-OR` | When both change, which gains are attributable to oracle, reward, or their interaction? | Full factorial controls |
 | `RQ-S` | Can compact human feedback steer either artifact predictably? | Trainer and evaluator |
+
+## Semester comparison and tasks
+
+- Planned task order: loaded-cart interception; changing obstacle course;
+  floor hockey; volleyball. These are proposal commitments, not installed
+  environments, validated feasibility, or novelty claims.
+- First measure the initial policy. Compare post-training with guidance kept
+  fixed, revised manually, and revised by the harness. Manual and automated
+  tuning receive the same types of rollout feedback, including available video.
+- Primary outcomes: independent task success; cumulative simulator steps and
+  revision rounds; human edits/interventions and active tuning time. Also record
+  compute time and model-call cost. Unknown costs are unknown, not zero.
+- Keep task, initial policy and training budget matched. Count unsuccessful
+  candidates and failed attempts in tuning cost; do not report only the winner.
+- Final variations must not guide revision. Record training-seed replicates
+  separately from repeated evaluations of a single policy.
+- Numerical success thresholds, task assets, hardware and exact VIBE ABI are
+  unresolved. Do not label the GMT posture region a physical obstacle.
+- See the [current implementation plan](strategy/astra/POST_TRAINING_PLAN_20260908.md).
 
 ## Experiment families
 
@@ -160,15 +189,20 @@ Both adapters remain subject to the same scientific boundaries above.
 
 - Editing the foundation controller, tracking reward, scene, or dynamics as an
   unreported way to improve a harness candidate.
-- Private VIBE integration until a public adapter contract can be recorded.
-- Vision-model research, raw motion generation, and hardware deployment.
+- VIBE execution until the actual private interface and permitted use are
+  confirmed; no requirement to publish private lab code before local integration.
+- New perception/controller research and raw motion generation.
+- Hardware deployment until lab approval and readiness; proposal weeks 13–14
+  are conditional sim-to-real work, not present authorization to move a robot.
 - Autonomous external actions beyond bounded local research runs.
 
 ## Deliverables
 
 - Convenient open-source CLI and evidence UI.
 - Queryable, provenance-bearing research graph.
-- Reproducible oracle and reward experiment families on at least two MDPs.
-- Held-out baseline-to-final results with component attribution.
+- Reproducible fixed/manual/harness post-training comparisons on the four
+  planned VIBE tasks, with feasibility and unresolved dependencies explicit.
+- Held-out results, full tuning-effort accounting, and component attribution
+  where a separately controlled comparison supports it.
 - Paper-ready figures, tables, examples, and a lead-author manuscript when the
   evidence supports the claims.
