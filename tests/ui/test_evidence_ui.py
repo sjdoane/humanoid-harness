@@ -800,6 +800,9 @@ def test_ui_serves_static_shell_and_read_only_evidence_api(tmp_path: Path) -> No
         with urlopen(base, timeout=2) as response:
             html = response.read().decode("utf-8")
             assert "Native baseline gates" in html
+            assert 'id="overview-title">Project status' in html
+            assert "interface evidence only" in html
+            assert "neither establishes VIBE integration" in html
             assert response.headers["Content-Security-Policy"]
             assert response.headers["Cross-Origin-Resource-Policy"] == "same-origin"
         health = _get_json(f"{base}/health")

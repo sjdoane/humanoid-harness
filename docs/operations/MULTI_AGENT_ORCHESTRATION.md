@@ -1,5 +1,10 @@
 # Fable-to-Sol orchestration
 
+Historical setup, retired September 8. The current authority is [AGENTS.md](../../AGENTS.md)
+and the [post-training plan](../strategy/astra/POST_TRAINING_PLAN_20260908.md).
+Do not restart Fable or a continuity schedule from this document. Installed
+hooks and historical setup observations below are not current service status.
+
 | status | setup truth |
 |---|---|
 | progress | Claude Code, the official OpenAI Codex plugin, project model settings, identity checks, durable handoff, prompts, and a 30-minute Codex continuity heartbeat are installed. |

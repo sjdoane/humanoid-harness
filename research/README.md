@@ -13,17 +13,21 @@ a current review run instead of rewriting the snapshot.
 | evidence/legacy_policy_harness_kg/ | Paper evidence copied verbatim; two private-context labels sanitized | Historical research record; not the current project contract |
 | evidence/engineering_methods/ | Registered process/orchestration sources | Engineering context; not direct oracle evidence |
 | evidence/reference_audits/ | Optional typed G1 public-source and local numeric audit records | Discovery only; external motion is not admitted and numeric crop fitness is not dynamics evidence |
-| literature_review/01_process/001_oracle_composition/ | New, empty review scaffold | Process only until the human review gates are approved |
-| ../docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md | New sanitized decision record | Current user direction; not literature evidence |
+| literature_review/01_process/001_oracle_composition/ | Earlier oracle-only review scaffold | Guiding question approved; remaining formal review gates pending |
+| ../docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md | Sanitized context and privacy boundary | Project direction, not literature evidence |
 | ../archive/MIGRATION_MANIFEST.json | Generated provenance ledger | Byte-level receipt for this migration |
 
 ## Current scope
 
-The new review is limited to reference-oracle composition for humanoid control:
-mode selection, phase progression, transition guards, recovery, reference
-compatibility, and the evidence needed to test them under a fixed experiment
-family. Reward-only sources remain in the legacy snapshot for provenance; they
-are not automatically in scope for the new review.
+The current project studies **automated post-training for dynamic humanoid
+tasks**, using reference/oracle guidance and task reward. Relevant evidence
+includes reference selection, contact/phase feedback, reward revision, supplied
+controller interfaces, dynamic-task evaluation and tuning-effort measurement.
+See the [charter](../docs/PROJECT_CHARTER.md).
+
+The earlier oracle-only formal review has a narrower approved question. Its
+scope and screening records remain historical; this project update does not
+silently broaden that approval or claim a completed systematic review.
 
 The attached PRAXIST paper is registered separately as an engineering-methods
 source. It supports lineage and experiment-orchestration decisions; it does not
@@ -45,10 +49,9 @@ support a claim that any oracle mechanism improves humanoid behavior.
 
 The authoritative draft protocol is
 [docs/LITERATURE_REVIEW_PROTOCOL_DRAFT.md](../docs/LITERATURE_REVIEW_PROTOCOL_DRAFT.md).
-Its question, type, output, inclusion and exclusion criteria, source triage,
-corpus adequacy, final included set, coding taxonomy, synthesis, and final
-report require explicit human approval. The screening tables remain empty
-until the first approval gate passes.
+Only its guiding question was approved. Review type, inclusion criteria,
+screening, synthesis and final reporting retain their explicit approval gates.
+This does not turn the browsable legacy corpus into a newly verified review.
 
 ## Validation
 

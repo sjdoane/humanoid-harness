@@ -1,5 +1,9 @@
 # Test matrix — 2026-09-06
 
+Historical snapshot. For the latest scoped checks and remaining release gaps,
+see [September 10 verification](SHARE_READINESS_20260910.md). The counts below
+describe their original source trees, not the current share branch.
+
 | status | evidence |
 |---|---|
 | progress | G1-focused checks pass; whole-repository discovery now collects both reference-runtime test modules. |

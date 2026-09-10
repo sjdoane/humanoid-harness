@@ -1,5 +1,10 @@
 # Literature-review protocol — question approved; remaining gates pending
 
+**Historical scope:** this September 2 oracle-only protocol is retained as
+approved then. The broader current post-training program is defined in the
+[charter](PROJECT_CHARTER.md); this file does not claim approval for a broader
+formal review.
+
 **Run ID:** `001_oracle_composition`
 **Type proposed:** systematic scoping review plus mechanism/evidence map; no
 meta-analysis

@@ -7,12 +7,19 @@
   role assignments and next actions below. Earlier entries remain history.
 - Target: automated VIBE/SONIC post-training, comparing fixed, manual and
   harness revision using independent success and complete tuning costs.
-- Planned tasks: loaded-cart interception, changing obstacle course, floor
+- Planned tasks (updated September 10): loaded-cart interception, basketball, floor
   hockey and volleyball. No task or VIBE interface is admitted yet.
 - Astra owns all work; Fable is no longer involved. Separate Sol review remains
   required. Study 021 is deferred with its old source/evidence preserved.
 
-| status | current strategy |
+## Historical GMT review notes — 2026-09-07
+
+The table and older authority sections below preserve contemporaneous
+interpretations and proposed next actions, not current instructions or verified
+causal conclusions. Use [current status](../CURRENT_STATUS.md) and the exact
+study results for present claims. Study 021 is deferred.
+
+| status | historical strategy |
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 38 training runs, fourteen zero-residual probes, one paired saved-policy sampling diagnostic (34 evaluation episodes) and about 2.4M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |
 | bottleneck | Two structural failures shared by every retained run: lateral drift (2.2 to 5.7 m against a 0.75 m corridor) because the tracker is yaw-blind and the after-walk clip commands a turn, and a 0.50 m dip gate that no retained run has met (best 0.494 to 0.516 m). Astra's forward-kinematics audit (2026-09-07) shows the supplied crouch clip's deepest frames are not contact-consistent on the G1 model (0.146 m foot penetration); that bounds what the supplied reference specifies, not what the plant can reach, so depth stays a measured quantity rather than an established impossibility. The bounded depth reward (study 014) was active and did not deepen the crouch. |

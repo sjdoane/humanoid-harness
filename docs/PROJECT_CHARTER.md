@@ -4,7 +4,7 @@
 
 **Established:** 2026-09-02
 
-**Revised:** 2026-09-08 from Samuel's updated proposal and sole-lead instruction
+**Revised:** 2026-09-10; post-training scope retained, current task list clarified
 
 ## One-sentence goal
 
@@ -76,9 +76,24 @@ compatibility or success on the proposed dynamic tasks.
 
 ## Semester comparison and tasks
 
-- Planned task order: loaded-cart interception; changing obstacle course;
-  floor hockey; volleyball. These are proposal commitments, not installed
-  environments, validated feasibility, or novelty claims.
+The four tasks test interactions that reference tracking alone may not handle
+with the supplied controller: impacts, moving loads, contact timing and recovery.
+First measure that controller's baseline; fine-tuning need is a task-specific
+question, not an assumed limitation of scaling or in-context learning.
+
+| Task | Dynamic challenge | Harness contribution to test |
+|---|---|---|
+| Volleyball | Receive, reposition and attack a moving ball while recovering balance | Revise contact/phase guidance and outcome rewards from missed contacts, ball placement and falls |
+| Floor hockey | Receive, dribble and shoot through stick–ball contacts | Revise guidance and reward terms for possession, strike timing and shot accuracy |
+| Loaded-cart interception | Approach, absorb momentum and stop a loaded cart without losing balance | Revise approach/braking guidance and stopping/stability rewards from overshoot and contact failures |
+| Basketball | Dribble, shoot and lay up under changing ball/robot state | Revise mode transitions and task rewards from ball loss, release error and landing failures |
+
+- These are planned tasks, not installed environments, proven feasibility or
+  novelty claims. Basketball replaces the changing obstacle course; dribbling,
+  shooting and layup are modes of one task, not three separate benchmarks.
+- Start integration with loaded-cart asset readiness. Sequence the other task
+  blocks around the supplied environments and compute, without dropping them
+  silently from the semester goal.
 - First measure the initial policy. Compare post-training with guidance kept
   fixed, revised manually, and revised by the harness. Manual and automated
   tuning receive the same types of rollout feedback, including available video.
@@ -198,7 +213,8 @@ Both adapters remain subject to the same scientific boundaries above.
 
 ## Deliverables
 
-- Convenient open-source CLI and evidence UI.
+- Easy-to-use CLI and evidence UI; select a project license before an
+  open-source release.
 - Queryable, provenance-bearing research graph.
 - Reproducible fixed/manual/harness post-training comparisons on the four
   planned VIBE tasks, with feasibility and unresolved dependencies explicit.

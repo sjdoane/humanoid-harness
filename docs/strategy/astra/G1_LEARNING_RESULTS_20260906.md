@@ -3,7 +3,11 @@
 | progress | 38 bounded training runs / 2,424,832 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
 | bottleneck | No full-task pass. Study 020 confirms worse sampled survival for the trained policy; Study 018 B remains stopped. |
-| next step | Declare a small oracle-exit probe with exact control and handover diagnostics before more training. |
+| next step | Follow the post-training plan: confirm VIBE interface and task assets. Study 021 is prepared but deferred; older next-action entries below are historical. |
+
+Current direction and artifact availability: [research status](../../CURRENT_STATUS.md).
+The dated results below are unchanged; local receipt/video paths are not bundled
+downloads, and this ledger is not a clean-clone training runbook.
 
 - [Study 020 result](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
   both saved checkpoints evaluated on 16 paired noise sequences at one reset.

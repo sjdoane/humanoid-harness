@@ -1,5 +1,8 @@
 # Dynamic-task post-training: current plan
 
+Updated September 10: basketball replaces the changing obstacle course.
+The post-training goal and prior experiment records are unchanged.
+
 | progress | Updated proposal adopted; Astra owns all work. Selected-receipt effort reporting is implemented and independently reviewed. |
 |---|---|
 | bottleneck | No executable VIBE interface or configured proposal task is admitted. GMT has no full-task pass. |
@@ -56,13 +59,15 @@ do not enter the revision path. The given trainer updates permitted weights.
 | Order | Proposal task | Required capability to verify | Current status |
 |---|---|---|---|
 | 1 | Loaded-cart interception | Coupled cart momentum, contact/braking, task-state observations, stopping evaluator | Not admitted |
-| 2 | Changing obstacle course | Supported obstacle/support dynamics, observations, traversal/recovery evaluation | Not admitted |
+| 2 | Basketball: dribble, shoot, layup | Ball contacts, release/target outcomes, balance and landing evaluation | Not admitted |
 | 3 | Floor hockey | Stick control or explicitly fixed grip, ball contacts, receive/dribble/goal outcomes | Not admitted |
 | 4 | Volleyball | Incoming ball, permitted teammate/set behavior, contact/landing and target-area outcomes | Not admitted |
 
 - The tasks are now named in the proposal, superseding the earlier open shortlist.
 - Exact assets, controller compatibility, success thresholds and budgets remain
   to be established. No task is claimed novel or currently runnable.
+- This is a working sequence, not a feasibility claim. Keep all four tasks in
+  the semester goal; confirm the ordering against lab assets and compute.
 - Week 3: asset/interface/readiness checks. Week 4: VIBE integration and one
   complete cycle. Task blocks: weeks 5–6, 7–8, 9–10 and 11–12 in this order.
 - Weeks 13–14 sim-to-real require separate lab approval and hardware readiness.

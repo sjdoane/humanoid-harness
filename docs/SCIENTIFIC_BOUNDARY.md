@@ -5,11 +5,11 @@
 | Item | Current status | What advances it |
 |---|---|---|
 | Agentic design loop | Real GMT cycles externally coordinated; integrated VIBE loop missing | Supplied trainer interface plus bounded model-to-run integration |
-| Research knowledge graph | Deterministic build/query over 47 migrated paper extractions | Add approved current-review evidence, gap records, and decision links |
+| Research knowledge graph | Deterministic build/query over migrated paper extractions; command reports the loaded count | Add approved current-review evidence, gap records, and decision links |
 | Oracle contracts | Implemented and tested | Integration with a measured tracker and matched oracle study |
 | Generated oracle | External LLM proposals admitted and exercised in GMT | Broader VIBE guidance contract and learning benefit |
 | Generated task reward | Bounded GMT recipe revisions admitted and trained | Broader supplied task contract; no arbitrary Python admission implied |
-| Evidence UI | Read-only status and research-query views implemented | Add canonical trajectory and comparison views |
+| Evidence UI | Read-only status, research queries and registered local G1 evidence views | Portable artifact packaging and dynamic-task views |
 | Gymnasium adapter | Active GMT/G1 proxy; native Humanoid-v5 is a separate earlier family | VIBE integration, not relabeling proxy results |
 | Frozen reference tracker | GMT actor admitted; causal input tests recorded | Exact VIBE checkpoint/interface admission |
 | Protected evaluator | Mechanical metrics implemented | Task, transition, contact, recovery, and naturalness calibration |

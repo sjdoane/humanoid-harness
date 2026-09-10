@@ -5,11 +5,13 @@
 
 ## Admitted public direction
 
-- This repository starts a new research line focused on oracle/reference
-  composition for humanoid control.
+- This repository develops a harness for automated post-training of dynamic
+  humanoid tasks through reference/oracle guidance and task-reward revision.
 - The prior RL-Sculptor workspace is a read-only historical source.
-- The intended evaluation target is Gymnasium Humanoid, including complex,
-  phase-aware transitions and recovery-oriented failure cases.
+- The intended integration is the lab's SONIC-based VIBE system. Native
+  Gymnasium Humanoid and GMT/G1 records are development evidence, not VIBE results.
+- Current tasks are volleyball, floor hockey, loaded-cart interception and
+  basketball. Success and post-training/manual effort are the evaluation focus.
 - Literature claims and implementation claims must remain separate.
 
 These points restate the user's current repository instructions. They do not

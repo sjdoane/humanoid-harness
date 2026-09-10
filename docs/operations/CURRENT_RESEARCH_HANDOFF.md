@@ -3,9 +3,14 @@
 | status | current truth |
 |---|---|
 | progress | Updated proposal governs four planned VIBE tasks; Astra owns all work. Selected-receipt effort reporting is implemented and independently reviewed. |
-| bottleneck | No admitted VIBE interface/task assets. GMT has 38 training runs, not 29, and no full-task pass. |
+| bottleneck | No admitted VIBE interface/task assets. GMT has 38 training runs and no full-task pass. |
 | next step | Follow the current post-training plan and Astra handoff, not historical native/GMT launch instructions below. |
 
+- For collaborators: [current status](../CURRENT_STATUS.md),
+  [documentation guide](../README.md), and [verification](SHARE_READINESS_20260910.md).
+- September 10 sharing update: main and Astra histories were combined on an
+  isolated review branch; current task four is basketball. No training,
+  historical seal, task threshold or private-source publication was changed.
 - Current direction: [post-training plan](../strategy/astra/POST_TRAINING_PLAN_20260908.md).
 - Study 021 is deferred; old seals and results are preserved. No research
   experiment was launched. Validation exercised existing bounded simulator and

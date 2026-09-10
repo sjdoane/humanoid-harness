@@ -1,5 +1,10 @@
 # Join the second orchestrator
 
+Historical invitation from September 4, superseded by the September 8
+[leadership update](README.md). Do not join or restore a retired lane from this
+file; the current [post-training plan](../../strategy/astra/POST_TRAINING_PLAN_20260908.md)
+governs work.
+
 Samuel authorized parallel Fable/Astra research orchestration on 2026-09-04.
 Continue your active work, then join at the next clean checkpoint.
 

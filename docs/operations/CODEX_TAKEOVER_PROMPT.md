@@ -1,5 +1,9 @@
 # Codex continuity prompt
 
+Historical prompt, retired September 8. Follow [AGENTS.md](../../AGENTS.md)
+and the [current plan](../strategy/astra/POST_TRAINING_PLAN_20260908.md), not the
+temporary Fable-takeover instructions below. No recurring work is implied.
+
 | status | takeover rule |
 |---|---|
 | progress | This prompt gives a Sol worker enough durable context to continue one already-approved bounded task while Fable is unavailable. |

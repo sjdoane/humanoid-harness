@@ -19,7 +19,7 @@ task + R + r0 ---> evidence-grounded decision agent <---- research graph
                      diagnostic dossier   validation gates
                               ^               |
                               |               v
-                      protected evaluator <--- policy-training adapter
+                    development evaluator <--- policy-training adapter
                               ^                         |
                               +----- trajectory --------+
 ```
@@ -35,7 +35,7 @@ task + R + r0 ---> evidence-grounded decision agent <---- research graph
 | Execution manifest | Harness and reviewer | Trainer/evaluator | All exact inputs + runtime fingerprint |
 | Policy `pi_k` | Trainer | Evaluator | Checkpoint + load receipt + SHA-256 |
 | Trajectory trace | Adapter | Evaluator/UI | Ordered samples + signal schema + SHA-256 |
-| Evaluation `E_k` | Protected evaluator | Agent/UI | Metrics + failures + uncertainty + SHA-256 |
+| Development evaluation `E_k` | Independent evaluator | Agent/UI | Metrics + failures + uncertainty + SHA-256 |
 | Decision record | Agent/human | Next iteration | Evidence IDs + patch + prediction + falsifier |
 
 ## Decision sequence
@@ -53,13 +53,15 @@ retrieve source-backed mechanisms
 propose the smallest O or r change
       |
       v
-validate -> matched run -> protected evaluation
+validate -> matched run -> development evaluation
       |
       v
 accept, reject, or ask one targeted question
 ```
 
 The agent may not silently edit a frozen component, evaluator, or claim gate.
+Final held-out evaluation is a separate readout, not feedback for another
+revision. Its outcomes do not enter the development loop.
 
 ## Adapter interface
 

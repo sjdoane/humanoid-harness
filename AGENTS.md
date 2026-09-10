@@ -20,10 +20,11 @@
   across both inputs. Fable is no longer working on the project. Use separately
   tasked Sol reviewers; never self-approve an experiment. Read
   `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md` before selecting work.
-- Read `docs/operations/dual-orchestration/README.md` before dual-lane work.
-  Use separate worktrees and one writer per worktree. Existing workers finish
-  only their current bounded slice; transfer work at an explicit committed
-  checkpoint. Current transfer state: `LANE_SWAP_20260906.md` in that directory.
+- Read `docs/operations/dual-orchestration/README.md` when inspecting historical
+  coordination. Use separate worktrees and one writer per worktree. Existing
+  workers finish only their current bounded slice; transfer work at an explicit
+  committed checkpoint. Historical transfer record: `LANE_SWAP_20260906.md` in
+  that directory. Do not reopen a retired lane from its old handoff.
 - Older strategy and lane documents are historical where ownership conflicts;
   this instruction changes ownership, not scientific goals or evidence gates.
   Do not silently change historical results, frozen comparisons, or model
