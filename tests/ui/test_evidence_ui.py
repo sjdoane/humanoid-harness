@@ -816,6 +816,9 @@ def test_ui_serves_static_shell_and_read_only_evidence_api(tmp_path: Path) -> No
     assert status["evidence_class"] == "none"
     assert status["measured_evidence"] == []
     assert status["evidence_receipts"] == []
+    assert status["reported_status"]["state"] == "missing"
+    assert "SONIC-based VIBE" in status["research_target"]
+    assert "GMT/G1" in status["current_bottleneck"]
     assert query["results"]
     assert exploration["state"] == "unavailable"
     assert reference_probe == {

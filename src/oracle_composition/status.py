@@ -17,6 +17,7 @@ from .research.knowledge import DEFAULT_DATABASE, DEFAULT_EXTRACTIONS
 SUBSTRATE_RECEIPT = Path(
     "experiments/001_humanoid_fixed_reference/receipts/2026-09-02_substrate_smoke.json"
 )
+GMT_REPORT = Path("docs/strategy/astra/G1_LEARNING_RESULTS_20260906.md")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -89,37 +90,48 @@ def program_status(
     return {
         "program": "humanoid-harness",
         "research_target": (
-            "Autonomous, steerable iteration over a state-aware reference oracle "
-            "and executable task reward."
+            "Automate post-training for dynamic humanoid tasks in SONIC-based VIBE "
+            "by revising reference/oracle guidance and task reward from rollout feedback."
         ),
         "implemented_capability": [
-            "immutable reference and oracle contracts",
-            "deterministic guarded oracle runtime",
-            "strict data-only source audit and projection",
-            "Gymnasium Humanoid development adapter",
-            "protected mechanical evaluator",
+            "GMT/G1 development proxy with state-triggered references and residual PPO",
+            "data-only oracle/reward revision and recorded-state feedback",
+            "independent task scoring and selected-run effort accounting",
             "provenance-bearing research index",
-            "bounded canonical trajectory-trace contract",
-            "read-only local evidence UI",
+            "read-only evidence UI; GMT replays require separately admitted local artifacts",
+            "earlier native Humanoid-v5 contracts and interface checks",
         ],
         "measured_evidence": [item["claim"] for item in evidence_receipts],
         "evidence_receipts": evidence_receipts,
+        "evidence_scope": (
+            "This endpoint validates native Humanoid-v5 interface receipts only. "
+            "It does not verify GMT run artifacts or establish VIBE compatibility."
+        ),
+        "reported_status": {
+            "adapter": "GMT/G1 development proxy, not VIBE/SONIC",
+            "authority": "documentation_only",
+            "state": "available" if (root / GMT_REPORT).is_file() else "missing",
+            "report": GMT_REPORT.as_posix(),
+            "claim_boundary": (
+                "Report availability is not verified runtime evidence. Raw GMT artifacts "
+                "are not bundled; verify admitted local runs before making measured claims."
+            ),
+        },
         "not_demonstrated": [
-            "admitted reference-conditioned tracker",
-            "formal causal use of numeric reference windows",
-            "adapter-emitted canonical trajectory trace",
-            "oracle improvement",
-            "task-reward improvement",
-            "autonomous evidence-to-candidate loop",
-            "cross-MDP generality",
+            "VIBE/SONIC integration or success on the semester's dynamic tasks",
+            "a full-task GMT/G1 pass",
+            "matched fixed/manual/harness gains in task success or tuning effort",
+            "complete failed-attempt, human-time, and model-cost accounting",
+            "held-out task generalization or sim-to-real transfer",
         ],
         "current_bottleneck": (
-            "No admitted tracker with a qualifying evaluator-bound trace exists, so local "
-            "exploration cannot establish oracle quality."
+            "The VIBE interface and dynamic-task assets are not admitted. GMT/G1 is a "
+            "development proxy; its reported studies do not establish a full-task pass."
         ),
         "next_gate": (
-            "Train or admit one frozen reference-conditioned tracker, then pass exact, "
-            "zero, shuffled, and time-shifted causal-use ablations."
+            "Confirm the supplied VIBE checkpoint, interface, permitted trainable components "
+            "and task assets; then define one bounded fixed/manual/harness comparison with "
+            "independent success criteria and tuning-effort accounting."
         ),
         "knowledge_graph": graph,
         "evidence_class": "interface_check" if evidence_receipts else "none",
