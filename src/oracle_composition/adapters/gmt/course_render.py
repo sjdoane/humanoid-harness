@@ -29,9 +29,20 @@ from .contracts import (
     GMT_UPSTREAM_COMMIT,
     REFERENCE_FRAME_DIM,
 )
+from .course_config import load_run_config
+from .course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    frozen_runtime_contract,
+    runtime_profile_from_config,
+)
 from .course_task import CourseTaskSpec, TaskFrame
+from .heading_feedback import (
+    AFTER_HEADING_FEEDBACK_TRACE_KEY,
+    validate_after_heading_feedback_trace,
+)
 from .io import GMTAdmissionError, read_verified_bytes, sha256_file, write_json_receipt
 from .replay import _extract_model_abi, validate_model_abi
+from .training_contract import CourseTrainerSpec, effective_training_contract
 
 FRAME_WIDTH = 480
 FRAME_HEIGHT = 360
@@ -66,6 +77,9 @@ _CONFIG_KEYS = {
     "seed",
     "training_steps",
 }
+_CONFIG_KEYS_WITH_TRAINER = {*_CONFIG_KEYS, "trainer"}
+_CONFIG_KEYS_WITH_RUNTIME = {*_CONFIG_KEYS, "runtime"}
+_CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER = {*_CONFIG_KEYS_WITH_RUNTIME, "trainer"}
 _REPORT_KEYS = {
     "objective_evaluation",
     "training_reward_sum_not_success_metric",
@@ -284,6 +298,7 @@ def _read_rows(
     steps: int,
     arrays: dict[str, np.ndarray],
     task_sha256: str,
+    after_heading_feedback: bool = False,
 ) -> tuple[dict[str, object], ...]:
     payload = read_verified_bytes(path, expected_digest, maximum_size=32 * 1024 * 1024)
     if not payload.endswith(b"\n"):
@@ -293,9 +308,15 @@ def _read_rows(
         raise GMTAdmissionError("course frames row count differs from the trajectory")
     rows: list[dict[str, object]] = []
     for index, encoded in enumerate(encoded_rows):
-        row = _exact_object(
-            decode_json_object(encoded, source=f"course frame {index}"), _ROW_KEYS, "course frame"
+        decoded = decode_json_object(encoded, source=f"course frame {index}")
+        allowed_keys = (
+            (frozenset(_ROW_KEYS), frozenset({*_ROW_KEYS, AFTER_HEADING_FEEDBACK_TRACE_KEY}))
+            if after_heading_feedback
+            else (frozenset(_ROW_KEYS),)
         )
+        if frozenset(decoded) not in allowed_keys:
+            raise GMTAdmissionError("course frame fields differ from the course-render contract")
+        row = decoded
         metrics = _exact_object(row["metrics"], _METRIC_KEYS, "course metrics")
         _exact_object(row["reward"], _REWARD_KEYS, "course reward")
         trajectory = _exact_object(row["trajectory"], _TRAJECTORY_KEYS, "course trajectory row")
@@ -412,9 +433,40 @@ def load_course_render_inputs(
     config, config_encoded = read_json_object(config_path)
     if hashlib.sha256(config_encoded).hexdigest() != config_digest:
         raise GMTAdmissionError("retained course config SHA-256 differs")
-    config = _exact_object(config, _CONFIG_KEYS, "course config")
-    if config["schema_version"] != 1 or config["mode"] not in {"probe", "train"}:
+    if type(config) is not dict:
+        raise GMTAdmissionError("course config fields differ from the course-render contract")
+    try:
+        runtime = runtime_profile_from_config(config)
+    except ValueError as exc:
+        raise GMTAdmissionError("course runtime profile is invalid") from exc
+    valid_fields = (
+        {
+            frozenset(_CONFIG_KEYS_WITH_RUNTIME),
+            frozenset(_CONFIG_KEYS_WITH_RUNTIME_AND_TRAINER),
+        }
+        if runtime.config_value is not None
+        else {frozenset(_CONFIG_KEYS), frozenset(_CONFIG_KEYS_WITH_TRAINER)}
+    )
+    if frozenset(config) not in valid_fields:
+        raise GMTAdmissionError("course config fields differ from the course-render contract")
+    if config["mode"] not in {"probe", "train"}:
         raise GMTAdmissionError("course config identity or mode differs")
+    if not runtime.training_admitted and config["mode"] != "probe":
+        raise GMTAdmissionError("course runtime profile is probe-only")
+    try:
+        trainer = CourseTrainerSpec.from_dict(config["trainer"]) if "trainer" in config else None
+    except ValueError as exc:
+        raise GMTAdmissionError("course trainer preconditioning is invalid") from exc
+    if trainer is not None and config["mode"] != "train":
+        raise GMTAdmissionError("course trainer preconditioning requires train mode")
+    frozen_runtime = manifest["frozen_runtime"]
+    expected_runtime = frozen_runtime_contract(
+        runtime,
+        trainer=effective_training_contract(trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime:
+        raise GMTAdmissionError("course runtime differs from the retained config")
     if label == "final_policy" and config["mode"] != "train":
         raise GMTAdmissionError("final_policy rendering requires a retained train-mode run")
     if type(config["assets"]) is not dict or type(config["assets"].get("upstream_root")) is not str:
@@ -453,7 +505,20 @@ def load_course_render_inputs(
         steps=steps,
         arrays=arrays,
         task_sha256=task.sha256,
+        after_heading_feedback=runtime.after_heading_reference_feedback,
     )
+    if runtime.after_heading_reference_feedback:
+        try:
+            admitted_config = load_run_config(config_path)
+            if admitted_config.encoded != config_encoded:
+                raise ValueError("retained course config changed during admission")
+            validate_after_heading_feedback_trace(
+                config=admitted_config,
+                frames=rows,
+                trajectory=arrays,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise GMTAdmissionError("after-heading feedback trace is invalid") from exc
     support_files = verify_upstream_root(upstream_root)
     consumed = {
         "input_config.json": config_digest,

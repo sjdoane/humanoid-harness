@@ -1,5 +1,7 @@
 const views = document.querySelectorAll(".view");
 const navItems = document.querySelectorAll(".nav-item");
+let g1LearningLoaded = false;
+let g1LearningLoading = false;
 
 function showView(id) {
   views.forEach((view) => view.classList.toggle("is-visible", view.id === id));
@@ -8,7 +10,12 @@ function showView(id) {
   if (heading) heading.focus?.({ preventScroll: true });
 }
 
-navItems.forEach((item) => item.addEventListener("click", () => showView(item.dataset.view)));
+navItems.forEach((item) =>
+  item.addEventListener("click", () => {
+    showView(item.dataset.view);
+    if (item.dataset.view === "g1-learning" && !g1LearningLoaded) loadG1Learning();
+  }),
+);
 
 async function loadJson(url) {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -539,6 +546,284 @@ async function loadE0Tqc() {
   }
 }
 
+function g1Text(value, field) {
+  if (typeof value !== "string" || !value) throw new Error(`G1 ${field} is invalid.`);
+  return value;
+}
+
+function g1Count(value, field) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`G1 ${field} is invalid.`);
+  }
+  return value;
+}
+
+function g1Metric(value, digits = 3) {
+  if (value === null) return "not observed";
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error("G1 metric is invalid.");
+  }
+  return value.toFixed(digits);
+}
+
+function appendG1Line(root, label, value) {
+  const line = document.createElement("small");
+  const term = document.createElement("span");
+  term.textContent = `${label}: `;
+  line.append(term, document.createTextNode(value));
+  root.append(line);
+}
+
+function appendG1Run(row) {
+  const tableRow = document.createElement("tr");
+  if (row.state === "rejected") {
+    const run = document.createElement("th");
+    run.scope = "row";
+    run.textContent = g1Text(row.run_id, "rejected run ID");
+    const detail = document.createElement("td");
+    detail.colSpan = 3;
+    const label = document.createElement("span");
+    label.className = "check-label check-fail";
+    label.textContent = "registration rejected";
+    const reason = document.createElement("small");
+    reason.textContent = g1Text(row.detail, "rejection detail");
+    detail.append(label, reason);
+    tableRow.append(run, detail);
+    document.querySelector("#g1-learning-body").append(tableRow);
+    return;
+  }
+  if (row.state !== "available") throw new Error("G1 run state is invalid.");
+
+  const source = document.createElement("th");
+  source.scope = "row";
+  const runId = document.createElement("strong");
+  runId.className = "run-id";
+  runId.textContent = g1Text(row.run_id, "run ID");
+  source.append(runId);
+  appendG1Line(source, "selected", g1Text(row.selected_label, "selected label"));
+
+  const gate = document.createElement("td");
+  const passed = row.full_task_development_gate_passed;
+  if (typeof passed !== "boolean") throw new Error("G1 gate result is invalid.");
+  const gateLabel = document.createElement("span");
+  gateLabel.className = `check-label ${passed ? "check-pass" : "check-fail"}`;
+  gateLabel.textContent = passed ? "PASS" : "FAIL";
+  gate.append(gateLabel);
+  const passedCount = g1Count(row.development_gates.passed, "passed gate count");
+  const totalCount = g1Count(row.development_gates.total, "gate count");
+  appendG1Line(gate, "fixed gates", `${passedCount} / ${totalCount}`);
+  const failed = row.development_gates.failed;
+  if (!Array.isArray(failed) || failed.some((value) => typeof value !== "string")) {
+    throw new Error("G1 failed-gate list is invalid.");
+  }
+  appendG1Line(gate, "failed", failed.length ? failed.join(", ") : "none");
+  appendG1Line(gate, "formal success", "unavailable");
+
+  const metrics = document.createElement("td");
+  metrics.className = "metric-stack";
+  appendG1Line(
+    metrics,
+    "survival",
+    `${g1Metric(row.metrics.duration_seconds, 2)} s · ${g1Count(row.metrics.fall_count, "fall count")} falls`,
+  );
+  appendG1Line(
+    metrics,
+    "finish",
+    row.metrics.finish_condition_observed ? "reached (operational only)" : "not reached",
+  );
+  appendG1Line(
+    metrics,
+    "posture",
+    `${g1Metric(row.metrics.posture_compliant_fraction)} compliant · min ${g1Metric(row.metrics.minimum_root_height_m)} m`,
+  );
+  appendG1Line(
+    metrics,
+    "speed MAE / inside Δ",
+    `${g1Metric(row.metrics.mean_speed_error_m_s)} / ${g1Metric(row.metrics.inside_speed_target_deviation_m_s)} m/s`,
+  );
+  appendG1Line(
+    metrics,
+    "lateral max",
+    `${g1Metric(row.metrics.maximum_lateral_error_m)} m`,
+  );
+  appendG1Line(
+    metrics,
+    "joint / roll-pitch p95",
+    `${g1Metric(row.metrics.joint_position_rmse_p95_rad)} / ${g1Metric(row.metrics.roll_pitch_rmse_p95_rad)} rad`,
+  );
+
+  const training = document.createElement("td");
+  training.className = "metric-stack";
+  const contract = row.training.producer_recorded_trainer;
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    throw new Error("G1 trainer contract is invalid.");
+  }
+  appendG1Line(
+    training,
+    "algorithm",
+    g1Text(row.training.algorithm, "normalized trainer algorithm"),
+  );
+  appendG1Line(
+    training,
+    "variant",
+    g1Text(row.training.trainer_variant, "trainer variant"),
+  );
+  appendG1Line(
+    training,
+    "learning rate",
+    g1Metric(row.training.learning_rate, 6),
+  );
+  appendG1Line(
+    training,
+    "course runtime",
+    `${g1Text(row.training.course_runtime_profile, "course runtime profile")} · ${g1Count(row.training.observation_dim, "observation dimension")}D`,
+  );
+  appendG1Line(
+    training,
+    "budget",
+    `${g1Count(row.training.completed_transitions, "completed budget").toLocaleString("en-US")} / ${g1Count(row.training.requested_transitions, "requested budget").toLocaleString("en-US")} transitions`,
+  );
+  appendG1Line(training, "seed", String(g1Count(row.training.seed, "seed")));
+  const details = document.createElement("details");
+  details.className = "row-receipts";
+  const summary = document.createElement("summary");
+  summary.textContent = "Source + trainer receipt";
+  const encoded = document.createElement("pre");
+  encoded.textContent = JSON.stringify(
+    {
+      source_receipts: row.receipts,
+      evaluator: row.evaluator,
+      trainer: {
+        full_contract_sha256: row.training.full_trainer_contract_sha256,
+        payload_identity_sha256: row.training.trainer_payload_identity_sha256,
+        producer_recorded_contract: contract,
+      },
+      course_runtime: {
+        profile: row.training.course_runtime_profile,
+        observation_dim: row.training.observation_dim,
+        training_admitted: row.training.training_admitted_for_profile,
+        frozen_runtime_sha256: row.receipts.frozen_runtime_sha256,
+      },
+      claim_limits: row.limitations,
+    },
+    null,
+    2,
+  );
+  details.append(summary, encoded);
+  source.append(details);
+
+  tableRow.append(source, gate, metrics, training);
+  document.querySelector("#g1-learning-body").append(tableRow);
+}
+
+function renderG1LearningUnavailable(payload) {
+  const badge = document.querySelector("#g1-learning-badge");
+  badge.className =
+    payload.state === "rejected" ? "badge badge-blocked" : "badge badge-neutral";
+  badge.textContent =
+    payload.state === "busy"
+      ? "validation busy"
+      : payload.state === "rejected"
+        ? "registry rejected"
+        : "no registered runs";
+  document.querySelector("#g1-learning-state").textContent =
+    payload.detail || "No registered G1 development evidence is available.";
+  document.querySelector("#g1-learning-results").hidden = true;
+}
+
+function renderG1LearningBusy(payload) {
+  const results = document.querySelector("#g1-learning-results");
+  const hasValidatedSnapshot = !results.hidden;
+  const detail =
+    typeof payload.detail === "string" && payload.detail.trim()
+      ? payload.detail.trim().replace(/[.\s]+$/, "")
+      : "Another G1 evidence validation is running";
+  const badge = document.querySelector("#g1-learning-badge");
+  badge.className = "badge badge-neutral";
+  badge.textContent = "validation busy";
+  document.querySelector("#g1-learning-state").textContent =
+    `${detail}. ${hasValidatedSnapshot ? "Showing the last validated snapshot." : "No validated snapshot is loaded."} Choose Validate runs to retry.`;
+}
+
+function renderG1Learning(payload) {
+  if (!payload || !Array.isArray(payload.runs)) {
+    throw new Error("G1 snapshot contract is invalid.");
+  }
+  if (payload.state === "busy") {
+    renderG1LearningBusy(payload);
+    return false;
+  }
+  if (["unavailable", "empty"].includes(payload.state) || !payload.summary) {
+    renderG1LearningUnavailable(payload);
+    return true;
+  }
+  if (!["available", "partial", "rejected"].includes(payload.state)) {
+    throw new Error("G1 snapshot state is invalid.");
+  }
+  const badge = document.querySelector("#g1-learning-badge");
+  badge.className =
+    payload.state === "available"
+      ? "badge badge-warning"
+      : payload.state === "partial"
+        ? "badge badge-warning"
+        : "badge badge-blocked";
+  badge.textContent =
+    payload.state === "available" ? "validated snapshot" : `${payload.state} snapshot`;
+  document.querySelector("#g1-learning-state").textContent =
+    "Pinned sources were validated sequentially for this snapshot. Refresh is manual.";
+  document.querySelector("#g1-accepted-count").textContent = String(
+    g1Count(payload.summary.accepted_runs, "accepted count"),
+  );
+  document.querySelector("#g1-pass-count").textContent = String(
+    g1Count(payload.summary.full_task_development_gate_passes, "pass count"),
+  );
+  document.querySelector("#g1-rejected-count").textContent = String(
+    g1Count(payload.summary.rejected_runs, "rejected count"),
+  );
+  document.querySelector("#g1-validation-time").textContent = g1Text(
+    payload.validated_at,
+    "validation time",
+  );
+  document.querySelector("#g1-authority").textContent = g1Text(
+    payload.authority,
+    "authority",
+  );
+  document.querySelector("#g1-registry-sha").textContent = g1Text(
+    payload.registry.sha256,
+    "registry hash",
+  );
+  document.querySelector("#g1-source-bytes").textContent =
+    `${g1Count(payload.registry.aggregate_source_bytes, "source bytes").toLocaleString("en-US")} bytes`;
+  document.querySelector("#g1-validation-mode").textContent = g1Text(
+    payload.validation,
+    "validation mode",
+  );
+  document.querySelector("#g1-learning-body").replaceChildren();
+  payload.runs.forEach(appendG1Run);
+  document.querySelector("#g1-learning-results").hidden = false;
+  return true;
+}
+
+async function loadG1Learning() {
+  if (g1LearningLoading) return;
+  g1LearningLoading = true;
+  const badge = document.querySelector("#g1-learning-badge");
+  badge.className = "badge badge-neutral";
+  badge.textContent = "validating";
+  document.querySelector("#g1-learning-state").textContent =
+    "Sequentially validating registered manifests and retained development evidence…";
+  try {
+    const snapshotAccepted = renderG1Learning(await loadJson("/api/g1-learning"));
+    if (snapshotAccepted) g1LearningLoaded = true;
+  } catch (error) {
+    renderG1LearningUnavailable({ state: "rejected", detail: error.message });
+  } finally {
+    g1LearningLoading = false;
+  }
+}
+
+document.querySelector("#g1-learning-refresh").addEventListener("click", loadG1Learning);
+
 function renderResults(payload) {
   const root = document.querySelector("#results");
   root.replaceChildren();
@@ -586,6 +871,7 @@ document.querySelector("#research-search").addEventListener("submit", async (eve
   }
 });
 
+loadG1Learning();
 loadStatus();
 loadGraphStats();
 loadLocalExploration();

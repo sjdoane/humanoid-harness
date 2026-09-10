@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "methods": [
+    {
+      "method_id": "M001",
+      "name": "Prespecified Study018 baseline admission",
+      "analysis_intent": "exploratory",
+      "protocol_status": "prespecified",
+      "outcome_ids": [
+        "O001",
+        "O002"
+      ]
+    }
+  ],
+  "numeric_facts": [
+    {
+      "fact_id": "N001",
+      "concept": "Posture compliance",
+      "section": "Locked decision",
+      "analysis_set": "Final deterministic policy physical-region samples",
+      "value": 0.6619718309859155,
+      "unit": "fraction",
+      "numerator": 47,
+      "denominator": 71,
+      "sample_size": 1,
+      "evidence_ids": [
+        "E002"
+      ]
+    },
+    {
+      "fact_id": "N002",
+      "concept": "Overall speed MAE",
+      "section": "Locked decision",
+      "analysis_set": "Final deterministic policy full episode",
+      "value": 0.47433105267454123,
+      "unit": "m/s",
+      "numerator": null,
+      "denominator": null,
+      "sample_size": 1,
+      "evidence_ids": [
+        "E002"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "result_id": "R001",
+      "method_id": "M001",
+      "outcome_id": "O001",
+      "analysis_intent": "exploratory",
+      "evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "reported_sections": [
+        "Locked decision",
+        "Measured comparison"
+      ],
+      "sample_size": 1
+    },
+    {
+      "result_id": "R002",
+      "method_id": "M001",
+      "outcome_id": "O002",
+      "analysis_intent": "exploratory",
+      "evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "reported_sections": [
+        "Locked decision",
+        "Measured comparison"
+      ],
+      "sample_size": 1
+    }
+  ]
+}

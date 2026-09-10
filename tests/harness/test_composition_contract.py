@@ -245,3 +245,34 @@ def test_machine_rejects_every_nonfinite_runtime_signal(field: str) -> None:
     signals[field] = float("nan")
     with pytest.raises(OracleContractError):
         machine.decide(signals)
+
+
+def test_ordinary_transition_can_be_deferred_without_latching_guard() -> None:
+    program = oracle_program_from_dict(_oracle(), available_behaviors=("expert", "simple"))
+    machine = OracleMachine(program)
+    machine.advance()
+    signals = _signals(machine, z_root=1.4)
+    signals["t"] = 2.0
+
+    deferred = machine.decide(signals, allow_transitions=False)
+
+    assert deferred.reason == "ordinary_transition_deferred"
+    assert machine.state == "start"
+    signals["t"] = 0.0
+    assert machine.decide(signals, allow_transitions=True).reason == "hold"
+    assert machine.state == "start"
+
+
+def test_recovery_keeps_priority_when_ordinary_transitions_are_deferred() -> None:
+    program = oracle_program_from_dict(_recovery_oracle(), available_behaviors=("expert", "simple"))
+    machine = OracleMachine(program)
+    signals = _signals(machine, z_root=0.9)
+    signals["t"] = 2.0
+
+    decision = machine.decide(signals, allow_transitions=False)
+
+    assert decision.recovery_entered is True
+    assert decision.reason == "recovery_guard"
+    invalid = OracleMachine(program)
+    with pytest.raises(OracleContractError, match="allow_transitions"):
+        invalid.decide(_signals(invalid, z_root=1.4), allow_transitions=1)

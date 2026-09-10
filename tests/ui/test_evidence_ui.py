@@ -799,7 +799,7 @@ def test_ui_serves_static_shell_and_read_only_evidence_api(tmp_path: Path) -> No
     try:
         with urlopen(base, timeout=2) as response:
             html = response.read().decode("utf-8")
-            assert "What is true right now?" in html
+            assert "Native baseline gates" in html
             assert response.headers["Content-Security-Policy"]
             assert response.headers["Cross-Origin-Resource-Policy"] == "same-origin"
         health = _get_json(f"{base}/health")

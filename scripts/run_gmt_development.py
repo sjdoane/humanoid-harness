@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Request or supervise one fixed GMT parity or course development run."""
+"""Request or supervise one fixed GMT development workload."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -17,9 +18,52 @@ import run_gmt_probe as supervisor
 
 from oracle_composition.adapters.gmt.checkpoint import verify_upstream_root
 from oracle_composition.adapters.gmt.contracts import GMT_UPSTREAM_COMMIT, MOTION_SPECS
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    CourseRuntimeProfile,
+    frozen_runtime_contract,
+)
+from oracle_composition.adapters.gmt.derived_reference import (
+    admit_derived_reference,
+    is_derived_reference_name,
+)
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, sha256_file
+from oracle_composition.adapters.gmt.reference_ablation import (
+    REFERENCE_ABLATION_ARTIFACT,
+    REFERENCE_ABLATION_EVIDENCE_CLASS,
+    REFERENCE_ABLATION_MANIFEST_FILENAME,
+    reference_ablation_contract,
+)
+from oracle_composition.adapters.gmt.reference_ablation_artifact import (
+    validate_reference_ablation_artifact,
+)
 from oracle_composition.adapters.gmt.reference_sensitivity import validate_probe_identities
+from oracle_composition.adapters.gmt.saved_policy_diagnostic_config import (
+    SavedPolicyDiagnosticConfig,
+    load_saved_policy_diagnostic_config,
+    verify_saved_policy_diagnostic_outputs,
+)
 from oracle_composition.adapters.gmt.trace_admission import load_validated_replay
+from oracle_composition.adapters.gmt.training_contract import (
+    CourseTrainerSpec,
+    effective_training_contract,
+    training_reward_metadata,
+)
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FIXED_NORMALIZER_STATE_SHA256,
+    MAX_NUMERIC_POLICY_BYTES,
+    fixed_normalizer_policy_metadata,
+    validate_policy_normalizer_archive,
+)
+from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+    MAX_TELEMETRY_BYTES,
+    SCALED_TELEMETRY_FILENAME,
+    TELEMETRY_FILENAME,
+    validate_training_telemetry_descriptor,
+)
 from oracle_composition.harness.resource_slot import (
     ResourceSlotError,
     canonical_json_bytes,
@@ -58,6 +102,19 @@ COURSE_TRAIN_OUTPUTS = {
     "final_policy_frames.jsonl",
     "final_policy_trajectory.npz",
     "final_policy_evaluation.json",
+}
+COURSE_TRAIN_TELEMETRY_OUTPUTS = {*COURSE_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
+COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    SCALED_TELEMETRY_FILENAME,
+}
+COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
+}
+COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS = {
+    *COURSE_TRAIN_OUTPUTS,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
 }
 LAUNCHER_SOURCES = ("scripts/run_gmt_probe.py", "scripts/run_gmt_development.py")
 PARITY_CONFIG_FIELDS = {
@@ -114,7 +171,10 @@ class _LoadedWorkload:
     weights_sha256: str
     course_mode: str | None = None
     course_identities: dict[str, object] | None = None
+    course_trainer: CourseTrainerSpec | None = None
+    course_runtime: CourseRuntimeProfile | None = None
     parity_receipt_inputs: dict[str, object] | None = None
+    saved_policy_diagnostic: SavedPolicyDiagnosticConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -255,9 +315,7 @@ def _load_parity(path: Path) -> _LoadedWorkload:
     weights = _file_binding(weights_path, weights_sha256, field="actor weights")
     motion = _file_binding(motion_path, motion_sha256, field="motion")
     trace = _file_binding(trace_path, trace_sha256, field="retained trace")
-    replay_manifest = _file_binding(
-        manifest_path, manifest_sha256, field="replay manifest"
-    )
+    replay_manifest = _file_binding(manifest_path, manifest_sha256, field="replay manifest")
     receipt_inputs = {
         "upstream_commit": GMT_UPSTREAM_COMMIT,
         "trace": {"path": trace_path.name, "sha256": trace_sha256},
@@ -321,11 +379,17 @@ def _load_course(path: Path) -> _LoadedWorkload:
     for name in sorted(motions_raw):
         binding = motions_raw[name]
         assert isinstance(name, str) and isinstance(binding, dict)
-        if name not in MOTION_SPECS:
+        if name in MOTION_SPECS:
+            motion_path = _absolute_json_path(binding["path"], field=f"motion {name}")
+            motion_sha256 = _sha256(binding["sha256"], field=f"motion {name} SHA-256")
+            motions[name] = _file_binding(motion_path, motion_sha256, field=f"motion {name}")
+        elif is_derived_reference_name(name):
+            admission = admit_derived_reference(name, binding, mode=config.raw["mode"])
+            motion_path = admission.path
+            motion_sha256 = str(admission.resource_binding["sha256"])
+            motions[name] = admission.resource_binding
+        else:
             raise supervisor.ProbeError("course motion is outside the admitted GMT catalog")
-        motion_path = _absolute_json_path(binding["path"], field=f"motion {name}")
-        motion_sha256 = _sha256(binding["sha256"], field=f"motion {name} SHA-256")
-        motions[name] = _file_binding(motion_path, motion_sha256, field=f"motion {name}")
         motion_paths[name] = motion_path
     if not motions:
         raise supervisor.ProbeError("course config has no admitted motions")
@@ -353,13 +417,13 @@ def _load_course(path: Path) -> _LoadedWorkload:
         weights_path=weights_path,
         weights_sha256=weights_sha256,
         course_mode=mode,
+        course_trainer=config.trainer,
+        course_runtime=config.runtime,
         course_identities={
             "task": config.task.sha256,
             "oracle": config.program.sha256,
             "reward": config.recipe.sha256,
-            "segments": {
-                name: segment.sha256 for name, segment in config.segments.items()
-            },
+            "segments": {name: segment.sha256 for name, segment in config.segments.items()},
         },
     )
 
@@ -369,7 +433,43 @@ def _load_workload(workload: str, path: Path) -> _LoadedWorkload:
         return _load_parity(path)
     if workload == "course":
         return _load_course(path)
-    raise supervisor.ProbeError("development workload must be parity or course")
+    if workload == "reference-ablation":
+        loaded = _load_course(path)
+        if (
+            loaded.course_mode != "probe"
+            or loaded.raw.get("training_steps") != 0
+            or loaded.course_trainer is not None
+        ):
+            raise supervisor.ProbeError(
+                "reference ablation requires a probe config with zero training"
+            )
+        return loaded
+    if workload == "saved-policy-diagnostic":
+        try:
+            diagnostic = load_saved_policy_diagnostic_config(path)
+        except (OSError, ValueError) as exc:
+            raise supervisor.ProbeError(str(exc)) from exc
+        loaded = _load_course(diagnostic.course_config.path)
+        if (
+            loaded.sha256 != diagnostic.course_config.sha256
+            or loaded.course_mode != "train"
+            or loaded.raw.get("training_steps") != 131_072
+            or loaded.course_trainer is None
+            or loaded.course_runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME
+        ):
+            raise supervisor.ProbeError(
+                "saved-policy diagnostic requires the exact retained Study018 course"
+            )
+        return replace(
+            loaded,
+            sha256=diagnostic.sha256,
+            course_mode="evaluation-only",
+            saved_policy_diagnostic=diagnostic,
+        )
+    raise supervisor.ProbeError(
+        "development workload must be parity, course, reference-ablation, "
+        "or saved-policy-diagnostic"
+    )
 
 
 def _profile(workload: str, course_mode: str | None) -> tuple[supervisor.ProbeLimits, str, str]:
@@ -383,6 +483,22 @@ def _profile(workload: str, course_mode: str | None) -> tuple[supervisor.ProbeLi
             supervisor.ProbeLimits(wall_seconds=120, cpu_seconds=120, **common),
             "gmt_g1_runtime_parity_development_resource_receipt",
             "development_runtime_parity_only_not_task_success",
+        )
+    if workload == "reference-ablation":
+        if course_mode != "probe":
+            raise supervisor.ProbeError("reference ablation config mode must be probe")
+        return (
+            supervisor.ProbeLimits(wall_seconds=1_200, cpu_seconds=1_200, **common),
+            "gmt_g1_reference_ablation_development_resource_receipt",
+            REFERENCE_ABLATION_EVIDENCE_CLASS,
+        )
+    if workload == "saved-policy-diagnostic":
+        if course_mode != "evaluation-only":
+            raise supervisor.ProbeError("saved-policy diagnostic mode must be evaluation-only")
+        return (
+            supervisor.ProbeLimits(wall_seconds=1_200, cpu_seconds=1_200, **common),
+            "gmt_g1_saved_policy_diagnostic_resource_receipt",
+            "evaluation_only_paired_saved_policy_diagnostic_not_task_success",
         )
     if course_mode not in {"probe", "train"}:
         raise supervisor.ProbeError("course config mode must be probe or train")
@@ -399,6 +515,27 @@ def _child_argv(request: DevelopmentRequest, root: Path) -> tuple[str, ...]:
             str(request.venv_python),
             str(root / "scripts/run_gmt_development.py"),
             "parity-child",
+            "--config",
+            str(request.config_path),
+            "--output",
+            str(request.output_directory),
+        )
+    if request.workload == "reference-ablation":
+        return (
+            str(request.venv_python),
+            "-m",
+            "oracle_composition.adapters.gmt.reference_ablation_run",
+            "--config",
+            str(request.config_path),
+            "--output",
+            str(request.output_directory),
+        )
+    if request.workload == "saved-policy-diagnostic":
+        return (
+            str(request.venv_python),
+            "-m",
+            "oracle_composition.adapters.gmt.saved_policy_diagnostic_run",
+            "run",
             "--config",
             str(request.config_path),
             "--output",
@@ -430,7 +567,13 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         output_directory=supervisor._absolute(request.output_directory),
     )
     inputs: dict[str, object] = {
-        "artifact_contract": "gmt_g1_fixed_development_launcher/v1",
+        "artifact_contract": (
+            "gmt_g1_fixed_reference_ablation_launcher/v1"
+            if request.workload == "reference-ablation"
+            else "gmt_g1_saved_policy_diagnostic_launcher/v1"
+            if request.workload == "saved-policy-diagnostic"
+            else "gmt_g1_fixed_development_launcher/v1"
+        ),
         "workload": request.workload,
         "course_mode": loaded.course_mode,
         "config": {
@@ -442,6 +585,25 @@ def _plan_material(request: DevelopmentRequest) -> _PlanMaterial:
         "venv": venv,
         "gmt_assets": loaded.assets,
     }
+    if request.workload == "reference-ablation":
+        inputs["reference_ablation"] = reference_ablation_contract()
+    if request.workload == "saved-policy-diagnostic":
+        diagnostic = loaded.saved_policy_diagnostic
+        if diagnostic is None:
+            raise supervisor.ProbeError("saved-policy diagnostic binding is missing")
+        protocol_path = root / "experiments/020_g1_saved_policy_diagnostic/PROTOCOL.md"
+        if (
+            diagnostic.protocol.path != protocol_path
+            or sha256_file(protocol_path) != diagnostic.protocol.sha256
+        ):
+            raise supervisor.ProbeError("saved-policy diagnostic protocol differs from this source")
+        inputs["saved_policy_diagnostic"] = diagnostic.resource_binding()
+    if loaded.course_trainer is not None:
+        inputs["trainer"] = effective_training_contract(loaded.course_trainer)
+    if loaded.course_runtime is not None:
+        runtime = loaded.course_runtime.manifest_contract()
+        if runtime is not None:
+            inputs["course_runtime"] = runtime
     return _PlanMaterial(
         root=root,
         commit=commit,
@@ -706,7 +868,15 @@ def _validate_course_summary(
         raise supervisor.ProbeError(f"course {label} summary is malformed")
 
 
-def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
+def _validate_training_record(
+    value: object,
+    *,
+    mode: str,
+    steps: int,
+    telemetry_encoded: bytes | None,
+    trainer: CourseTrainerSpec | None,
+    runtime: CourseRuntimeProfile,
+) -> None:
     if mode == "probe":
         if value is not None:
             raise supervisor.ProbeError("probe course run reports training")
@@ -719,6 +889,12 @@ def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
         "frozen_base_state_before_sha256",
         "frozen_base_state_after_sha256",
     }
+    if telemetry_encoded is not None:
+        expected.add("telemetry")
+    if trainer is not None:
+        expected.add("reward_preconditioning")
+        if trainer.uses_fixed_observation_normalizer:
+            expected.add("observation_preconditioning")
     if not isinstance(value, Mapping) or set(value) != expected:
         raise supervisor.ProbeError("course training record fields differ")
     if (
@@ -728,12 +904,34 @@ def _validate_training_record(value: object, *, mode: str, steps: int) -> None:
         or type(value["falls"]) is not int
         or not 0 <= value["falls"] <= value["episodes"]
         or value["policy_artifact"] != "numeric_weights_not_optimizer_resume"
-        or _sha256(
-            value["frozen_base_state_before_sha256"], field="frozen base state before"
-        )
+        or _sha256(value["frozen_base_state_before_sha256"], field="frozen base state before")
         != _sha256(value["frozen_base_state_after_sha256"], field="frozen base state after")
     ):
         raise supervisor.ProbeError("course training record differs from the fixed budget")
+    if telemetry_encoded is not None:
+        try:
+            validate_training_telemetry_descriptor(
+                value["telemetry"],
+                telemetry_encoded,
+                steps,
+                reward_scale=(trainer.total_training_reward_scale if trainer is not None else None),
+                fixed_normalizer_sha256=(
+                    FIXED_NORMALIZER_STATE_SHA256
+                    if trainer is not None and trainer.uses_fixed_observation_normalizer
+                    else None
+                ),
+                runtime=runtime,
+            )
+        except ValueError as exc:
+            raise supervisor.ProbeError(str(exc)) from exc
+    if trainer is not None and value["reward_preconditioning"] != training_reward_metadata(trainer):
+        raise supervisor.ProbeError("course reward preconditioning metadata differs")
+    if (
+        trainer is not None
+        and trainer.uses_fixed_observation_normalizer
+        and value["observation_preconditioning"] != fixed_normalizer_policy_metadata()
+    ):
+        raise supervisor.ProbeError("course observation preconditioning metadata differs")
 
 
 def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
@@ -759,8 +957,23 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     ):
         raise supervisor.ProbeError("course run manifest identity or config binding differs")
     outputs = manifest.get("outputs")
-    expected_outputs = COURSE_PROBE_OUTPUTS if mode == "probe" else COURSE_TRAIN_OUTPUTS
-    if not isinstance(outputs, Mapping) or set(outputs) != expected_outputs:
+    output_names = set(outputs) if isinstance(outputs, Mapping) else set()
+    valid_output_sets = (
+        {frozenset(COURSE_PROBE_OUTPUTS)}
+        if mode == "probe"
+        else {frozenset(COURSE_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS)}
+        if loaded.course_runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+        else {frozenset(COURSE_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS)}
+        if loaded.course_trainer is not None
+        and loaded.course_trainer.uses_fixed_observation_normalizer
+        else {frozenset(COURSE_TRAIN_SCALED_TELEMETRY_OUTPUTS)}
+        if loaded.course_trainer is not None
+        else {
+            frozenset(COURSE_TRAIN_OUTPUTS),
+            frozenset(COURSE_TRAIN_TELEMETRY_OUTPUTS),
+        }
+    )
+    if not isinstance(outputs, Mapping) or frozenset(output_names) not in valid_output_sets:
         raise supervisor.ProbeError("course run output hash ledger differs from its mode")
     expected_names = {
         COURSE_MANIFEST_FILENAME,
@@ -768,6 +981,7 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
         supervisor.STDERR_FILENAME,
     }
     artifacts: dict[str, object] = {}
+    telemetry_encoded = None
     for raw_name, raw_sha256 in outputs.items():
         name = _safe_output_name(raw_name)
         expected_sha256 = _sha256(raw_sha256, field=f"course output {name}")
@@ -777,6 +991,27 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
             raise supervisor.ProbeError(f"course output hash differs: {name}")
         expected_names.add(name)
         artifacts[name] = {"path": name, "sha256": observed, "size": path.stat().st_size}
+        if name in {
+            TELEMETRY_FILENAME,
+            SCALED_TELEMETRY_FILENAME,
+            FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+        }:
+            telemetry_encoded = supervisor._read_bounded(
+                path, MAX_TELEMETRY_BYTES, "course training telemetry"
+            )
+        if (
+            loaded.course_trainer is not None
+            and loaded.course_trainer.uses_fixed_observation_normalizer
+            and name in {"initial_residual_policy.npz", "final_residual_policy.npz"}
+        ):
+            policy_encoded = supervisor._read_bounded(
+                path, MAX_NUMERIC_POLICY_BYTES, f"course numeric policy {name}"
+            )
+            try:
+                validate_policy_normalizer_archive(policy_encoded)
+            except ValueError as exc:
+                raise supervisor.ProbeError(str(exc)) from exc
     if _output_names(output) != expected_names:
         raise supervisor.ProbeError("course run has unknown or missing output files")
     supervisor._read_bounded(
@@ -824,7 +1059,14 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     training_steps = raw.get("training_steps")
     if type(training_steps) is not int:
         raise supervisor.ProbeError("course training-step binding is malformed")
-    _validate_training_record(manifest.get("training"), mode=mode, steps=training_steps)
+    _validate_training_record(
+        manifest.get("training"),
+        mode=mode,
+        steps=training_steps,
+        telemetry_encoded=telemetry_encoded,
+        trainer=loaded.course_trainer,
+        runtime=loaded.course_runtime,
+    )
     if manifest.get("identities") != loaded.course_identities:
         raise supervisor.ProbeError("course semantic identities differ from admitted config")
     expected_claims = {
@@ -836,10 +1078,31 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     }
     if manifest.get("claims") != expected_claims:
         raise supervisor.ProbeError("course run claim limits differ")
-    if not isinstance(manifest.get("frozen_runtime"), Mapping) or not isinstance(
-        manifest.get("runtime"), Mapping
-    ):
+    frozen_runtime = manifest.get("frozen_runtime")
+    if loaded.course_runtime is None:
+        raise supervisor.ProbeError("course runtime profile binding is missing")
+    expected_runtime = frozen_runtime_contract(
+        loaded.course_runtime,
+        trainer=effective_training_contract(loaded.course_trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime or not isinstance(manifest.get("runtime"), Mapping):
         raise supervisor.ProbeError("course runtime provenance is missing")
+    if loaded.course_runtime.after_heading_reference_feedback:
+        from oracle_composition.feedback.g1_course import build_g1_course_feedback
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="gmt-heading-feedback-check-") as temporary:
+                build_g1_course_feedback(
+                    manifest_path=manifest_path,
+                    expected_manifest_sha256=manifest_sha256,
+                    label="zero_residual",
+                    output=Path(temporary).resolve(strict=True) / "feedback",
+                )
+        except ValueError as exc:
+            raise supervisor.ProbeError(
+                "after-heading feedback evidence failed reconstruction"
+            ) from exc
     return {
         "course_manifest": {
             "path": COURSE_MANIFEST_FILENAME,
@@ -850,12 +1113,103 @@ def _verify_course(plan: supervisor.ProbePlan) -> dict[str, object]:
     }
 
 
+def _verify_reference_ablation(plan: supervisor.ProbePlan) -> dict[str, object]:
+    output = plan.config.output_directory
+    manifest_path = output / REFERENCE_ABLATION_MANIFEST_FILENAME
+    manifest, manifest_sha256 = _json_file(
+        manifest_path,
+        maximum=MAX_MANIFEST_BYTES,
+        label="reference ablation manifest",
+    )
+    config_binding = plan.inputs.get("config")
+    if (
+        not isinstance(config_binding, Mapping)
+        or type(config_binding.get("path")) is not str
+        or type(config_binding.get("sha256")) is not str
+    ):
+        raise supervisor.ProbeError("reference ablation plan config binding is malformed")
+    try:
+        verified = validate_reference_ablation_artifact(
+            manifest_path=manifest_path,
+            expected_manifest_sha256=manifest_sha256,
+            config_path=Path(config_binding["path"]),
+            expected_config_sha256=config_binding["sha256"],
+        )
+    except (GMTAdmissionError, OSError, ValueError) as exc:
+        raise supervisor.ProbeError(str(exc)) from exc
+    stdout, _ = _json_file(
+        output / supervisor.STDOUT_FILENAME,
+        maximum=MAX_LOG_BYTES,
+        label="reference ablation child stdout",
+    )
+    supervisor._read_bounded(
+        output / supervisor.STDERR_FILENAME,
+        MAX_LOG_BYTES,
+        "reference ablation child stderr",
+    )
+    if (
+        set(stdout) != {"manifest_sha256", "arms", "treated_vs_exact"}
+        or stdout["manifest_sha256"] != manifest_sha256
+        or stdout["arms"] != manifest["arms"]
+        or stdout["treated_vs_exact"] != manifest["treated_vs_exact"]
+        or plan.inputs.get("reference_ablation") != reference_ablation_contract()
+        or plan.artifact_label != "gmt_g1_reference_ablation_development_resource_receipt"
+        or plan.evidence_class != REFERENCE_ABLATION_EVIDENCE_CLASS
+        or manifest.get("artifact") != REFERENCE_ABLATION_ARTIFACT
+    ):
+        raise supervisor.ProbeError("reference ablation child or accepted binding differs")
+    return {
+        "reference_ablation_manifest": verified["manifest"],
+        "outputs": verified["outputs"],
+        "arms": verified["arms"],
+        "treated_vs_exact": verified["treated_vs_exact"],
+        "claim_ceiling": verified["claim_ceiling"],
+    }
+
+
+def _verify_saved_policy_diagnostic(plan: supervisor.ProbePlan) -> dict[str, object]:
+    config_binding = plan.inputs.get("config")
+    if not isinstance(config_binding, Mapping) or type(config_binding.get("path")) is not str:
+        raise supervisor.ProbeError("saved-policy diagnostic plan config is malformed")
+    loaded = _load_workload("saved-policy-diagnostic", Path(config_binding["path"]))
+    config = loaded.saved_policy_diagnostic
+    if (
+        config is None
+        or plan.inputs.get("saved_policy_diagnostic") != config.resource_binding()
+        or plan.artifact_label != "gmt_g1_saved_policy_diagnostic_resource_receipt"
+        or plan.evidence_class != "evaluation_only_paired_saved_policy_diagnostic_not_task_success"
+    ):
+        raise supervisor.ProbeError("saved-policy diagnostic accepted binding differs")
+    try:
+        verified = verify_saved_policy_diagnostic_outputs(config, plan.config.output_directory)
+    except (OSError, ValueError) as exc:
+        raise supervisor.ProbeError(str(exc)) from exc
+    supervisor._read_bounded(
+        plan.config.output_directory / supervisor.STDOUT_FILENAME,
+        MAX_LOG_BYTES,
+        "saved-policy diagnostic child stdout",
+    )
+    supervisor._read_bounded(
+        plan.config.output_directory / supervisor.STDERR_FILENAME,
+        MAX_LOG_BYTES,
+        "saved-policy diagnostic child stderr",
+    )
+    return {
+        "saved_policy_diagnostic_manifest": verified["manifest"],
+        "outputs": verified["outputs"],
+    }
+
+
 def verify_development_completed(plan: supervisor.ProbePlan) -> dict[str, object]:
     workload = plan.inputs.get("workload")
     if workload == "parity":
         return _verify_parity(plan)
     if workload == "course":
         return _verify_course(plan)
+    if workload == "reference-ablation":
+        return _verify_reference_ablation(plan)
+    if workload == "saved-policy-diagnostic":
+        return _verify_saved_policy_diagnostic(plan)
     raise supervisor.ProbeError("development workload binding is invalid")
 
 
@@ -871,10 +1225,15 @@ def _run_parity_child(config_path: Path, output: Path) -> dict[str, object]:
     from oracle_composition.adapters.gmt.parity import RuntimeParityConfig, run_runtime_parity
 
     output = supervisor._absolute(output)
-    if not output.is_dir() or output.is_symlink() or _output_names(output) != {
-        supervisor.STDOUT_FILENAME,
-        supervisor.STDERR_FILENAME,
-    }:
+    if (
+        not output.is_dir()
+        or output.is_symlink()
+        or _output_names(output)
+        != {
+            supervisor.STDOUT_FILENAME,
+            supervisor.STDERR_FILENAME,
+        }
+    ):
         raise supervisor.ProbeError("parity child requires the fresh supervisor output directory")
     loaded = _load_parity(config_path)
     raw = loaded.raw
@@ -896,7 +1255,11 @@ def _run_parity_child(config_path: Path, output: Path) -> dict[str, object]:
 
 
 def _shared_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--workload", choices=("parity", "course"), required=True)
+    parser.add_argument(
+        "--workload",
+        choices=("parity", "course", "reference-ablation", "saved-policy-diagnostic"),
+        required=True,
+    )
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--python", dest="venv_python", type=Path, required=True)
     parser.add_argument("--config", dest="config_path", type=Path, required=True)

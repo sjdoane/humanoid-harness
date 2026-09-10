@@ -1,10 +1,89 @@
 # G1 learning loop — measured results
 
-| status | evidence |
+| progress | 38 bounded training runs / 2,424,832 transitions. Real oracle and reward revisions have completed the loop; none passes the full task. |
 |---|---|
-| progress | 14 bounded training runs completed; reference and reward revisions were proposed, admitted, trained and evaluated. |
-| bottleneck | No policy passes the full posture-course gate. Depth and heading remain unresolved. |
-| next step | Retain O2/r1; test a heading-only reward revision and add training diagnostics before a longer-budget comparison. |
+| bottleneck | No full-task pass. Study 020 confirms worse sampled survival for the trained policy; Study 018 B remains stopped. |
+| next step | Declare a small oracle-exit probe with exact control and handover diagnostics before more training. |
+
+- [Study 020 result](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
+  both saved checkpoints evaluated on 16 paired noise sequences at one reset.
+  Initial falls 5/16; trained falls 11/16; neither passes the full task.
+  Paired raw return difference averages −1,180.257; falls shorten the observation
+  window. All pairs retained; independent score reproduces exactly. No new
+  training, no training-seed replication claim, no policy adoption.
+  [Figure](../../../experiments/020_g1_saved_policy_diagnostic/FIGURE.md).
+
+- [Study019 result](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
+  one LLM guard revision tested against an exact control. Candidate falls at4.34 s,
+  passes3/11 gates, and fails the intended entry-phase manipulation. Reject;
+  no training. The changed handover state is descriptive, not an isolated cause.
+
+- [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
+  native four-state baseline trains for131072 transitions and survives20 s,
+  but compliance66.2% and speed MAE0.474 m/s fail the locked admission screen.
+  Original7/11 gates pass. B is stopped; no reward contrast was performed.
+  The replay and UI display the failed trained run, not a complete task result.
+
+- [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
+  zero-residual four-stage composition survives, with no upright revisit.
+  9/11 task gates pass, but depth and 10.94 m lateral drift fail. The candidate
+  also fails its own stricter heading/manipulation predictions; rejected.
+- [Study016 result](../../../experiments/016_g1_after_feedback/RESULTS.md):
+  after-only state feedback lowers heading deviation 1.397→0.386 rad and
+  lateral drift 10.940→5.043 m, with 20 s survival and three switches.
+  The fixed law fails its lateral screen and is rejected for advancement.
+  Original 9/11 task gates remain; no new training or full-task pass.
+- [Study017 result](../../../experiments/017_g1_execution_derived_reference/RESULTS.md):
+  an execution-derived reference was admitted for probes and re-tracked with
+  no falls and all four stages. Physical-region minimum height0.532951 m misses
+  the 0.020 m donor-fidelity tolerance; posture compliance falls to34.1%.
+  Reject training admission. The result includes a disclosed dispatch sequencing
+  deviation; exact control parity was established afterward. No dynamics certificate.
+- [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
+  LLM depth reward revision completed 131,072 transitions and failed its depth
+  prediction. Correct finite-horizon semantics from Study012 remain separate
+  from claims of behavioral improvement.
+
+- [O7 reference qualification](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
+  the zero-residual robot executes walk/crouch/rise/walk for 20 s without falling.
+  Full task fails five gates; no repeated crouch loop executes. All 1,000 commands
+  and tracking targets reconstruct exactly. No training result or phase-rate claim.
+- [Study 011: fixed input normalization](../../../experiments/011_g1_fixed_normalization/RESULTS.md):
+  exact control reproduction; candidate survives, but 64.2% compliance misses
+  the locked 68.35% floor. Retained, not adopted. Normalization alone is not a
+  complete-task result; conditioning and transition feasibility remain distinct.
+
+- [Study 009: actual reference use](../../../experiments/009_g1_reference_input/RESULTS.md):
+  two five-arm interventions change actions and trajectories; exact controls
+  reproduce retained bytes. No learning or composition-quality claim.
+- [Study 010: after-only crop](../../../experiments/010_g1_after_reference/RESULTS.md):
+  unchanged-prefix parity passes, robot falls at 6.76 s; candidate rejected.
+- [Study 008: repeatable crouch](../../../experiments/008_g1_repeatable_crouch/RESULTS.md):
+  falls at 6.4 s before rising; probe-only profile remains ineligible for training.
+- [Study 007: lower learning rate](../../../experiments/007_g1_learning_rate/RESULTS.md):
+  both predefined adoption criteria fail. No successful task policy is established.
+- These are development results. The earlier studies below retain their
+  original settings and evidence; they are not current launch instructions.
+
+- Latest: [composition x depth results](../../../experiments/006_g1_composition_depth/RESULTS.md).
+  Three of four larger arms fall; one stops. All failures are retained.
+- Next: [fixed learning-rate test](../../../experiments/007_g1_learning_rate/PROTOCOL.md).
+  A repeatable crouch/rise compositor is a separate, initially probe-only family.
+- The following trainer-screen and original factorial records remain valid
+  historical results, not the current best-task claim.
+
+- Latest: [trainer screen](../../../experiments/005_g1_training_conditioning/RESULTS.md)
+  and [fixed replication jobs](../../../experiments/005_g1_training_conditioning/REPLICATION.md).
+- Scaling passes the screen on all three r1 seeds. Lateral error is 0.526 m
+  on seed 20260906; full task still fails. The matched scaled r0/r1 contrast
+  favors r1 for overall speed MAE and lateral drift, not inside speed in every seed.
+- O4 reaches 83.1% posture compliance without a residual but falls at 5.4 s.
+  It is rejected for learning admission, not promoted from its posture score.
+- O4b adds an observed-height exit condition: 20 s survival, both switches,
+  unchanged 83.1% compliance. It passes gait admission but still misses three
+  full-task gates. Phase matching remains entry-only, not continuous estimation.
+- The G1 UI validates 12 explicitly registered snapshots through the same
+  feedback/evaluator path. It is a selected evidence view, not the complete run ledger.
 
 ## Architecture actually used
 
@@ -82,6 +161,7 @@ robot state → oracle → future reference window → frozen GMT base actor
 | O2b: state-ready exit guard | cannot satisfy exit; falls after 5.46 s | reject |
 | r2: LLM raises speed weight 1.0 → 1.5 | mean speed improves, but consistency/posture/drift worsen | reject; retain r1 |
 | O3: LLM advances entry guard 0.65 → 0.30 m | trained posture compliance rises to 72.7%, but falls at 6.96 s | reject; retain O2 |
+| r3: LLM raises heading weight 0.5 → 3.0 | lateral drift grows from 2.97 to 8.34 m; heading predictions and speed-MAE guard fail | reject; retain r1 |
 
 - O1 replay under runtime v2 is byte-identical to its v1 trajectory and frames.
   The O1/O2 comparison is not explained by an unintended default-runtime change.
@@ -94,6 +174,85 @@ robot state → oracle → future reference window → frozen GMT base actor
 
 ## Diagnosis and guardrails
 
+### Reference geometry and residual authority (2026-09-07)
+
+- Reproducible, source-bound [audit](../../../scripts/analyze_gmt_reference_geometry.py)
+  and [numeric receipt](../../../experiments/012_g1_finite_horizon/reference_geometry_audit_v1.json).
+  Parent byte reproduction passes at `76fdd69`; independent Sol closure accepted.
+- At the supplied crouch's 4.42 s minimum (`root z=0.425428 m`), rebuilding
+  the **consumed** height, roll/pitch and 23 joints with a unit quaternion gives
+  deepest foot penetration `0.146499 m`; deepest non-foot `0.072656 m`.
+  The literal source quaternion is nonunit, but cannot explain this result.
+- All 34 native rows with source `z<=0.50 m` penetrate the plane by more than
+  0.01 m; 32 have non-foot overlap. Four selected matched actual rollout poses
+  show only shallow permitted-foot penetration. Do not generalize those four
+  checks to entire trajectories or call static FK dynamics certification.
+- Preserve historical motion bytes and results. **Treat the low segment as
+  geometry-inconsistent for new task-reference use.** Review contact-aware
+  repair or a separately admitted reference before another depth-reward sweep.
+- Translation-only clearance would put these targets at `0.547130–0.626535 m`.
+  This preserves joints/RP; it is not a task-feasible repair or a lower bound on
+  what a different posture/controller can do.
+- Study012/014 residual maxima are `0.423 / 0.362`; no `|residual|>=0.99`
+  saturation. Physical-region PD-offset RMS is `0.0101 / 0.0146 rad`.
+  Absence of saturation does not establish sufficient authority or policy intent.
+- These findings distinguish reference quality from reward/learning questions.
+  They do not establish causality, global tracker incapability or impossible depth.
+
+### Reward-family incentive audit (2026-09-07)
+
+Independent read-only audit and parent recomputation at `57d2a2e`:
+
+| Analytic task-reward setting, before tracking | Reward / maximum |
+|---|---:|
+| R1: stationary, aligned, outside the posture region | 3.50432 / 4.5 (77.87%) |
+| R4: inside, height 0.60 m, speed 0.65 m/s, aligned | 3.31967 / 4.5 |
+| R4: immediately outside, same height/speed/alignment | 4.47260 / 4.5 |
+| R4 with speed weight 5: stationary/aligned/outside | 3.52160 / 8.5 (41.43%) |
+
+- These are counterfactual feature evaluations of the actual reward function,
+  not rollouts or proofs that those policies are dynamically achievable.
+- Outside-region posture error is zero, so the posture term pays +2 per living
+  step in R1/R4. There is no explicit progress, finish or milestone term.
+- Separate observed counterexample: O4b/R1 at 131,072 transitions survives but
+  stalls near final progress 1.11370 m. Its 733 inside-region frames average
+  0.008356 m/s. This is an **inside** stall, not the outside analytic example.
+- Source: `adapters/gmt/course_task.py`; retained run:
+  `gmt_course_o4br1_scale64_131072_seed20260906_20260907`.
+- The family can alter local incentives but does not explicitly express task
+  traversal. This is a concrete design concern, not an isolated causal diagnosis.
+- Finish the fixed-normalization comparison before a separate reward test.
+  A higher speed weight is a candidate expressiveness test, not an adopted
+  reward; prior R2 improved mean speed while worsening other task measures.
+
+### Next learning decision: measure difficult-state exposure
+
+- Decision after Study014: no further depth-weight or residual-authority sweep
+  without evidence that distinguishes reference mismatch from learning failure.
+- Current training telemetry retains pooled observation-group moments and
+  episode endpoints. It cannot recover region occupancy or depth exposure.
+  Evaluation percentages must not be multiplied by the training budget and
+  presented as measured training counts.
+- Next training diagnostic, separately reviewed after Study015: per-rollout
+  physical-region counts, executed-mode counts, fixed inside-height bins, and
+  signed reference/robot height errors. Bounded summaries, no growing raw trace.
+- [GMT v1, sections 3.1 and 4.3.2](https://arxiv.org/html/2506.14770v1)
+  motivates measuring difficult-segment exposure: it reports adaptive sampling
+  to reduce easy-segment dominance. Whether our learner has that problem is
+  unknown; its method and training scale are not a drop-in prescription.
+- A held deepest locomotion pose is only a possible conditioning diagnostic.
+  Success establishes one reachable static depth at that handover; failure is
+  ambiguous among support geometry, conditioning, state entry and controller.
+  It cannot prove global controller incapability. No hold run is authorized here.
+- No curriculum, reset, controller, MDP or evaluator change is part of Study015.
+  A controller/MDP change remains an explicitly separate experiment family
+  under the system-lead authority, not an undeclared oracle intervention.
+- Fable review: `20260907T062027.763368Z-693a004a420d44e29fe851f36ea0367d`;
+  corrected interpretation accepted in
+  `20260907T062151.697756Z-2e671943f3d94de9a9d509549e891b70`.
+
+### Earlier revision safeguards
+
 - O3 execution source: `1b501d6`; 32,768 transitions, seed `20260906`.
   Control/training code is unchanged from `004592f`; only reporting tools differ.
 - O3's five preregistered trained predictions fail: entry phase `1.240 < 1.25 s`,
@@ -103,8 +262,44 @@ robot state → oracle → future reference window → frozen GMT base actor
   that rollout also falls, at 5.36 s. It cannot substitute for trained predictions.
 - O3 manifest: `dc692f286485523031be94a23f06ff5b2b6dccc66a5aba0515d3e8cb6ea29f17`.
   Verified feedback: `1a9a120bcb9ec2b3b3e6897993f928ec0bed1f748b8a74ec674840691cdcdc14`.
-- The 32,768-step pilots do not establish convergence: optimizer/return curves
-  were not retained. Add measurement-only telemetry before a larger-budget family.
+- The original 32,768-step pilots did not retain optimizer curves. A later
+  measurement-only reproduction records them without changing policy behavior.
+
+## Trainer diagnosis, not a successful policy
+
+- Source `9188ed0`: O2r1 compatibility control reproduces all nine original
+  artifacts byte-for-byte. Optional reward v2 is disabled; reporting/revision
+  changes do not explain r3's outcome.
+- r3: 32,768 transitions, seed `20260906`, no fall over 20 s, both switches.
+  Heading absolute mean `0.942` versus `0.506 rad`; lateral max `8.342` versus
+  `2.970 m`; speed MAE `0.424` versus `0.307 m/s`; compliance `56.2%` versus `58.5%`.
+  Its actual candidate came from `g1 revise`, with exact LLM input/output lineage.
+- Source `0923a5a`: telemetry control again reproduces all nine original outputs
+  byte-for-byte, including both policies and complete recorded trajectories.
+  It adds 65 telemetry records; 45 training episodes and 18 falls are unchanged.
+- Across 64 updates: explained variance ranges `-0.0110…0.0219` (last `0.00000745`);
+  value loss starts `4895.65` and ends `4884.77`; mean KL `0.0281`; mean clipping
+  fraction `0.186`. Attempted epochs: 149 of 256 nominal. These include epochs
+  stopped partway through; completed epochs/minibatches were not counted.
+- This supports testing training conditioning. It does not identify critic
+  dominance: actor/critic networks are separate, and pre-clip gradient norms
+  were not measured. Global gradient clipping can couple the two branches.
+- Opt-in scaling is a **trainer experiment**, not an oracle/reward improvement.
+  Keep task semantics, relative reward weights and evaluator thresholds fixed;
+  compare matched budgets and do not compare value-loss magnitudes across units.
+- Practical basis: [SB3 RL guidance](https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html)
+  recommends checking preprocessing and sample budget for custom environments.
+
+| retained artifact | SHA-256 |
+|---|---|
+| r3 run manifest | `71c6b970455f28444d0459c1d387682aa09476a55a6d184b271437f20d01af23` |
+| r3 revision receipt | `a46ea453febfcc9e7de34f6f093f3b79d05c48d875e4872a1845ec7f8081bb3d` |
+| telemetry-control manifest | `3b4d391af582fb1772a45055d79530b8719ab843e722f1f80f0a10b15273001c` |
+| training telemetry | `a4c12a940d14f00558b7e9f74ab0c2306b70f477c21d0768a8c26ccf1911dcb3` |
+| telemetry-aware feedback | `c2e72807443aeec67f8e2b024b71b5f7f965fa66d3713a8a50a91fb9dbda3b4c` |
+
+- Parent verification at `0923a5a`: **266 focused tests pass**, including actual
+  PPO on a numeric fixture. Ruff passes. Whole-repository failures remain separate.
 
 - O2r1, seed 20260906: reference posture is compliant in `46/65` actual-region
   samples; robot posture in `38/65`. Timing accounts for much of the mismatch.

@@ -24,8 +24,34 @@ from oracle_composition.adapters.gmt.course_proposal import (
     COURSE_FEEDBACK_EVIDENCE_CLASS,
     MAX_DIAGNOSIS_CHARACTERS,
 )
+from oracle_composition.adapters.gmt.course_runtime import (
+    COURSE_RESIDUAL_RAW_SCALE,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec, TaskFrame, evaluate_step
+from oracle_composition.adapters.gmt.heading_feedback import (
+    validate_after_heading_feedback_trace,
+)
 from oracle_composition.adapters.gmt.io import validate_zip_members
+from oracle_composition.adapters.gmt.training_contract import (
+    effective_training_contract,
+    training_reward_metadata,
+)
+from oracle_composition.adapters.gmt.training_normalizer import (
+    FIXED_NORMALIZER_STATE_SHA256,
+    MAX_NUMERIC_POLICY_BYTES,
+    fixed_normalizer_policy_metadata,
+    validate_policy_normalizer_archive,
+)
+from oracle_composition.adapters.gmt.training_telemetry import (
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+    MAX_TELEMETRY_BYTES,
+    SCALED_TELEMETRY_FILENAME,
+    TELEMETRY_FILENAME,
+    validate_training_telemetry_descriptor,
+)
 from oracle_composition.experiments.artifact_io import publish_json_without_overwrite
 from oracle_composition.harness.contract import decode_json_object
 
@@ -56,6 +82,16 @@ _TRAIN_OUTPUTS = {
     "final_policy_frames.jsonl",
     "final_policy_trajectory.npz",
     "final_policy_evaluation.json",
+}
+_TRAIN_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, TELEMETRY_FILENAME}
+_TRAIN_SCALED_TELEMETRY_OUTPUTS = {*_TRAIN_OUTPUTS, SCALED_TELEMETRY_FILENAME}
+_TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS = {
+    *_TRAIN_OUTPUTS,
+    FIXED_NORMALIZER_TELEMETRY_FILENAME,
+}
+_TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS = {
+    *_TRAIN_OUTPUTS,
+    FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
 }
 _SUMMARY_FIELDS = {
     "objective_evaluation",
@@ -360,6 +396,81 @@ def _diagnosis(
     return diagnosis
 
 
+def _training_telemetry_diagnosis(
+    encoded: bytes,
+    *,
+    reward_scale: float | None = None,
+    fixed_normalizer_sha256: str | None = None,
+) -> str:
+    rows = [
+        decode_json_object(line, source="G1 training telemetry row")
+        for line in encoded.splitlines()
+    ]
+    rollout_rows = rows[:-1]
+    completed = [row for row in rollout_rows if row["episodes"]["completed"]]
+    total_completed = sum(row["episodes"]["completed"] for row in rollout_rows)
+    if completed:
+        if reward_scale is None:
+            first_return = completed[0]["episodes"]["returns"]["mean"]
+            last_return = completed[-1]["episodes"]["returns"]["mean"]
+            episode_text = (
+                f"{total_completed} completed episodes; first/last available rollout "
+                f"episode-return means {first_return:.6g}/{last_return:.6g}"
+            )
+        else:
+            first_ppo = completed[0]["episodes"]["scaled_environment_returns"]["mean"]
+            last_ppo = completed[-1]["episodes"]["scaled_environment_returns"]["mean"]
+            first_raw = completed[0]["episodes"]["raw_environment_returns"]["mean"]
+            last_raw = completed[-1]["episodes"]["raw_environment_returns"]["mean"]
+            episode_text = (
+                f"{total_completed} completed episodes; first/last available rollout "
+                f"Scaled pre-bootstrap return means {first_ppo:.6g}/{last_ppo:.6g}; raw environment "
+                f"return means {first_raw:.6g}/{last_raw:.6g}"
+            )
+    else:
+        episode_text = "no completed episodes"
+    update = rows[-1]["update"]
+    metrics = update["metrics"]
+    reasons = update["metric_unavailable_reasons"]
+
+    def metric(name: str, label: str) -> str:
+        value = metrics[name]
+        return (
+            f"{label}={value:.6g}"
+            if value is not None
+            else f"{label}=unavailable ({reasons[name]})"
+        )
+
+    attempted = update["sb3_n_updates"]
+    attempted_text = (
+        str(attempted) if attempted is not None else "unavailable (missing)"
+    )
+    summary = (
+        f"Training telemetry: {episode_text}. Final update through "
+        f"{update['trained_through_transitions']} transitions: "
+        f"{metric('approx_kl', 'KL')}; {metric('clip_fraction', 'clip fraction')}; "
+        f"{metric('explained_variance', 'explained variance')}; "
+        f"{metric('value_loss', 'value loss')}; attempted PPO epochs including "
+        f"KL-stopped partial epochs={attempted_text}. Descriptive only; these values do "
+        "not establish convergence or a causal mechanism."
+    )
+    if reward_scale is not None:
+        summary += (
+            " PPO value loss is in scaled optimization-reward units and is not comparable "
+            "to value loss from raw-reward runs."
+        )
+    if fixed_normalizer_sha256 is not None:
+        maximum = max(
+            row["fixed_normalized_base_range"]["maximum_absolute_value"]
+            for row in rollout_rows
+        )
+        summary += (
+            " Fixed-normalized base-slice maximum absolute value across raw training "
+            f"rollout buffers={maximum:.6g}; this is descriptive, not a safety threshold."
+        )
+    return summary
+
+
 def build_g1_course_feedback(
     *,
     manifest_path: Path,
@@ -390,10 +501,25 @@ def build_g1_course_feedback(
         raise ValueError("course run output ledger is malformed")
     config_sha256 = _sha256(manifest["input_config_sha256"], field="input config")
     output_names = set(outputs)
-    mode_hint = "train" if output_names == _TRAIN_OUTPUTS else "probe"
-    if output_names != _PROBE_OUTPUTS and output_names != _TRAIN_OUTPUTS:
+    train_output = output_names in (
+        _TRAIN_OUTPUTS,
+        _TRAIN_TELEMETRY_OUTPUTS,
+        _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
+    )
+    mode_hint = "train" if train_output else "probe"
+    if output_names not in (
+        _PROBE_OUTPUTS,
+        _TRAIN_OUTPUTS,
+        _TRAIN_TELEMETRY_OUTPUTS,
+        _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+        _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
+    ):
         raise ValueError("course run output ledger differs")
     retained: dict[str, bytes] = {}
+    telemetry_encoded = None
     selected = {
         "input_config.json",
         f"{label}_frames.jsonl",
@@ -405,13 +531,28 @@ def build_g1_course_feedback(
     for name, digest in outputs.items():
         expected = _sha256(digest, field=f"course output {name}")
         maximum = (
-            _MAX_FRAMES_BYTES
+            MAX_TELEMETRY_BYTES
+            if name
+            in {
+                TELEMETRY_FILENAME,
+                SCALED_TELEMETRY_FILENAME,
+                FIXED_NORMALIZER_TELEMETRY_FILENAME,
+                FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+            }
+            else _MAX_FRAMES_BYTES
             if name.endswith("_frames.jsonl")
             else _MAX_NUMERIC_BYTES
             if name.endswith(".npz")
             else _MAX_JSON_BYTES
         )
         encoded = _verified_bytes(run_root / name, expected, maximum)
+        if name in {
+            TELEMETRY_FILENAME,
+            SCALED_TELEMETRY_FILENAME,
+            FIXED_NORMALIZER_TELEMETRY_FILENAME,
+            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME,
+        }:
+            telemetry_encoded = encoded
         if name in selected:
             retained[name] = encoded
     if outputs.get("input_config.json") != config_sha256:
@@ -422,6 +563,87 @@ def build_g1_course_feedback(
         raise ValueError("admitted config differs from retained run bytes")
     if config.raw["mode"] != mode_hint:
         raise ValueError("course run mode and output ledger differ")
+    fixed_normalizer = bool(
+        config.trainer is not None
+        and config.trainer.uses_fixed_observation_normalizer
+    )
+    expected_train_outputs = (
+        _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS
+        if config.runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+        else _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS
+        if fixed_normalizer
+        else _TRAIN_SCALED_TELEMETRY_OUTPUTS
+        if config.trainer is not None
+        else None
+    )
+    if expected_train_outputs is not None and output_names != expected_train_outputs:
+        raise ValueError("trainer requires its exact versioned telemetry output")
+    if (
+        config.runtime != FOUR_STATE_FINITE_HORIZON_RUNTIME
+        and config.trainer is None
+        and output_names
+        in (
+            _TRAIN_SCALED_TELEMETRY_OUTPUTS,
+            _TRAIN_FIXED_NORMALIZER_TELEMETRY_OUTPUTS,
+            _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS,
+        )
+    ):
+        raise ValueError("versioned telemetry requires its exact trainer config")
+    training = manifest["training"]
+    has_descriptor = type(training) is dict and "telemetry" in training
+    descriptor = training.get("telemetry") if has_descriptor else None
+    if telemetry_encoded is None:
+        if has_descriptor:
+            raise ValueError("training telemetry descriptor lacks its output")
+    else:
+        validate_training_telemetry_descriptor(
+            descriptor,
+            telemetry_encoded,
+            config.raw["training_steps"],
+            reward_scale=(
+                config.trainer.total_training_reward_scale
+                if config.trainer is not None
+                else None
+            ),
+            fixed_normalizer_sha256=(
+                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
+            ),
+            runtime=config.runtime,
+        )
+    has_preconditioning = type(training) is dict and "reward_preconditioning" in training
+    if config.trainer is None:
+        if has_preconditioning:
+            raise ValueError("legacy training record contains preconditioning metadata")
+    elif (
+        not has_preconditioning
+        or training["reward_preconditioning"] != training_reward_metadata(config.trainer)
+    ):
+        raise ValueError("scaled training reward metadata differs")
+    observation_metadata = (
+        training.get("observation_preconditioning") if type(training) is dict else None
+    )
+    if fixed_normalizer:
+        expected_metadata = fixed_normalizer_policy_metadata()
+        if observation_metadata != expected_metadata:
+            raise ValueError("fixed observation preconditioning metadata differs")
+        for name in ("initial_residual_policy.npz", "final_residual_policy.npz"):
+            encoded_policy = _verified_bytes(
+                run_root / name,
+                _sha256(outputs[name], field=f"course output {name}"),
+                MAX_NUMERIC_POLICY_BYTES,
+            )
+            if validate_policy_normalizer_archive(encoded_policy) != expected_metadata:
+                raise ValueError("numeric policy fixed normalizer metadata differs")
+    elif observation_metadata is not None:
+        raise ValueError("non-normalized trainer reports observation preconditioning")
+    frozen_runtime = manifest["frozen_runtime"]
+    expected_runtime = frozen_runtime_contract(
+        config.runtime,
+        trainer=effective_training_contract(config.trainer),
+        residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+    )
+    if frozen_runtime != expected_runtime:
+        raise ValueError("course runtime differs from retained config")
     identities = {
         "task": config.task.sha256,
         "oracle": config.program.sha256,
@@ -436,7 +658,12 @@ def build_g1_course_feedback(
     trajectory = _load_trajectory(retained[f"{label}_trajectory.npz"], len(frames))
     _verify_frame_crosslinks(frames, trajectory)
     _verify_boundary_metrics(spec=config.task, frames=frames, trajectory=trajectory)
-    objective = evaluate_episode(spec=config.task, frames=frames)
+    heading_feedback_validation = validate_after_heading_feedback_trace(
+        config=config,
+        frames=frames,
+        trajectory=trajectory,
+    )
+    objective = evaluate_episode(spec=config.task, frames=frames, runtime=config.runtime)
     report = _json(
         retained[f"{label}_evaluation.json"], source=f"{label} course evaluation"
     )
@@ -449,19 +676,36 @@ def build_g1_course_feedback(
     evaluation = {name: objective[name] for name in _EVALUATION_FIELDS}
     if evaluation["episode_success"] is not None:
         raise ValueError("development feedback cannot promote episode success")
+    diagnosis = _diagnosis(
+        label=label,
+        frames=frames,
+        trajectory=trajectory,
+        objective=objective,
+        posture_low=config.task.posture_band_low_m,
+        posture_high=config.task.posture_band_high_m,
+    )
+    if telemetry_encoded is not None:
+        reward_scale = (
+            config.trainer.total_training_reward_scale
+            if config.trainer is not None
+            else None
+        )
+        telemetry_diagnosis = _training_telemetry_diagnosis(
+            telemetry_encoded,
+            reward_scale=reward_scale,
+            fixed_normalizer_sha256=(
+                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
+            ),
+        )
+        diagnosis = f"{diagnosis}\n{telemetry_diagnosis}"
+        if len(diagnosis) > MAX_DIAGNOSIS_CHARACTERS:
+            raise ValueError("course feedback diagnosis exceeds its contract")
     feedback = {
         "evidence_class": COURSE_FEEDBACK_EVIDENCE_CLASS,
         "protected_evaluation": False,
         "source_manifest_sha256": manifest_sha256,
         "evaluation": evaluation,
-        "diagnosis": _diagnosis(
-            label=label,
-            frames=frames,
-            trajectory=trajectory,
-            objective=objective,
-            posture_low=config.task.posture_band_low_m,
-            posture_high=config.task.posture_band_high_m,
-        ),
+        "diagnosis": diagnosis,
     }
     destination = Path(output)
     destination.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -492,6 +736,13 @@ def build_g1_course_feedback(
             "transient_substep_failures_remain_producer_evidence",
         ],
     }
+    runtime = config.runtime.manifest_contract()
+    if runtime is not None:
+        receipt["inputs"]["course_runtime"] = runtime
+    if config.runtime.after_heading_reference_feedback:
+        receipt["inputs"]["after_heading_reference_feedback_validation"] = (
+            heading_feedback_validation
+        )
     receipt_artifact = publish_json_without_overwrite(
         destination / "feedback_receipt_v1.json", receipt
     )

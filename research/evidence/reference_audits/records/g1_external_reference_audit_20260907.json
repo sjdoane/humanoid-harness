@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "record_id": "g1_external_reference_audit_20260907",
+  "record_type": "public_source_audit",
+  "title": "G1 external low-gait reference audit",
+  "evidence_status": "not_admitted",
+  "summary": "Three public source families were checked for a sustained low-gait reference. None is admitted: MotionDecode has unresolved units, cadence, and license metadata; CLAW has the closest measured shape but unresolved rights and GMT compatibility; CMU is human motion requiring a separate retargeting route.",
+  "audit_document": {
+    "repository_relative_path": "docs/strategy/astra/G1_EXTERNAL_REFERENCE_AUDIT_20260907.md",
+    "sha256": "1fcc178d41586e344185a3cd555c0692a81347ab48edf3879d57ffffd09cca9a"
+  },
+  "sources": [
+    {
+      "source_id": "audit_document",
+      "provenance_class": "local_audit_document",
+      "locator": "Complete source-located audit and measured rows",
+      "version": "git-blob-at-fd1c559",
+      "sha256": "1fcc178d41586e344185a3cd555c0692a81347ab48edf3879d57ffffd09cca9a",
+      "url": null,
+      "repository_relative_path": "docs/strategy/astra/G1_EXTERNAL_REFERENCE_AUDIT_20260907.md"
+    },
+    {
+      "source_id": "gmt_sim2sim",
+      "provenance_class": "official_public_code",
+      "locator": "G1 joint order, simulation timestep, decimation, and controller loop",
+      "version": "git:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "10e8cac2e2cd4895ee4b229db4a06aad7f467d1a14399355a7254d789b8e1b5f",
+      "url": "https://github.com/zixuan417/humanoid-general-motion-tracking/blob/2a590de25a1eb08e47491977a738549c22f16e1f/sim2sim.py",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "gmt_motion_lib",
+      "provenance_class": "official_public_code",
+      "locator": "Motion payload fields and xyzw quaternion convention",
+      "version": "git:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "c54d8d9f543c6eaf0b9fcd04ad3c8c7447068eece00d83be40741904c1b2f5d1",
+      "url": "https://github.com/zixuan417/humanoid-general-motion-tracking/blob/2a590de25a1eb08e47491977a738549c22f16e1f/utils/motion_lib.py",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_readme",
+      "provenance_class": "publisher_metadata",
+      "locator": "Dataset description, nominal 120 Hz cadence, format table, and license metadata",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "a637b7cebb2557cc5d55b586a3a93b26bedd81c63ed96521ac867f2643f2ed69",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/blob/80b489e0378b60bb44d495d5437475ce0e084283/README.md",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_license_linked",
+      "provenance_class": "publisher_metadata",
+      "locator": "README-linked LICENSE exact empty bytes",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/LICENSE",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_license_md",
+      "provenance_class": "publisher_metadata",
+      "locator": "Separate non-commercial terms file",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "ab46dc8e0994ea94fd6f66c0ec0cd33fa3d309702297cc5e220eda58bfc1d60e",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/blob/80b489e0378b60bb44d495d5437475ce0e084283/LICENSE.md",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_low_height_00001",
+      "provenance_class": "primary_public_source",
+      "locator": "Low_Height_Walking sample 00001 CSV",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "0fe1c8cd783aa359cb1f8df6aa4710d8c5b9f14c0ba53a1c5d886a81da3967fe",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/samples/1.4.Constrained_Gait_Category/1.4.5.Low_Height_Walking/CGC_Low_Height_Walking_00001.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_low_height_00002",
+      "provenance_class": "primary_public_source",
+      "locator": "Low_Height_Walking sample 00002 CSV",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "7a3bca1a6179c9cce7dc01c1b4816bc60cb2b4515b89f5d67b7ad1b764fc1f87",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/samples/1.4.Constrained_Gait_Category/1.4.5.Low_Height_Walking/CGC_Low_Height_Walking_00002.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_low_height_00003",
+      "provenance_class": "primary_public_source",
+      "locator": "Low_Height_Walking sample 00003 CSV",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "2b25ab7c1443777cc9fcaf51ec4d20ab2cb6d6e2029328e837c667c6316d307b",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/samples/1.4.Constrained_Gait_Category/1.4.5.Low_Height_Walking/CGC_Low_Height_Walking_00003.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_low_height_00004",
+      "provenance_class": "primary_public_source",
+      "locator": "Low_Height_Walking sample 00004 CSV",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "bb65525d90f9373fdeb64913ff509e2f540bd3fe007022c56ec42ca9cf7659c5",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/samples/1.4.Constrained_Gait_Category/1.4.5.Low_Height_Walking/CGC_Low_Height_Walking_00004.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "motiondecode_low_height_00005",
+      "provenance_class": "primary_public_source",
+      "locator": "Low_Height_Walking sample 00005 CSV",
+      "version": "dataset:80b489e0378b60bb44d495d5437475ce0e084283",
+      "sha256": "eec336177d2f0dc701fd0301ee2bfeefbe3349911ba4f4407d055dd50fbc34dc",
+      "url": "https://huggingface.co/datasets/CMRobot/MotionDecode/resolve/80b489e0378b60bb44d495d5437475ce0e084283/samples/1.4.Constrained_Gait_Category/1.4.5.Low_Height_Walking/CGC_Low_Height_Walking_00005.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_readme",
+      "provenance_class": "publisher_metadata",
+      "locator": "Dataset cadence, units, quaternion convention, and joint count",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "11b5301808f072c97f315109121362c09c473ff2867d7fdee17b81aa1bb69996",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/blob/cbd516f611e46d52182d261ca1651563d8044850/README.md",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_00454_kinematic",
+      "provenance_class": "primary_public_source",
+      "locator": "motion/00454_crouch/trajectory_kinematic.csv",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "c887826193717dd72262311838234f43622917af7340419b3ea39adea94ee6d5",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/resolve/cbd516f611e46d52182d261ca1651563d8044850/motion/00454_crouch/trajectory_kinematic.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_00454_dynamic",
+      "provenance_class": "primary_public_source",
+      "locator": "motion/00454_crouch/trajectory_dynamic.csv",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "7880f459daa858c302cb6c90523fad86f4399d25577e67116ad2e96b9921c45d",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/resolve/cbd516f611e46d52182d261ca1651563d8044850/motion/00454_crouch/trajectory_dynamic.csv",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_00454_annotation",
+      "provenance_class": "primary_public_source",
+      "locator": "motion/00454_crouch/annotation.json",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "f88a1ee138da137ec5fe764072aea032ab8848354ceaf382168477e4fed4b5d0",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/resolve/cbd516f611e46d52182d261ca1651563d8044850/motion/00454_crouch/annotation.json",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_g1_xml",
+      "provenance_class": "publisher_metadata",
+      "locator": "G1 29-DoF model joint order",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "022cb662e374adb2d2fbf809fa65e92a09b539ed48181b20af12566a0d406429",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/blob/cbd516f611e46d52182d261ca1651563d8044850/g1_xml/g1_29dof_rev_1_0.xml",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_render_script",
+      "provenance_class": "official_public_code",
+      "locator": "36-value row assignment and root quaternion reorder",
+      "version": "dataset:cbd516f611e46d52182d261ca1651563d8044850",
+      "sha256": "cc8e9fe13db0b83ac11df9d534a956c660e91d7c27e2377e57cc96f4d95b5bf4",
+      "url": "https://huggingface.co/datasets/JianuoCao/CLAW/blob/cbd516f611e46d52182d261ca1651563d8044850/script/render_video.py",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "claw_source_readme",
+      "provenance_class": "publisher_metadata",
+      "locator": "Description of dynamic export provenance",
+      "version": "git:92983401d76434870070ff558729e7052db56f63",
+      "sha256": "d30dc0e6a4751e63e032e1b18ea97120445105440788eed0e66d1ea54bc91982",
+      "url": "https://github.com/JianuoCao/CLAW/blob/92983401d76434870070ff558729e7052db56f63/README.md",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "cmu_subject_136_page",
+      "provenance_class": "publisher_metadata",
+      "locator": "Subject 136 trial labels and 120 Hz cadence",
+      "version": "mutable-page-audit-observation",
+      "sha256": "d66845af19b829af983ec71cd521481d6fbe97e45ac5b2f5579a26b7e7252870",
+      "url": "https://mocap.cs.cmu.edu/search.php?subjectnumber=136",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "cmu_136_asf",
+      "provenance_class": "primary_public_source",
+      "locator": "Subject 136 skeleton",
+      "version": "mutable-source-audit-observation",
+      "sha256": "48eb3f19477086e28495d841c604157b354fc76be054fa662ff10843ac698427",
+      "url": "https://mocap.cs.cmu.edu/subjects/136/136.asf",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "cmu_136_09_amc",
+      "provenance_class": "primary_public_source",
+      "locator": "Subject 136 trial 09 Walk Crouched",
+      "version": "mutable-source-audit-observation",
+      "sha256": "2d42440a0cd5abe84a5e4728073425ecfab53787928134536e6e8da84207e79c",
+      "url": "https://mocap.cs.cmu.edu/subjects/136/136_09.amc",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "cmu_136_10_amc",
+      "provenance_class": "primary_public_source",
+      "locator": "Subject 136 trial 10 Walk Crouched",
+      "version": "mutable-source-audit-observation",
+      "sha256": "1d405f6d991acbfef749073ca3caf7e6e347af3d3a60e579509d2424028eee68",
+      "url": "https://mocap.cs.cmu.edu/subjects/136/136_10.amc",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "cmu_terms",
+      "provenance_class": "publisher_metadata",
+      "locator": "CMU motion-capture database terms",
+      "version": "mutable-page-audit-observation",
+      "sha256": "4ac0024566573a10c87b668c826c2c44014b032ae57cbc5fbef2794b80c21cbc",
+      "url": "https://mocap.cs.cmu.edu/",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "gmr_readme",
+      "provenance_class": "publisher_metadata",
+      "locator": "Documented AMASS SMPL-X to Unitree G1 conversion route",
+      "version": "git:bb1bbe40774794fceb2a7c579a3464a28e68c844",
+      "sha256": "06c2752de4f7c0436998e83bb40b54bdc0f6ff3d50c1e73659c65f0278d640a9",
+      "url": "https://github.com/YanjieZe/GMR/blob/bb1bbe40774794fceb2a7c579a3464a28e68c844/README.md",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "gmr_conversion_script",
+      "provenance_class": "official_public_code",
+      "locator": "SMPL-X to robot output fields, cadence, quaternion reorder, and pickle output",
+      "version": "git:bb1bbe40774794fceb2a7c579a3464a28e68c844",
+      "sha256": "4b4f343dfa040e5e8568042a89e9b8c90eee4a716f391a364904672f435b34a3",
+      "url": "https://github.com/YanjieZe/GMR/blob/bb1bbe40774794fceb2a7c579a3464a28e68c844/scripts/smplx_to_robot.py",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "gmr_license",
+      "provenance_class": "publisher_metadata",
+      "locator": "GMR code license; does not grant dataset rights",
+      "version": "git:bb1bbe40774794fceb2a7c579a3464a28e68c844",
+      "sha256": "c5a85c0b0012230739a0ab8f30eafba7f8ee7a1b29e025d01e27fa330298e522",
+      "url": "https://github.com/YanjieZe/GMR/blob/bb1bbe40774794fceb2a7c579a3464a28e68c844/LICENSE",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "amass_license",
+      "provenance_class": "publisher_metadata",
+      "locator": "AMASS license terms for the documented GMR route",
+      "version": "mutable-page-audit-observation",
+      "sha256": "c34c503052154a71e1b196540c5551e92523100ebd9ef172403f61d3a391be26",
+      "url": "https://amass.is.tue.mpg.de/license.html",
+      "repository_relative_path": null
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "fixed_gmt_motion_abi",
+      "finding_type": "source_reported_fact",
+      "title": "Fixed GMT reference ABI",
+      "statement": "Pinned GMT code names 23 G1 joints, runs the controller at 50 Hz from a 1 ms simulation step with 20-step decimation, and reads fps, root_pos, root_rot in xyzw order, and dof_pos.",
+      "source_ids": ["gmt_sim2sim", "gmt_motion_lib"],
+      "locator": "Audit section Fixed GMT target",
+      "not_evidence_for": ["external motion compatibility", "external motion trackability"]
+    },
+    {
+      "finding_id": "motiondecode_bounded_measurement",
+      "finding_type": "local_measurement",
+      "title": "First-five MotionDecode low-height screen",
+      "statement": "Under the favorable assumptions of root metres and 120 Hz, none of the first five pinned Low_Height_Walking CSVs reaches root_z <= 0.50; sample 00001 has the longest measured interval in the 0.30 to 0.60 band at 253 frames.",
+      "source_ids": ["motiondecode_readme", "motiondecode_low_height_00001", "motiondecode_low_height_00002", "motiondecode_low_height_00003", "motiondecode_low_height_00004", "motiondecode_low_height_00005", "audit_document"],
+      "locator": "Audit section Candidate 1 and its five-row table",
+      "not_evidence_for": ["fitness of the other 30 public clips", "policy failure", "general admission rejection"]
+    },
+    {
+      "finding_id": "motiondecode_metadata_blocker",
+      "finding_type": "limitation",
+      "title": "MotionDecode metadata and rights remain unresolved",
+      "statement": "The CSV header and README disagree on root-position units, files lack per-file cadence, and the README-linked LICENSE is empty while a separate LICENSE.md states restricted terms. These contradictions block admission pending publisher resolution.",
+      "source_ids": ["motiondecode_readme", "motiondecode_license_linked", "motiondecode_license_md", "audit_document"],
+      "locator": "Audit section Candidate 1, Unresolved units and cadence and Rights/access blocker",
+      "not_evidence_for": ["a legal conclusion", "permanent exclusion of MotionDecode"]
+    },
+    {
+      "finding_id": "claw_crouch_shape",
+      "finding_type": "local_measurement",
+      "title": "CLAW 00454 is the closest measured low-gait shape",
+      "statement": "At the publisher-reported 50 Hz, the pinned kinematic CSV has 216 consecutive 0.30 to 0.60 m band frames, 88 frames at or below 0.50 m, and measured local-forward-speed percentiles 0.490, 0.564, and 0.697 m/s. The dynamic CSV stays above 0.50 m and belongs to another controller/runtime.",
+      "source_ids": ["claw_readme", "claw_00454_kinematic", "claw_00454_dynamic", "claw_00454_annotation", "audit_document"],
+      "locator": "Audit section Candidate 2 and its measured data-property table",
+      "not_evidence_for": ["GMT trackability", "contact feasibility", "admission", "policy success"]
+    },
+    {
+      "finding_id": "claw_mapping_and_rights_limit",
+      "finding_type": "limitation",
+      "title": "CLAW requires rights resolution and GMT certification",
+      "statement": "Pinned publisher files support a deterministic proposal to omit six named wrist joints and reorder the root quaternion, but matching fields does not prove embodiment or controller compatibility. No license was visible at the audited dataset or source-repository pins.",
+      "source_ids": ["claw_g1_xml", "claw_render_script", "claw_source_readme", "audit_document"],
+      "locator": "Audit section Candidate 2, Named mapping evidence through Disposition",
+      "not_evidence_for": ["reuse permission", "GMT dynamics feasibility", "trackability"]
+    },
+    {
+      "finding_id": "cmu_retargeting_route",
+      "finding_type": "source_reported_fact",
+      "title": "CMU supplies crouched human trials, not native G1 motion",
+      "statement": "The observed CMU page labels Subject 136 trials 09 and 10 Walk Crouched at 120 Hz. Pinned GMR code documents an AMASS SMPL-X to 29-DoF G1 route at 30 Hz, but the route emits pickle and the audit did not establish these trials in AMASS SMPL-X.",
+      "source_ids": ["cmu_subject_136_page", "cmu_136_asf", "cmu_136_09_amc", "cmu_136_10_amc", "gmr_readme", "gmr_conversion_script"],
+      "locator": "Audit section Candidate 3",
+      "not_evidence_for": ["native G1 compatibility", "completed retargeting", "GMT trackability"]
+    },
+    {
+      "finding_id": "external_sources_not_admitted",
+      "finding_type": "project_interpretation",
+      "title": "No external reference is admitted",
+      "statement": "Keep the eight native GMT clips for the current study. External admission remains a separate blocked capability requiring resolved rights and metadata, reviewed data-only conversion, numeric fitness reporting, and a separately authorized frozen-GMT dynamics probe.",
+      "source_ids": ["audit_document", "motiondecode_license_md", "claw_source_readme", "cmu_terms", "gmr_license", "amass_license"],
+      "locator": "Audit Decision boundary and Minimal external-admission gate",
+      "not_evidence_for": ["policy success", "external source rejection in perpetuity", "a general root-height admission rule"]
+    }
+  ],
+  "not_evidence_for": [
+    "admission or certification of external motion",
+    "GMT trackability or dynamics feasibility",
+    "learned task success or policy evaluation",
+    "a general requirement that references reach root_z <= 0.50"
+  ]
+}

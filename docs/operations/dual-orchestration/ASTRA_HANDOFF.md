@@ -1,10 +1,473 @@
 # Astra orchestration handoff
 
-| status | current truth |
+| progress | Updated proposal adopted; Astra owns all work. Selected-receipt effort reporting is implemented, tested and independently reviewed. |
 |---|---|
-| progress | 14 G1 training runs completed. Three-seed controls and two rejected LLM revisions are retained. Recorded task-overlay GIF and verified feedback CLI exist. |
-| bottleneck | No full task pass. Crouch timing/depth and heading remain unresolved; held-out inputs remain untested. |
-| next step | Integrate data-only revision and training diagnostics; reproduce O2r1 and test heading-only r3. Keep native Humanoid-v5 separate. |
+| bottleneck | VIBE interface and four task environments are not admitted. GMT evidence remains 38 training runs / 2,424,832 transitions with no full-task pass. |
+| next step | Locate exact VIBE and loaded-cart assets; bind remaining effort measurements to native receipts. Do not resume Study 021 from an old handoff. |
+
+## Current checkpoint: 2026-09-08
+
+- Authority and task sequence: `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md`.
+- Native Google proposal unchanged; exact read retained privately in
+  `.orchestration/proposal-source-20260908.json`.
+- At restart: clean `cddd323`; own writer lease unclaimed; shared heavy slot
+  free; no matching GMT/training/detached-worker process observed.
+- Study 021 remains unrun; old source/seal preserved. Its scorer was already
+  independently accepted at 16:38, superseding the pending state below.
+- No Fable review/polling dependency; use independently tasked Sol reviewers.
+- The 30-minute continuity automation was removed after the audit. No recurring
+  work is promised by this checkpoint.
+- New command: `humanoid-harness effort --run MANIFEST SHA256`. It reads exact
+  completed GMT receipts without importing training/simulator libraries. It is
+  not a complete search-cost ledger or an execution/effectiveness certificate.
+- Separate Sol reviews accepted the context changes and final code. Root's final
+  focused slice plus project CLI/status: 45 passed; feature-only review: 33 passed.
+- Broad non-slow suite: 2,723 passed, 89 failed, 40 skipped, 2 deselected; no setup
+  errors. All four Humanoid runtime checks passed. See [verification](../EFFORT_REPORTING.md).
+- The earlier broad run overlapped the module relocation and failed source
+  identity checks; it is not final-tree evidence. No source changed during the
+  fresh final broad run. No historical seal or validation guard was relaxed.
+- No research experiment ran. Full fixed/manual/harness comparisons, VIBE
+  compatibility and improved learning efficiency remain unestablished.
+- Earlier checkpoints below are historical, not instructions to launch.
+
+## Current checkpoint: 2026-09-07 16:30 UTC
+
+- Scorer/tests: builder `f1bde0c`, imported exactly as `c46c883`. Builder worktree
+  clean and lease released. Only two new Study 021 files; old scorers unchanged.
+- Root: 115 focused/adjacent tests pass; Ruff checks/format and compilation pass.
+  Imports resolve inside the Astra checkout. Independent Sol final review pending.
+- Predata repairs: exact prior-command float32 clock, strict schema type,
+  reconstructed numeric-window prefix, post-action fall detection boundary,
+  interval-censored contact timing, and negative tests for each screen condition.
+  These clarify measurement; they do not change the candidate or task gates.
+- No Study 021 dynamics, training, final proposal admission or native reservation.
+  Source is not sealed yet. Fable's one proposal remains held until source lock.
+- Fable review request `20260907T161630.263112Z-d7529bb01ad54f25afa00b1d93b4c221`
+  also asks which next intervention could address depth/lateral failures after
+  this bounded screen. No additional candidate or run is authorized by that question.
+- Next sequence: seal reviewed source; request the held proposal; obtain native
+  control approval; finish a separate successful control verification; only then
+  obtain candidate approval and run. End freeze after independent pair scoring.
+
+## Earlier checkpoint: 2026-09-07 16:00 UTC
+
+- Continuity resumed from clean `fc9fff5`. No competing active user turn,
+  training process or claimed heavy slot. Root reacquired only its own lease.
+- [Study 021 protocol](../../../experiments/021_g1_immediate_crouch_exit/PROTOCOL.md)
+  starts at `de88205`: remove only the crouch exit-boundary restriction and
+  assign a new oracle ID. Two zero-residual episodes; no training. Existing
+  runtime supports the factor; no controller/MDP/evaluator change.
+- Sol `derived_admission` owns scorer/tests only in `humanoid-harness-study021`,
+  branch `astra/study021-immediate-exit`; no dynamics or actor execution allowed.
+  Sol `four_state_training` and Fable independently review the predata design.
+  Root owns protocol, source integration and retained boundary checks.
+- Root's oracle-only retained-state precheck:
+  `.orchestration/study021_boundary_precheck_v2_20260907.json`, SHA
+  `7522bdf70ddf86e4b809d6900f917694a4a83edf2862a4d21f49c4aa935d692e`.
+  It verifies 227 identical numeric reference commands and one expected
+  identity-only transition field difference at action 92. It is not a candidate
+  rollout and does not establish action or plant-state parity.
+- Prefix correction: removing the exit flag changes the crouch segment hash
+  before its numeric effect. Validate exact admitted hashes at frame 92;
+  every other prefix field remains exact. Candidate guard/switch prediction 227;
+  retained switch 239. Verify fresh control before candidate approval/dispatch.
+- Pre-action phase correction: guard clock 2.70 s; control switch clock 2.94 s
+  wraps to reported 1.08 s. Fable acknowledged the correction. The precheck v2
+  also fixes a draft mixed-feature pose norm to declared pose columns/scales;
+  original v1 receipt retained but superseded.
+- Fable proposal remains held until protocol/scorer lock; use retained O7b
+  feedback `6ea27ad8…7c795`. No Study 021 candidate outcome or dynamics yet.
+  A deterministic screen pass would not admit training or prove sampled robustness.
+
+## Earlier checkpoint: 2026-09-07 15:05 UTC
+
+- [Study 020 results](../../../experiments/020_g1_saved_policy_diagnostic/RESULTS.md):
+  34 episodes, 139 declared outputs, zero training, no full-task pass. One reset,
+  one training seed and 16 paired noise sequences; not training replications.
+- Run and scoring source `615124f018e044a74b8ec564de0207237c7593fa`.
+  Manifest `2c6962c519eea04d458e0f3f7dbd582ff535eb5e3bda63a92d90bcda1f90f289`;
+  resource `3260b939b71bdce6ec895b057539f8acfa6d1bd23d68289bd9b1fb0f5f4e2559`.
+  Root and Sol diagnosis SHA
+  `0a58b19ceb71fce8ee8dc301ab5e59a9170e4f312363c900ec8fb49cc24bece0`;
+  Fable independently agrees with primary numbers and sampling arithmetic.
+- Legacy parity and both exact deterministic triplets verify. Source freeze
+  ended after independent scoring; worker terminal, heavy slot released.
+  Current slice is results/figure only; no next candidate or run launched.
+- Selected figure: local `artifacts/gmt/course_configs/study020_figures_20260907/paired_outcomes_final.png`.
+  All pairs visible with durations. Local development draft; human review pending.
+- Next priority: a small oracle-only test of the crouch exit-boundary rule,
+  before more trainer work. Require new protocol, exact control, one candidate,
+  handover pose/speed/height measurements, unchanged gates and resource approval.
+  Earlier exit may create a discontinuity. Smaller-noise evaluation remains a
+  separate rival; neither is admitted or authorized by this checkpoint.
+- Existing `course_config.py` admits an omitted `exit_at_loop_boundary` key
+  as false; `composition.py:allows_ordinary_transition` then permits ordinary
+  guards each command. The probe needs no new transition runtime feature.
+  Fable's review `20260907T150425.805865Z-92b3fc9d995a4cb9a37343e1a5a6c6a9`
+  supplies proposed prefix/guard definitions; verify them before freezing the
+  next scorer. A deterministic survival result would not establish sampled
+  robustness or justify immediate training.
+- Correct Fable's first interpretation: three final falls occur inside before
+  any rise; not every fall follows the rise handover. Later review corrected it.
+  No causal speed/deferral claim. Fable remains review/ideation only.
+
+## Earlier checkpoint: 2026-09-07 14:37 UTC
+
+- Study020 runner, strict policy loading and independent action arithmetic are
+  implemented; no020 simulation or training has run.95 focused tests pass.
+- Builder's clean config/validator and supervisor commits imported as
+  `a456429` and `e7e34c0`. Root owns the runtime and diagnosis. Builder stopped
+  and released its separate worktree lease; Fable reviews/ideates only.
+- Predata review repairs: complete parity receipt identity; regenerate exact
+  canonical noise before environment construction; retain sampled mean/std/raw
+  action sidecars and independently reconstruct every executed residual.
+- Fixed input config `artifacts/gmt/course_configs/study020_inputs_20260907/diagnostic_config.json`:
+  SHA `b7b33a0976bc29e61ca9bcbdd9265f9eb253fd49f7542ef96bcbca2a6e7412ab`.
+  Noise SHA `61627836220ee63162812035555b3922a3e378ce4fc617d759c438e76ad9e9fe`.
+- Next: final independent source review; native approval for one legacy O7b
+  replay and020's34 episodes. Verify legacy parity in a separate completed call,
+  then020 proves both exact018 deterministic triplets before32 sampled episodes.
+  Freeze source through completed independent scoring. No automatic adoption.
+
+## Earlier checkpoint: 2026-09-07 14:11 UTC
+
+- [Study020 protocol](../../../experiments/020_g1_saved_policy_diagnostic/PROTOCOL.md)
+  committed `1664deb`; Fable accepts scientific scope. No020 evaluation yet.
+- Sol builder `derived_admission` initially owned saved-policy config/runtime and native
+  dispatch in separate `humanoid-harness-study020`, branch
+  `astra/study020-saved-policy`, from `1664deb`. No training/dynamics authorized
+  before reviewed handoff, sealed inputs and exact resource approval.
+- Root owns020 `diagnosis.py` and tests. Core helpers recheck frames, raw-state
+  metrics, rewards, transition markers, all16 pairs and censored exposure.
+  Independent reviewer accepts core fixes; full CLI acceptance waits on reuse
+  of the worker's exact ledger/noise/deterministic-parity artifact validator.
+- Both retained018 traces reproduce numerically through the new analysis:
+  returns3863.808886/3488.089072; handovers92/239/263 and97/244/268. No rollout.
+  Existing geometry/feedback imports Torch/SB3 indirectly, but no MuJoCo or
+  environment/actor instance is used by this numeric readback.
+- Planned worker labels: `initial_deterministic`, `final_deterministic`, then
+  `sample_{seed}_{initial|final}`. Manifest `saved_policy_diagnostic_manifest.json`.
+  Native receipt key: `artifacts.saved_policy_diagnostic_manifest`.
+- Next: complete/import reviewed worker; bind exact prepared noise/config and
+  native approval; prove both deterministic trajectories before any sampled data.
+
+## Earlier checkpoint: 2026-09-07 13:40 UTC
+
+- [Study019 results](../../../experiments/019_g1_crouch_entry_alignment/RESULTS.md):
+  both supervisors terminal/released at clean `9d7396a`. Exact control and
+  prefix71/72 verify; candidate3/11 gates,31/47 compliance,4.34 s fall.
+- Root, Fable and Sol reproduce pair score `fe8e9865…b65c80`. Source freeze
+  ended after independent review. All prior artifacts/scorer remain pinned.
+- Recorded-state GIF `gmt_course_study019_early_entry_recorded_20260907.gif`
+  is in sibling probe-runs (87 frames); it shows the rejected candidate.
+- UI at8766 now selects019 as FAIL3/11; HTTP readback verifies the new row.
+  Registry SHA `60100eec0bba6059358f7cd7615d42a5eb801c24ebb6ce7edf61f9745ad35d5d`.
+  Prior12-run selection archived locally; no run deleted. Fresh browser QA
+  is unavailable because the Mac is locked; the GIF's first frame was inspected.
+- Post-hoc readback supplies first exit-guard satisfaction at boundary176;
+  no rise switch occurs. The null scorer block is not a zero-delay claim.
+- Next diagnostic is16 paired stochastic evaluations of018's exact initial
+  and final policy tensors, with deterministic parity first and no training.
+  Design/implementation/resource approval remain pending; no new heavy job.
+- No new reward/guard sweep, reference retiming, controller or MDP change.
+  Fable reviews and ideates only. No push or main-checkout mutation.
+
+## Earlier checkpoint: 2026-09-07 12:56 UTC
+
+- [Study019 protocol](../../../experiments/019_g1_crouch_entry_alignment/PROTOCOL.md)
+  is reviewed at `29219b0`: one native O7b guard change, 0.65 → 0.40 m;
+  two zero-residual episodes, no training. Scorer/test handoff remains pending.
+- First changed command is zero-based index71:71 shared executed rows and72
+  shared state boundaries. Physical-entry phase uses the reconstructed
+  post-step target boundary, not the pre-action phase field.
+- Lock scorer before Fable's one final feedback-linked proposal. Fresh control
+  must verify in a separate successful call before candidate approval/dispatch.
+  All11 original task gates remain unchanged. No019 simulation yet.
+- [Height diagnostic](../../../experiments/018_g1_four_state_reward_loop/FIGURE.md)
+  shows retained states/targets; no dynamics rerun. Numeric/receipt review passes;
+  manuscript claim audit remains incomplete and human verification is pending.
+- Fable and Astra favor a separately declared paired stochastic initial/final
+  policy diagnostic after019. It is not implemented or authorized. On-policy
+  training episode shares do not estimate either exact checkpoint's fall rate.
+- Study018 B stays stopped. Reward-tail and trainer changes remain separate
+  hypotheses, not the automatic next experiment. No heavy job is active.
+
+## Earlier checkpoint: 2026-09-07 12:26 UTC
+
+- [Study018 result](../../../experiments/018_g1_four_state_reward_loop/RESULTS.md):
+  131072 transitions at `e57f220`;20 s survival, three switches,7/11 task gates.
+  Posture47/71 and speed MAE0.474331 fail admission. No B proposal or launch.
+- Root scorer and Fable independently verify the failed result. Source freeze
+  ended after scoring. Heavy worker is terminal/released; no training active.
+- UI at8766 shows018 with correct FAIL7/11; recorded-state GIF shown to Samuel.
+  Local selected registry has12 valid runs,0 full passes. No run was deleted.
+- Retained post-step targets exceed the ceiling on15/24 posture failures.
+  This motivates a separately declared earlier-entry guard probe, not a claim
+  that phase alignment or physical feasibility is solved.
+- Fable reviews/ideates only. Consider a later fixed-scale Cauchy reward-tail
+  contrast, but do not combine it with an oracle change or lower018 gates.
+
+## Earlier checkpoint: 2026-09-07 11:56 UTC
+
+- Study018 scorer imported as `30d966f` from clean peer `a386fb1`.
+  Root independently reran36 focused checks; reviewer ran122 focused/adjacent
+  checks and rebuilt retained015 through the actual verifier. Ruff passes.
+- The scorer checks its own imported package, clean commit and executable
+  tree against the run; criteria and imported experiment helpers are pinned.
+  No blocking review finding remains. No018 training has started.
+- Builder handed off its committed files, then its terminal turn reported a
+  provider policy flag. No retry of that request; independent file/test review
+  above, not the worker's terminal status, supports integration.
+- After an execution gap, Astra reviewed the free heavy slot, absent training
+  processes and clean worktree, then reacquired only its own expired lease.
+- Next: seal this reviewed source and completed legacy-parity receipt; obtain
+  exact native approval for A. Keep source fixed through scoring and conditional B.
+
+## Earlier checkpoint: 2026-09-07 09:34 UTC
+
+- Study018 pure admission/pair criteria committed as `a089491`;19 tests pass.
+  Signed-heading logic also runs against the retained015 recorded trace.
+  Wrapper and negative-path tests remain under construction/review; no A run.
+- Root review requests: pin imported scoring dependencies, require every
+  reconstructed A gate to pass at pair time, and use the actual normalizer API.
+  These are predata closure items, not changed scientific thresholds.
+- Retained015 after-mode lateral reward is below1e-6 in454/737 samples.
+  Fable received this descriptive saturation caveat; it is not a new trial,
+  a claim about PPO gradients, or authority to change018 reward formulas.
+
+## Earlier checkpoint: 2026-09-07 09:20 UTC
+
+- Four-state prerequisite imported as `4aa3385`, `7017f58`, `834c72d`,
+  `aef3d7d`. Both independent review and parent inspection pass after the
+  legacy/v4 feedback repair and shared scorer runtime/telemetry plumbing.
+- Root GMT+feedback suite:592 passed, no skips;152 focused tests and Ruff pass.
+- New source tree:196 files,
+  `6010bf0ce11bb56c30fe71fdb8b368235f7c5cde867dba8179571dff0ba11f15`.
+  Fresh legacy O7b probe at `aef3d7d` reproduces all three retained015 outputs
+  byte-exact. Receipt `.orchestration/study018_legacy_parity_20260907.json`;
+  manifest `923236b692259d5e06161f76d54adf657ff1fc6aa42af9f43ed9495aae83a27c`.
+- [Study018 protocol](../../../experiments/018_g1_four_state_reward_loop/PROTOCOL.md)
+  is predata. Exact baseline config SHA
+  `a9e52ba706e4ddfd394c757cf525bf210d553906430c7f08e11e0495affdf289`.
+  A/B use native O7b, schema5,2172D, trainer3, seed20260906,131072 transitions.
+  B is conditional on A's substrate/headroom gates, then one feedback-linked
+  bounded lateral/heading weight revision. No A/B training started.
+- Sol `study017_scorer` now builds018 scorer/tests in the separate
+  `humanoid-harness-study018-scorer` worktree. Require exact clean handoff and
+  independent review before sealing A. No duplicate builder.
+- UI restarted as session48274 at8766; HTTP and actual browser show12 valid
+  selected runs,0 full-task passes, including017. Previous registry retained.
+  Study017 donor comparison confirms49.2 cm phase-aligned lag by2.10 s.
+- Fable remains reviewer/ideator only. No push or main-checkout change.
+
+## Earlier checkpoint: 2026-09-07 09:03 UTC
+
+- [Study017 result](../../../experiments/017_g1_execution_derived_reference/RESULTS.md):
+  sealed pair at `d189d5a`, both terminal/released. Score SHA
+  `8baebd4bd8ae2566c4460ab769dc23e331b51bad1cd995adbda8914815d2632f`.
+  Full control parity and prefix92/93 verify; feasibility fails depth28.0 mm
+  above donor against20 mm tolerance. Original8/11 gates; no training admission.
+- Dispatch preceded completion of the control verifier after its temp-path
+  error. Exact parity established afterward by root and Fable; retain the
+  deviation, no outcome-selected repeat. Verification/launch are separate calls.
+- Recorded-state GIF: sibling `gmt_course_study017_derived_recorded_20260907.gif`,
+  401 frames, no actor/dynamics rerun. Source freeze ended after sealed scoring.
+- Four-state training prerequisite delivered clean `b3cace5` + `6c4244a` in
+  `humanoid-harness-four-state-training`; root read both diffs and tests,
+  independent Sol review in progress. Not imported and no new training yet.
+- Root strategy question to Fable: native O7b fixed-oracle reward-learning pair
+  versus donor-continuation contrast. Do not promote the failed derived bundle
+  or silently combine a new reward, reference and runtime.
+
+## Earlier checkpoint: 2026-09-07 08:35 UTC
+
+- Exact derived admission imported as `05d0808` from clean peer `465c9c4`.
+  Parent: 117 adjacent tests plus 33 launcher tests pass; Ruff clean. The
+  actual017 config loads and binds both archive and conversion manifest.
+  This remains probe-only, not dynamics certification or training admission.
+- Candidate config SHA `337b5f2c540ce364a45446431a22085c63ebf89b5284e5fa26bae606ffbb20db`.
+  Executable tree `5e516691bfe5c090ff0625c6b13d67a66265a367c2b2000f6e41b61d98877738`,
+  196 files. No017 run yet; scorer still builds separately. Final source and
+  exact native resource acceptances remain required before dispatch.
+- Isolated four-state training prerequisite builds a new finite-horizon
+  profile and 2172D telemetry; old profiles unchanged. No import during the
+  Study017 source freeze; no training or derived-reference promotion yet.
+- [Transition-preview note](../../strategy/astra/TRANSITION_PREVIEW_20260907.md)
+  records an unimplemented, source-bounded hypothesis for later diagnosis.
+
+## Earlier checkpoint: 2026-09-07 08:21 UTC
+
+- Feedback-to-revision repair now accepts the exact heading-validation receipt
+  only for its declared runtime. The retained016 rollout passes the full
+  feedback rebuild → proposal → candidate publication path; 76 focused tests
+  pass. The test proposal is a software fixture, not a new scientific trial.
+- Study017 is still predata. Its protocol now records early terminal-hold
+  lookahead and the exact endpoint: donor boundary197, not198. The relative
+  endpoint is about 0.000618 m short of the unchanged exit guard. One bounded
+  bundle screen remains planned; no new reference extension or training.
+- The app restart ended prior subagents. Their assigned worktrees are preserved;
+  replacement Sol/max workers finish the admission and scorer slices there.
+  No heavy job is active; clean handoffs and exact resource approval remain.
+
+## Earlier checkpoint: 2026-09-07 08:00 UTC
+
+- [Study016 result](../../../experiments/016_g1_after_feedback/RESULTS.md):
+  r2 pair at `08d7338` terminal/released; source freeze ended. Control reproduces
+  all three retained outputs, candidate prefix exact. Heading 0.386 rad passes,
+  lateral 5.043 m fails the 2.5 m screen. Reject fixed law; no training admission.
+- Earlier failed source `e865a80` lacked evaluator trace-key plumbing; outputs
+  were never published. Failure retained, not a behavioral result. `1decb52`
+  repairs the exact runtime-aware evaluator and adds real rollout publication test.
+- Converter imported selectively as `61f9b3c` + `541b82b`. Actual generation used
+  independently reviewed clean `e889f0c` in the converter checkout. Numeric
+  candidate SHA `885e4c1b324a9b41a4d176ec5fee9e4bc634226d5ade46634111cb1c3204c259`;
+  manifest SHA `1c7edb409579d757ef6657378ab605e6aa013cf60b552630beb914728bec602c`.
+  Path: `artifacts/gmt/derived_references/study012_inside_passage_v1.npz`.
+  Source is kinematic-only and unadmitted/untracked. Sol builds exact probe-only
+  admission in a separate worktree from `08d7338`; do not import dirty changes.
+- Recorded016 GIF is in sibling probe-runs, named
+  `gmt_course_study016_after_feedback_recorded_20260907.gif` (401 frames, no
+  policy/dynamics rerun). Shown to Samuel. UI restarted as session26510 at8766;
+  registry now includes015 and016. All12 rows validate, zero full-task passes.
+  Registry SHA `d4fd723fe27e406936ebc04ce76f8c53d0d07609930f55eb9978248fd9149db7`.
+  Earlier selection archived; no run deleted. HTTP QA only; Mac was locked.
+- Reviewed phase/exposure/fallback cores remain unimported and unwired. Main
+  remains separate; no push. Live mailbox/active-run supersede older sections.
+
+## Earlier checkpoint: 2026-09-07 07:00 UTC
+
+- [Study015 result](../../../experiments/015_g1_task_aligned_after/RESULTS.md):
+  both workers terminal/released; source freeze ended. Full control and prefix
+  parity verified. Candidate has no revisit but 10.94 m drift; reject adoption.
+- FK audit selectively imported as `c303741` + `76fdd69`; byte reproduction
+  passes. See G1 learning results for the static/dynamic claim boundary.
+- [Study016 protocol](../../../experiments/016_g1_after_feedback/PROTOCOL.md):
+  after-only measured heading/lateral feedback, fixed gains, zero training.
+  Isolated Sol builder owns the implementation; parent owns protocol/scoring
+  integration. No Study016 simulation or resource reservation yet.
+- Reviewed exposure accumulator `1c0d52e` remains unwired/unimported, as do
+  phase-rate and fallback patches. Do not merge ancestors incidentally.
+- Candidate GIF: sibling `gmt_course_o7b_recorded_20260907.gif`, rendered from
+  401 recorded qpos frames, not trained behavior. UI registry includes015;
+  all12 selected runs validate, zero task passes. Previous selection archived.
+  Registry SHA `a55abbe8fd91ad90f6c76cddc7c7f7c6bfd1432579c3dc6a69daf0b5daa39ca2`.
+  HTTP verified; Mac locked, so fresh interactive browser QA remains unavailable.
+- Main/Fable checkout remains separate; no push. Live mailbox and ignored
+  active-run record govern current work; older checkpoints below are historical.
+
+## Earlier checkpoint: 2026-09-07 05:56 UTC
+
+- [Study014 result](../../../experiments/014_g1_finite_depth_reward/RESULTS.md):
+  worker terminal/released; source freeze ended. Reject the depth candidate.
+  Exact source `be359a2`; all non-reward parity and reward reconstruction pass.
+- [Study015 protocol](../../../experiments/015_g1_task_aligned_after/PROTOCOL.md):
+  O7b proposal admitted, no simulation yet. Reproduce O7 control's three files
+  at new source, then one after-only crop probe. Scorer under isolated build.
+- Oracle task-geometry mismatch takes priority over a new reward sweep,
+  the phase-rate scheduler and structured-feature training. No mixed factors.
+- Source-only phase and fallback patches remain unimported. Fable available.
+- Baseline recorded GIF: sibling `gmt_course_finite_baseline_recorded_20260907.gif`.
+  UI now port8766/session24493 with Study012/014 and O7 included. All 12 selected
+  rows revalidate; zero task passes. Previous registry archived, no run deleted.
+  Registry SHA `c67f95e8cc613de7cd8781fe3201a4b336da89c428e2e16829a52c64e66c2b7c`.
+  HTTP readback verified; no fresh interactive browser QA. No push.
+
+## Earlier checkpoint: 2026-09-07 05:32 UTC
+
+- [Study012 result](../../../experiments/012_g1_finite_horizon/RESULTS.md):
+  both jobs terminal/released. Source freeze ended. Correct finite semantics
+  retained for new studies, not promoted as a behavioral improvement.
+- [Study014 protocol](../../../experiments/014_g1_finite_depth_reward/PROTOCOL.md):
+  one reward-only candidate; exact executable-tree equality required to reuse
+  baseline. No candidate launched at this checkpoint.
+- Source `9bca23b`; no phase/fallback imports before Study014 source freeze.
+- Phase core `0e1ae8a` + `667c561` independently accepted, still unwired.
+  Fallback reviewer role `eb59aea` separately accepted, still unimported.
+- Fable is available; superseded draft and withdrawn old reservations are void.
+- UI remains port8766/session79716, registry through Study011. No push.
+
+## Earlier checkpoint: 2026-09-07 04:53 UTC
+
+- [O7 Stage A](../../../experiments/013_g1_phase_rate/STAGE_A_RESULTS.md):
+  20 s/no fall, walk/crouch/rise/walk executed. All qualification conditions pass;
+  task fails five gates. No repeated crouch loop was executed.
+- Every one of 1,000 commands/targets reconstructed; predicted prefix exact.
+  O7 worker terminal, resource released, source freeze ended.
+- Finite-horizon patch `ae67399` is clean/released in its isolated worktree;
+  parent/Fable review before import and the Study012 matched training test.
+- Phase-rate pure core `0e1ae8a` is clean/released and under independent review;
+  unwired, not imported and no phase simulation authorized.
+- Training totals remain 34 runs / 1,900,544 transitions; zero full-task passes.
+
+## Earlier checkpoint: 2026-09-07 03:05 UTC
+
+- [Study 011](../../../experiments/011_g1_fixed_normalization/RESULTS.md): source
+  `1e5d84b`, both jobs terminal/successful/released. Source freeze ended.
+- Parent and Fable independently verify control's ten-file parity, candidate's
+  zero-residual parity, initial tensors, buffer pins and feedback reconstruction.
+- Candidate: 20 s/no fall, two switches, 64.20% compliance, 0.513356 m minimum
+  height, 0.032732 m/s inside mean-speed deviation, 3.419531 m lateral maximum.
+- Failed advancement floor: 68.35% compliance. No seed replication/default
+  promotion follows automatically. No new intervention is yet dispatched.
+- Recorded-state GIF: sibling
+  `humanoid-harness-probe-runs/gmt_course_fixed_normalizer_recorded_20260907.gif`.
+- UI restarted as session 79716 at current source; registry includes both
+  Study011 arms. Previous selection retained in a local archive.
+- Next training is paused for the intrinsic-horizon correction in
+  [Study 012](../../../experiments/012_g1_finite_horizon/PROTOCOL.md). Depth
+  reward and online phase alignment are separate deferred comparisons.
+- Main remains `9188ed0`; no push. Read the live mailbox/active-run before work.
+
+## Earlier checkpoint: 2026-09-07 02:28 UTC
+
+- [Study 009](../../../experiments/009_g1_reference_input/RESULTS.md): two
+  five-arm simulations. Every intervention changes the first action and next
+  robot boundary; both exact arms reproduce all three positive-control files.
+  This establishes input dependence, not composition quality.
+- [Study 010](../../../experiments/010_g1_after_reference/RESULTS.md): O6's
+  exact unchanged prefix passes; after-only crop falls. Reject, no training.
+- Source freeze ended at O6 terminal; exact probe source `1d60c46`, result
+  committed `8392cdd`. Heavy-job slot released. No active training.
+- Fixed-normalizer builder owns sibling `humanoid-harness-fixed-normalizer`.
+  No import until a clean handoff and focused review. Keep old profiles exact.
+- A separate read-only audit is checking reward-family incentives; no new
+  reward proposal, training, or evaluator edit is authorized by that audit.
+- Queryable supplemental reference audit index exists locally at
+  `artifacts/knowledge/g1_reference_audits_20260907.db`. Two typed records,
+  12 findings; no external motion admitted. Source pins are version-specific.
+- UI `http://127.0.0.1:8766/`, server session 5442: 12 registered snapshots
+  validated, including O5 and low-learning-rate runs. Not every run is shown.
+  Mac locked; no fresh interactive browser QA.
+- O6 recorded-state GIF: sibling
+  `humanoid-harness-probe-runs/gmt_course_o6_recorded_failure_20260907.gif`.
+- Main remains `9188ed0`; no push. Native Humanoid-v5 remains a separate,
+  blocked family. Consult the live mailbox and active-run record before dispatch.
+
+## Earlier 01:50 UTC checkpoint (historical)
+
+- All study-007/008 workers and O5 renderer are terminal at 01:50 UTC.
+- Study 008 result: `../../../experiments/008_g1_repeatable_crouch/RESULTS.md`.
+  The source freeze ended after both probes. Their exact source was `96d46c7`.
+- Current result: `../../../experiments/007_g1_learning_rate/RESULTS.md`.
+- O5 and its revision-path/scorer-fixture repairs are integrated through
+  `cc3922a`; 440 focused tests pass. O5 simulation failed; no O5 training.
+- Next protocol: `../../../experiments/008_g1_repeatable_crouch/PROTOCOL.md`.
+  The new profile is permanently probe-only; future training needs a versioned
+  admission. A separate five-arm actor-reference ablation is being implemented;
+  matched-state action sensitivity is not closed-loop evidence.
+- The external-reference and native walking-window audits are integrated at
+  `1857cef`. No external motion has been admitted. The lower-yaw native crops
+  remain kinematic candidates for a later oracle revision.
+- Main remains `9188ed0`; no push. Native family remains separate and blocked.
+- UI `http://127.0.0.1:8766/`: selected registry now includes two low-rate
+  rows instead of two r0 replication rows. Server still needs a restart for
+  O5-profile evidence and current-registry API validation.
+  The previous selection is archived locally; no run evidence was removed.
+- UI busy-state fix has executable DOM regression coverage. A new browser
+  screenshot could not be checked because the Mac was locked.
+- Read the live mailbox and `.orchestration/astra-active-run.json` before dispatch.
+- Entries below retain earlier checkpoints; they are not current launch authority.
 
 - Current evidence: `../../strategy/astra/G1_LEARNING_RESULTS_20260906.md`.
 - GIF: sibling `humanoid-harness-probe-runs/gmt_course_o2r1_task_overlay_v1_recorded.gif`.
@@ -12,8 +475,25 @@
 - Integrated task-overlay renderer `b609bf6`, feedback builder `6d30af1`, raw
   boundary verification `a8f7431`. Parent: 200 focused + 9 CLI tests pass.
 - O3 is rejected: trained rollout falls at 6.96 s; its five preregistered predictions fail.
-- Heading-only r3 is authored/admitted, not yet trained. Refresh `.orchestration/astra-active-run.json`
-  and the mailbox before launching. No live heavy job at 22:10 UTC.
+- Heading-only r3 trained and was rejected: lateral drift 8.34 versus 2.97 m;
+  speed MAE 0.424 versus 0.307 m/s. No full task pass.
+- Main fast-forwarded to `9188ed0`; no push. Astra telemetry source `0923a5a`:
+  all nine O2r1 output artifacts byte-identical, 266 focused tests pass.
+- Initial raw telemetry: near-zero explained variance throughout 64 updates;
+  149 attempted epochs, not completed epochs. The resulting scaling screen is
+  now completed; see the current result above.
+- Latest screen and exact receipts: `../../../experiments/005_g1_training_conditioning/RESULTS.md`.
+- Current source includes reviewed UI commits through `9dd3e6b`; 330 focused
+  adapter/feedback/CLI/UI tests pass. No full task pass; main remains `9188ed0`.
+- Scale64 seed 06: explained variance 0.924, lateral 0.526 m, 20 s/no fall;
+  posture/timing/inside-speed still fail. O4 zero-residual probe falls at 5.4 s.
+- All five replication jobs and O4b probe completed at frozen `22b5ee4`.
+  Every retained output/parity check and feedback recomputation passes.
+- O4b: 20 s/no fall,83.1% compliance, joint/roll-pitch p95 0.249/0.247;
+  depth, lateral and overall-speed gates still fail. Do not repeat O2b or
+  start the unnecessary dwell/destination probes after this admission pass.
+- Refresh `.orchestration/astra-active-run.json` and mailbox before launching.
+  No heavy job at 23:58 UTC. Local G1 UI is on port 8766, separate from old 8765.
 - Whole-suite failures remain; see `../TEST_MATRIX_20260906.md`. Focused G1 checks pass.
 - Native likelihood chain through `44f65b6` remains unmerged; do not retry it automatically.
 - Everything below is historical context, not current dispatch authority.

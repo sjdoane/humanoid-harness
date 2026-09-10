@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "methods": [
+    {
+      "method_id": "M001",
+      "name": "Prespecified conditional paired saved-policy diagnostic",
+      "analysis_intent": "descriptive",
+      "protocol_status": "prespecified",
+      "outcome_ids": [
+        "O001",
+        "O002"
+      ]
+    }
+  ],
+  "numeric_facts": [
+    {
+      "fact_id": "N001",
+      "concept": "Initial falls",
+      "section": "Measured result",
+      "analysis_set": "Initial policy all paired noise sequences at one reset",
+      "value": 0.3125,
+      "unit": "fraction",
+      "numerator": 5,
+      "denominator": 16,
+      "sample_size": 16,
+      "evidence_ids": [
+        "E002"
+      ]
+    },
+    {
+      "fact_id": "N002",
+      "concept": "Trained falls",
+      "section": "Measured result",
+      "analysis_set": "Trained policy all paired noise sequences at one reset",
+      "value": 0.6875,
+      "unit": "fraction",
+      "numerator": 11,
+      "denominator": 16,
+      "sample_size": 16,
+      "evidence_ids": [
+        "E002"
+      ]
+    },
+    {
+      "fact_id": "N003",
+      "concept": "Mean paired trained-minus-initial return",
+      "section": "Measured result",
+      "analysis_set": "All paired action-noise sequences at one reset",
+      "value": -1180.2572378603868,
+      "unit": "reward units",
+      "numerator": null,
+      "denominator": null,
+      "sample_size": 16,
+      "evidence_ids": [
+        "E002"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "result_id": "R001",
+      "method_id": "M001",
+      "outcome_id": "O001",
+      "analysis_intent": "descriptive",
+      "evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "reported_sections": [
+        "Measured result"
+      ],
+      "sample_size": 16
+    },
+    {
+      "result_id": "R002",
+      "method_id": "M001",
+      "outcome_id": "O002",
+      "analysis_intent": "descriptive",
+      "evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "reported_sections": [
+        "Measured result"
+      ],
+      "sample_size": 16
+    }
+  ]
+}

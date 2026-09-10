@@ -1,7 +1,8 @@
 # Humanoid Harness
 
-An LLM-guided research harness with two design knobs: reference composition
-and task reward. Training and objective evaluation remain separate from authoring.
+An LLM-guided post-training harness with two design inputs: reference/oracle
+guidance and task reward. The target is better dynamic-task learning with less
+manual tuning in SONIC-based VIBE. The implementation below is a GMT/G1 proxy.
 
 ```text
 INPUT: task + admitted references + verified development evidence
@@ -27,10 +28,11 @@ FROZEN: scene/reset, observations/actions, base weights, trainer/budget,
 
 | Boundary | Evidence |
 |---|---|
-| Research target | Steerable, evidence-driven iteration over reference-oracle logic and task reward |
+| Research target | Dynamic-task post-training; fixed versus manual versus harness revision; independent success and tuning effort |
 | Active implementation | GMT/G1 through Gymnasium; state-triggered motion selection; bounded residual PPO; separate tracking/task rewards; recorded-state feedback; immutable candidate admission |
 | Measured development result | Walk → crouch → walk survives 20 seconds after training in three of three seeds with the initial task reward; tracking-only training survives one of three. No full posture-course gate pass. |
 | Real revision loop | Retained LLM reward and oracle proposals were admitted, trained, evaluated, and rejected when their fixed criteria failed. Negative outcomes are not task success. |
+| Reference use | Two five-arm closed-loop tests change actions and trajectories; exact arms reproduce their retained controls. This is input dependence, not composition quality. |
 | Limits | One flat-ground course and fixed start. Within-clip playback still uses a local clock. No held-out generalization, obstacle clearance, locomanipulation, or foolproof-system claim. |
 
 See the [measured results and replay receipts](docs/strategy/astra/G1_LEARNING_RESULTS_20260906.md)
@@ -54,18 +56,25 @@ uv run humanoid-harness g1 --help
   do not execute downloaded pickle, TorchScript, or upstream Python.
 - `g1 feedback` verifies a pinned run and recomputes boundary metrics before
   producing proposal-safe feedback.
+- `humanoid-harness effort --run MANIFEST SHA256` reports recorded training
+  transitions and run wall time; repeat `--run` for more completed GMT receipts.
+  It does not run a simulator. Costs absent from these receipts remain unknown;
+  this is not total search cost or proof of learning efficiency. See
+  [effort reporting](docs/operations/EFFORT_REPORTING.md).
 - Training uses the exact-source, resource-bounded launcher documented in the
   [G1 pilot](docs/strategy/astra/G1_COURSE_PILOT_20260906.md).
-- `humanoid-harness ui` starts the older read-only evidence UI. It does not yet
-  display the G1 learning results; use the linked report and recorded replay.
+- `humanoid-harness ui --help` documents the read-only evidence UI and its
+  explicitly registered G1 results. The local development instance is on port
+  8766; linked reports retain studies outside the selected UI registry.
 
 ## Research ownership
 
 - Astra leads strategy, implementation, integration, and bounded local training.
-- Fable supplies independent reviews, feedback, and ideas; no parallel build lane.
+- Fable is no longer involved (Samuel, 2026-09-08). Separately tasked Sol agents
+  provide independent implementation and scientific review.
 - Sol workers receive small, isolated implementation or review tasks.
 - Model requests and sender labels are not served-model attestation.
-- [Operating authority](docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md) ·
+- [Current plan](docs/strategy/astra/POST_TRAINING_PLAN_20260908.md) ·
   [coordination protocol](docs/operations/dual-orchestration/README.md)
 
 ## Test and experiment boundaries
@@ -90,7 +99,7 @@ src/oracle_composition/
   harness/        contracts, execution, evaluation, resource coordination
   research/       literature index and retrieval
   sources/        data-only source admission
-  ui/             older read-only evidence surface
+  ui/             read-only research and registered G1 evidence
 docs/             contracts, strategy, runbooks, measured results
 experiments/      earlier frozen study definitions and receipts
 tests/            positive, negative, and integration checks

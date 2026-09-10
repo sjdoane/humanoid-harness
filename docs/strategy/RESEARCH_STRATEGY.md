@@ -1,5 +1,17 @@
 # Research strategy and Lokesh goal ledger
 
+## Current direction — 2026-09-08
+
+- [Current post-training plan](astra/POST_TRAINING_PLAN_20260908.md) and the
+  project charter supersede the composition-first hypothesis, task shortlist,
+  role assignments and next actions below. Earlier entries remain history.
+- Target: automated VIBE/SONIC post-training, comparing fixed, manual and
+  harness revision using independent success and complete tuning costs.
+- Planned tasks: loaded-cart interception, changing obstacle course, floor
+  hockey and volleyball. No task or VIBE interface is admitted yet.
+- Astra owns all work; Fable is no longer involved. Separate Sol review remains
+  required. Study 021 is deferred with its old source/evidence preserved.
+
 | status | current strategy |
 |---|---|
 | progress | G1 posture-course family (frozen GMT tracker plus residual PPO, oracle O_k and reward r_k as the two knobs): 38 training runs, fourteen zero-residual probes, one paired saved-policy sampling diagnostic (34 evaluation episodes) and about 2.4M transitions through 2026-09-07; the composed oracle loop runs end to end with data-only proposals through the firewall; a finite-horizon runtime correction (study 012) is retained as the default semantics; the O7 four-state oracle survives 20 s at zero residual with all transitions executed. No configuration passes the full task. |

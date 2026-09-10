@@ -1,5 +1,11 @@
 # System architecture
 
+- Target: automate the supplied VIBE/SONIC post-training process through
+  reference guidance and task reward; not a new controller or training method.
+- Current implementation is the GMT/G1 proxy. Its model calls, candidate
+  selection and launch decisions are externally coordinated by agents.
+- Current scope and task sequence: [post-training plan](strategy/astra/POST_TRAINING_PLAN_20260908.md).
+
 ## One loop
 
 ```text
@@ -63,11 +69,12 @@ The agent may not silently edit a frozen component, evaluator, or claim gate.
 | Evaluation seed and checkpoint | Canonical trajectory trace |
 | Stop request | Explicit final state and partial receipt |
 
-Gymnasium/PPO is the first partial development adapter. It currently implements
-the real reset/step substrate, static-reference wrapper, trainer path, and
-mechanical evaluator. Canonical trace emission, executable task-reward input,
-and full interface conformance remain pending. A later lab adapter should meet
-the same complete contract without exposing or copying private system details.
+GMT/G1 through Gymnasium/PPO implements guarded reference windows, task-reward
+recipes, residual training, synchronized traces, independent metrics and
+feedback-linked candidate admission. Native Humanoid-v5 is an earlier family.
+VIBE's actual reference/trainer ABI remains unconfirmed. The given trainer may
+update its designated parameters; freeze that permitted set across comparisons.
+Private integration does not require publishing the lab's source code.
 
 ## User surfaces
 
@@ -85,8 +92,9 @@ the same complete contract without exposing or copying private system details.
 | Active research index and query command | Implemented |
 | Clean read-only status UI | Implemented |
 | `TrajectoryTrace/v1` contract | Implemented |
-| Adapter trace recording and episode inspector | Next |
-| Bounded oracle-candidate record and manual approval gate | Pending |
-| Trained tracker with causal reference-use evidence | Pending |
-| First matched oracle comparison | Pending |
-| Separate reward contract and reward experiment family | Pending |
+| Adapter trace recording and episode inspector | GMT implemented; not VIBE integration |
+| Bounded oracle-candidate record and manual approval gate | GMT data-only admission implemented |
+| Trained tracker with causal reference-use evidence | GMT supplied actor implemented; VIBE missing |
+| First matched oracle comparison | GMT development results; no full-task pass |
+| Separate reward contract and reward experiment family | GMT implemented; general reward execution gated |
+| Full fixed/manual/harness post-training comparison | Missing; task admission and complete tuning costs required |

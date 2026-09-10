@@ -11,6 +11,12 @@ import pytest
 
 from oracle_composition import cli
 from oracle_composition.adapters.gmt import course_revision as module
+from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+)
 from oracle_composition.experiments.artifact_io import finite_pretty_json
 
 
@@ -82,11 +88,29 @@ def _install_fakes(
     source_config_sha256: str | None = None,
     packet_artifact: str = module.FEEDBACK_BUILD_RECEIPT_ARTIFACT,
     candidate: dict[str, object] | None = None,
+    loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
+    heading_runtime: bool = False,
+    heading_validation: bool | None = None,
+    receipt_runtime: dict[str, object] | None = None,
+    omit_receipt_runtime: bool = False,
 ) -> None:
+    if sum((loop_runtime, finite_horizon_runtime, heading_runtime)) > 1:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        AFTER_HEADING_FEEDBACK_RUNTIME
+        if heading_runtime
+        else LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     parent = SimpleNamespace(
         raw=json.loads(inputs["parent_bytes"]),
         encoded=inputs["parent_bytes"],
         sha256=inputs["parent_sha256"],
+        runtime=runtime,
     )
     monkeypatch.setattr(module, "load_run_config", lambda path: parent)
 
@@ -122,6 +146,20 @@ def _install_fakes(
             },
             "claim_limits": ["development_only"],
         }
+        if runtime.manifest_contract() is not None and not omit_receipt_runtime:
+            receipt["inputs"]["course_runtime"] = (
+                receipt_runtime
+                if receipt_runtime is not None
+                else runtime.manifest_contract()
+            )
+        include_heading_validation = (
+            heading_runtime if heading_validation is None else heading_validation
+        )
+        if include_heading_validation:
+            receipt["inputs"][module._HEADING_VALIDATION_FIELD] = {
+                "after_actions": 1, "saturated_window_rows": 20,
+                "native_rows_above_limit": 0, "changed_window_rows": 20,
+            }
         receipt_path = output / "feedback_receipt_v1.json"
         receipt_path.write_bytes(finite_pretty_json(receipt))
         return {
@@ -202,6 +240,129 @@ def test_revision_retains_exact_inputs_candidate_and_lineage_receipt(
         assert receipt["retained_inputs"][name]["sha256"] == _sha256(encoded)
         assert receipt["retained_inputs"][name]["byte_count"] == len(encoded)
     assert "not_trained_or_evaluated" in receipt["claim_limits"]
+
+
+def test_loop_runtime_revision_accepts_exact_profile_derived_feedback_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs, loop_runtime=True)
+
+    result = _run(inputs, tmp_path / "revision")
+
+    assert result["status"] == "completed"
+    receipt = json.loads(
+        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
+    )
+    assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
+
+
+def test_heading_runtime_revision_requires_its_exact_extra_receipt_field(tmp_path, monkeypatch):
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs, heading_runtime=True)
+    assert _run(inputs, tmp_path / "valid")["status"] == "completed"
+    _install_fakes(monkeypatch, inputs, heading_runtime=True, heading_validation=False)
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "missing")
+    _install_fakes(monkeypatch, inputs, loop_runtime=True, heading_validation=True)
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "undeclared")
+
+
+_STUDY016_ROOT = Path(
+    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-probe-runs/"
+    "gmt_course_o7b_study016_feedback_r2_20260907"
+)
+
+
+@pytest.mark.skipif(not _STUDY016_ROOT.is_dir(), reason="retained Study016 integration fixture absent")
+def test_real_heading_feedback_revises_through_full_publication_path(tmp_path):
+    manifest = _STUDY016_ROOT / "course_run_manifest.json"
+    manifest_sha = "0f1aaa53daa261dd0184118eac93dbd8b747ae6384905b669893e88bd8fca6c7"
+    parent_path = _STUDY016_ROOT / "input_config.json"
+    parent_sha = "8fe33d993c6226690e986e99de3d0d1ee436424239069c4cceb91c1a8fabfc8e"
+    feedback_root = tmp_path / "feedback"
+    packet = module.build_g1_course_feedback(
+        manifest_path=manifest, expected_manifest_sha256=manifest_sha,
+        label="zero_residual", output=feedback_root,
+    )
+    recipe = json.loads(parent_path.read_bytes())["reward"]
+    recipe["speed_weight"] = 1.1
+    proposal_path = tmp_path / "proposal.json"
+    _, proposal_sha = _write_json(proposal_path, {
+        "schema_version": 1, "proposal_id": "software-integration-fixture-not-a-study",
+        "parent_config_sha256": parent_sha,
+        "feedback_sha256": packet["feedback"]["sha256"],
+        "factor": "reward",
+        "hypothesis": "Synthetic pipeline fixture only; no behavioral prediction or training.",
+        "replacement": {"reward": recipe},
+    })
+    output = tmp_path / "revision"
+    result = module.revise_g1_course(
+        parent_config_path=parent_path, expected_parent_config_sha256=parent_sha,
+        feedback_path=feedback_root / "feedback_v1.json",
+        expected_feedback_sha256=packet["feedback"]["sha256"],
+        proposal_path=proposal_path, expected_proposal_sha256=proposal_sha,
+        source_manifest_path=manifest, expected_source_manifest_sha256=manifest_sha,
+        source_label="zero_residual", output=output,
+    )
+    assert result["status"] == "completed"
+    receipt = json.loads((output / "feedback_verification_receipt.json").read_bytes())
+    assert receipt["inputs"][module._HEADING_VALIDATION_FIELD]["after_actions"] == 737
+    admitted = module.load_run_config(output / "candidate_config.json")
+    assert admitted.raw["reward"] == recipe
+    assert admitted.runtime.training_admitted is False
+
+
+@pytest.mark.parametrize("omit", [False, True], ids=["tampered", "missing"])
+def test_loop_runtime_revision_rejects_wrong_feedback_runtime_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, omit: bool
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(
+        monkeypatch,
+        inputs,
+        loop_runtime=True,
+        receipt_runtime={"schema_version": 1, "profile_id": "wrong"},
+        omit_receipt_runtime=omit,
+    )
+
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "revision")
+
+    assert not (tmp_path / "revision").exists()
+
+
+def test_finite_horizon_revision_accepts_exact_profile_derived_feedback_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(monkeypatch, inputs, finite_horizon_runtime=True)
+
+    result = _run(inputs, tmp_path / "revision")
+
+    assert result["status"] == "completed"
+    receipt = json.loads(
+        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
+    )
+    assert receipt["inputs"]["course_runtime"] == (
+        FINITE_HORIZON_RUNTIME.manifest_contract()
+    )
+
+
+def test_finite_horizon_revision_rejects_tampered_runtime_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = _inputs(tmp_path / "inputs")
+    _install_fakes(
+        monkeypatch,
+        inputs,
+        finite_horizon_runtime=True,
+        receipt_runtime=LOOP_RUNTIME.manifest_contract(),
+    )
+
+    with pytest.raises(ValueError, match="feedback lineage"):
+        _run(inputs, tmp_path / "revision")
 
 
 def test_oracle_receipt_separates_actual_from_allowed_changed_fields(

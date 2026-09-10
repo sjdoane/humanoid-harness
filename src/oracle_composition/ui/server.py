@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse, urlsplit
 from ..research import KnowledgeIndexError, index_stats, query_index
 from ..research.knowledge import DEFAULT_DATABASE
 from ..status import program_status
+from .g1_learning import REGISTRY_AUTHORITY, g1_learning_status
 from .local_evidence import LocalEvidenceError, local_exploration_status, local_media
 from .local_reference_probe import local_reference_probe_status
 from .local_tqc_calibration import (
@@ -49,6 +50,7 @@ class EvidenceServer(ThreadingHTTPServer):
         self.database = database.resolve()
         super().__init__(server_address, handler)
         self.local_media_enabled = ipaddress.ip_address(self.server_address[0]).is_loopback
+        self.g1_learning_validation_lock = threading.Lock()
 
 
 class EvidenceRequestHandler(BaseHTTPRequestHandler):
@@ -230,6 +232,22 @@ class EvidenceRequestHandler(BaseHTTPRequestHandler):
             return
         if request.path == "/api/experiments/e0-tqc":
             self._json(local_tqc_calibration_status(self.server.project_root))
+            return
+        if request.path == "/api/g1-learning":
+            if not self.server.g1_learning_validation_lock.acquire(blocking=False):
+                self._json(
+                    {
+                        "state": "busy",
+                        "authority": REGISTRY_AUTHORITY,
+                        "detail": "a manual G1 evidence validation is already running",
+                        "runs": [],
+                    }
+                )
+                return
+            try:
+                self._json(g1_learning_status(self.server.project_root))
+            finally:
+                self.server.g1_learning_validation_lock.release()
             return
         if request.path.startswith("/local-evidence/"):
             self._local_media(request.path.removeprefix("/local-evidence/"))

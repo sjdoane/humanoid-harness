@@ -11,6 +11,13 @@ permission to publish either source.
 
 ## Source records
 
+- `SRC-PROPOSAL-02`: live updated Google proposal, modified 2026-09-08
+  07:43:32 UTC, read 2026-09-08. Exact locator, revision and extracted text stay
+  in ignored `.orchestration/proposal-source-20260908.json`. No PDF hash is
+  claimed for this native-document read. It supersedes `SRC-PROPOSAL-01` for
+  current goals; the old PDF and transcript anchors remain historical.
+- Current source interpretation: `astra/POST_TRAINING_PLAN_20260908.md`.
+
 | source id | format | bytes/pages | SHA-256 | handling |
 |---|---|---|---|---|
 | `SRC-LOKESH-TRANSCRIPT-01` | one-line UTF-8 auto-transcript | `42,294` bytes | `2b0c8af95e51e86db4785d3a67fb7d4fc0f4c6b2ef848814f09cfdbaaaa6220c` | private; no direct publication; no native diarization |

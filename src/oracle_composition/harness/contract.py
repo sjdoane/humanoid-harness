@@ -629,7 +629,11 @@ class OracleMachine:
     def dwell(self) -> int:
         return self._dwell
 
-    def decide(self, signals: Mapping[str, object]) -> MachineDecision:
+    def decide(
+        self, signals: Mapping[str, object], *, allow_transitions: bool = True
+    ) -> MachineDecision:
+        if type(allow_transitions) is not bool:
+            raise OracleContractError("allow_transitions must be boolean")
         if signals.get("dwell") != self._dwell:
             raise OracleContractError("dwell signal does not match machine state")
         checked = {
@@ -700,7 +704,7 @@ class OracleMachine:
                 )
 
         state = self.program.states[self._state]
-        if self._dwell >= state.min_dwell:
+        if allow_transitions and self._dwell >= state.min_dwell:
             for transition in self._outgoing.get(self._state, ()):
                 if transition.guard.evaluate(checked):
                     previous_behavior = self._behavior
@@ -723,7 +727,7 @@ class OracleMachine:
             state_transition=False,
             recovery_entered=False,
             recovery_exited=False,
-            reason="hold",
+            reason="hold" if allow_transitions else "ordinary_transition_deferred",
         )
 
     def advance(self) -> None:

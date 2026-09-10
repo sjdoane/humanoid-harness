@@ -2,15 +2,22 @@
 
 | status | current truth |
 |---|---|
-| progress | Astra leads the G1 posture-course family (frozen GMT tracker plus residual PPO; oracle and reward as the two knobs) from its checkout `humanoid-harness-astra`; Fable reviews, scores retained artifacts, and authors data-only proposals. Through 2026-09-07 15:05Z: 38 training runs, fourteen zero-residual probes and one paired saved-policy sampling diagnostic; the finite-horizon runtime (study 012) is the default semantics; the four-state O7b composition survives 20 s at zero residual with 9 of 11 gates; the trainable four-state profile is integrated; the first trained pair on it (study 018) stopped at its baseline; the entry-guard probe (019) was negative because the earlier guard changed the hand-over state; the saved-policy diagnostic (020) showed the trained 018 checkpoint falls in 11 of 16 sampled episodes against 5 of 16 for the initial policy, six pairs flipping to falls and none reversed, every fall at the rise hand-over or inside the crouch. Full record: `docs/strategy/RESEARCH_STRATEGY.md`, section "G1 course: horizon semantics, depth reward, and the reference contact finding (2026-09-07)". |
-| bottleneck | No configuration passes the full task. Lateral drift (2.2 to 15.4 m against 0.75 m) because the tracker is yaw-blind and the reward's course terms saturate to zero within metres and one radian, so trained residuals have no gradient toward holding the course; the 0.50 m dip gate is unmet in every retained run (best 0.494 to 0.516 m), and the supplied reference's deepest frames are not contact-consistent on the G1 model, which bounds what the reference specifies rather than what the plant can reach. Trained residuals have degraded the zero-residual substrate in every finite-horizon training so far (compliance, speed, heading), with the training return falling while stochastic falls rose in study 018. |
-| next step | Fable's recommended single discriminating test, Astra's call: the same two exact 018 mean tensors under half the noise scale (declared constant log-std -2.2) on the same sixteen seeds, evaluation-only, to separate exploration scale from trained-mean fragility from hand-over fragility; then the branch that survives (smaller initial log-std training contrast, trainer/reward rivals, or an oracle-side speed-conditioned rise entry), each under its own declaration. For depth: a consistency control from a retained executed crouch (option B), then a contact-aware repaired reference ladder (option A), both reference-supply adapter work. No real 1M-step TQC attempt, PRAXIST campaign, formal oracle study, push or release without the repository gates and explicit human authorization. |
+| progress | Updated proposal governs four planned VIBE tasks; Astra owns all work. Selected-receipt effort reporting is implemented and independently reviewed. |
+| bottleneck | No admitted VIBE interface/task assets. GMT has 38 training runs, not 29, and no full-task pass. |
+| next step | Follow the current post-training plan and Astra handoff, not historical native/GMT launch instructions below. |
 
-2026-09-07 (Fable review lane): the T2 reward-lane material below this line
-predates the G1 family and is retained as history. The G1 family's studies,
-scores, corrections and decisions are recorded in the strategy file's
-2026-09-07 section and in the mailbox; Fable's scorers live in its session
-scratchpad and are re-derivable from the retained artifacts.
+- Current direction: [post-training plan](../strategy/astra/POST_TRAINING_PLAN_20260908.md).
+- Study 021 is deferred; old seals and results are preserved. No research
+  experiment was launched. Validation exercised existing bounded simulator and
+  training fixtures; it supplies no new behavioral or learning result.
+- Current verification and limits: [effort reporting](EFFORT_REPORTING.md).
+
+- Current: [G1 results](../strategy/astra/G1_LEARNING_RESULTS_20260906.md),
+  [Astra handoff](dual-orchestration/ASTRA_HANDOFF.md), and the live mailbox.
+- The slot-lifetime repair and T1 attempt occurred after the checkpoint below.
+  Its old launch instructions are retained history, **not current authority**.
+
+## Historical native T2 checkpoint
 
 T2C2 integration (2026-09-06, Fable): slice committed as
 `402595e9ee5ed253ccb7eb19f19ed53e0d876b6e`; the documented re-seal ran once at

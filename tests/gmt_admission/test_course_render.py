@@ -5,6 +5,7 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -19,8 +20,21 @@ from oracle_composition.adapters.gmt.course_render import (
     load_course_render_inputs,
     select_frame_indices,
 )
+from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    COURSE_RESIDUAL_RAW_SCALE,
+    FINITE_HORIZON_RUNTIME,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    frozen_runtime_contract,
+)
 from oracle_composition.adapters.gmt.course_task import CourseTaskSpec
 from oracle_composition.adapters.gmt.io import GMTAdmissionError, write_deterministic_npz
+from oracle_composition.adapters.gmt.training_contract import (
+    TRAINING_REWARD_SCALE,
+    CourseTrainerSpec,
+    effective_training_contract,
+)
 
 
 def _sha(path: Path) -> str:
@@ -92,12 +106,29 @@ def _fixture(
     nonzero_residual: bool = False,
     row_qpos_offset: float = 0.0,
     contact_substeps: int = 20,
+    scaled: bool = False,
+    low_rate: bool = False,
+    fixed_normalizer: bool = False,
+    loop_runtime: bool = False,
+    finite_horizon_runtime: bool = False,
+    heading_feedback_runtime: bool = False,
 ) -> tuple[Path, str, Path]:
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     task = _task(steps)
+    if sum((loop_runtime, finite_horizon_runtime, heading_feedback_runtime)) > 1:
+        raise ValueError("fixture runtime must be unique")
+    runtime = (
+        AFTER_HEADING_FEEDBACK_RUNTIME
+        if heading_feedback_runtime
+        else LOOP_RUNTIME
+        if loop_runtime
+        else FINITE_HORIZON_RUNTIME
+        if finite_horizon_runtime
+        else LEGACY_RUNTIME
+    )
     config = {
-        "schema_version": 1,
+        "schema_version": runtime.config_schema_version,
         "mode": mode,
         "assets": {
             "upstream_root": str(upstream),
@@ -111,6 +142,18 @@ def _fixture(
         "seed": 7,
         "training_steps": 0 if mode == "probe" else 512,
     }
+    if runtime.config_value is not None:
+        config["runtime"] = runtime.config_value
+    trainer = (
+        CourseTrainerSpec(
+            TRAINING_REWARD_SCALE,
+            profile_version=3 if fixed_normalizer else 2 if low_rate else 1,
+        )
+        if scaled or fixed_normalizer
+        else None
+    )
+    if trainer is not None:
+        config["trainer"] = trainer.to_dict()
     config_path = tmp_path / "input_config.json"
     config_path.write_bytes((json.dumps(config, sort_keys=True) + "\n").encode())
     config_sha = _sha(config_path)
@@ -186,7 +229,11 @@ def _fixture(
         "input_config_sha256": config_sha,
         "outputs": outputs,
         "identities": {"task": task.sha256, "oracle": "a" * 64, "reward": "b" * 64},
-        "frozen_runtime": {},
+        "frozen_runtime": frozen_runtime_contract(
+            runtime,
+            trainer=effective_training_contract(trainer),
+            residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
+        ),
         "training": {} if mode == "train" else None,
         "zero_residual": report if label == "zero_residual" else None,
         "final_policy": report if label == "final_policy" else None,
@@ -224,6 +271,150 @@ def test_admission_crosslinks_data_without_importing_mujoco(tmp_path: Path) -> N
     assert annotation.executed_mode == "inside"
     assert annotation.progress_m == pytest.approx(0.04)
     assert annotation.forward_speed_m_s == pytest.approx(1.0)
+
+
+def test_admission_accepts_exact_scaled_trainer_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path, mode="train", label="final_policy", scaled=True
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_low_rate_trainer_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        scaled=True,
+        low_rate=True,
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_fixed_normalizer_trainer_runtime(
+    tmp_path: Path,
+) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        fixed_normalizer=True,
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+
+
+def test_admission_accepts_exact_probe_only_loop_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, loop_runtime=True)
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="zero_residual",
+    )
+
+    assert admitted.label == "zero_residual"
+    retained = json.loads((tmp_path / "input_config.json").read_text())
+    assert retained["runtime"] == LOOP_RUNTIME.config_value
+
+
+def test_admission_reconstructs_after_heading_feedback_trace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, heading_feedback_runtime=True)
+    encoded = (tmp_path / "input_config.json").read_bytes()
+    observed: dict[str, object] = {}
+    monkeypatch.setattr(
+        course_render,
+        "load_run_config",
+        lambda _path: SimpleNamespace(encoded=encoded),
+    )
+
+    def validate(**kwargs):
+        observed.update(kwargs)
+
+    monkeypatch.setattr(course_render, "validate_after_heading_feedback_trace", validate)
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="zero_residual",
+    )
+
+    assert admitted.label == "zero_residual"
+    assert len(observed["frames"]) == 3
+    assert observed["trajectory"]["qpos"].shape == (4, 30)
+
+
+def test_admission_rejects_invalid_after_heading_feedback_trace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, digest, upstream = _fixture(tmp_path, heading_feedback_runtime=True)
+    encoded = (tmp_path / "input_config.json").read_bytes()
+    monkeypatch.setattr(
+        course_render,
+        "load_run_config",
+        lambda _path: SimpleNamespace(encoded=encoded),
+    )
+
+    def reject(**_kwargs):
+        raise ValueError("tampered trace")
+
+    monkeypatch.setattr(course_render, "validate_after_heading_feedback_trace", reject)
+
+    with pytest.raises(GMTAdmissionError, match="trace is invalid"):
+        load_course_render_inputs(
+            manifest_path=manifest,
+            manifest_sha256=digest,
+            upstream_root=upstream,
+            label="zero_residual",
+        )
+
+
+def test_admission_accepts_exact_finite_horizon_training_runtime(tmp_path: Path) -> None:
+    manifest, digest, upstream = _fixture(
+        tmp_path,
+        mode="train",
+        label="final_policy",
+        fixed_normalizer=True,
+        finite_horizon_runtime=True,
+    )
+
+    admitted = load_course_render_inputs(
+        manifest_path=manifest,
+        manifest_sha256=digest,
+        upstream_root=upstream,
+        label="final_policy",
+    )
+
+    assert admitted.label == "final_policy"
+    retained = json.loads((tmp_path / "input_config.json").read_text())
+    assert retained["runtime"] == FINITE_HORIZON_RUNTIME.config_value
 
 
 def test_admission_rejects_manifest_config_identity_disagreement(tmp_path: Path) -> None:

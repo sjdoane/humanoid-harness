@@ -6,19 +6,20 @@
 - Write for the human maintainer who must use the result. Prefer precise
   engineering language to literary prose, clever phrasing, or exhaustive
   narration.
-- The research program has two authorable artifacts: **reference-oracle
-  composition** and **task reward**. Change only one in a single-factor study;
-  use a declared factorial study when testing both.
+- The goal is **automated post-training for dynamic humanoid control** in the
+  lab's SONIC-based VIBE system. The two authorable inputs are reference/oracle
+  guidance and task reward. Composition is a means to improve learning, not
+  the final objective. Change one factor per single-factor study.
 - Separate **research target**, **implemented capability**, and **measured
   evidence**. A passing test proves software behavior, not humanoid competence.
 - Start research updates with exactly three rows: **progress**, **bottleneck**,
   and **next step**.
 - The current authority is [`docs/PROJECT_CHARTER.md`](docs/PROJECT_CHARTER.md).
-- Samuel's 2026-09-06 system-lead instruction supersedes the lane split:
+- Samuel's 2026-09-08 instruction supersedes earlier role assignments:
   Astra owns strategy, implementation, integration, and bounded local training
-  across both oracle and task reward. Fable supplies independent reviews,
-  feedback, and joint ideation; it does not launch an independent builder lane.
-  See `docs/strategy/astra/SYSTEM_LEAD_PLAN_20260906.md`.
+  across both inputs. Fable is no longer working on the project. Use separately
+  tasked Sol reviewers; never self-approve an experiment. Read
+  `docs/strategy/astra/POST_TRAINING_PLAN_20260908.md` before selecting work.
 - Read `docs/operations/dual-orchestration/README.md` before dual-lane work.
   Use separate worktrees and one writer per worktree. Existing workers finish
   only their current bounded slice; transfer work at an explicit committed
@@ -35,8 +36,8 @@ experimental factor:
 
 - MuJoCo model, Gymnasium environment contract, observations, actions, dynamics,
   resets, and termination;
-- reference-conditioned tracker checkpoint, architecture, normalizers, command
-  ABI, and tracking reward;
+- starting checkpoint, architecture, normalizers, command ABI, tracking reward,
+  and the supplied trainer's permitted trainable components;
 - trainer, hyperparameters, seeds, training budget, checkpoint selection, and
   independent evaluator;
 - task reward in an oracle study and oracle in a reward study; and
@@ -45,6 +46,10 @@ experimental factor:
 
 Changing an undeclared frozen item creates a new experiment family. It is not
 evidence that the declared factor improved.
+
+The supplied training method may update its designated policy parameters.
+Fixed across methods does not mean every policy weight remains frozen. GMT's
+frozen-base/residual PPO is a development proxy, not the VIBE training contract.
 
 ## Oracle contract
 

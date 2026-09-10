@@ -80,6 +80,36 @@ def test_unified_cli_builds_and_queries_research_index(
     assert query_output[0]["title"] == "Phase recovery"
 
 
+def test_unified_cli_build_accepts_optional_typed_source_records(tmp_path: Path, capsys) -> None:
+    extractions = tmp_path / "extractions"
+    extractions.mkdir()
+    _write_record(extractions, "2600.00001", "Phase recovery")
+    repository_root = Path(__file__).resolve().parents[2]
+    supplemental = repository_root / "research/evidence/reference_audits/records"
+    database = tmp_path / "graph.db"
+
+    code = main(
+        [
+            "--json",
+            "research",
+            "build",
+            "--extractions",
+            str(extractions),
+            "--supplemental-records",
+            str(supplemental),
+            "--database",
+            str(database),
+        ]
+    )
+    output = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert output["papers"] == 1
+    assert output["source_records"] == 2
+    assert output["public_source_audits"] == 1
+    assert output["local_numeric_measurements"] == 1
+
+
 def test_unified_cli_reports_missing_index_without_traceback(
     tmp_path: Path,
     capsys,

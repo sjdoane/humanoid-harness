@@ -39,6 +39,8 @@ _BUILD_INPUT_FIELDS = {
     "label",
     "selected_outputs",
 }
+_BUILD_INPUT_FIELDS_WITH_RUNTIME = {*_BUILD_INPUT_FIELDS, "course_runtime"}
+_HEADING_VALIDATION_FIELD = "after_heading_reference_feedback_validation"
 _BUILD_OUTPUT_FIELDS = {"path", "sha256", "byte_count"}
 _LABELS = {"zero_residual", "final_policy"}
 
@@ -103,6 +105,7 @@ def _verify_current_feedback_packet(
     parent_sha256: str,
     supplied_feedback: bytes,
     supplied_feedback_sha256: str,
+    expected_course_runtime: dict[str, object] | None,
 ) -> bytes:
     if label not in _LABELS:
         raise ValueError("source label must be zero_residual or final_policy")
@@ -132,12 +135,25 @@ def _verify_current_feedback_packet(
             raise ValueError("rebuilt feedback receipt version or fields differ")
         inputs = receipt.get("inputs")
         output = receipt.get("output")
+        expected_input_fields = (
+            _BUILD_INPUT_FIELDS_WITH_RUNTIME
+            if expected_course_runtime is not None
+            else _BUILD_INPUT_FIELDS
+        )
+        if expected_course_runtime is not None and "after_heading_reference_feedback" in (
+            expected_course_runtime
+        ):
+            expected_input_fields = {*expected_input_fields, _HEADING_VALIDATION_FIELD}
         if (
             type(inputs) is not dict
-            or set(inputs) != _BUILD_INPUT_FIELDS
+            or set(inputs) != expected_input_fields
             or inputs.get("source_manifest_sha256") != manifest_sha256
             or inputs.get("input_config_sha256") != parent_sha256
             or inputs.get("label") != label
+            or (
+                expected_course_runtime is not None
+                and inputs.get("course_runtime") != expected_course_runtime
+            )
             or type(output) is not dict
             or set(output) != _BUILD_OUTPUT_FIELDS
             or output.get("path") != "feedback_v1.json"
@@ -187,6 +203,7 @@ def revise_g1_course(
         parent_sha256=parent_sha256,
         supplied_feedback=feedback_bytes,
         supplied_feedback_sha256=feedback_sha256,
+        expected_course_runtime=parent.runtime.manifest_contract(),
     )
     # Re-read the manifest after the independent rebuild so the retained bytes
     # are the same bytes whose path remains present at publication time.

@@ -26,6 +26,18 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("status", help="show target, capability, evidence, and next gate")
     commands.add_parser("doctor", help="check required and optional local dependencies")
 
+    effort = commands.add_parser(
+        "effort", help="report recorded training effort and missing costs; no training"
+    )
+    effort.add_argument(
+        "--run",
+        nargs=2,
+        action="append",
+        required=True,
+        metavar=("MANIFEST", "SHA256"),
+        help="one exact GMT run receipt; repeat to include additional attempts",
+    )
+
     g1 = commands.add_parser("g1", help="operate bounded GMT G1 development evidence")
     g1_commands = g1.add_subparsers(dest="g1_command", required=True)
     g1_feedback = g1_commands.add_parser(
@@ -56,6 +68,11 @@ def _parser() -> argparse.ArgumentParser:
 
     build = research_commands.add_parser("build", help="build the local graph atomically")
     build.add_argument("--extractions", type=Path, default=DEFAULT_EXTRACTIONS)
+    build.add_argument(
+        "--supplemental-records",
+        type=Path,
+        help="optional directory of bounded provenance-bearing source records",
+    )
     build.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
 
     query = research_commands.add_parser("query", help="search mechanisms and evidence")
@@ -183,6 +200,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = program_status()
         elif args.command == "doctor":
             result = doctor_status()
+        elif args.command == "effort":
+            from .effort import summarize_effort
+
+            result = summarize_effort([(Path(path), digest) for path, digest in args.run])
         elif args.command == "g1":
             if args.g1_command == "feedback":
                 from .feedback.g1_course import build_g1_course_feedback
@@ -210,7 +231,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         elif args.command == "research":
             if args.research_command == "build":
-                result = build_index(args.extractions, args.database)
+                result = build_index(
+                    args.extractions,
+                    args.database,
+                    supplemental_records=args.supplemental_records,
+                )
             elif args.research_command == "query":
                 result = query_index(
                     args.query,

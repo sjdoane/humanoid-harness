@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "record_id": "gmt_basic_walk_window_audit_20260907",
+  "record_type": "local_numeric_measurement",
+  "title": "GMT basic_walk native-window numeric audit",
+  "evidence_status": "exploratory_numeric_fitness_not_dynamics",
+  "summary": "A bounded data-only analysis compared all 64,239 basic_walk windows spanning 18 to 74 native frame intervals and retained three fixed nondominated reference-fitness tradeoffs. The results concern numeric reference shape and seams only, not controller feasibility or task success.",
+  "audit_document": {
+    "repository_relative_path": "docs/strategy/astra/G1_BASIC_WALK_WINDOW_AUDIT_20260907.md",
+    "sha256": "2e6fc42ad7fa50331f55600e4a8e0163a0ac696b92f540f3248fd19b75e6508d"
+  },
+  "sources": [
+    {
+      "source_id": "audit_document",
+      "provenance_class": "local_audit_document",
+      "locator": "Complete bounded analysis, retained rows, and claim limits",
+      "version": "git:7f8a23a",
+      "sha256": "2e6fc42ad7fa50331f55600e4a8e0163a0ac696b92f540f3248fd19b75e6508d",
+      "url": null,
+      "repository_relative_path": "docs/strategy/astra/G1_BASIC_WALK_WINDOW_AUDIT_20260907.md"
+    },
+    {
+      "source_id": "analysis_script",
+      "provenance_class": "local_analysis_code",
+      "locator": "Bounded 18 to 74 interval enumeration and fixed three-candidate verification",
+      "version": "git:7f8a23a",
+      "sha256": "56c893e1370a8ffecee20bc880ea74cea4ccf2a0f346f5469c9cd4b9059e9833",
+      "url": null,
+      "repository_relative_path": "scripts/analyze_gmt_walk_windows.py"
+    },
+    {
+      "source_id": "basic_walk_numeric",
+      "provenance_class": "local_admitted_numeric",
+      "locator": "Converted data-only basic_walk motion",
+      "version": "gmt-upstream:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "b6ee3143e61b308daebb2a1f07d8b420459a2d19cbde76ecc8f4d42affcdb7b1",
+      "url": null,
+      "repository_relative_path": "artifacts/gmt/2a590de25a1eb08e/numeric/motions/basic_walk.npz"
+    },
+    {
+      "source_id": "walk_stand_numeric",
+      "provenance_class": "local_admitted_numeric",
+      "locator": "Converted data-only walk_stand motion used only for the standing-height and entry anchors",
+      "version": "gmt-upstream:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "908ba0e4f6acf1ecf829b0ddb73ed7e649ba6e7ca9fa1a96b43a95e0fdc2e3b0",
+      "url": null,
+      "repository_relative_path": "artifacts/gmt/2a590de25a1eb08e/numeric/motions/walk_stand.npz"
+    },
+    {
+      "source_id": "basic_walk_public_bytes",
+      "provenance_class": "primary_public_source",
+      "locator": "Original pinned GMT basic_walk motion bytes",
+      "version": "git:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "9e60b415c56edf163ea657dcf2120238c202dd82fb6b993387239d1987266a5d",
+      "url": "https://github.com/zixuan417/humanoid-general-motion-tracking/blob/2a590de25a1eb08e47491977a738549c22f16e1f/assets/motions/basic_walk.pkl",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "walk_stand_public_bytes",
+      "provenance_class": "primary_public_source",
+      "locator": "Original pinned GMT walk_stand motion bytes",
+      "version": "git:2a590de25a1eb08e47491977a738549c22f16e1f",
+      "sha256": "13610cc7bca2fca0d0c5b2ad7bcbca61538556bdd82f2645b39980d1eeee7b75",
+      "url": "https://github.com/zixuan417/humanoid-general-motion-tracking/blob/2a590de25a1eb08e47491977a738549c22f16e1f/assets/motions/walk_stand.pkl",
+      "repository_relative_path": null
+    },
+    {
+      "source_id": "gmt_contracts",
+      "provenance_class": "local_analysis_code",
+      "locator": "Pinned motion hashes, frame counts, and supplied float64 FPS",
+      "version": "audit-base:fd1c559",
+      "sha256": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31",
+      "url": null,
+      "repository_relative_path": "src/oracle_composition/adapters/gmt/contracts.py"
+    },
+    {
+      "source_id": "gmt_motion_loader",
+      "provenance_class": "local_analysis_code",
+      "locator": "Bounded numeric-only motion admission",
+      "version": "audit-base:fd1c559",
+      "sha256": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be",
+      "url": null,
+      "repository_relative_path": "src/oracle_composition/adapters/gmt/motions.py"
+    },
+    {
+      "source_id": "gmt_reference_runtime",
+      "provenance_class": "local_analysis_code",
+      "locator": "Finite differences, smoothing, and reference features",
+      "version": "audit-base:fd1c559",
+      "sha256": "19039aac4223a47c4131131304f266b2e87bcc90647947e933d5cc1ddb2b725f",
+      "url": null,
+      "repository_relative_path": "src/oracle_composition/adapters/gmt/reference_runtime.py"
+    },
+    {
+      "source_id": "gmt_reference_math",
+      "provenance_class": "local_analysis_code",
+      "locator": "xyzw quaternion and root-local-frame math",
+      "version": "audit-base:fd1c559",
+      "sha256": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e",
+      "url": null,
+      "repository_relative_path": "src/oracle_composition/adapters/gmt/reference_math.py"
+    },
+    {
+      "source_id": "gmt_composition",
+      "provenance_class": "local_analysis_code",
+      "locator": "Segment endpoint and entry-phase matching semantics",
+      "version": "audit-base:fd1c559",
+      "sha256": "6b0a740828be78c7449a3ffa597996fb10f3221c5fefdb4825d37f5cdd4b2bc8",
+      "url": null,
+      "repository_relative_path": "src/oracle_composition/adapters/gmt/composition.py"
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "full_clip_reference_metrics",
+      "finding_type": "local_measurement",
+      "title": "Full basic_walk has substantial local yaw rate",
+      "statement": "The full basic_walk reference has mean and mean-absolute local yaw rate 0.460312 and 0.476757 rad/s, mean local forward speed 0.784646 m/s, forward-speed MAE 0.160138 m/s to 0.7 m/s, and mean absolute lateral speed 0.096336 m/s.",
+      "source_ids": ["basic_walk_numeric", "walk_stand_numeric", "analysis_script", "audit_document"],
+      "locator": "Audit section Three retained numeric candidates, paragraph after first table",
+      "not_evidence_for": ["robot world-heading drift", "policy behavior", "task failure"]
+    },
+    {
+      "finding_id": "three_fixed_candidates",
+      "finding_type": "local_measurement",
+      "title": "Three fixed nondominated native-frame windows",
+      "statement": "Among 64,239 enumerated 18 to 74 interval windows, the fixed retained rows are balanced cycle 1118:1151, minimum-net-yaw cycle 1119:1148, and phase-zero entry control 0:18. They are nondominated over twelve numeric objectives but are not ranked against policy evaluation.",
+      "source_ids": ["basic_walk_numeric", "walk_stand_numeric", "analysis_script", "audit_document"],
+      "locator": "Audit Method and Three retained numeric candidates",
+      "not_evidence_for": ["controller feasibility", "candidate superiority", "policy success", "authorization to revise O5 or 007"]
+    },
+    {
+      "finding_id": "entry_tradeoff",
+      "finding_type": "local_measurement",
+      "title": "Late cycles improve loop shape but worsen entry velocity seams",
+      "statement": "Frames 1118 and 1119 lie outside the current 0 to 15 s phase-matching pool and have measured local-velocity entry jumps 0.620910 and 0.624061 m/s, versus 0.366509 m/s for phase zero. A silent crop replacement would not preserve the current entry condition.",
+      "source_ids": ["basic_walk_numeric", "walk_stand_numeric", "analysis_script", "gmt_composition", "audit_document"],
+      "locator": "Audit section Entry comparison",
+      "not_evidence_for": ["failed robot transitions", "infeasibility after explicit entry treatment"]
+    },
+    {
+      "finding_id": "float32_runtime_endpoint_mapping",
+      "finding_type": "local_measurement",
+      "title": "Configured crop times must use runtime float32 FPS",
+      "statement": "Bounds formed with runtime float32 FPS land on the intended integer frame coordinates; supplied-float64 reporting times do not always do so. Recomputed runtime/native seam metrics differ by at most 2.384185791015625e-7 across the three fixed rows.",
+      "source_ids": ["basic_walk_numeric", "analysis_script", "gmt_contracts", "gmt_reference_runtime", "gmt_reference_math", "audit_document"],
+      "locator": "Audit section Supplied time versus configured runtime time",
+      "not_evidence_for": ["discrete controller wrap feasibility", "policy parity"]
+    },
+    {
+      "finding_id": "numeric_fitness_only",
+      "finding_type": "project_interpretation",
+      "title": "Native crop audit is numeric fitness, not dynamics evidence",
+      "statement": "The audit used no simulator, actor, dynamics, contact, stability, task-success, or policy-evaluation result. Any later oracle-only revision must declare its entry treatment and run separate dynamics and evaluator gates.",
+      "source_ids": ["audit_document", "analysis_script"],
+      "locator": "Audit Decision boundary and Reproduction",
+      "not_evidence_for": ["trackability", "contact feasibility", "stability", "learned task success"]
+    }
+  ],
+  "not_evidence_for": [
+    "controller trackability or dynamics feasibility",
+    "contact, stability, path, or learned-task success",
+    "policy-evaluation ranking",
+    "authorization to modify a locked experiment"
+  ]
+}

@@ -12,6 +12,7 @@ a current review run instead of rewriting the snapshot.
 | --- | --- | --- |
 | evidence/legacy_policy_harness_kg/ | Paper evidence copied verbatim; two private-context labels sanitized | Historical research record; not the current project contract |
 | evidence/engineering_methods/ | Registered process/orchestration sources | Engineering context; not direct oracle evidence |
+| evidence/reference_audits/ | Optional typed G1 public-source and local numeric audit records | Discovery only; external motion is not admitted and numeric crop fitness is not dynamics evidence |
 | literature_review/01_process/001_oracle_composition/ | New, empty review scaffold | Process only until the human review gates are approved |
 | ../docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md | New sanitized decision record | Current user direction; not literature evidence |
 | ../archive/MIGRATION_MANIFEST.json | Generated provenance ledger | Byte-level receipt for this migration |
@@ -59,3 +60,17 @@ From research/evidence/legacy_policy_harness_kg/, run:
 The graph database, generated graph exports, generated summary, and generated
 bibliography were intentionally not migrated. They can be regenerated in a
 disposable workspace from the copied source artifacts when needed.
+
+To include the two provenance-bearing reference audits in a fresh instance of
+the existing SQLite index:
+
+```bash
+humanoid-harness research build \
+  --extractions research/evidence/legacy_policy_harness_kg/extractions \
+  --supplemental-records research/evidence/reference_audits/records \
+  --database /tmp/humanoid-harness-research.db
+```
+
+The supplemental option is additive. Omitting it preserves the legacy-only
+build. Supplemental results retain their explicit evidence status and are not
+inserted into the paper table or connected to project knobs with `INFORMS`.

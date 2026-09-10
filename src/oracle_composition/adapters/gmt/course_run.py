@@ -7,41 +7,38 @@ import hashlib
 import json
 import platform
 import time
+from collections.abc import Callable
 from pathlib import Path
 
+import gymnasium as gym
 import numpy as np
 import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
-from .composition import COMPOSITION_RUNTIME_ID, ComposedReference
-from .control_runtime import G1ControlRuntime, GMTActorSession
+from .composition import ComposedReference
+from .control_runtime import G1ControlRuntime, GMTActorSession, PreparedControl
 from .course_config import CourseRunConfig, load_run_config
 from .course_evaluation import evaluate_episode
-from .gym_env import GYM_RUNTIME_ID, RESIDUAL_OBSERVATION_DIM, RESIDUAL_RAW_SCALE, GMTResidualEnv
+from .course_runtime import frozen_runtime_contract
+from .gym_env import RESIDUAL_RAW_SCALE, GMTResidualEnv
 from .io import sha256_file, write_deterministic_npz, write_json_receipt
-
-TRAINING_CONTRACT = {
-    "algorithm": "stable_baselines3.PPO",
-    "device": "cpu",
-    "n_steps": 512,
-    "batch_size": 128,
-    "n_epochs": 4,
-    "learning_rate": 0.0003,
-    "gamma": 0.99,
-    "gae_lambda": 0.95,
-    "clip_range": 0.2,
-    "target_kl": 0.02,
-    "ent_coef": 0.0,
-    "vf_coef": 0.5,
-    "max_grad_norm": 0.5,
-    "net_arch": [128, 128],
-    "log_std_init": -1.5,
-    "observation_normalization": "none",
-    "reward_normalization": "none",
-    "initial_mean_action": "zero_output_layer",
-    "checkpoint_selection": "final_fixed_budget_only",
-}
+from .training_contract import (
+    CourseTrainerSpec,
+    effective_training_contract,
+    training_reward_metadata,
+)
+from .training_features import extractor_kwargs
+from .training_normalizer import (
+    FixedNormalizerState,
+    pinned_normalizer_from_actor,
+    policy_normalizer_metadata,
+)
+from .training_telemetry import (
+    TrainingTelemetry,
+    telemetry_filename,
+)
+from .training_wrapper import training_env as precondition_training_env
 
 
 def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMTResidualEnv:
@@ -55,12 +52,23 @@ def make_env(config: CourseRunConfig, *, record_trajectory: bool = False) -> GMT
         task=config.task,
         recipe=config.recipe,
         record_trajectory=record_trajectory,
+        runtime=config.runtime,
     )
 
 
-def make_policy(env: GMTResidualEnv, seed: int) -> PPO:
+def make_policy(
+    env: gym.Env,
+    seed: int,
+    trainer: CourseTrainerSpec | None = None,
+    *,
+    fixed_normalizer: FixedNormalizerState | None = None,
+) -> PPO:
+    effective = effective_training_contract(trainer)
+    contract = effective if trainer is None else effective["base_ppo_contract"]
+    if type(contract) is not dict:
+        raise ValueError("effective PPO contract is malformed")
     kwargs = {
-        key: TRAINING_CONTRACT[key]
+        key: contract[key]
         for key in (
             "n_steps",
             "batch_size",
@@ -75,13 +83,24 @@ def make_policy(env: GMTResidualEnv, seed: int) -> PPO:
             "max_grad_norm",
         )
     }
+    uses_fixed_normalizer = bool(
+        trainer is not None and trainer.uses_fixed_observation_normalizer
+    )
+    if uses_fixed_normalizer != (fixed_normalizer is not None):
+        raise ValueError("fixed-normalizer trainer and buffers must be supplied together")
+    policy_kwargs = {
+        "net_arch": contract["net_arch"],
+        "log_std_init": contract["log_std_init"],
+    }
+    if fixed_normalizer is not None:
+        policy_kwargs.update(extractor_kwargs(fixed_normalizer))
     model = PPO(
         "MlpPolicy",
         env,
         seed=seed,
         device="cpu",
         verbose=0,
-        policy_kwargs={"net_arch": [128, 128], "log_std_init": -1.5},
+        policy_kwargs=policy_kwargs,
         **kwargs,
     )
     # Deterministic initialization preserves the verified frozen-base behavior.
@@ -91,10 +110,15 @@ def make_policy(env: GMTResidualEnv, seed: int) -> PPO:
     return model
 
 
-def _numeric_policy(model: PPO, path: Path) -> str:
+def _numeric_policy(
+    model: PPO, path: Path, *, fixed_normalizer: FixedNormalizerState | None = None
+) -> str:
+    state_dict = model.policy.state_dict()
+    if fixed_normalizer is not None:
+        policy_normalizer_metadata(state_dict, fixed_normalizer)
     arrays = {
         name: value.detach().cpu().numpy().copy()
-        for name, value in model.policy.state_dict().items()
+        for name, value in state_dict.items()
     }
     if not all(np.isfinite(value).all() for value in arrays.values()):
         raise ValueError("learned policy contains non-finite state")
@@ -113,8 +137,17 @@ def _frozen_actor_digest(env: GMTResidualEnv) -> str:
     return digest.hexdigest()
 
 
+RolloutStepObserver = Callable[[PreparedControl, np.ndarray], None]
+
+
 def _rollout(
-    config: CourseRunConfig, env: GMTResidualEnv, model: PPO | None, output: Path, label: str
+    config: CourseRunConfig,
+    env: GMTResidualEnv,
+    model: PPO | None,
+    output: Path,
+    label: str,
+    *,
+    step_observer: RolloutStepObserver | None = None,
 ) -> tuple[dict, dict[str, str]]:
     observation, reset_info = env.reset(seed=config.raw["seed"])
     initial_qpos, initial_qvel = env._boundary.qpos.copy(), env._boundary.qvel.copy()
@@ -126,6 +159,8 @@ def _rollout(
             if model is None
             else model.predict(observation, deterministic=True)[0].astype(np.float32)
         )
+        if step_observer is not None:
+            step_observer(env._prepared, action)
         observation, scalar_reward, terminated, truncated, info = env.step(action)
         if not np.isfinite(observation).all() or not np.isfinite(scalar_reward):
             raise ValueError("non-finite evaluation trajectory")
@@ -134,7 +169,7 @@ def _rollout(
         total_reward += scalar_reward
         if terminated or truncated:
             break
-    score = evaluate_episode(spec=config.task, frames=frames)
+    score = evaluate_episode(spec=config.task, frames=frames, runtime=config.runtime)
     rows_path = output / f"{label}_frames.jsonl"
     with rows_path.open("x", encoding="utf-8") as handle:
         for row in frames:
@@ -177,8 +212,9 @@ def _rollout(
 
 
 class _TrainingProgress(BaseCallback):
-    def __init__(self) -> None:
+    def __init__(self, telemetry: TrainingTelemetry) -> None:
         super().__init__()
+        self.telemetry = telemetry
         self.started = time.monotonic()
         self.episodes = 0
         self.falls = 0
@@ -188,6 +224,9 @@ class _TrainingProgress(BaseCallback):
             np.isfinite(np.asarray(self.locals[key])).all() for key in ("rewards", "new_obs")
         ):
             raise ValueError("non-finite training transition")
+        self.telemetry.observe_step(
+            self.locals["rewards"], self.locals["dones"], self.locals["infos"]
+        )
         for done, info in zip(self.locals["dones"], self.locals["infos"], strict=True):
             if done:
                 self.episodes += 1
@@ -195,6 +234,12 @@ class _TrainingProgress(BaseCallback):
         return True
 
     def _on_rollout_end(self) -> None:
+        self.telemetry.rollout_boundary(
+            self.num_timesteps,
+            self.model.rollout_buffer.observations,
+            self.logger.name_to_value,
+            getattr(self.model, "_n_updates", None),
+        )
         print(
             json.dumps(
                 {
@@ -206,6 +251,12 @@ class _TrainingProgress(BaseCallback):
                 }
             ),
             flush=True,
+        )
+
+    def _on_training_end(self) -> None:
+        self.telemetry.final_update(
+            self.logger.name_to_value,
+            getattr(self.model, "_n_updates", None),
         )
 
 
@@ -230,22 +281,58 @@ def run_course(config_path: Path, output: Path) -> dict:
     learned_steps = 0
     training = None
     if config.raw["mode"] == "train":
-        training_env = make_env(config)
-        base_before = _frozen_actor_digest(training_env)
-        model = make_policy(training_env, config.raw["seed"])
-        outputs["initial_residual_policy.npz"] = _numeric_policy(
-            model, output / "initial_residual_policy.npz"
+        raw_training_env = make_env(config)
+        training_env = precondition_training_env(raw_training_env, config.trainer)
+        base_before = _frozen_actor_digest(raw_training_env)
+        fixed_normalizer = (
+            pinned_normalizer_from_actor(raw_training_env.actor._actor)
+            if config.trainer is not None
+            and config.trainer.uses_fixed_observation_normalizer
+            else None
         )
-        callback = _TrainingProgress()
-        model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
-        base_after = _frozen_actor_digest(training_env)
+        model = make_policy(
+            training_env,
+            config.raw["seed"],
+            config.trainer,
+            fixed_normalizer=fixed_normalizer,
+        )
+        outputs["initial_residual_policy.npz"] = _numeric_policy(
+            model,
+            output / "initial_residual_policy.npz",
+            fixed_normalizer=fixed_normalizer,
+        )
+        reward_scale = (
+            config.trainer.total_training_reward_scale
+            if config.trainer is not None
+            else None
+        )
+        telemetry_name = telemetry_filename(
+            reward_scale=reward_scale,
+            fixed_normalizer_sha256=(
+                fixed_normalizer.sha256 if fixed_normalizer is not None else None
+            ),
+            runtime=config.runtime,
+        )
+        with TrainingTelemetry(
+            output / telemetry_name,
+            reward_scale=reward_scale,
+            fixed_normalizer=fixed_normalizer,
+            runtime=config.runtime,
+        ) as telemetry:
+            callback = _TrainingProgress(telemetry)
+            model.learn(total_timesteps=config.raw["training_steps"], callback=callback)
+            telemetry_descriptor = telemetry.descriptor(config.raw["training_steps"])
+        outputs[telemetry_name] = str(telemetry_descriptor["sha256"])
+        base_after = _frozen_actor_digest(raw_training_env)
         if base_after != base_before:
             raise ValueError("training changed the frozen base actor state")
         learned_steps = int(model.num_timesteps)
         if learned_steps != config.raw["training_steps"]:
             raise ValueError("completed training steps differ from the frozen budget")
         outputs["final_residual_policy.npz"] = _numeric_policy(
-            model, output / "final_residual_policy.npz"
+            model,
+            output / "final_residual_policy.npz",
+            fixed_normalizer=fixed_normalizer,
         )
         final, artifacts = _rollout(config, env, model, output, "final_policy")
         outputs.update(artifacts)
@@ -256,7 +343,14 @@ def run_course(config_path: Path, output: Path) -> dict:
             "policy_artifact": "numeric_weights_not_optimizer_resume",
             "frozen_base_state_before_sha256": base_before,
             "frozen_base_state_after_sha256": base_after,
+            "telemetry": telemetry_descriptor,
         }
+        if config.trainer is not None:
+            training["reward_preconditioning"] = training_reward_metadata(config.trainer)
+        if fixed_normalizer is not None:
+            training["observation_preconditioning"] = policy_normalizer_metadata(
+                model.policy.state_dict(), fixed_normalizer
+            )
         training_env.close()
     env.close()
     manifest = {
@@ -271,13 +365,11 @@ def run_course(config_path: Path, output: Path) -> dict:
             "reward": config.recipe.sha256,
             "segments": {name: segment.sha256 for name, segment in config.segments.items()},
         },
-        "frozen_runtime": {
-            "gym": GYM_RUNTIME_ID,
-            "composition": COMPOSITION_RUNTIME_ID,
-            "observation_dim": RESIDUAL_OBSERVATION_DIM,
-            "residual_raw_scale": float(RESIDUAL_RAW_SCALE),
-            "trainer": TRAINING_CONTRACT,
-        },
+        "frozen_runtime": frozen_runtime_contract(
+            config.runtime,
+            trainer=effective_training_contract(config.trainer),
+            residual_raw_scale=float(RESIDUAL_RAW_SCALE),
+        ),
         "training": training,
         "zero_residual": initial,
         "final_policy": final,

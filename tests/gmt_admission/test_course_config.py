@@ -6,6 +6,18 @@ import json
 import pytest
 
 from oracle_composition.adapters.gmt import course_config as module
+from oracle_composition.adapters.gmt.course_runtime import (
+    AFTER_HEADING_FEEDBACK_RUNTIME,
+    AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
+    FINITE_HORIZON_RUNTIME,
+    FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME,
+    FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    LEGACY_RUNTIME,
+    LOOP_RUNTIME,
+    LOOP_RUNTIME_PROFILE_ID,
+)
+from oracle_composition.adapters.gmt.heading_feedback import after_heading_feedback_contract
 
 
 @pytest.fixture
@@ -91,12 +103,138 @@ def test_exact_config_and_raw_byte_identity(admitted_config):
     raw, path = admitted_config
     path.write_text(json.dumps(raw))
     admitted = module.load_run_config(path)
+    assert admitted.encoded == path.read_bytes()
+    assert admitted.trainer is None and "trainer" not in admitted.raw
+    assert admitted.runtime == LEGACY_RUNTIME
     assert admitted.program.initial == "before"
     assert admitted.task.horizon_steps == 1000
     assert admitted.segments["walk"].duration == 10.0
     original = admitted.sha256
     path.write_text(json.dumps(raw, indent=2))
     assert module.load_run_config(path).sha256 != original
+
+
+def test_exact_opt_in_trainer_profile_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": module.CourseTrainerSpec(1.0 / 64.0).to_dict()["schema_id"],
+        "schema_version": 1,
+        "total_training_reward_scale": 0.015625,
+    }
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == module.CourseTrainerSpec(1.0 / 64.0)
+
+
+def test_exact_low_rate_trainer_profile_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(
+        1.0 / 64.0,
+        profile_version=2,
+    )
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == trainer
+
+
+def test_exact_fixed_normalizer_trainer_is_admitted_without_rewriting_input(
+    admitted_config,
+):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.raw == raw
+    assert admitted.trainer == trainer
+
+
+@pytest.mark.parametrize("scale", [1.0, True, float("nan"), float("inf"), "0.015625"])
+def test_unadmitted_training_reward_scales_fail_closed(admitted_config, scale):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": 1,
+        "total_training_reward_scale": scale,
+    }
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match=r"reward scale|JSON"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize("schema_version", [True, 1.0])
+def test_trainer_schema_version_requires_exact_integer(admitted_config, schema_version):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": schema_version,
+        "total_training_reward_scale": 0.015625,
+    }
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="schema identity"):
+        module.load_run_config(path)
+
+
+def test_trainer_rejects_unknown_fields_and_probe_mode(admitted_config):
+    raw, path = admitted_config
+    raw["trainer"] = {
+        "schema_id": "gmt_g1_total_training_reward_preconditioning/v1",
+        "schema_version": 1,
+        "total_training_reward_scale": 0.015625,
+        "learning_rate": 1e-3,
+    }
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="trainer fields"):
+        module.load_run_config(path)
+    raw["trainer"].pop("learning_rate")
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="train mode"):
+        module.load_run_config(path)
+
+
+def test_low_rate_trainer_rejects_rate_or_field_authoring(admitted_config):
+    raw, path = admitted_config
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(
+        1.0 / 64.0,
+        profile_version=2,
+    ).to_dict()
+    raw["trainer"] = trainer
+    for update in (
+        {"learning_rate": 1e-4},
+        {"learning_rate": True},
+        {"learning_rate_schedule": "linear"},
+    ):
+        raw["trainer"] = {**trainer, **update}
+        path.write_text(json.dumps(raw))
+        with pytest.raises(ValueError, match="trainer"):
+            module.load_run_config(path)
 
 
 def test_course_config_admits_exact_reward_v2(admitted_config):
@@ -117,9 +255,7 @@ def test_course_config_admits_exact_reward_v2(admitted_config):
     admitted = module.load_run_config(path)
 
     assert admitted.recipe == reward_v2
-    assert admitted.recipe.sha256 != module.TaskRewardRecipe(
-        1.0, 2.0, 1.0, 0.5, 1.0
-    ).sha256
+    assert admitted.recipe.sha256 != module.TaskRewardRecipe(1.0, 2.0, 1.0, 0.5, 1.0).sha256
 
 
 @pytest.mark.parametrize(
@@ -170,4 +306,418 @@ def test_training_budget_is_exact_rollout_multiple(admitted_config, steps):
     raw.update(mode="train", training_steps=steps)
     path.write_text(json.dumps(raw))
     with pytest.raises(ValueError, match="training steps"):
+        module.load_run_config(path)
+
+
+def _enable_loop_runtime(raw: dict) -> None:
+    raw["schema_version"] = 2
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": LOOP_RUNTIME_PROFILE_ID,
+    }
+    raw["segments"] = {
+        "walk": {
+            "motion_name": "walk_stand",
+            "start_seconds": 0.0,
+            "end_seconds": 10.0,
+        },
+        "crouch": {
+            "motion_name": "walk_stand",
+            "entry_phase_end_seconds": 0.15,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+            "exit_at_loop_boundary": True,
+            "start_seconds": 2.7,
+            "end_seconds": 4.86,
+        },
+    }
+    raw["oracle"]["behaviors"] = ["walk", "crouch"]
+    raw["oracle"]["states"]["inside"]["behavior"] = "crouch"
+
+
+def _enable_finite_horizon_runtime(raw: dict) -> None:
+    raw["schema_version"] = 3
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    }
+
+
+def _enable_after_heading_feedback_runtime(raw: dict) -> None:
+    _enable_loop_runtime(raw)
+    raw["schema_version"] = 4
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
+    }
+    raw["segments"].update(
+        {
+            "rise": {
+                "motion_name": "walk_stand",
+                "start_seconds": 5.72,
+                "end_seconds": 6.5,
+                "entry_phase_end_seconds": 0.0,
+                "boundary": "hold_last_pose_zero_velocity",
+            },
+            "walk_after": {
+                "motion_name": "walk_stand",
+                "start_seconds": 6.5,
+                "end_seconds": 7.0,
+            },
+        }
+    )
+    raw["oracle"]["behaviors"] = ["walk", "crouch", "rise", "walk_after"]
+    raw["oracle"]["states"] = {
+        "before": {"behavior": "walk", "min_dwell": 25},
+        "inside": {"behavior": "crouch", "min_dwell": 25},
+        "rise": {"behavior": "rise", "min_dwell": 24},
+        "after": {"behavior": "walk_after", "min_dwell": 25},
+    }
+    raw["oracle"]["transitions"] = [
+        {"from": "before", "to": "inside", "priority": 0, "guard": "x_travelled >= 1"},
+        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2.05"},
+        {"from": "rise", "to": "after", "priority": 0, "guard": "dwell >= 24"},
+    ]
+
+
+def _enable_four_state_finite_horizon_runtime(raw: dict) -> None:
+    _enable_after_heading_feedback_runtime(raw)
+    raw["schema_version"] = 5
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+    }
+
+
+def test_config_v5_admits_exact_four_state_finite_horizon_training(admitted_config):
+    raw, path = admitted_config
+    _enable_four_state_finite_horizon_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.runtime == FOUR_STATE_FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert admitted.runtime.training_admitted is True
+    assert admitted.runtime.after_heading_reference_feedback is False
+    assert admitted.trainer == trainer
+    assert set(admitted.program.states) == {"before", "inside", "rise", "after"}
+    manifest = admitted.runtime.manifest_contract()
+    assert manifest == {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "rise", "after"],
+        "training_admitted": True,
+        "loop_exit_gate": {
+            "guard_sampling": "fresh_signals_only_at_first_50hz_boundary_crossing_loop_end",
+            "float32_boundary_tolerance": "four_eps_times_max_source_end_or_one",
+            "maximum_deferral": "one_loop_period_plus_one_control_interval",
+            "control_interval_seconds": 0.02,
+        },
+        "termination": {
+            "fall": "terminated",
+            "intrinsic_horizon": "terminated",
+            "truncated": False,
+            "remaining_time_observation": "task_features.remaining_horizon_fraction",
+        },
+    }
+    assert "after_heading_reference_feedback" not in manifest
+    assert LOOP_RUNTIME.training_admitted is False
+
+
+def test_config_v5_requires_exact_profile_and_exact_four_states(admitted_config):
+    raw, path = admitted_config
+    _enable_four_state_finite_horizon_runtime(raw)
+    raw["runtime"] = {
+        "schema_version": 1,
+        "profile_id": FOUR_STATE_FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "heading_feedback": False,
+    }
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+    _enable_four_state_finite_horizon_runtime(raw)
+    del raw["oracle"]["states"]["rise"]
+    raw["oracle"]["transitions"] = [
+        raw["oracle"]["transitions"][0],
+        {"from": "inside", "to": "after", "priority": 0, "guard": "x_travelled >= 2"},
+    ]
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="exact four-state"):
+        module.load_run_config(path)
+
+
+def test_config_v4_admits_only_exact_four_state_probe_with_fixed_law(admitted_config):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == AFTER_HEADING_FEEDBACK_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert set(admitted.program.states) == {"before", "inside", "rise", "after"}
+    manifest = admitted.runtime.manifest_contract()
+    assert manifest["after_heading_reference_feedback"] == after_heading_feedback_contract()
+    assert manifest["training_admitted"] is False
+
+
+def test_config_v4_is_probe_only_and_requires_four_states(admitted_config):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="probe-only"):
+        module.load_run_config(path)
+
+    raw.update(mode="probe", training_steps=0)
+    del raw["oracle"]["states"]["rise"]
+    raw["oracle"]["transitions"] = [
+        raw["oracle"]["transitions"][0],
+        {"from": "inside", "to": "after", "priority": 0, "guard": "x_travelled >= 2"},
+    ]
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="exact four-state"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID},
+        {
+            "schema_version": 1,
+            "profile_id": AFTER_HEADING_FEEDBACK_RUNTIME_PROFILE_ID,
+            "gain": 0.4,
+        },
+    ],
+)
+def test_config_v4_rejects_runtime_aliases_and_authorable_gains(
+    admitted_config, runtime
+):
+    raw, path = admitted_config
+    _enable_after_heading_feedback_runtime(raw)
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+
+def test_config_v3_admits_exact_three_state_finite_horizon_training(admitted_config):
+    raw, path = admitted_config
+    _enable_finite_horizon_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    trainer = module.CourseTrainerSpec(1.0 / 64.0, profile_version=3)
+    raw["trainer"] = trainer.to_dict()
+    encoded = json.dumps(raw, separators=(",", ":")).encode()
+    path.write_bytes(encoded)
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.encoded == encoded
+    assert admitted.runtime == FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.observation_dim == 2_171
+    assert admitted.trainer == trainer
+    assert admitted.runtime.manifest_contract() == {
+        "schema_version": 1,
+        "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "after"],
+        "training_admitted": True,
+        "termination": {
+            "fall": "terminated",
+            "intrinsic_horizon": "terminated",
+            "truncated": False,
+            "remaining_time_observation": "task_features.remaining_horizon_fraction",
+        },
+    }
+
+
+def test_config_v3_preserves_three_state_non_loop_runtime(admitted_config):
+    raw, path = admitted_config
+    _enable_finite_horizon_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == FINITE_HORIZON_RUNTIME
+    assert admitted.runtime.composition_runtime_id == LEGACY_RUNTIME.composition_runtime_id
+    assert admitted.runtime.state_slots == LEGACY_RUNTIME.state_slots
+    assert admitted.runtime.permits_entry_loop is False
+
+
+def test_config_v2_admits_loop_profile_and_three_state_control_subset(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert admitted.runtime == LOOP_RUNTIME
+    assert admitted.runtime.observation_dim == 2_172
+    assert set(admitted.program.states) == {"before", "inside", "after"}
+    assert admitted.segments["crouch"].loop_start_seconds == 3.9
+    assert admitted.segments["crouch"].exit_at_loop_boundary is True
+
+
+def test_config_v2_admits_full_four_state_oracle(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    raw["segments"]["rise"] = {
+        "motion_name": "walk_stand",
+        "start_seconds": 5.72,
+        "end_seconds": 6.5,
+        "entry_phase_end_seconds": 0.0,
+        "boundary": "hold_last_pose_zero_velocity",
+    }
+    raw["oracle"]["behaviors"] = ["walk", "crouch", "rise"]
+    raw["oracle"]["states"] = {
+        "before": {"behavior": "walk", "min_dwell": 25},
+        "inside": {"behavior": "crouch", "min_dwell": 25},
+        "rise": {"behavior": "rise", "min_dwell": 24},
+        "after": {"behavior": "walk", "min_dwell": 25},
+    }
+    raw["oracle"]["transitions"] = [
+        {"from": "before", "to": "inside", "priority": 0, "guard": "x_travelled >= 1"},
+        {"from": "inside", "to": "rise", "priority": 0, "guard": "x_travelled >= 2.05"},
+        {
+            "from": "rise",
+            "to": "after",
+            "priority": 0,
+            "guard": "(dwell >= 24 and z_root >= 0.70) or dwell >= 40",
+        },
+    ]
+    path.write_text(json.dumps(raw))
+
+    admitted = module.load_run_config(path)
+
+    assert tuple(admitted.runtime.state_slots) == ("before", "inside", "rise", "after")
+    assert set(admitted.program.states) == set(admitted.runtime.state_slots)
+
+
+def test_loop_profile_is_probe_only_and_legacy_profile_prohibits_loop(admitted_config):
+    raw, path = admitted_config
+    legacy = copy.deepcopy(raw)
+    legacy["segments"]["walk"].update(
+        {
+            "entry_phase_end_seconds": 0.15,
+            "boundary": "entry_once_then_loop",
+            "loop_start_seconds": 3.9,
+        }
+    )
+    path.write_text(json.dumps(legacy))
+    with pytest.raises(ValueError, match="legacy runtime prohibits"):
+        module.load_run_config(path)
+
+    _enable_loop_runtime(raw)
+    raw.update(mode="train", training_steps=512)
+    path.write_text(json.dumps(raw))
+    with pytest.raises(ValueError, match="probe-only"):
+        module.load_run_config(path)
+
+
+def test_loop_profile_rejects_sub_control_repeat_window(admitted_config):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    raw["segments"]["crouch"]["loop_start_seconds"] = 4.859
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="at least one control interval"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": LOOP_RUNTIME_PROFILE_ID},
+        {"schema_version": 1, "profile_id": LOOP_RUNTIME_PROFILE_ID, "extra": 1},
+    ],
+)
+def test_config_v2_requires_exact_runtime_profile(admitted_config, runtime):
+    raw, path = admitted_config
+    raw["schema_version"] = 2
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"schema_version": 1, "profile_id": "unknown"},
+        {"schema_version": True, "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID},
+        {
+            "schema_version": 1,
+            "profile_id": FINITE_HORIZON_RUNTIME_PROFILE_ID,
+            "termination": "caller_authored",
+        },
+    ],
+)
+def test_config_v3_requires_exact_finite_horizon_runtime_profile(
+    admitted_config, runtime
+):
+    raw, path = admitted_config
+    raw["schema_version"] = 3
+    raw["runtime"] = runtime
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+
+def test_existing_runtime_manifest_shapes_remain_exact() -> None:
+    assert LEGACY_RUNTIME.manifest_contract() is None
+    assert LOOP_RUNTIME.manifest_contract() == {
+        "schema_version": 1,
+        "profile_id": LOOP_RUNTIME_PROFILE_ID,
+        "state_observation_slots": ["before", "inside", "rise", "after"],
+        "training_admitted": False,
+        "loop_exit_gate": {
+            "guard_sampling": "fresh_signals_only_at_first_50hz_boundary_crossing_loop_end",
+            "float32_boundary_tolerance": "four_eps_times_max_source_end_or_one",
+            "maximum_deferral": "one_loop_period_plus_one_control_interval",
+            "control_interval_seconds": 0.02,
+        },
+    }
+
+
+def test_loop_profile_rejects_unknown_states_recovery_and_state_only_transitions(
+    admitted_config,
+):
+    raw, path = admitted_config
+    _enable_loop_runtime(raw)
+    unknown = copy.deepcopy(raw)
+    unknown["oracle"]["states"]["detour"] = unknown["oracle"]["states"].pop("after")
+    unknown["oracle"]["transitions"][1]["to"] = "detour"
+    path.write_text(json.dumps(unknown))
+    with pytest.raises(ValueError, match="runtime profile"):
+        module.load_run_config(path)
+
+    recovery = copy.deepcopy(raw)
+    recovery["oracle"]["recovery"] = {
+        "behavior": "walk",
+        "guard": "z_root < 0.3",
+        "max_duration": 25,
+        "min_dwell": 5,
+        "reentry_dwell": 25,
+        "rejoin": "suspended_state_dwell_reset",
+    }
+    path.write_text(json.dumps(recovery))
+    with pytest.raises(ValueError, match="does not admit recovery"):
+        module.load_run_config(path)
+
+    state_only = copy.deepcopy(raw)
+    state_only["oracle"]["states"]["after"]["behavior"] = "crouch"
+    path.write_text(json.dumps(state_only))
+    with pytest.raises(ValueError, match="behavior-changing"):
         module.load_run_config(path)

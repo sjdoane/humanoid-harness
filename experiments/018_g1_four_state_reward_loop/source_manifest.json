@@ -1,0 +1,137 @@
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "evidence_id": "E001",
+      "title": "Study018 predata protocol",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "experiments/018_g1_four_state_reward_loop/PROTOCOL.md; SHA256=92672e183a357fa795b6f7be7275d00c794b6dfd90a2fd585bf3ec00ac8ec2c8",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E002",
+      "title": "Study018 reconstructed admission score",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "artifacts/gmt/course_configs/study018_baseline_admission_20260907.json; SHA256=ee15d6fd24703f5785e9a825db6a3557168e6feec5a5f2333f42f69e41d3d08f",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E003",
+      "title": "Study018 run manifest",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-probe-runs/gmt_course_study018_baseline_20260907/course_run_manifest.json; SHA256=33b5e25ea8dfa7a8e3a4f520e7386edce067b920d75201e8ffb81581bd96f705",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E004",
+      "title": "Study018 posthoc phase diagnostic",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "artifacts/gmt/course_configs/study018_physical_phase_diagnostic_20260907.json; SHA256=ac640fd299070cbb2c00e1f2097d59189d736f3f1066aa1a6f159099b93bf15c",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E005",
+      "title": "Study018 predata seal",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": ".orchestration/study018_seal_20260907.json; SHA256=aaf9d636561f04878bac690f0006068a14d5f2d373f3f204a5d316e59a14e4cb",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    },
+    {
+      "evidence_id": "E006",
+      "title": "Study018 recorded-state GIF receipt",
+      "authors": [],
+      "source_type": "other",
+      "confidentiality": "restricted",
+      "year": 2026,
+      "identifiers": {
+        "doi": "",
+        "isbn": "",
+        "pmcid": "",
+        "pmid": "",
+        "url": ""
+      },
+      "locator": "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-probe-runs/gmt_course_study018_baseline_recorded_20260907.gif.manifest.json; SHA256=e26c91201a759aa4a3e007e950e1815a17a325aa697d6f0301e7de9b9d5c10de",
+      "verification": {
+        "source_opened": false,
+        "status": "unverified",
+        "verified_by": "",
+        "verified_on": ""
+      }
+    }
+  ]
+}
