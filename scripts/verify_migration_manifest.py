@@ -12,6 +12,10 @@ from typing import Any
 
 _REVIEW_ROOT = PurePosixPath("research/literature_review/01_process/001_oracle_composition")
 _ARCHIVE_ROOT = PurePosixPath("archive/initial_review_scaffold")
+_BOUNDARY_ARCHIVE_ROOT = PurePosixPath("archive/initial_migration_boundaries")
+_ARCHIVED_BOUNDARY_PATHS = frozenset(
+    {"research/README.md", "docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md"}
+)
 _ARCHIVED_REVIEW_PATHS = frozenset(
     {
         (_REVIEW_ROOT / "README.md").as_posix(),
@@ -86,7 +90,7 @@ def verify_manifest(
     if (
         not isinstance(schema_version, int)
         or isinstance(schema_version, bool)
-        or schema_version not in {1, 2}
+        or schema_version not in {1, 2, 3}
     ):
         errors.append("unsupported migration manifest schema_version")
 
@@ -96,6 +100,7 @@ def verify_manifest(
     _validate_classifications(copied_files, authored_files, errors)
     _validate_counts(manifest, copied_files, authored_files, errors)
     _validate_redirect_contract(schema_version, copied_files, authored_files, errors)
+    redirected_paths = _redirected_paths(schema_version)
 
     entries: list[tuple[str, dict[str, Any]]] = []
     entries.extend(("copied", item) for item in copied_files)
@@ -112,9 +117,8 @@ def verify_manifest(
         verification_relative = relative
         expected_verification = _expected_verification_path(relative)
         if (
-            schema_version == 2
-            and kind == "authored"
-            and relative in _ARCHIVED_REVIEW_PATHS
+            kind == "authored"
+            and relative in redirected_paths
             and item.get("verification_path") == expected_verification
         ):
             verification_relative = expected_verification
@@ -293,21 +297,35 @@ def _validate_redirect_contract(
         if authored_redirect_paths:
             errors.append("schema_version 1 must not declare verification_path")
         return
-    if schema_version != 2:
+    if schema_version not in (2, 3):
         return
 
-    if authored_redirect_paths != _ARCHIVED_REVIEW_PATHS:
-        errors.append("schema_version 2 must redirect exactly the initial review scaffold")
+    expected_paths = _redirected_paths(schema_version)
+    if authored_redirect_paths != expected_paths:
+        scope = "the initial review scaffold"
+        if schema_version == 3:
+            scope += " and the two migration landing documents"
+        errors.append(f"schema_version {schema_version} must redirect exactly {scope}")
     for item in authored_files:
         relative = item.get("path")
-        if relative not in _ARCHIVED_REVIEW_PATHS:
+        if relative not in expected_paths:
             continue
         expected = _expected_verification_path(relative)
         if item.get("verification_path") != expected:
             errors.append(f"{relative}: verification_path must equal {expected!r}")
 
 
+def _redirected_paths(schema_version: object) -> frozenset[str]:
+    if schema_version == 3:
+        return _ARCHIVED_REVIEW_PATHS | _ARCHIVED_BOUNDARY_PATHS
+    if schema_version == 2:
+        return _ARCHIVED_REVIEW_PATHS
+    return frozenset()
+
+
 def _expected_verification_path(relative: str) -> str:
+    if relative in _ARCHIVED_BOUNDARY_PATHS:
+        return (_BOUNDARY_ARCHIVE_ROOT / PurePosixPath(relative)).as_posix()
     return (_ARCHIVE_ROOT / PurePosixPath(relative)).as_posix()
 
 

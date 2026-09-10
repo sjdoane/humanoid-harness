@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "created_at_utc": "2026-09-02T22:57:32Z",
   "migration": {
     "source_workspace_label": "RL Sculptor local workspace",
@@ -786,12 +786,14 @@
     {
       "classification": "new_sanitized_context_boundary",
       "path": "docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md",
+      "verification_path": "archive/initial_migration_boundaries/docs/meetings/PUBLIC_CONTEXT_BOUNDARY.md",
       "sha256": "60cf53ffeba6ca4ff9635915b596c45ce9842b597341e8b26801b608827f4db2",
       "bytes": 1781
     },
     {
       "classification": "new_migration_boundary",
       "path": "research/README.md",
+      "verification_path": "archive/initial_migration_boundaries/research/README.md",
       "sha256": "f463c050f8478afe1a12b064f65a984653f420ef12bd7475d894c0d0ecb08e5a",
       "bytes": 3012
     },
@@ -927,6 +929,7 @@
     "Legacy cards and extractions were not reverified against raw papers during this migration.",
     "Formal screening tables are empty pending human approval of the review protocol.",
     "The exact initial empty review scaffold is retained under archive/initial_review_scaffold; live review paths may evolve without rewriting the migration snapshot.",
+    "The two initial migration landing documents are retained byte-for-byte under archive/initial_migration_boundaries from commit 990e515eeee4a312920471efed65bad0087d577f; their original expected hashes and sizes are unchanged while live guidance may evolve.",
     "This manifest does not claim that all collaborator knowledge or prior research context was locally available."
   ]
 }
