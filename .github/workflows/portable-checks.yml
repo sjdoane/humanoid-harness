@@ -1,0 +1,63 @@
+name: Portable software checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --locked --extra sources --extra gym --extra train --extra dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Run portable software tests
+        run: |
+          uv run pytest -q tests/unit \
+            tests/contracts/test_reference_contract.py \
+            tests/contracts/test_program_contract.py \
+            tests/contracts/test_source_motion_manifest.py \
+            tests/contracts/test_migration_manifest.py \
+            tests/research/test_knowledge_index.py \
+            tests/harness/test_composition_contract.py \
+            tests/harness/test_executor.py \
+            tests/harness/test_cycle_cli.py \
+            tests/ui/test_evidence_ui.py
+
+      - name: Verify migrated evidence receipts
+        run: uv run python scripts/verify_migration_manifest.py --repository-root .
+
+      - name: Build package
+        run: uv build

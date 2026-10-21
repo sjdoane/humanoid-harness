@@ -37,6 +37,7 @@ uv run pytest -q tests/unit \
   tests/contracts/test_reference_contract.py \
   tests/contracts/test_program_contract.py \
   tests/contracts/test_source_motion_manifest.py \
+  tests/contracts/test_migration_manifest.py \
   tests/research/test_knowledge_index.py \
   tests/harness/test_composition_contract.py \
   tests/harness/test_executor.py \
@@ -45,9 +46,15 @@ uv run pytest -q tests/unit \
 uv run python scripts/verify_migration_manifest.py --repository-root .
 ```
 
+The separate [Portable software checks](.github/workflows/portable-checks.yml)
+workflow runs this selection, repository lint, migration verification and package
+builds on Python 3.12 and 3.13. See the [October 21 check record](docs/operations/PORTABLE_CHECKS_20261021.md)
+for its scope and local verification.
+
 The full suite is `uv run pytest`. It contains historical host-, asset- and
 source-identity-dependent studies and is **not currently green**. The portable
-selection does not replace it. See [verification](docs/operations/SHARE_READINESS_20260910.md)
+selection does not replace it; the existing `ci` workflow and its repository-wide
+formatting and full-suite gates remain unchanged. See [verification](docs/operations/SHARE_READINESS_20260910.md)
 for observed results and failures; do not bypass gates to obtain a passing badge.
 
 ## Make a reviewable change
