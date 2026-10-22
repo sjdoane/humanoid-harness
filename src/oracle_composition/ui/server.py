@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import socket
 import threading
 import webbrowser
 from collections.abc import Mapping
@@ -48,6 +49,7 @@ class EvidenceServer(ThreadingHTTPServer):
     ) -> None:
         self.project_root = project_root.resolve()
         self.database = database.resolve()
+        self.address_family = socket.AF_INET6 if server_address[0] == "::1" else socket.AF_INET
         super().__init__(server_address, handler)
         self.local_media_enabled = ipaddress.ip_address(self.server_address[0]).is_loopback
         self.g1_learning_validation_lock = threading.Lock()
@@ -306,7 +308,8 @@ def serve(
         database=database,
     )
     actual_host, actual_port = server.server_address[:2]
-    url = f"http://{actual_host}:{actual_port}"
+    url_host = f"[{actual_host}]" if ":" in actual_host else actual_host
+    url = f"http://{url_host}:{actual_port}"
     print(f"Humanoid Harness evidence UI: {url}")
     print("Authority: read-only derived view; canonical files and receipts remain authoritative.")
     if open_browser:

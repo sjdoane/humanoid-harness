@@ -4,10 +4,13 @@ import hashlib
 import json
 import math
 import os
+import socket
 import struct
 import threading
 from collections.abc import Callable
+from http.client import HTTPConnection
 from pathlib import Path
+from unittest.mock import Mock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -17,6 +20,7 @@ from oracle_composition.research import build_index
 from oracle_composition.ui import create_server
 from oracle_composition.ui import local_evidence as local_evidence_module
 from oracle_composition.ui import local_reference_probe as reference_probe_module
+from oracle_composition.ui import server as server_module
 
 
 def _write_record(directory: Path, paper_id: str, title: str) -> None:
@@ -831,6 +835,72 @@ def test_ui_serves_static_shell_and_read_only_evidence_api(tmp_path: Path) -> No
     }
 
 
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
+def test_ui_serves_loopback_hosts_and_rejects_hostile_hosts(tmp_path: Path, host: str) -> None:
+    if host == "::1":
+        if not socket.has_ipv6:
+            pytest.skip("host has no IPv6 socket support")
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
+                probe.bind(("::1", 0))
+        except OSError as exc:
+            pytest.skip(f"host has no usable IPv6 loopback: {exc}")
+
+    server = create_server(host=host, port=0, project_root=tmp_path)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = HTTPConnection(host, server.server_port, timeout=2)
+    try:
+        connection.request("GET", "/health")
+        response = connection.getresponse()
+        assert response.status == 200
+        assert json.loads(response.read()) == {"authority": "read_only", "status": "ok"}
+        for hostile_host in (
+            f"[::1]:{server.server_port + 1}",
+            f"[2001:db8::1]:{server.server_port}",
+            f"attacker.invalid:{server.server_port}",
+            f"::1:{server.server_port}",
+        ):
+            connection.request("GET", "/health", headers={"Host": hostile_host})
+            response = connection.getresponse()
+            assert response.status == 421
+            assert json.loads(response.read()) == {"error": "invalid_host"}
+    finally:
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize(
+    ("server_address", "expected_url"),
+    [
+        (("127.0.0.1", 8765), "http://127.0.0.1:8765"),
+        (("::1", 8765, 0, 0), "http://[::1]:8765"),
+    ],
+)
+def test_ui_prints_and_opens_a_valid_browser_url(
+    server_address, expected_url, monkeypatch, capsys
+) -> None:
+    server = Mock(server_address=server_address)
+    server.serve_forever.side_effect = KeyboardInterrupt
+    monkeypatch.setattr(server_module, "create_server", Mock(return_value=server))
+    browser = Mock()
+    timer = Mock()
+    monkeypatch.setattr(server_module.webbrowser, "open", browser)
+    monkeypatch.setattr(server_module.threading, "Timer", timer)
+
+    server_module.serve(host=server_address[0])
+
+    assert (
+        capsys.readouterr().out.splitlines()[0] == f"Humanoid Harness evidence UI: {expected_url}"
+    )
+    timer.assert_called_once_with(0.2, browser, args=(expected_url,))
+    timer.return_value.start.assert_called_once_with()
+    browser.assert_not_called()
+    server.server_close.assert_called_once_with()
+
+
 def test_ui_serves_compact_verified_reference_probe(tmp_path: Path, monkeypatch) -> None:
     report_path = _write_reference_probe(tmp_path)
     _pin_reference_probe(report_path, monkeypatch)
@@ -1221,11 +1291,12 @@ def test_local_evidence_reader_rejects_fifo_without_blocking(tmp_path: Path) -> 
         local_evidence_module._bounded_file(tmp_path, Path("source.fifo"), limit=8)
 
 
-def test_ui_rejects_non_loopback_bind(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "2001:db8::1"])
+def test_ui_rejects_non_loopback_bind(tmp_path: Path, monkeypatch, host: str) -> None:
     _write_local_exploration(tmp_path, monkeypatch)
     with pytest.raises(ValueError, match="loopback"):
         create_server(
-            host="0.0.0.0",
+            host=host,
             port=0,
             project_root=tmp_path,
             database=tmp_path / "missing.db",
