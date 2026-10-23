@@ -60,20 +60,14 @@ def _scaled_info(step: int, *, raw_reward: float, done: bool) -> dict:
     info["training_reward"] = {
         "schema_id": "gmt_g1_training_reward_observation/v1",
         "raw_total_reward": raw_reward,
-        "scaled_optimization_reward": float(
-            np.float32(raw_reward * TRAINING_REWARD_SCALE)
-        ),
+        "scaled_optimization_reward": float(np.float32(raw_reward * TRAINING_REWARD_SCALE)),
         "total_training_reward_scale": TRAINING_REWARD_SCALE,
     }
     return info
 
 
 def _numpy_state_equal(left: tuple, right: tuple) -> bool:
-    return (
-        left[0] == right[0]
-        and np.array_equal(left[1], right[1])
-        and left[2:] == right[2:]
-    )
+    return left[0] == right[0] and np.array_equal(left[1], right[1]) and left[2:] == right[2:]
 
 
 def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
@@ -158,9 +152,7 @@ def test_undefined_explained_variance_is_null_but_other_stats_remain_strict() ->
     )
 
     assert record["metrics"]["explained_variance"] is None
-    assert record["metric_unavailable_reasons"]["explained_variance"] == (
-        "undefined_nonfinite"
-    )
+    assert record["metric_unavailable_reasons"]["explained_variance"] == ("undefined_nonfinite")
     assert record["metrics"]["approx_kl"] == 0.01
     assert "approx_kl" not in record["metric_unavailable_reasons"]
 
@@ -224,9 +216,7 @@ def test_scaled_v2_telemetry_names_ppo_input_and_raw_environment_returns(tmp_pat
         validate_training_telemetry(path.read_bytes(), 512)
 
 
-def test_v3_records_only_current_raw_rollout_fixed_normalized_range(
-    tmp_path, monkeypatch
-) -> None:
+def test_v3_records_only_current_raw_rollout_fixed_normalized_range(tmp_path, monkeypatch) -> None:
     state = _fixed_state(monkeypatch)
     observations = np.zeros((2, 2171), dtype=np.float32)
     observations[:, :2154] = state.mean + np.float32(2.0) * (
@@ -284,8 +274,7 @@ def test_v3_rejects_unbound_or_invalid_normalized_range(
     else:
         measured["threshold_passed"] = True
     encoded = b"".join(
-        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
-        for row in rows
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode() for row in rows
     )
 
     with pytest.raises(ValueError, match="rollout telemetry"):
@@ -336,8 +325,7 @@ def test_validator_rejects_boolean_or_negative_update_counts(
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     rows[-1]["update"][field] = value
     encoded = b"".join(
-        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
-        for row in rows
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode() for row in rows
     )
 
     with pytest.raises(ValueError, match="final-update"):
@@ -353,8 +341,7 @@ def test_validator_rejects_boolean_or_negative_episode_counts(tmp_path, value: o
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     rows[0]["episodes"]["falls"] = value
     encoded = b"".join(
-        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode()
-        for row in rows
+        (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode() for row in rows
     )
 
     with pytest.raises(ValueError, match="rollout telemetry"):

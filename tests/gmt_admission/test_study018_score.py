@@ -26,7 +26,9 @@ EXACT_BASELINE_CONFIG = Path(
 
 
 def _module():
-    path = Path(__file__).resolve().parents[2] / "experiments/018_g1_four_state_reward_loop/score.py"
+    path = (
+        Path(__file__).resolve().parents[2] / "experiments/018_g1_four_state_reward_loop/score.py"
+    )
     name = "study018_score_test_module"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -204,9 +206,7 @@ def test_predata_scorer_and_dependency_integrity_fail_invalid(
 
 def test_local_repository_tree_is_recomputed_and_mismatch_rejected(module) -> None:
     try:
-        _root, commit, files = module.development._repository_sources(
-            module._REPOSITORY_ROOT
-        )
+        _root, commit, files = module.development._repository_sources(module._REPOSITORY_ROOT)
     except Exception as error:
         if "clean source worktree" in str(error):
             pytest.skip("local source binding requires the committed scorer slice")
@@ -325,9 +325,7 @@ def test_exact_baseline_config_builds_frozen_study_expectation_without_running(
     }
     monkeypatch.setattr(module, "_validate_run_authority", lambda *_args, **_kwargs: {})
 
-    config, _binding, expectation = module._configuration(
-        pins, common=common, baseline=True
-    )
+    config, _binding, expectation = module._configuration(pins, common=common, baseline=True)
 
     assert config.sha256 == module.BASELINE_CONFIG_SHA256
     assert config.trainer == CourseTrainerSpec(0.015625, profile_version=3)
@@ -355,9 +353,7 @@ def test_feedback_linked_reward_proposal_reconstructs_exact_candidate_config(
             "evaluator_id": COURSE_EVALUATOR_ID,
             "claim_scope": "fixed_development_gate_only_not_heldout_or_universal",
             "task_sha256": baseline.task.sha256,
-            "development_gate_results": {
-                name: True for name in module._DEVELOPMENT_GATES
-            },
+            "development_gate_results": {name: True for name in module._DEVELOPMENT_GATES},
             "development_gate_passed": True,
             "episode_success": None,
         },
@@ -438,9 +434,7 @@ def _zero_cell(path: Path, recipe: str) -> None:
     (path / "initial_residual_policy.npz").write_bytes(b"same-policy")
 
 
-def test_pair_zero_parity_checks_numeric_and_every_nonreward_field(
-    module, tmp_path: Path
-) -> None:
+def test_pair_zero_parity_checks_numeric_and_every_nonreward_field(module, tmp_path: Path) -> None:
     first, second = tmp_path / "a", tmp_path / "b"
     _zero_cell(first, "a")
     _zero_cell(second, "b")

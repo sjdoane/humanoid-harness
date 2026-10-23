@@ -185,11 +185,7 @@ def _validate_optional_supervisor_receipt(output: Path) -> None:
         before = path.lstat()
     except FileNotFoundError:
         return
-    if (
-        stat.S_ISLNK(before.st_mode)
-        or not stat.S_ISREG(before.st_mode)
-        or before.st_nlink != 1
-    ):
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
         raise GMTAdmissionError("supervisor receipt must be a regular non-linked file")
     if not 0 < before.st_size <= _MAX_SUPERVISOR_RECEIPT_BYTES:
         raise GMTAdmissionError("supervisor receipt size is outside its bound")

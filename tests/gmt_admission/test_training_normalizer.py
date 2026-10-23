@@ -79,9 +79,7 @@ def test_fixed_state_rejects_wrong_shape_nonfinite_nonpositive_and_digest() -> N
         (mean, np.full_like(std, np.inf), "standard deviation"),
     ):
         with pytest.raises(ValueError, match=match):
-            FixedNormalizerState.from_arrays(
-                changed_mean, changed_std, expected_sha256=digest
-            )
+            FixedNormalizerState.from_arrays(changed_mean, changed_std, expected_sha256=digest)
     with pytest.raises(ValueError, match="exact identity"):
         FixedNormalizerState.from_arrays(mean, std, expected_sha256="0" * 64)
 
@@ -92,15 +90,9 @@ def test_exact_actor_buffers_and_transform_match_pinned_numeric_artifact() -> No
     contract = fixed_normalizer_contract()
 
     assert state.sha256 == FIXED_NORMALIZER_STATE_SHA256
-    assert contract["buffers"]["normalizer_mean"]["sha256"] == (
-        FIXED_NORMALIZER_MEAN_SHA256
-    )
-    assert contract["buffers"]["normalizer_std"]["sha256"] == (
-        FIXED_NORMALIZER_STD_SHA256
-    )
-    observation = np.linspace(
-        -2.0, 2.0, OBSERVATION_DIM + 17, dtype=np.float32
-    )[None, :]
+    assert contract["buffers"]["normalizer_mean"]["sha256"] == (FIXED_NORMALIZER_MEAN_SHA256)
+    assert contract["buffers"]["normalizer_std"]["sha256"] == (FIXED_NORMALIZER_STD_SHA256)
+    observation = np.linspace(-2.0, 2.0, OBSERVATION_DIM + 17, dtype=np.float32)[None, :]
     extractor = FixedActorNormalizerExtractor(
         _NumericEnvironment().observation_space,
         normalizer_mean=state.mean,
@@ -108,15 +100,13 @@ def test_exact_actor_buffers_and_transform_match_pinned_numeric_artifact() -> No
         normalizer_sha256=state.sha256,
     )
     observed = extractor(torch.from_numpy(observation)).detach().numpy()
-    expected_base = (
-        torch.from_numpy(observation[:, :OBSERVATION_DIM]) - actor.normalizer_mean
-    ) / (actor.normalizer_std + NORMALIZER_EPSILON)
+    expected_base = (torch.from_numpy(observation[:, :OBSERVATION_DIM]) - actor.normalizer_mean) / (
+        actor.normalizer_std + NORMALIZER_EPSILON
+    )
 
     assert torch.equal(torch.from_numpy(observed[:, :OBSERVATION_DIM]), expected_base)
     np.testing.assert_array_equal(observed[:, OBSERVATION_DIM:], observation[:, OBSERVATION_DIM:])
-    assert normalized_base_max_abs(observation, state) == float(
-        torch.max(torch.abs(expected_base))
-    )
+    assert normalized_base_max_abs(observation, state) == float(torch.max(torch.abs(expected_base)))
 
 
 def test_policy_factory_uses_same_extractor_and_retains_exact_zero_initial_mean(
@@ -130,9 +120,7 @@ def test_policy_factory_uses_same_extractor_and_retains_exact_zero_initial_mean(
     model = make_policy(env, 37, trainer, fixed_normalizer=state)
 
     assert isinstance(model.policy.features_extractor, FixedActorNormalizerExtractor)
-    assert sum(
-        parameter.numel() for parameter in model.policy.features_extractor.parameters()
-    ) == 0
+    assert sum(parameter.numel() for parameter in model.policy.features_extractor.parameters()) == 0
     assert model.policy.pi_features_extractor is model.policy.features_extractor
     assert model.policy.vf_features_extractor is model.policy.features_extractor
     observation = np.linspace(-1.0, 1.0, OBSERVATION_DIM + 17, dtype=np.float32)

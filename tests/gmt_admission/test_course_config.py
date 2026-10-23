@@ -499,9 +499,7 @@ def test_config_v4_is_probe_only_and_requires_four_states(admitted_config):
         },
     ],
 )
-def test_config_v4_rejects_runtime_aliases_and_authorable_gains(
-    admitted_config, runtime
-):
+def test_config_v4_rejects_runtime_aliases_and_authorable_gains(admitted_config, runtime):
     raw, path = admitted_config
     _enable_after_heading_feedback_runtime(raw)
     raw["runtime"] = runtime
@@ -663,9 +661,7 @@ def test_config_v2_requires_exact_runtime_profile(admitted_config, runtime):
         },
     ],
 )
-def test_config_v3_requires_exact_finite_horizon_runtime_profile(
-    admitted_config, runtime
-):
+def test_config_v3_requires_exact_finite_horizon_runtime_profile(admitted_config, runtime):
     raw, path = admitted_config
     raw["schema_version"] = 3
     raw["runtime"] = runtime

@@ -165,9 +165,7 @@ def test_derived_reference_rejects_training_or_unbound_provenance(mutation: str)
         asset["manifest"]["sha256"] = "0" * 64
 
     with pytest.raises(GMTAdmissionError):
-        module.admit_derived_reference(
-            module.STUDY012_INSIDE_PASSAGE.name, asset, mode=mode
-        )
+        module.admit_derived_reference(module.STUDY012_INSIDE_PASSAGE.name, asset, mode=mode)
 
 
 def test_changed_archive_or_manifest_bytes_fail_closed(tmp_path: Path) -> None:
@@ -183,16 +181,12 @@ def test_changed_archive_or_manifest_bytes_fail_closed(tmp_path: Path) -> None:
     }
     archive.write_bytes(archive.read_bytes() + b"changed")
     with pytest.raises(GMTAdmissionError, match="size mismatch"):
-        module.admit_derived_reference(
-            module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe"
-        )
+        module.admit_derived_reference(module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe")
 
     archive.write_bytes(Path(source["path"]).read_bytes())
     manifest.write_bytes(manifest.read_bytes() + b"changed")
     with pytest.raises(GMTAdmissionError, match="size mismatch"):
-        module.admit_derived_reference(
-            module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe"
-        )
+        module.admit_derived_reference(module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe")
 
 
 def test_unknown_or_missing_derived_reference_fails_closed(tmp_path: Path) -> None:
@@ -204,9 +198,7 @@ def test_unknown_or_missing_derived_reference_fails_closed(tmp_path: Path) -> No
     asset["path"] = str(missing)
     asset["manifest"]["path"] = str(missing.with_suffix(".npz.manifest.json"))
     with pytest.raises(GMTAdmissionError, match="unavailable"):
-        module.admit_derived_reference(
-            module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe"
-        )
+        module.admit_derived_reference(module.STUDY012_INSIDE_PASSAGE.name, asset, mode="probe")
 
 
 def _numeric_payload(arrays: dict[str, np.ndarray]) -> tuple[bytes, module.DerivedReferenceSpec]:
@@ -259,9 +251,7 @@ def test_course_config_and_supervised_plan_retain_exact_provenance_pair(
         raw["assets"]["motions"][module.STUDY012_INSIDE_PASSAGE.name],
         mode="probe",
     ).resource_binding
-    assert loaded.assets["motions"] == {
-        module.STUDY012_INSIDE_PASSAGE.name: expected
-    }
+    assert loaded.assets["motions"] == {module.STUDY012_INSIDE_PASSAGE.name: expected}
 
     root = Path(__file__).parents[2].resolve()
     monkeypatch.setattr(
@@ -284,12 +274,10 @@ def test_course_config_and_supervised_plan_retain_exact_provenance_pair(
     )
     plan = DEVELOPMENT.build_development_plan(request)
     DEVELOPMENT.validate_development_plan(plan)
-    assert plan.inputs["gmt_assets"]["motions"] == {
-        module.STUDY012_INSIDE_PASSAGE.name: expected
-    }
-    plan.inputs["gmt_assets"]["motions"][module.STUDY012_INSIDE_PASSAGE.name][
-        "manifest"
-    ]["sha256"] = "0" * 64
+    assert plan.inputs["gmt_assets"]["motions"] == {module.STUDY012_INSIDE_PASSAGE.name: expected}
+    plan.inputs["gmt_assets"]["motions"][module.STUDY012_INSIDE_PASSAGE.name]["manifest"][
+        "sha256"
+    ] = "0" * 64
     with pytest.raises(DEVELOPMENT.supervisor.ProbeError, match="bound inputs changed"):
         DEVELOPMENT.validate_development_plan(plan)
 

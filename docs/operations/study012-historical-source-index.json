@@ -1,0 +1,159 @@
+{
+  "audit_receipt": {
+    "path": "experiments/012_g1_finite_horizon/reference_geometry_audit_v1.json",
+    "sha256": "d6b42dec476d01a3dff6b526ba4a39f4d2fa25f4711fe9ed57df912d726ee3f7",
+    "producer": {
+      "executed_source_set_sha256": "8990ff728d5cd531ffe37047d38d86689a4496ce7780a6ab8c6c38d9a4bfee2a",
+      "path": "scripts/analyze_gmt_reference_geometry.py",
+      "sha256": "bd5944f46e172c347ff961dd49919d97f840585df8e29eabde301d3e781ccc21"
+    },
+    "producer_snapshot_matches": true,
+    "imports": [
+      {
+        "path": "oracle_composition/adapters/gmt/checkpoint.py",
+        "sha256": "02d30bdffbda5ffbd6b9bd907064537b7521ad8d4f592b3d2ac21e3abdfedfff",
+        "public_snapshot_sha256": "02d30bdffbda5ffbd6b9bd907064537b7521ad8d4f592b3d2ac21e3abdfedfff"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/contracts.py",
+        "sha256": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31",
+        "public_snapshot_sha256": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/control_runtime.py",
+        "sha256": "271cbb52c8286d24a2fecca8815eb2d4e9b26e2049d8ad3d54153fa1b0444877",
+        "public_snapshot_sha256": "271cbb52c8286d24a2fecca8815eb2d4e9b26e2049d8ad3d54153fa1b0444877"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/io.py",
+        "sha256": "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3",
+        "public_snapshot_sha256": "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/motions.py",
+        "sha256": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be",
+        "public_snapshot_sha256": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/reference_math.py",
+        "sha256": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e",
+        "public_snapshot_sha256": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/reference_runtime.py",
+        "sha256": "19039aac4223a47c4131131304f266b2e87bcc90647947e933d5cc1ddb2b725f",
+        "public_snapshot_sha256": "19039aac4223a47c4131131304f266b2e87bcc90647947e933d5cc1ddb2b725f"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/replay.py",
+        "sha256": "8927557818d20e26801d30f6504423172281619f0a32b6b9ca9dc1e46bd84b6b",
+        "public_snapshot_sha256": "8927557818d20e26801d30f6504423172281619f0a32b6b9ca9dc1e46bd84b6b"
+      }
+    ],
+    "original_producer_git_commit": "not stated in receipt; input run source commits are distinct",
+    "declared_source_set_scope": "Eight recorded project imports and producer; not a proof of every transitive or external runtime dependency."
+  },
+  "converter": {
+    "path": "scripts/convert_study012_reference_candidate.py",
+    "sha256": "99912788b928a1600d5b5e88b7d9fbac506feeb7546729f7abc25e92f41d63aa",
+    "imports": [
+      {
+        "path": "oracle_composition/__init__.py",
+        "module": "oracle_composition",
+        "sha256": "e0ebdc0fbf4c9e8a17ffd65b2c16a8c9bdc70b304ba344670a71febdf3fb0505",
+        "public_snapshot_sha256": "e0ebdc0fbf4c9e8a17ffd65b2c16a8c9bdc70b304ba344670a71febdf3fb0505"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/__init__.py",
+        "module": "oracle_composition.adapters.gmt",
+        "sha256": "f53ab7fe48c1b5f1ff28183dce225a334068294b1698fa7f9731e595fc039426",
+        "public_snapshot_sha256": "f53ab7fe48c1b5f1ff28183dce225a334068294b1698fa7f9731e595fc039426"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/checkpoint.py",
+        "module": "oracle_composition.adapters.gmt.checkpoint",
+        "sha256": "02d30bdffbda5ffbd6b9bd907064537b7521ad8d4f592b3d2ac21e3abdfedfff",
+        "public_snapshot_sha256": "02d30bdffbda5ffbd6b9bd907064537b7521ad8d4f592b3d2ac21e3abdfedfff"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/contracts.py",
+        "module": "oracle_composition.adapters.gmt.contracts",
+        "sha256": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31",
+        "public_snapshot_sha256": "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/course_task.py",
+        "module": "oracle_composition.adapters.gmt.course_task",
+        "sha256": "9865fe86c54aeb4b27bc1256fbde160423feec2a44d639b036bb6db8469da66a",
+        "public_snapshot_sha256": "9865fe86c54aeb4b27bc1256fbde160423feec2a44d639b036bb6db8469da66a"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/deployment.py",
+        "module": "oracle_composition.adapters.gmt.deployment",
+        "sha256": "7bc3e173cf4922212a6a5e080fd8b60a3cfa49434ff11ba14855bf2a89db8b46",
+        "public_snapshot_sha256": "7bc3e173cf4922212a6a5e080fd8b60a3cfa49434ff11ba14855bf2a89db8b46"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/io.py",
+        "module": "oracle_composition.adapters.gmt.io",
+        "sha256": "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3",
+        "public_snapshot_sha256": "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/motions.py",
+        "module": "oracle_composition.adapters.gmt.motions",
+        "sha256": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be",
+        "public_snapshot_sha256": "1482a73601162f91e4bba1c86561842c94de678871dad84c93b6c9076eb505be"
+      },
+      {
+        "path": "oracle_composition/adapters/gmt/reference_math.py",
+        "module": "oracle_composition.adapters.gmt.reference_math",
+        "sha256": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e",
+        "public_snapshot_sha256": "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e"
+      },
+      {
+        "path": "oracle_composition/contracts/__init__.py",
+        "module": "oracle_composition.contracts",
+        "sha256": "97ea46cca87aeb7678f9588d466b46d7102ddd0846a6315bfdb8908616825c18",
+        "public_snapshot_sha256": "97ea46cca87aeb7678f9588d466b46d7102ddd0846a6315bfdb8908616825c18"
+      },
+      {
+        "path": "oracle_composition/contracts/errors.py",
+        "module": "oracle_composition.contracts.errors",
+        "sha256": "001e66fb6c3ca9c4ecd38b9b602f2e9525938527784891b4ed86c76f88e8843a",
+        "public_snapshot_sha256": "001e66fb6c3ca9c4ecd38b9b602f2e9525938527784891b4ed86c76f88e8843a"
+      },
+      {
+        "path": "oracle_composition/contracts/program.py",
+        "module": "oracle_composition.contracts.program",
+        "sha256": "3067751b380ade571ef567cd07b926f2560e0a5578a8c4e9630ca34623a9e490",
+        "public_snapshot_sha256": "3067751b380ade571ef567cd07b926f2560e0a5578a8c4e9630ca34623a9e490"
+      },
+      {
+        "path": "oracle_composition/contracts/reference.py",
+        "module": "oracle_composition.contracts.reference",
+        "sha256": "ec7b64ffe7b5b275071186791d27c5b5eb9be39c0a46dfa15a9000c8fba63aeb",
+        "public_snapshot_sha256": "ec7b64ffe7b5b275071186791d27c5b5eb9be39c0a46dfa15a9000c8fba63aeb"
+      },
+      {
+        "path": "oracle_composition/contracts/reference_identity_v2.py",
+        "module": "oracle_composition.contracts.reference_identity_v2",
+        "sha256": "c64fbe08cad98da57977767214c00f4f4dcbda83420a6113703d2b254016e4c3",
+        "public_snapshot_sha256": "c64fbe08cad98da57977767214c00f4f4dcbda83420a6113703d2b254016e4c3"
+      }
+    ],
+    "reviewed_commit_constraint": "caller-supplied full SHA must equal clean current HEAD; not fixed to DONOR_COMMIT",
+    "binding_epoch": "historical unversioned source bindings; current converter uses study012-converter-source/v2"
+  },
+  "run_source_commits": [
+    "9bca23bf62ea386cd7f0492aa63626b6c2a219dc",
+    "be359a2accd21b3a94727695a2f7837311a36aaa"
+  ],
+  "preservation_snapshot": "c9ee2735829af75559fc066da6a0bd502e372667",
+  "purpose": "Index of matching historical public bytes, not an execution receipt or replay authorization.",
+  "dependency_lock": {
+    "path": "uv.lock",
+    "sha256": "81b92d15dd2da62f27cd770322db78008d5387b530dc71e053f0d56b327f0b40",
+    "scope": "lockfile retained in preservation snapshot, not proof of original execution environment"
+  }
+}

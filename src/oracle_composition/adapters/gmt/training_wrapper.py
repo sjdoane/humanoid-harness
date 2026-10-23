@@ -16,10 +16,15 @@ from .training_contract import (
 
 
 def _factor(value: object) -> float:
-    if type(value) is not float or not math.isfinite(value) or value not in {
-        1.0,
-        TRAINING_REWARD_SCALE,
-    }:
+    if (
+        type(value) is not float
+        or not math.isfinite(value)
+        or value
+        not in {
+            1.0,
+            TRAINING_REWARD_SCALE,
+        }
+    ):
         raise ValueError("training reward factor must be exactly 1 or the admitted 1/64")
     return value
 

@@ -158,9 +158,10 @@ def test_fixed_interventions_preserve_original_command_and_have_exact_semantics(
         validate_reference_input_audit(ablated.last_audit, ablated.segments)
 
     np.testing.assert_array_equal(observed["exact"].actor_reference_window, ordinary.window)
-    assert observed["zero_reference"].actor_reference_window.tobytes() == np.zeros(
-        (REFERENCE_HORIZON, REFERENCE_FRAME_DIM), dtype="<f4"
-    ).tobytes()
+    assert (
+        observed["zero_reference"].actor_reference_window.tobytes()
+        == np.zeros((REFERENCE_HORIZON, REFERENCE_FRAME_DIM), dtype="<f4").tobytes()
+    )
     np.testing.assert_array_equal(
         observed["current_frame_repeated"].actor_reference_window,
         np.repeat(ordinary.current.reshape(1, -1), REFERENCE_HORIZON, axis=0),
@@ -192,9 +193,7 @@ def test_shift_uses_the_active_segment_without_inventing_a_future_transition() -
     assert switched.behavior == "crouch"
     assert ablated.last_audit.original_command.behavior == "crouch"
     assert np.max(ablated.last_audit.actor_reference_window[:, 0]) < 0.7
-    np.testing.assert_array_equal(
-        ablated.current_after_step(2), ordinary.current_after_step(2)
-    )
+    np.testing.assert_array_equal(ablated.current_after_step(2), ordinary.current_after_step(2))
 
 
 def test_shift_uses_canonical_entry_loop_phase_mapping() -> None:

@@ -126,7 +126,9 @@ def _evaluate(actor: ActorEvaluator, observations: np.ndarray, *, name: str) -> 
     result = np.asarray(actor(observations.copy()))
     expected_shape = (observations.shape[0], ACTION_DIM)
     if result.shape != expected_shape or result.dtype.str != "<f4":
-        raise GMTAdmissionError(f"{name} actor output must be little-endian float32 {expected_shape}")
+        raise GMTAdmissionError(
+            f"{name} actor output must be little-endian float32 {expected_shape}"
+        )
     if not result.flags.c_contiguous or not np.isfinite(result).all():
         raise GMTAdmissionError(f"{name} actor output must be finite and contiguous")
     return result
@@ -180,9 +182,7 @@ def measure_reference_sensitivity(
     if rows < 1:
         raise GMTAdmissionError("reference sensitivity needs at least one recorded state")
     observations = _float32_array(observations, (rows, OBSERVATION_DIM), "observations")
-    recorded_actions = _float32_array(
-        recorded_actions, (rows, ACTION_DIM), "recorded actions"
-    )
+    recorded_actions = _float32_array(recorded_actions, (rows, ACTION_DIM), "recorded actions")
     reference_shape = (rows, REFERENCE_HORIZON, REFERENCE_FRAME_DIM)
     recorded_reference_windows = _float32_array(
         recorded_reference_windows, reference_shape, "recorded reference windows"
@@ -249,9 +249,7 @@ def measure_reference_sensitivity(
         "recorded_raw_action": recorded_actions.copy(),
         "recomputed_exact_action": recomputed,
         "zero_reference_action": _evaluate(actor, zero_input, name="zero-reference"),
-        "shuffled_reference_action": _evaluate(
-            actor, shuffled_input, name="shuffled-reference"
-        ),
+        "shuffled_reference_action": _evaluate(actor, shuffled_input, name="shuffled-reference"),
         "shifted_reference_action": _evaluate(actor, shifted_input, name="shifted-reference"),
     }
     output_arrays = {

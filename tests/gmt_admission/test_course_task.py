@@ -236,9 +236,7 @@ def test_reward_v2_depth_ceiling_only_reduces_inside_posture_component() -> None
         depth_strength=1.0,
         ceiling_fraction=0.6,
     )
-    ceiling = spec.posture_band_low_m + 0.6 * (
-        spec.posture_band_high_m - spec.posture_band_low_m
-    )
+    ceiling = spec.posture_band_low_m + 0.6 * (spec.posture_band_high_m - spec.posture_band_low_m)
     below = _metrics(spec=spec, after=_qpos(1.50, 0.0, ceiling - 0.01))
     above = _metrics(spec=spec, after=_qpos(1.50, 0.0, ceiling + 0.05))
     outside = _metrics(
@@ -258,7 +256,9 @@ def test_reward_v2_depth_ceiling_only_reduces_inside_posture_component() -> None
     )
     assert 0.0 <= above_result.posture_component_reward < 1.0
     assert outside_new.posture_component_reward == outside_old.posture_component_reward == 1.0
-    assert above_result.tracking_reward == reward(spec=spec, recipe=v1, metrics=above).tracking_reward
+    assert (
+        above_result.tracking_reward == reward(spec=spec, recipe=v1, metrics=above).tracking_reward
+    )
 
 
 def test_reward_v2_depth_multiplier_is_monotone_bounded_and_fall_safe() -> None:
@@ -445,9 +445,7 @@ def test_task_reward_recipe_rejects_unknown_and_boolean_schema_version() -> None
         ("ceiling_fraction", False),
     ],
 )
-def test_reward_v2_rejects_unbounded_or_nonfloat_depth_settings(
-    field: str, value: object
-) -> None:
+def test_reward_v2_rejects_unbounded_or_nonfloat_depth_settings(field: str, value: object) -> None:
     raw = TaskRewardRecipe(
         0.0,
         0.0,

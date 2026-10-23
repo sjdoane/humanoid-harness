@@ -213,7 +213,8 @@ def test_rollout_observer_sees_pre_step_input_without_changing_standard_artifact
 ) -> None:
     monkeypatch.setattr(module, "evaluate_episode", lambda **_: {"fixture": True})
     config = SimpleNamespace(
-        raw={"seed": 17}, task=SimpleNamespace(horizon_steps=2),
+        raw={"seed": 17},
+        task=SimpleNamespace(horizon_steps=2),
         runtime=SimpleNamespace(after_heading_reference_feedback=False),
     )
     baseline_dir = tmp_path / "baseline"

@@ -33,7 +33,9 @@ def scorer():
 def _independent_hash(value):
     descriptor = json.dumps(
         {"dtype": value.dtype.str, "shape": list(value.shape)},
-        sort_keys=True, separators=(",", ":"), allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
     ).encode()
     return hashlib.sha256(descriptor + b"\0" + value.tobytes(order="C")).hexdigest()
 
@@ -66,9 +68,7 @@ def test_exact_arithmetic_and_held_endpoint_on_wrap_clip_grid(scorer, lateral, h
         correction = np.float32(math.atan2(math.sin(angle), math.cos(angle)))
         unclipped = np.add(native[:, 6], correction, dtype=np.float32)
         expected = native.copy()
-        expected[:, 6] = np.minimum(
-            np.maximum(unclipped, np.float32(-0.3)), np.float32(0.3)
-        )
+        expected[:, 6] = np.minimum(np.maximum(unclipped, np.float32(-0.3)), np.float32(0.3))
         np.testing.assert_array_equal(plan.native_window, native)
         np.testing.assert_array_equal(plan.issued_window, expected)
         np.testing.assert_array_equal(
@@ -80,9 +80,7 @@ def test_exact_arithmetic_and_held_endpoint_on_wrap_clip_grid(scorer, lateral, h
         endpoint[0] += np.float32(0.01)
         issued = issue_held_poststep_target(plan, endpoint)
         expected_endpoint = endpoint.copy()
-        expected_endpoint[6] = min(
-            np.float32(0.3), max(np.float32(-0.3), endpoint[6] + correction)
-        )
+        expected_endpoint[6] = min(np.float32(0.3), max(np.float32(-0.3), endpoint[6] + correction))
         np.testing.assert_array_equal(issued, expected_endpoint)
         current[index] = issued
         rows[index] = {

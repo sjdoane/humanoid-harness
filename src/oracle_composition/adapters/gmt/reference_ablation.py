@@ -122,9 +122,7 @@ def _command_copy(value: ReferenceCommand) -> ReferenceCommand:
 
 def fixed_shuffle_permutation() -> np.ndarray:
     generator = np.random.Generator(np.random.PCG64(SHUFFLE_SEED))
-    result = np.ascontiguousarray(
-        generator.permutation(REFERENCE_HORIZON).astype(I64, copy=False)
-    )
+    result = np.ascontiguousarray(generator.permutation(REFERENCE_HORIZON).astype(I64, copy=False))
     result.setflags(write=False)
     return result
 

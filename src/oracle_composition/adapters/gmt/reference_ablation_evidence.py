@@ -162,7 +162,9 @@ class ZeroResidualActorEvidence:
             REFERENCE_HORIZON, REFERENCE_FRAME_DIM
         )
         if not _same_bytes(observed_window, self.audit.actor_reference_window):
-            raise GMTAdmissionError("actor observation does not contain the audited reference window")
+            raise GMTAdmissionError(
+                "actor observation does not contain the audited reference window"
+            )
         if not _same_bytes(self.residual_action, np.zeros(ACTION_DIM, dtype=F32)):
             raise GMTAdmissionError("closed-loop reference ablation requires literal zero residual")
         if not _same_bytes(self.composite_raw_action, self.base_raw_action):
@@ -192,8 +194,10 @@ def validate_recomputed_base_action(
     evidence: ZeroResidualActorEvidence,
     actor: torch.nn.Module,
 ) -> None:
-    if not isinstance(actor, torch.nn.Module) or actor.training or any(
-        parameter.requires_grad for parameter in actor.parameters()
+    if (
+        not isinstance(actor, torch.nn.Module)
+        or actor.training
+        or any(parameter.requires_grad for parameter in actor.parameters())
     ):
         raise GMTAdmissionError("actor recomputation requires the frozen evaluation actor")
     observation = np.array(evidence.actor_observation, dtype=F32, order="C", copy=True)
