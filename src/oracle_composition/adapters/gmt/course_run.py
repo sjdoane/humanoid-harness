@@ -83,9 +83,7 @@ def make_policy(
             "max_grad_norm",
         )
     }
-    uses_fixed_normalizer = bool(
-        trainer is not None and trainer.uses_fixed_observation_normalizer
-    )
+    uses_fixed_normalizer = bool(trainer is not None and trainer.uses_fixed_observation_normalizer)
     if uses_fixed_normalizer != (fixed_normalizer is not None):
         raise ValueError("fixed-normalizer trainer and buffers must be supplied together")
     policy_kwargs = {
@@ -116,10 +114,7 @@ def _numeric_policy(
     state_dict = model.policy.state_dict()
     if fixed_normalizer is not None:
         policy_normalizer_metadata(state_dict, fixed_normalizer)
-    arrays = {
-        name: value.detach().cpu().numpy().copy()
-        for name, value in state_dict.items()
-    }
+    arrays = {name: value.detach().cpu().numpy().copy() for name, value in state_dict.items()}
     if not all(np.isfinite(value).all() for value in arrays.values()):
         raise ValueError("learned policy contains non-finite state")
     return write_deterministic_npz(path, arrays)
@@ -286,8 +281,7 @@ def run_course(config_path: Path, output: Path) -> dict:
         base_before = _frozen_actor_digest(raw_training_env)
         fixed_normalizer = (
             pinned_normalizer_from_actor(raw_training_env.actor._actor)
-            if config.trainer is not None
-            and config.trainer.uses_fixed_observation_normalizer
+            if config.trainer is not None and config.trainer.uses_fixed_observation_normalizer
             else None
         )
         model = make_policy(
@@ -302,9 +296,7 @@ def run_course(config_path: Path, output: Path) -> dict:
             fixed_normalizer=fixed_normalizer,
         )
         reward_scale = (
-            config.trainer.total_training_reward_scale
-            if config.trainer is not None
-            else None
+            config.trainer.total_training_reward_scale if config.trainer is not None else None
         )
         telemetry_name = telemetry_filename(
             reward_scale=reward_scale,

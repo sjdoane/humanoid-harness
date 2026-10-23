@@ -14,15 +14,9 @@ from .contracts import NORMALIZER_EPSILON, OBSERVATION_DIM
 from .io import GMTAdmissionError, validate_zip_members
 
 FIXED_NORMALIZER_ID = "gmt_g1_fixed_actor_observation_normalizer/v1"
-FIXED_NORMALIZER_STATE_SHA256 = (
-    "42934b5e9155536db8e36c27f75858d6c9f60c93d29b9352191fe6cd5f9ce250"
-)
-FIXED_NORMALIZER_MEAN_SHA256 = (
-    "72b2c94ae9873c573d480bca87d5914fc6e56e4677f07836c00dceb265b97ee6"
-)
-FIXED_NORMALIZER_STD_SHA256 = (
-    "bc90eb2f9426d5aa226e4ef563d74533d2a6f8a00bc3ef228b47528f29efc765"
-)
+FIXED_NORMALIZER_STATE_SHA256 = "42934b5e9155536db8e36c27f75858d6c9f60c93d29b9352191fe6cd5f9ce250"
+FIXED_NORMALIZER_MEAN_SHA256 = "72b2c94ae9873c573d480bca87d5914fc6e56e4677f07836c00dceb265b97ee6"
+FIXED_NORMALIZER_STD_SHA256 = "bc90eb2f9426d5aa226e4ef563d74533d2a6f8a00bc3ef228b47528f29efc765"
 _DIGEST_PREFIX = f"{FIXED_NORMALIZER_ID}\0".encode()
 _POLICY_BUFFER_SUFFIXES = ("normalizer_mean", "normalizer_std")
 _POLICY_BUFFER_PREFIXES = (
@@ -80,9 +74,7 @@ class FixedNormalizerState:
         ):
             raise ValueError("fixed normalizer expected SHA-256 is malformed")
         admitted_mean = _buffer(mean, name="mean")
-        admitted_std = _buffer(
-            standard_deviation, name="standard deviation", positive=True
-        )
+        admitted_std = _buffer(standard_deviation, name="standard deviation", positive=True)
         observed = normalizer_state_sha256(admitted_mean, admitted_std)
         if observed != expected_sha256:
             raise ValueError("fixed normalizer buffers differ from their exact identity")
@@ -91,8 +83,7 @@ class FixedNormalizerState:
     def require_pinned(self) -> None:
         if (
             self.sha256 != FIXED_NORMALIZER_STATE_SHA256
-            or hashlib.sha256(self.mean.tobytes()).hexdigest()
-            != FIXED_NORMALIZER_MEAN_SHA256
+            or hashlib.sha256(self.mean.tobytes()).hexdigest() != FIXED_NORMALIZER_MEAN_SHA256
             or hashlib.sha256(self.standard_deviation.tobytes()).hexdigest()
             != FIXED_NORMALIZER_STD_SHA256
         ):
@@ -188,11 +179,7 @@ def policy_normalizer_metadata(
         for prefix in _POLICY_BUFFER_PREFIXES
         for suffix in _POLICY_BUFFER_SUFFIXES
     }
-    observed_keys = {
-        name
-        for name in state_dict
-        if name.endswith(tuple(_POLICY_BUFFER_SUFFIXES))
-    }
+    observed_keys = {name for name in state_dict if name.endswith(tuple(_POLICY_BUFFER_SUFFIXES))}
     if observed_keys != expected_keys:
         raise ValueError("fixed-normalizer policy state lacks required transform buffers")
     for suffix in _POLICY_BUFFER_SUFFIXES:
@@ -205,10 +192,7 @@ def policy_normalizer_metadata(
             if tensor.device.type != "cpu":  # type: ignore[union-attr]
                 raise ValueError("fixed-normalizer policy state contains changed buffers")
             array = tensor.detach().numpy()  # type: ignore[union-attr]
-            if (
-                array.dtype != np.dtype("<f4")
-                or not np.array_equal(array, expected)
-            ):
+            if array.dtype != np.dtype("<f4") or not np.array_equal(array, expected):
                 raise ValueError("fixed-normalizer policy state contains changed buffers")
     return fixed_normalizer_policy_metadata()
 
@@ -234,8 +218,7 @@ def validate_policy_normalizer_archive(encoded: bytes) -> dict[str, object]:
             )
             if (
                 not 1 <= len(members) <= 128
-                or sum(member.file_size for member in members.values())
-                > MAX_NUMERIC_POLICY_BYTES
+                or sum(member.file_size for member in members.values()) > MAX_NUMERIC_POLICY_BYTES
                 or any(not name.endswith(".npy") for name in members)
             ):
                 raise ValueError("fixed-normalizer numeric policy archive is unbounded")
@@ -247,9 +230,7 @@ def validate_policy_normalizer_archive(encoded: bytes) -> dict[str, object]:
                 for suffix in _POLICY_BUFFER_SUFFIXES
             }
             observed_keys = {
-                name
-                for name in names
-                if name.endswith(tuple(_POLICY_BUFFER_SUFFIXES))
+                name for name in names if name.endswith(tuple(_POLICY_BUFFER_SUFFIXES))
             }
             if observed_keys != expected_keys:
                 raise ValueError("fixed-normalizer numeric policy lacks paired buffers")

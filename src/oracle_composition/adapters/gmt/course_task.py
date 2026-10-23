@@ -190,9 +190,7 @@ class TaskRewardRecipe:
         result: dict[str, object] = {
             **{name: getattr(self, name) for name in _RECIPE_WEIGHT_FIELDS},
             "schema_id": (
-                TASK_REWARD_RECIPE_ID
-                if self.recipe_version == 1
-                else TASK_REWARD_RECIPE_V2_ID
+                TASK_REWARD_RECIPE_ID if self.recipe_version == 1 else TASK_REWARD_RECIPE_V2_ID
             ),
             "schema_version": self.recipe_version,
         }
@@ -460,9 +458,7 @@ def reward(
             and recipe.depth_strength > 0.0
             and metrics.inside_posture_region
         ):
-            if type(metrics.root_height_m) is not float or not math.isfinite(
-                metrics.root_height_m
-            ):
+            if type(metrics.root_height_m) is not float or not math.isfinite(metrics.root_height_m):
                 raise ValueError("task reward v2 requires one finite root height")
             ceiling = spec.posture_band_low_m + recipe.ceiling_fraction * (
                 spec.posture_band_high_m - spec.posture_band_low_m

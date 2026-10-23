@@ -261,9 +261,7 @@ def _verify_boundary_metrics(
             before_qpos=trajectory["qpos"][offset],
             after_qpos=trajectory["qpos"][offset + 1],
             ground_contact_bodies=(),
-            current_reference=np.asarray(
-                row["trajectory"]["current_reference"], dtype=np.float64
-            ),
+            current_reference=np.asarray(row["trajectory"]["current_reference"], dtype=np.float64),
             control_step=offset + 1,
         ).to_dict()
         observed = row["metrics"]
@@ -272,10 +270,7 @@ def _verify_boundary_metrics(
                 raise ValueError(f"course metric {name} differs from retained trajectory")
         # A transient/contact failure can only add producer evidence. When no
         # such evidence exists, posture compliance is boundary-recomputable.
-        if (
-            not observed["fallen"]
-            and observed["posture_success"] != recomputed["posture_success"]
-        ):
+        if not observed["fallen"] and observed["posture_success"] != recomputed["posture_success"]:
             raise ValueError("course metric posture_success differs from retained trajectory")
         boundary_reasons = set(recomputed["failure_reasons"])
         if not boundary_reasons <= set(observed["failure_reasons"]):
@@ -442,9 +437,7 @@ def _training_telemetry_diagnosis(
         )
 
     attempted = update["sb3_n_updates"]
-    attempted_text = (
-        str(attempted) if attempted is not None else "unavailable (missing)"
-    )
+    attempted_text = str(attempted) if attempted is not None else "unavailable (missing)"
     summary = (
         f"Training telemetry: {episode_text}. Final update through "
         f"{update['trained_through_transitions']} transitions: "
@@ -461,8 +454,7 @@ def _training_telemetry_diagnosis(
         )
     if fixed_normalizer_sha256 is not None:
         maximum = max(
-            row["fixed_normalized_base_range"]["maximum_absolute_value"]
-            for row in rollout_rows
+            row["fixed_normalized_base_range"]["maximum_absolute_value"] for row in rollout_rows
         )
         summary += (
             " Fixed-normalized base-slice maximum absolute value across raw training "
@@ -564,8 +556,7 @@ def build_g1_course_feedback(
     if config.raw["mode"] != mode_hint:
         raise ValueError("course run mode and output ledger differ")
     fixed_normalizer = bool(
-        config.trainer is not None
-        and config.trainer.uses_fixed_observation_normalizer
+        config.trainer is not None and config.trainer.uses_fixed_observation_normalizer
     )
     expected_train_outputs = (
         _TRAIN_FOUR_STATE_FINITE_HORIZON_TELEMETRY_OUTPUTS
@@ -601,22 +592,17 @@ def build_g1_course_feedback(
             telemetry_encoded,
             config.raw["training_steps"],
             reward_scale=(
-                config.trainer.total_training_reward_scale
-                if config.trainer is not None
-                else None
+                config.trainer.total_training_reward_scale if config.trainer is not None else None
             ),
-            fixed_normalizer_sha256=(
-                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
-            ),
+            fixed_normalizer_sha256=(FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None),
             runtime=config.runtime,
         )
     has_preconditioning = type(training) is dict and "reward_preconditioning" in training
     if config.trainer is None:
         if has_preconditioning:
             raise ValueError("legacy training record contains preconditioning metadata")
-    elif (
-        not has_preconditioning
-        or training["reward_preconditioning"] != training_reward_metadata(config.trainer)
+    elif not has_preconditioning or training["reward_preconditioning"] != training_reward_metadata(
+        config.trainer
     ):
         raise ValueError("scaled training reward metadata differs")
     observation_metadata = (
@@ -664,9 +650,7 @@ def build_g1_course_feedback(
         trajectory=trajectory,
     )
     objective = evaluate_episode(spec=config.task, frames=frames, runtime=config.runtime)
-    report = _json(
-        retained[f"{label}_evaluation.json"], source=f"{label} course evaluation"
-    )
+    report = _json(retained[f"{label}_evaluation.json"], source=f"{label} course evaluation")
     if set(report) != _SUMMARY_FIELDS or manifest[label] != report:
         raise ValueError("selected course evaluation and manifest summary differ")
     if report["steps"] != len(frames) or report["objective_evaluation"] != objective:
@@ -686,16 +670,12 @@ def build_g1_course_feedback(
     )
     if telemetry_encoded is not None:
         reward_scale = (
-            config.trainer.total_training_reward_scale
-            if config.trainer is not None
-            else None
+            config.trainer.total_training_reward_scale if config.trainer is not None else None
         )
         telemetry_diagnosis = _training_telemetry_diagnosis(
             telemetry_encoded,
             reward_scale=reward_scale,
-            fixed_normalizer_sha256=(
-                FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None
-            ),
+            fixed_normalizer_sha256=(FIXED_NORMALIZER_STATE_SHA256 if fixed_normalizer else None),
         )
         diagnosis = f"{diagnosis}\n{telemetry_diagnosis}"
         if len(diagnosis) > MAX_DIAGNOSIS_CHARACTERS:
@@ -720,8 +700,7 @@ def build_g1_course_feedback(
             "input_config_sha256": config_sha256,
             "label": label,
             "selected_outputs": {
-                name: outputs[name]
-                for name in sorted(selected - {"input_config.json"})
+                name: outputs[name] for name in sorted(selected - {"input_config.json"})
             },
         },
         "output": {

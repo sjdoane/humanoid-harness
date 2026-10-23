@@ -144,7 +144,9 @@ def _sha256_text(value: object, *, field: str) -> str:
 
 
 def _text_list(value: object, *, field: str) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
         raise KnowledgeIndexError(f"{field} must be a non-empty-text list")
     resolved = [item.strip() for item in value]
     if not resolved:
@@ -291,9 +293,7 @@ def _validate_source_record(record: Mapping[str, Any], *, path: Path) -> None:
             },
             field=f"{field}.sources[{index}]",
         )
-        source_id = _stable_id(
-            source.get("source_id"), field=f"{field}.sources[{index}].source_id"
-        )
+        source_id = _stable_id(source.get("source_id"), field=f"{field}.sources[{index}].source_id")
         if source_id in sources:
             raise KnowledgeIndexError(f"{field} has duplicate source_id {source_id!r}")
         provenance_class = _required_text(
@@ -383,12 +383,8 @@ def _validate_source_record(record: Mapping[str, Any], *, path: Path) -> None:
         _required_text(finding.get("title"), field=f"{field}.{finding_id}.title")
         _required_text(finding.get("statement"), field=f"{field}.{finding_id}.statement")
         _required_text(finding.get("locator"), field=f"{field}.{finding_id}.locator")
-        _text_list(
-            finding.get("not_evidence_for"), field=f"{field}.{finding_id}.not_evidence_for"
-        )
-        source_ids = _text_list(
-            finding.get("source_ids"), field=f"{field}.{finding_id}.source_ids"
-        )
+        _text_list(finding.get("not_evidence_for"), field=f"{field}.{finding_id}.not_evidence_for")
+        source_ids = _text_list(finding.get("source_ids"), field=f"{field}.{finding_id}.source_ids")
         missing = sorted(set(source_ids) - set(sources))
         if missing:
             raise KnowledgeIndexError(
@@ -401,9 +397,7 @@ def _validate_source_record(record: Mapping[str, Any], *, path: Path) -> None:
             raise KnowledgeIndexError(
                 f"{field}.{finding_id} source-reported fact lacks public provenance"
             )
-        if finding_type == "local_measurement" and not provenance.intersection(
-            _LOCAL_PROVENANCE
-        ):
+        if finding_type == "local_measurement" and not provenance.intersection(_LOCAL_PROVENANCE):
             raise KnowledgeIndexError(
                 f"{field}.{finding_id} local measurement lacks local provenance"
             )
@@ -424,7 +418,9 @@ def _source_records(directory: Path) -> list[tuple[Path, bytes, Mapping[str, Any
             metadata = path.lstat()
         except OSError as exc:
             raise KnowledgeIndexError(f"cannot inspect source record: {path}") from exc
-        if not stat.S_ISREG(metadata.st_mode) or not (0 < metadata.st_size <= _MAX_SOURCE_RECORD_BYTES):
+        if not stat.S_ISREG(metadata.st_mode) or not (
+            0 < metadata.st_size <= _MAX_SOURCE_RECORD_BYTES
+        ):
             raise KnowledgeIndexError(f"source record must be a bounded regular file: {path}")
         try:
             with path.open("rb") as handle:
@@ -814,8 +810,7 @@ def _build_database(
                 None,
             )
             provenance = (
-                f"supplemental_source_record:{path.name}:"
-                f"{hashlib.sha256(source_bytes).hexdigest()}"
+                f"supplemental_source_record:{path.name}:{hashlib.sha256(source_bytes).hexdigest()}"
             )
             boundary = "; ".join(not_evidence_for)
             audit_document = record["audit_document"]
@@ -840,11 +835,7 @@ def _build_database(
                 finding_node_id = f"{node_id}:{finding_id}"
                 finding_sources = [sources[str(source_id)] for source_id in finding["source_ids"]]
                 finding_url = next(
-                    (
-                        str(source["url"])
-                        for source in finding_sources
-                        if source["url"] is not None
-                    ),
+                    (str(source["url"]) for source in finding_sources if source["url"] is not None),
                     primary_url,
                 )
                 finding_boundary = "; ".join(str(value) for value in finding["not_evidence_for"])

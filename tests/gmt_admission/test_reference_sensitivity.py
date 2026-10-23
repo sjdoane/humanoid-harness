@@ -30,9 +30,9 @@ def _actor_values(observations: np.ndarray) -> np.ndarray:
 
 
 def _fixture(rows: int = 4) -> dict[str, np.ndarray | int]:
-    reference = np.arange(
-        rows * REFERENCE_HORIZON * REFERENCE_FRAME_DIM, dtype="<f4"
-    ).reshape(rows, REFERENCE_HORIZON, REFERENCE_FRAME_DIM)
+    reference = np.arange(rows * REFERENCE_HORIZON * REFERENCE_FRAME_DIM, dtype="<f4").reshape(
+        rows, REFERENCE_HORIZON, REFERENCE_FRAME_DIM
+    )
     reference /= np.float32(100.0)
     proprioception = np.arange(rows * PROPRIOCEPTION_DIM, dtype="<f8").reshape(
         rows, PROPRIOCEPTION_DIM
@@ -151,9 +151,7 @@ def test_observation_lineage_mismatch_fails_closed() -> None:
         ("motion_sha256", "motion identity"),
     ],
 )
-def test_external_trace_actor_and_motion_hashes_are_bound(
-    field: str, message: str
-) -> None:
+def test_external_trace_actor_and_motion_hashes_are_bound(field: str, message: str) -> None:
     manifest = {
         "trace": {"sha256": "a" * 64},
         "inputs": {

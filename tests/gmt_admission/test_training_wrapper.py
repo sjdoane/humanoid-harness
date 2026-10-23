@@ -28,9 +28,7 @@ class NumericRewardFixture(gym.Env):
         action_dim: int = 1,
         truncate: bool = False,
     ) -> None:
-        self.observation_space = gym.spaces.Box(
-            -10.0, 10.0, (observation_dim,), dtype=np.float32
-        )
+        self.observation_space = gym.spaces.Box(-10.0, 10.0, (observation_dim,), dtype=np.float32)
         self.action_space = gym.spaces.Box(-1.0, 1.0, (action_dim,), dtype=np.float32)
         self.raw_reward = reward
         self.truncate = truncate
@@ -78,9 +76,7 @@ def test_fixed_scale_changes_only_training_scalar_and_adds_truthful_raw_info() -
     wrapped = training_env(env, CourseTrainerSpec(TRAINING_REWARD_SCALE))
     wrapped.reset()
 
-    observation, reward, terminated, truncated, info = wrapped.step(
-        np.zeros(1, dtype=np.float32)
-    )
+    observation, reward, terminated, truncated, info = wrapped.step(np.zeros(1, dtype=np.float32))
 
     np.testing.assert_array_equal(observation, np.zeros(2, dtype=np.float32))
     assert reward == np.float32(1.0)
@@ -131,9 +127,7 @@ def test_sb3_timeout_bootstrap_is_added_after_scaling_in_value_units(monkeypatch
     )
     callback.on_training_start({}, {})
 
-    assert model.collect_rollouts(
-        vector_env, callback, model.rollout_buffer, n_rollout_steps=2
-    )
+    assert model.collect_rollouts(vector_env, callback, model.rollout_buffer, n_rollout_steps=2)
 
     np.testing.assert_allclose(model.rollout_buffer.rewards[:, 0], [2.8, 2.8], rtol=0, atol=1e-6)
 

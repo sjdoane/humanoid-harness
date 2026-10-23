@@ -80,10 +80,7 @@ def _frames(qpos: np.ndarray) -> list[dict]:
                         "right_ankle_roll_link",
                         "torso_link",
                     ],
-                    "contact_pairs": [
-                        [[0, 1]] if 92 <= index < 197 else []
-                        for _ in range(20)
-                    ],
+                    "contact_pairs": [[[0, 1]] if 92 <= index < 197 else [] for _ in range(20)],
                 },
             }
         )
@@ -280,9 +277,7 @@ def test_exact_retained_donor_and_mj_forward_geometry() -> None:
     assert model["mesh_tree_sha256"] == candidate.MESH_TREE_SHA256
     assert geometry["evaluated_pose_count"] == 106
     assert geometry["nonfoot_ground_contact_pose_count"] == 0
-    assert geometry["maximum_allowed_foot_penetration_m"] == pytest.approx(
-        0.01543102558135373
-    )
+    assert geometry["maximum_allowed_foot_penetration_m"] == pytest.approx(0.01543102558135373)
     assert measurements["source_root_height_m_start_min_end"] == pytest.approx(
         [0.7785659884189685, 0.504942203119977, 0.5954433356039784]
     )
@@ -295,9 +290,6 @@ def test_array_identity_hashes_exact_values_not_shape_only() -> None:
     changed[0, 0] = np.nextafter(changed[0, 0], np.float32(np.inf))
     assert candidate._array_sha256(changed) != before
     assert json.dumps(
-        {
-            key: candidate._array_sha256(value)
-            for key, value in sorted(arrays.items())
-        },
+        {key: candidate._array_sha256(value) for key, value in sorted(arrays.items())},
         sort_keys=True,
     )

@@ -387,9 +387,7 @@ def test_after_heading_profile_issues_actor_window_and_held_target_from_pre_acti
     assert trace["target_heading_rad"] == -0.3
     assert trace["correction_yaw_rate_rad_s"] == pytest.approx(-0.4)
     assert np.all(actor.windows[3][:, YAW_RATE_COLUMN] == np.float32(-0.3))
-    np.testing.assert_array_equal(
-        frames[3]["trajectory"]["current_reference"], actor.windows[3][0]
-    )
+    np.testing.assert_array_equal(frames[3]["trajectory"]["current_reference"], actor.windows[3][0])
 
     trajectory = {
         "qpos": np.asarray(
@@ -454,9 +452,12 @@ def test_heading_rollout_publishes_through_real_evaluator(tmp_path) -> None:
     assert report["objective_evaluation"] == evaluate_episode(
         spec=config.task, frames=frames, runtime=config.runtime
     )
-    assert validate_after_heading_feedback_trace(
-        config=config, frames=frames, trajectory=trajectory
-    )["after_actions"] == 1
+    assert (
+        validate_after_heading_feedback_trace(config=config, frames=frames, trajectory=trajectory)[
+            "after_actions"
+        ]
+        == 1
+    )
     with pytest.raises(ValueError, match="frame fields"):
         evaluate_episode(spec=config.task, frames=frames)
 
@@ -573,9 +574,7 @@ def test_heading_profile_is_byte_exact_with_loop_profile_before_after_entry() ->
 
 def test_finite_horizon_profile_preserves_legacy_observation_layout() -> None:
     legacy, _legacy_plant, _legacy_actor = _env([0.0, 0.25], runtime=LEGACY_RUNTIME)
-    finite, _finite_plant, _finite_actor = _env(
-        [0.0, 0.25], runtime=FINITE_HORIZON_RUNTIME
-    )
+    finite, _finite_plant, _finite_actor = _env([0.0, 0.25], runtime=FINITE_HORIZON_RUNTIME)
 
     legacy_observation, _ = legacy.reset(seed=7)
     finite_observation, _ = finite.reset(seed=7)

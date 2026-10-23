@@ -26,8 +26,7 @@ from oracle_composition.adapters.gmt import (
 from oracle_composition.adapters.gmt import io as gmt_io
 
 ARTIFACT_ROOT = Path(
-    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/"
-    "artifacts/gmt/2a590de25a1eb08e"
+    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/artifacts/gmt/2a590de25a1eb08e"
 )
 RUN_ROOT = Path("/Users/samueldoane/Documents/ChatGPT/humanoid-harness-probe-runs")
 MOTION_SHA = "a67c364e7d0013c24f43096e194f5d8099b2d1ebcaa3db42767402a0924be964"
@@ -146,8 +145,7 @@ def read_run(root: Path, record: tuple[Any, ...]) -> dict[str, Any]:
     if manifest["frozen_runtime"]["residual_raw_scale"] != 0.25:
         raise ValueError(f"{study}: residual scale mismatch")
     frames = [
-        json.loads(line)
-        for line in (path / "final_policy_frames.jsonl").read_text().splitlines()
+        json.loads(line) for line in (path / "final_policy_frames.jsonl").read_text().splitlines()
     ]
     with np.load(path / "final_policy_trajectory.npz", allow_pickle=False) as archive:
         arrays = {name: archive[name].copy() for name in archive.files}
@@ -308,29 +306,55 @@ def run_measurements(
         )
     result = {
         "masks": {
-            "oracle_inside_rows": [int(np.flatnonzero(oracle)[0]), int(np.flatnonzero(oracle)[-1] + 1)],
+            "oracle_inside_rows": [
+                int(np.flatnonzero(oracle)[0]),
+                int(np.flatnonzero(oracle)[-1] + 1),
+            ],
             "oracle_inside_count": int(oracle.sum()),
             "physical_region_rows": [int(physical_rows[0]), int(physical_rows[-1] + 1)],
             "physical_region_count": int(physical.sum()),
             "physical_outside_oracle_count": int(np.sum(physical & ~oracle)),
         },
         "timing": {
-            "reference_min": [reference_min, reference_min + 1, ref_time, float(ref_heights[reference_min]), float(heights[reference_min])],
-            "actual_min": [actual_min, actual_min + 1, actual_time, float(ref_heights[actual_min]), float(heights[actual_min])],
+            "reference_min": [
+                reference_min,
+                reference_min + 1,
+                ref_time,
+                float(ref_heights[reference_min]),
+                float(heights[reference_min]),
+            ],
+            "actual_min": [
+                actual_min,
+                actual_min + 1,
+                actual_time,
+                float(ref_heights[actual_min]),
+                float(heights[actual_min]),
+            ],
             "columns": ["row", "control_step", "source_time_s", "reference_z_m", "actual_z_m"],
         },
         "residual_authority": {
             "pd_offset_formula": "0.5 * 0.25 * residual_action radians",
             "saturation": "abs(residual_action) >= 0.99",
-            "oracle_saturation_counts_23": np.sum(np.abs(residual[oracle]) >= 0.99, axis=0).tolist(),
-            "physical_saturation_counts_23": np.sum(np.abs(residual[physical]) >= 0.99, axis=0).tolist(),
+            "oracle_saturation_counts_23": np.sum(
+                np.abs(residual[oracle]) >= 0.99, axis=0
+            ).tolist(),
+            "physical_saturation_counts_23": np.sum(
+                np.abs(residual[physical]) >= 0.99, axis=0
+            ).tolist(),
             "whole_max_abs_residual": float(np.max(np.abs(residual))),
             "physical_max_abs_residual": float(np.max(np.abs(residual[physical]))),
             "physical_all_joint_offset_rms_rad": float(np.sqrt(np.mean(offsets[physical] ** 2))),
             "base_raw_max_abs": float(np.max(np.abs(base))),
             "composite_raw_max_abs": float(np.max(np.abs(composite))),
             "formula_reconstruction_max_error_rad": float(np.max(np.abs(offsets - reconstructed))),
-            "hip_knee_columns": ["index", "name", "physical_min_rad", "physical_max_rad", "physical_rms_rad", "at_actual_min_rad"],
+            "hip_knee_columns": [
+                "index",
+                "name",
+                "physical_min_rad",
+                "physical_max_rad",
+                "physical_rms_rad",
+                "at_actual_min_rad",
+            ],
             "hip_knee": joint_rows,
         },
         "actual_geometry": {
@@ -395,9 +419,7 @@ def main() -> None:
             dof_velocity=motion.dof_velocity[index : index + 1],
         )
         literal = geometry(model, data, literal_qpos(frame))
-        consumed = geometry(
-            model, data, feature_qpos(native_features(motion, native_euler, index))
-        )
+        consumed = geometry(model, data, feature_qpos(native_features(motion, native_euler, index)))
         neighbors.append(
             [
                 index,
@@ -426,9 +448,7 @@ def main() -> None:
         "native_frame_indices": low_rows,
         "sample_count": len(low_rows),
         "consumed_pose": "native root_z and exact joints; source quaternion-derived roll/pitch converted to unit wxyz at yaw 0",
-        "floor_penetration_over_0_01_m_count": int(
-            sum(value > 0.01 for value in penetrations)
-        ),
+        "floor_penetration_over_0_01_m_count": int(sum(value > 0.01 for value in penetrations)),
         "floor_penetration_m_min_max": [min(penetrations), max(penetrations)],
         "nonfoot_overlap_count": int(sum(bool(item["nonfoot_bodies"]) for item in low_geometry)),
         "translation_only_required_root_height_m_min_max": [
@@ -458,8 +478,7 @@ def main() -> None:
         for name in ("at_reference_min", "at_actual_min")
     ]
     selected_actual_overlap = any(
-        item["deepest_nonfoot_dist_m"] is not None
-        and item["deepest_nonfoot_dist_m"] < 0
+        item["deepest_nonfoot_dist_m"] is not None and item["deepest_nonfoot_dist_m"] < 0
         for item in selected_actual
     )
     if residual_saturation:
@@ -507,7 +526,14 @@ def main() -> None:
             "consumed_pose_yaw_and_xy": "zero; invariant for infinite horizontal plane",
         },
         "shared_reference_geometry": {name: values[0] for name, values in shared.items()},
-        "neighbor_columns": ["native_frame", "source_time_s", "literal_deepest_m", "literal_nonfoot_m", "consumed_deepest_m", "consumed_nonfoot_m"],
+        "neighbor_columns": [
+            "native_frame",
+            "source_time_s",
+            "literal_deepest_m",
+            "literal_nonfoot_m",
+            "consumed_deepest_m",
+            "consumed_nonfoot_m",
+        ],
         "neighboring_native_frames": neighbors,
         "native_low_root_segment": low_segment,
         "runs": results,

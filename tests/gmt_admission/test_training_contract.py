@@ -100,9 +100,7 @@ def test_v3_is_one_exact_fixed_actor_normalizer_profile() -> None:
     effective = effective_training_contract(spec)
     assert effective["schema_id"] == EFFECTIVE_FIXED_NORMALIZER_TRAINING_CONTRACT_ID
     assert effective["schema_version"] == 4
-    assert effective["base_ppo_contract"]["observation_normalization"] == (
-        FIXED_NORMALIZER_ID
-    )
+    assert effective["base_ppo_contract"]["observation_normalization"] == (FIXED_NORMALIZER_ID)
     normalizer = effective["observation_preconditioning"]
     assert normalizer["normalizer_state_sha256"] == FIXED_NORMALIZER_STATE_SHA256
     assert normalizer["features_extractor"]["trainable_parameter_count"] == 0
@@ -130,9 +128,7 @@ def test_v3_is_one_exact_fixed_actor_normalizer_profile() -> None:
         ("learning_rate", float("nan")),
     ],
 )
-def test_v3_rejects_malformed_or_authored_profile_fields(
-    field: str, value: object
-) -> None:
+def test_v3_rejects_malformed_or_authored_profile_fields(field: str, value: object) -> None:
     raw = CourseTrainerSpec(TRAINING_REWARD_SCALE, profile_version=3).to_dict()
     raw[field] = value
 

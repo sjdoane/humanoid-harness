@@ -169,7 +169,9 @@ def _preflighted_monitor_and_manifest(
     monkeypatch.setattr(
         resource_module,
         "_GETRUSAGE",
-        lambda _who: SimpleNamespace(ru_maxrss=100_000_000),
+        lambda _who: SimpleNamespace(
+            ru_maxrss=100 * 1024 * (1024 if resource_module.platform.system() == "Darwin" else 1)
+        ),
     )
     monkeypatch.setattr(
         resource_module,

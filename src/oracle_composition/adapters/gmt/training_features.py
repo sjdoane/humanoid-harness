@@ -35,9 +35,7 @@ class FixedActorNormalizerExtractor(BaseFeaturesExtractor):
         state.require_pinned()
         super().__init__(observation_space, features_dim=observation_space.shape[0])
         self.register_buffer("normalizer_mean", torch.from_numpy(state.mean.copy()))
-        self.register_buffer(
-            "normalizer_std", torch.from_numpy(state.standard_deviation.copy())
-        )
+        self.register_buffer("normalizer_std", torch.from_numpy(state.standard_deviation.copy()))
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         normalized = (observations[:, :OBSERVATION_DIM] - self.normalizer_mean) / (

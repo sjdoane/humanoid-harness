@@ -131,15 +131,9 @@ def _fixture(
             trainer=effective_training_contract(
                 CourseTrainerSpec(
                     TRAINING_REWARD_SCALE,
-                    profile_version=(
-                        3 if fixed_normalizer else 2 if low_rate else 1
-                    ),
+                    profile_version=(3 if fixed_normalizer else 2 if low_rate else 1),
                 )
-                if (
-                    (scaled or fixed_normalizer)
-                    if manifest_scaled is None
-                    else manifest_scaled
-                )
+                if ((scaled or fixed_normalizer) if manifest_scaled is None else manifest_scaled)
                 else None
             ),
             residual_raw_scale=COURSE_RESIDUAL_RAW_SCALE,
@@ -264,14 +258,10 @@ def test_low_rate_run_exposes_validated_optimizer_rate(tmp_path, monkeypatch) ->
     training = payload["runs"][0]["training"]
     assert training["learning_rate"] == 3e-5
     assert training["trainer_variant"] == "gmt_g1_ppo_training_contract/v3"
-    assert training["producer_recorded_trainer"]["base_ppo_contract"][
-        "learning_rate"
-    ] == 3e-5
+    assert training["producer_recorded_trainer"]["base_ppo_contract"]["learning_rate"] == 3e-5
 
 
-def test_fixed_normalizer_run_exposes_exact_effective_contract(
-    tmp_path, monkeypatch
-) -> None:
+def test_fixed_normalizer_run_exposes_exact_effective_contract(tmp_path, monkeypatch) -> None:
     _registry, _manifest, objective = _fixture(
         tmp_path,
         fixed_normalizer=True,
@@ -283,9 +273,12 @@ def test_fixed_normalizer_run_exposes_exact_effective_contract(
     training = payload["runs"][0]["training"]
     assert training["learning_rate"] == 3e-5
     assert training["trainer_variant"] == "gmt_g1_ppo_training_contract/v4"
-    assert training["producer_recorded_trainer"]["observation_preconditioning"][
-        "features_extractor"
-    ]["trainable_parameter_count"] == 0
+    assert (
+        training["producer_recorded_trainer"]["observation_preconditioning"]["features_extractor"][
+            "trainable_parameter_count"
+        ]
+        == 0
+    )
 
 
 def test_registered_probe_exposes_exact_loop_runtime_without_task_pass_claim(

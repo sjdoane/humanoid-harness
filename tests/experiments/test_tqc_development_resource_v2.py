@@ -34,7 +34,9 @@ def _install_passing_measurements(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         resource_module,
         "_GETRUSAGE",
-        lambda _who: SimpleNamespace(ru_maxrss=100_000_000),
+        lambda _who: SimpleNamespace(
+            ru_maxrss=100 * 1024 * (1024 if resource_module.platform.system() == "Darwin" else 1)
+        ),
     )
     monkeypatch.setattr(
         resource_module,
@@ -44,6 +46,23 @@ def _install_passing_measurements(monkeypatch: pytest.MonkeyPatch) -> None:
             f_frsize=1,
         ),
     )
+
+
+@pytest.mark.parametrize("system", ["Darwin", "Linux"])
+def test_synthetic_resource_measurements_use_native_rss_units(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    system: str,
+) -> None:
+    monkeypatch.setattr(resource_module.platform, "system", lambda: system)
+    _install_passing_measurements(monkeypatch)
+    work = tmp_path.resolve() / "attempt"
+    work.mkdir(mode=0o700)
+    monitor = TQCResourceMonitorV2(work)
+
+    monitor.sample_lifecycle("preflight")
+
+    assert resource_module._peak_rss_bytes() < 200 * 1024 * 1024
 
 
 def _bound_monitor(
@@ -425,7 +444,9 @@ def test_throughput_floor_failure_is_observed_at_first_complete_window(
     monkeypatch.setattr(
         resource_module,
         "_GETRUSAGE",
-        lambda _who: SimpleNamespace(ru_maxrss=100_000_000),
+        lambda _who: SimpleNamespace(
+            ru_maxrss=100 * 1024 * (1024 if resource_module.platform.system() == "Darwin" else 1)
+        ),
     )
     monkeypatch.setattr(
         resource_module,

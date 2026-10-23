@@ -148,17 +148,17 @@ def _install_fakes(
         }
         if runtime.manifest_contract() is not None and not omit_receipt_runtime:
             receipt["inputs"]["course_runtime"] = (
-                receipt_runtime
-                if receipt_runtime is not None
-                else runtime.manifest_contract()
+                receipt_runtime if receipt_runtime is not None else runtime.manifest_contract()
             )
         include_heading_validation = (
             heading_runtime if heading_validation is None else heading_validation
         )
         if include_heading_validation:
             receipt["inputs"][module._HEADING_VALIDATION_FIELD] = {
-                "after_actions": 1, "saturated_window_rows": 20,
-                "native_rows_above_limit": 0, "changed_window_rows": 20,
+                "after_actions": 1,
+                "saturated_window_rows": 20,
+                "native_rows_above_limit": 0,
+                "changed_window_rows": 20,
             }
         receipt_path = output / "feedback_receipt_v1.json"
         receipt_path.write_bytes(finite_pretty_json(receipt))
@@ -251,9 +251,7 @@ def test_loop_runtime_revision_accepts_exact_profile_derived_feedback_receipt(
     result = _run(inputs, tmp_path / "revision")
 
     assert result["status"] == "completed"
-    receipt = json.loads(
-        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
-    )
+    receipt = json.loads((tmp_path / "revision/feedback_verification_receipt.json").read_text())
     assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
 
 
@@ -275,7 +273,9 @@ _STUDY016_ROOT = Path(
 )
 
 
-@pytest.mark.skipif(not _STUDY016_ROOT.is_dir(), reason="retained Study016 integration fixture absent")
+@pytest.mark.skipif(
+    not _STUDY016_ROOT.is_dir(), reason="retained Study016 integration fixture absent"
+)
 def test_real_heading_feedback_revises_through_full_publication_path(tmp_path):
     manifest = _STUDY016_ROOT / "course_run_manifest.json"
     manifest_sha = "0f1aaa53daa261dd0184118eac93dbd8b747ae6384905b669893e88bd8fca6c7"
@@ -283,28 +283,38 @@ def test_real_heading_feedback_revises_through_full_publication_path(tmp_path):
     parent_sha = "8fe33d993c6226690e986e99de3d0d1ee436424239069c4cceb91c1a8fabfc8e"
     feedback_root = tmp_path / "feedback"
     packet = module.build_g1_course_feedback(
-        manifest_path=manifest, expected_manifest_sha256=manifest_sha,
-        label="zero_residual", output=feedback_root,
+        manifest_path=manifest,
+        expected_manifest_sha256=manifest_sha,
+        label="zero_residual",
+        output=feedback_root,
     )
     recipe = json.loads(parent_path.read_bytes())["reward"]
     recipe["speed_weight"] = 1.1
     proposal_path = tmp_path / "proposal.json"
-    _, proposal_sha = _write_json(proposal_path, {
-        "schema_version": 1, "proposal_id": "software-integration-fixture-not-a-study",
-        "parent_config_sha256": parent_sha,
-        "feedback_sha256": packet["feedback"]["sha256"],
-        "factor": "reward",
-        "hypothesis": "Synthetic pipeline fixture only; no behavioral prediction or training.",
-        "replacement": {"reward": recipe},
-    })
+    _, proposal_sha = _write_json(
+        proposal_path,
+        {
+            "schema_version": 1,
+            "proposal_id": "software-integration-fixture-not-a-study",
+            "parent_config_sha256": parent_sha,
+            "feedback_sha256": packet["feedback"]["sha256"],
+            "factor": "reward",
+            "hypothesis": "Synthetic pipeline fixture only; no behavioral prediction or training.",
+            "replacement": {"reward": recipe},
+        },
+    )
     output = tmp_path / "revision"
     result = module.revise_g1_course(
-        parent_config_path=parent_path, expected_parent_config_sha256=parent_sha,
+        parent_config_path=parent_path,
+        expected_parent_config_sha256=parent_sha,
         feedback_path=feedback_root / "feedback_v1.json",
         expected_feedback_sha256=packet["feedback"]["sha256"],
-        proposal_path=proposal_path, expected_proposal_sha256=proposal_sha,
-        source_manifest_path=manifest, expected_source_manifest_sha256=manifest_sha,
-        source_label="zero_residual", output=output,
+        proposal_path=proposal_path,
+        expected_proposal_sha256=proposal_sha,
+        source_manifest_path=manifest,
+        expected_source_manifest_sha256=manifest_sha,
+        source_label="zero_residual",
+        output=output,
     )
     assert result["status"] == "completed"
     receipt = json.loads((output / "feedback_verification_receipt.json").read_bytes())
@@ -342,12 +352,8 @@ def test_finite_horizon_revision_accepts_exact_profile_derived_feedback_receipt(
     result = _run(inputs, tmp_path / "revision")
 
     assert result["status"] == "completed"
-    receipt = json.loads(
-        (tmp_path / "revision/feedback_verification_receipt.json").read_text()
-    )
-    assert receipt["inputs"]["course_runtime"] == (
-        FINITE_HORIZON_RUNTIME.manifest_contract()
-    )
+    receipt = json.loads((tmp_path / "revision/feedback_verification_receipt.json").read_text())
+    assert receipt["inputs"]["course_runtime"] == (FINITE_HORIZON_RUNTIME.manifest_contract())
 
 
 def test_finite_horizon_revision_rejects_tampered_runtime_binding(
