@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import copy
 import hashlib
+import shutil
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,13 +11,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from oracle_composition.contracts.reference_identity_v2 import canonical_json_bytes
+from oracle_composition.contracts.reference_identity_v2 import array_sha256, canonical_json_bytes
 from oracle_composition.experiments.fixed_reference import ExperimentContractError
 from oracle_composition.phase_b.protected_metrics import (
     CONTROL_PERIOD_SECONDS,
     protected_step_record,
 )
 from oracle_composition.phase_b.reference_runtime import tracking_state_from_reference_row
+from oracle_composition.reward_study import t2_evaluator
 from oracle_composition.reward_study.t2_evaluator import (
     T2_HORIZON_STEPS,
     T2VerifiedReference,
@@ -31,9 +33,79 @@ from oracle_composition.reward_study.t2_report import checkpoint_summary
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture(scope="module")
-def verified_reference() -> T2VerifiedReference:
-    return load_t2_verified_reference(repository_root=ROOT, evaluation_seed=97001)
+@pytest.fixture
+def synthetic_reference(monkeypatch: pytest.MonkeyPatch) -> T2VerifiedReference:
+    """Analytical rows for metric tests, never retained-corpus admission."""
+    time = np.arange(T2_HORIZON_STEPS + 1) * CONTROL_PERIOD_SECONDS
+    rows = np.zeros((T2_HORIZON_STEPS + 1, 45), dtype="<f8", order="C")
+    rows[:, 0] = 1.4
+    rows[:, 1] = 1.0
+    rows[:, 5] = 3.0
+    phases = time[:, None] + np.arange(17)[None, :] / 17
+    rows[:, 11:28] = 0.1 * np.sin(phases)
+    rows[:, 28:45] = 0.1 * np.cos(phases)
+    rows.setflags(write=False)
+    lineage = {
+        "provenance": "synthetic_unit_test_only_not_corpus_admission",
+        "clip_id": "synthetic-analytical-metric-reference",
+        "payload_sha256": array_sha256(rows),
+        "reference_rows": {
+            "dtype": "<f8",
+            "sha256": array_sha256(rows),
+            "shape": [T2_HORIZON_STEPS + 1, 45],
+        },
+    }
+    reference = T2VerifiedReference(
+        rows=rows,
+        lineage=lineage,
+        lineage_sha256=hashlib.sha256(canonical_json_bytes(lineage)).hexdigest(),
+    )
+
+    def load_synthetic_reference(
+        *, repository_root: Path, evaluation_seed: int
+    ) -> T2VerifiedReference:
+        assert repository_root == ROOT
+        assert evaluation_seed == 97001
+        return reference
+
+    monkeypatch.setattr(t2_evaluator, "load_t2_verified_reference", load_synthetic_reference)
+    return reference
+
+
+def test_historical_t2_reference_chain_resolves_exact_expert_rows() -> None:
+    reference = load_t2_verified_reference(repository_root=ROOT, evaluation_seed=97001)
+    assert reference.lineage["block"] == 120101
+    assert reference.lineage["clip_id"] == "corpus-120101-expert"
+    assert reference.rows.shape == (T2_HORIZON_STEPS + 1, 45)
+    assert reference.rows.dtype.str == "<f8"
+    assert reference.rows.flags.c_contiguous
+    assert not reference.rows.flags.writeable
+    assert reference.lineage["reference_rows"]["sha256"] == array_sha256(reference.rows)
+    assert (
+        reference.lineage_sha256
+        == hashlib.sha256(canonical_json_bytes(reference.lineage)).hexdigest()
+    )
+
+
+def _copy_public_library(repository_root: Path) -> None:
+    library_path = repository_root / t2_evaluator.T2_LIBRARY_PATH
+    library_path.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / t2_evaluator.T2_LIBRARY_PATH, library_path)
+
+
+def test_t2_reference_loader_refuses_missing_corpus(tmp_path: Path) -> None:
+    _copy_public_library(tmp_path)
+    with pytest.raises(ExperimentContractError, match=r"^T2 corpus manifest is unavailable$"):
+        load_t2_verified_reference(repository_root=tmp_path, evaluation_seed=97001)
+
+
+def test_t2_reference_loader_refuses_wrong_canonical_corpus_digest(tmp_path: Path) -> None:
+    _copy_public_library(tmp_path)
+    corpus_path = tmp_path / t2_evaluator.T2_CORPUS_PATH
+    corpus_path.parent.mkdir(parents=True)
+    corpus_path.write_bytes(canonical_json_bytes({}))
+    with pytest.raises(ExperimentContractError, match=r"^T2 library corpus digest differs$"):
+        load_t2_verified_reference(repository_root=tmp_path, evaluation_seed=97001)
 
 
 def _state(row: np.ndarray, *, fallen: bool) -> SimpleNamespace:
@@ -111,10 +183,10 @@ def _trace(
 
 
 def test_t2_evaluator_recomputes_direct_com_and_whole_episode_metrics(
-    verified_reference: T2VerifiedReference,
+    synthetic_reference: T2VerifiedReference,
 ) -> None:
     metrics = evaluate_t2_trace(
-        _trace(verified_reference),
+        _trace(synthetic_reference),
         repository_root=ROOT,
     )
     assert metrics.observed_steps == 1_000
@@ -128,16 +200,16 @@ def test_t2_evaluator_recomputes_direct_com_and_whole_episode_metrics(
     assert metrics.six_tracking_rmse == pytest.approx(
         {name: 0.0 for name in metrics.six_tracking_rmse}, abs=2e-8
     )
-    assert metrics.reference_lineage_sha256 == verified_reference.lineage_sha256
+    assert metrics.reference_lineage_sha256 == synthetic_reference.lineage_sha256
     assert metrics.safety_passed is True
     assert metrics.tracking_passed is True
 
 
 def test_t2_evaluator_reports_fall_only_first_fall_without_censoring(
-    verified_reference: T2VerifiedReference,
+    synthetic_reference: T2VerifiedReference,
 ) -> None:
     metrics = evaluate_t2_trace(
-        _trace(verified_reference, fall_step=37),
+        _trace(synthetic_reference, fall_step=37),
         repository_root=ROOT,
     )
     assert metrics.complete_trace is True
@@ -149,10 +221,10 @@ def test_t2_evaluator_reports_fall_only_first_fall_without_censoring(
 
 
 def test_incomplete_t2_trace_fails_safety_and_withholds_whole_episode_endpoints(
-    verified_reference: T2VerifiedReference,
+    synthetic_reference: T2VerifiedReference,
 ) -> None:
     metrics = evaluate_t2_trace(
-        _trace(verified_reference, 3),
+        _trace(synthetic_reference, 3),
         repository_root=ROOT,
     )
     assert metrics.complete_trace is False
@@ -164,15 +236,17 @@ def test_incomplete_t2_trace_fails_safety_and_withholds_whole_episode_endpoints(
     assert metrics.failure_reasons == ("incomplete_trace",)
 
 
-def test_t2_trace_binds_verified_chain_and_refuses_row_or_lineage_forgery(
-    verified_reference: T2VerifiedReference,
+def test_t2_trace_binds_synthetic_reference_and_refuses_row_or_lineage_forgery(
+    synthetic_reference: T2VerifiedReference,
 ) -> None:
-    trace = _trace(verified_reference, 3)
+    trace = _trace(synthetic_reference, 3)
     assert b"reward" not in canonical_json_bytes(trace)
-    assert trace["reference_lineage"]["block"] == 120101
-    assert trace["reference_lineage"]["clip_id"] == "corpus-120101-expert"
-    assert trace["reset_reference"]["values"] == verified_reference.rows[0].tolist()
-    assert trace["steps"][2]["reference"]["values"] == verified_reference.rows[3].tolist()
+    assert trace["reference_lineage"]["provenance"] == (
+        "synthetic_unit_test_only_not_corpus_admission"
+    )
+    assert trace["reference_lineage"]["clip_id"] == "synthetic-analytical-metric-reference"
+    assert trace["reset_reference"]["values"] == synthetic_reference.rows[0].tolist()
+    assert trace["steps"][2]["reference"]["values"] == synthetic_reference.rows[3].tolist()
 
     forged_row = copy.deepcopy(trace)
     forged_row["steps"][1]["reference"]["index"] = 9
@@ -198,12 +272,12 @@ def test_t2_trace_binds_verified_chain_and_refuses_row_or_lineage_forgery(
 
 
 def test_action_boundaries_reach_safety_report_and_out_of_bounds_fails(
-    verified_reference: T2VerifiedReference,
+    synthetic_reference: T2VerifiedReference,
 ) -> None:
     reports = {}
     for value in (-0.4, 0.4, 0.4001):
         metrics = evaluate_t2_trace(
-            _trace(verified_reference, action_value=value),
+            _trace(synthetic_reference, action_value=value),
             repository_root=ROOT,
         )
         episodes = [
