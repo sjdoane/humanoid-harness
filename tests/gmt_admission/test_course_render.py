@@ -274,9 +274,7 @@ def test_admission_crosslinks_data_without_importing_mujoco(tmp_path: Path) -> N
 
 
 def test_admission_accepts_exact_scaled_trainer_runtime(tmp_path: Path) -> None:
-    manifest, digest, upstream = _fixture(
-        tmp_path, mode="train", label="final_policy", scaled=True
-    )
+    manifest, digest, upstream = _fixture(tmp_path, mode="train", label="final_policy", scaled=True)
 
     admitted = load_course_render_inputs(
         manifest_path=manifest,

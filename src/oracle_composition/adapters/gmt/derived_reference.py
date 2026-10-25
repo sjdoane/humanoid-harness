@@ -96,9 +96,7 @@ _MANIFEST_FIELDS = {
     "static_geometry",
     "transform",
 }
-_CLAIM_CEILING = (
-    "hash_pinned_kinematic_candidate_only_not_dynamics_certified_admitted_or_retracked"
-)
+_CLAIM_CEILING = "hash_pinned_kinematic_candidate_only_not_dynamics_certified_admitted_or_retracked"
 
 
 def is_derived_reference_name(name: object) -> bool:

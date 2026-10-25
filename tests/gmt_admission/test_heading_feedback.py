@@ -40,9 +40,7 @@ def _task() -> CourseTaskSpec:
 def _window(yaw_rates: np.ndarray | None = None) -> np.ndarray:
     result = np.arange(20 * 30, dtype="<f4").reshape(20, 30) / np.float32(1_000)
     result[:, YAW_RATE_COLUMN] = (
-        np.linspace(-0.36, 0.36, 20, dtype="<f4")
-        if yaw_rates is None
-        else yaw_rates
+        np.linspace(-0.36, 0.36, 20, dtype="<f4") if yaw_rates is None else yaw_rates
     )
     return np.ascontiguousarray(result, dtype="<f4")
 
@@ -160,9 +158,11 @@ def test_wrap_boundary_retains_native_endpoint_clock_and_holds_same_correction()
     phase = torch.tensor(4 * CONTROL_DT_SECONDS, dtype=torch.float32)
     offsets = torch.tensor(REFERENCE_OFFSETS, dtype=torch.float32) * CONTROL_DT_SECONDS
     native_window = segment.features(phase + offsets).numpy().copy()
-    native_endpoint = segment.features(
-        torch.tensor([5 * CONTROL_DT_SECONDS], dtype=torch.float32)
-    )[0].numpy().copy()
+    native_endpoint = (
+        segment.features(torch.tensor([5 * CONTROL_DT_SECONDS], dtype=torch.float32))[0]
+        .numpy()
+        .copy()
+    )
     assert np.flatnonzero(native_endpoint != native_window[0]).tolist() == [3]
     assert native_endpoint[3] == np.float32(20.52631378173828)
     assert native_window[0, 3] == np.float32(23.684207916259766)
@@ -188,8 +188,7 @@ def test_wrap_boundary_retains_native_endpoint_clock_and_holds_same_correction()
     )
     expected_yaw = np.float32(
         np.clip(
-            native_endpoint[YAW_RATE_COLUMN]
-            + np.float32(plan.applied_correction_yaw_rate_rad_s),
+            native_endpoint[YAW_RATE_COLUMN] + np.float32(plan.applied_correction_yaw_rate_rad_s),
             np.float32(-ISSUED_YAW_RATE_LIMIT_RAD_S),
             np.float32(ISSUED_YAW_RATE_LIMIT_RAD_S),
         )

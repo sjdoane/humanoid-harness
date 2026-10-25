@@ -105,18 +105,12 @@ def oracle_boundary_inputs(
     projection = frame.project(position[:2], position[3:7])
     yaw = frame.forward_yaw_rad
     forward_speed = float(velocity[0] * math.cos(yaw) + velocity[1] * math.sin(yaw))
-    inside = (
-        task.region_entry_distance_m
-        <= projection.progress_m
-        < task.region_exit_distance_m
-    )
+    inside = task.region_entry_distance_m <= projection.progress_m < task.region_exit_distance_m
     quaternion = position[3:7]
     signals = {
         "t": control_step * CONTROL_DT_SECONDS,
         "v_x": forward_speed,
-        "v_target": (
-            task.target_speed_inside_m_s if inside else task.target_speed_outside_m_s
-        ),
+        "v_target": (task.target_speed_inside_m_s if inside else task.target_speed_outside_m_s),
         "z_root": float(position[2]),
         "torso_up": float(1 - 2 * (quaternion[1] ** 2 + quaternion[2] ** 2)),
         "x_travelled": projection.progress_m,
@@ -155,8 +149,7 @@ class AfterHeadingFeedbackPlan:
     def changed_window_row_count(self) -> int:
         return int(
             np.count_nonzero(
-                self.native_window[:, YAW_RATE_COLUMN]
-                != self.issued_window[:, YAW_RATE_COLUMN]
+                self.native_window[:, YAW_RATE_COLUMN] != self.issued_window[:, YAW_RATE_COLUMN]
             )
         )
 
@@ -174,10 +167,13 @@ def plan_after_heading_feedback(
         (REFERENCE_HORIZON, REFERENCE_FRAME_DIM),
         "native reference window",
     )
-    if any(type(value) is not float or not math.isfinite(value) for value in (
-        lateral_m,
-        heading_error_signed_rad,
-    )):
+    if any(
+        type(value) is not float or not math.isfinite(value)
+        for value in (
+            lateral_m,
+            heading_error_signed_rad,
+        )
+    ):
         raise ValueError("heading feedback inputs must be finite floats")
     target = float(
         np.clip(
@@ -186,9 +182,7 @@ def plan_after_heading_feedback(
             TARGET_HEADING_LIMIT_RAD,
         )
     )
-    correction = _wrap_angle(target - heading_error_signed_rad) / (
-        CORRECTION_TIME_CONSTANT_SECONDS
-    )
+    correction = _wrap_angle(target - heading_error_signed_rad) / (CORRECTION_TIME_CONSTANT_SECONDS)
     applied_correction = np.float32(correction)
     native_yaw = source[:, YAW_RATE_COLUMN]
     unclipped = native_yaw + applied_correction
@@ -257,9 +251,7 @@ def after_heading_feedback_trace(
         },
         "target_heading_rad": plan.target_heading_rad,
         "correction_yaw_rate_rad_s": plan.correction_yaw_rate_rad_s,
-        "applied_correction_yaw_rate_rad_s_float32": (
-            plan.applied_correction_yaw_rate_rad_s
-        ),
+        "applied_correction_yaw_rate_rad_s_float32": (plan.applied_correction_yaw_rate_rad_s),
         "window": {
             "native_float32_c_sha256": _array_sha256(plan.native_window),
             "issued_float32_c_sha256": _array_sha256(plan.issued_window),
@@ -296,12 +288,8 @@ def after_heading_feedback_trace(
             "issued_float32_c_sha256": _array_sha256(issued),
             "native_yaw_rate_rad_s": float(source[YAW_RATE_COLUMN]),
             "issued_yaw_rate_rad_s": float(issued[YAW_RATE_COLUMN]),
-            "native_matches_window_first_row": bool(
-                np.array_equal(source, plan.native_window[0])
-            ),
-            "matches_issued_window_first_row": bool(
-                np.array_equal(issued, plan.issued_window[0])
-            ),
+            "native_matches_window_first_row": bool(np.array_equal(source, plan.native_window[0])),
+            "matches_issued_window_first_row": bool(np.array_equal(issued, plan.issued_window[0])),
         },
     }
 

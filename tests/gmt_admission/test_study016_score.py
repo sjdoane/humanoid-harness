@@ -217,7 +217,9 @@ def test_partial_or_noncanonical_study_inputs_fail_closed(scorer):
 def test_fresh_source_is_fixed_before_data(scorer, tree, count):
     inputs = {
         "schema_version": 1,
-        "baseline": {}, "control": {}, "candidate": {},
+        "baseline": {},
+        "control": {},
+        "candidate": {},
         "coordination_root": "/must-not-be-read",
         "fresh_source_tree_sha256": tree or scorer.FRESH_TREE,
         "fresh_source_file_count": count,

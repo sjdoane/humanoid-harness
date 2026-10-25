@@ -137,9 +137,10 @@ def test_heading_trace_schema_is_profile_scoped_and_never_changes_score() -> Non
     rows[-1]["executed_mode"] = "after"
     baseline = evaluate_episode(spec=_spec(), frames=rows)
     rows[-1][AFTER_HEADING_FEEDBACK_TRACE_KEY] = {"diagnostic_only": 1.0}
-    assert evaluate_episode(
-        spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME
-    ) == baseline
+    assert (
+        evaluate_episode(spec=_spec(), frames=rows, runtime=AFTER_HEADING_FEEDBACK_RUNTIME)
+        == baseline
+    )
     for runtime in (LEGACY_RUNTIME, LOOP_RUNTIME, FINITE_HORIZON_RUNTIME):
         with pytest.raises(ValueError, match="frame fields"):
             evaluate_episode(spec=_spec(), frames=rows, runtime=runtime)

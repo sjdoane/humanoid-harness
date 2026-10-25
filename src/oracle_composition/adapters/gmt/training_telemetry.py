@@ -574,11 +574,7 @@ def _valid_update(value: object, through: int) -> bool:
                 return False
             if reasons[name] == "undefined_nonfinite" and name != "explained_variance":
                 return False
-        elif (
-            type(item) not in {int, float}
-            or not math.isfinite(item)
-            or name in reasons
-        ):
+        elif type(item) not in {int, float} or not math.isfinite(item) or name in reasons:
             return False
     return set(reasons) == {name for name, item in value["metrics"].items() if item is None}
 
@@ -637,8 +633,7 @@ def _valid_episode_counts(value: object, *, scaled: bool) -> bool:
         or type(value["terminal_metrics"]) is not dict
         or set(value["terminal_metrics"]) != {"control_step", *_METRIC_FLOATS}
         or not all(
-            _valid_moments(summary, completed)
-            for summary in value["terminal_metrics"].values()
+            _valid_moments(summary, completed) for summary in value["terminal_metrics"].values()
         )
     ):
         return False
@@ -679,8 +674,7 @@ def _valid_observation_counts(value: object, *, runtime: CourseRuntimeProfile) -
 def _valid_normalized_range(value: object, expected_sha256: str) -> bool:
     return (
         type(value) is dict
-        and set(value)
-        == {"source", "normalizer_state_sha256", "maximum_absolute_value"}
+        and set(value) == {"source", "normalizer_state_sha256", "maximum_absolute_value"}
         and value["source"] == "current_rollout_buffer_raw_observations"
         and value["normalizer_state_sha256"] == expected_sha256
         and type(value["maximum_absolute_value"]) in {int, float}
@@ -740,10 +734,7 @@ def validate_training_telemetry(
     rows = [decode_json_object(line, source="training telemetry row") for line in lines]
     for row in rows:
         _finite_json(row)
-        if (
-            row.get("schema_version") != schema_version
-            or row.get("telemetry_id") != telemetry_id
-        ):
+        if row.get("schema_version") != schema_version or row.get("telemetry_id") != telemetry_id:
             raise ValueError("training telemetry identity differs")
     rollout_keys = {
         "schema_version",

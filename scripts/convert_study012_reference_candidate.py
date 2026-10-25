@@ -29,8 +29,7 @@ DONOR_ROOT = Path(
     "gmt_course_intrinsic_horizon_candidate_20260907"
 )
 ARTIFACT_ROOT = Path(
-    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/"
-    "artifacts/gmt/2a590de25a1eb08e"
+    "/Users/samueldoane/Documents/ChatGPT/humanoid-harness-astra/artifacts/gmt/2a590de25a1eb08e"
 )
 CANDIDATE_ID = "gmt_g1_study012_executed_inside_passage/v1"
 DONOR_COMMIT = "9bca23bf62ea386cd7f0492aa63626b6c2a219dc"
@@ -60,6 +59,9 @@ DONOR_FILES = {
 MODEL_XML_SHA256 = "7013cd256c89796b2844613d24dda2a13410df7cd32ddd4d59b1741f85094304"
 MODEL_XML_SIZE = 26_860
 MESH_TREE_SHA256 = "d8366a1f0c1e64d47c3710dfe7fd01d136ee462fda77d3cb571ab7dcecc967f2"
+# This current source epoch requires its own reviewed commit; historical evidence
+# remains bound to the original bytes indexed in docs/operations/study012-source-epochs.md.
+SOURCE_BINDING_VERSION = "study012-converter-source/v2"
 SOURCE_BINDINGS = {
     "oracle_composition/__init__.py": (
         "oracle_composition",
@@ -75,19 +77,19 @@ SOURCE_BINDINGS = {
     ),
     "oracle_composition/adapters/gmt/contracts.py": (
         "oracle_composition.adapters.gmt.contracts",
-        "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31"
+        "f574b2a8266d7b4529525f720ce901faa9924538a80288627c558f750ad92f31",
     ),
     "oracle_composition/adapters/gmt/course_task.py": (
         "oracle_composition.adapters.gmt.course_task",
-        "9865fe86c54aeb4b27bc1256fbde160423feec2a44d639b036bb6db8469da66a"
+        "9c4874d474864b0b9e5cd1daabdfcbb7b8c4f575e26ec86a7e368dd324c824ac",
     ),
     "oracle_composition/adapters/gmt/deployment.py": (
         "oracle_composition.adapters.gmt.deployment",
-        "7bc3e173cf4922212a6a5e080fd8b60a3cfa49434ff11ba14855bf2a89db8b46"
+        "7bc3e173cf4922212a6a5e080fd8b60a3cfa49434ff11ba14855bf2a89db8b46",
     ),
     "oracle_composition/adapters/gmt/io.py": (
         "oracle_composition.adapters.gmt.io",
-        "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3"
+        "e24ba59fa255c8b47b1cc71831bd7c9b2784af4d0e83d4e24501ec13b139f8d3",
     ),
     "oracle_composition/adapters/gmt/motions.py": (
         "oracle_composition.adapters.gmt.motions",
@@ -95,7 +97,7 @@ SOURCE_BINDINGS = {
     ),
     "oracle_composition/adapters/gmt/reference_math.py": (
         "oracle_composition.adapters.gmt.reference_math",
-        "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e"
+        "6f82ce49056fc9beacf1215c817f1f4f0e91733fc2eb056b16bb9fec04c49b0e",
     ),
     "oracle_composition/contracts/__init__.py": (
         "oracle_composition.contracts",
@@ -115,7 +117,7 @@ SOURCE_BINDINGS = {
     ),
     "oracle_composition/contracts/reference_identity_v2.py": (
         "oracle_composition.contracts.reference_identity_v2",
-        "c64fbe08cad98da57977767214c00f4f4dcbda83420a6113703d2b254016e4c3"
+        "c64fbe08cad98da57977767214c00f4f4dcbda83420a6113703d2b254016e4c3",
     ),
 }
 TRAJECTORY_MEMBERS = {
@@ -164,9 +166,7 @@ def reviewed_checkout_identity(repository_root: Path, expected_commit: str) -> d
             text=True,
         )
         if result.returncode:
-            raise gmt_io.GMTAdmissionError(
-                f"Git source verification failed: {' '.join(arguments)}"
-            )
+            raise gmt_io.GMTAdmissionError(f"Git source verification failed: {' '.join(arguments)}")
         return result.stdout.strip()
 
     if Path(git("rev-parse", "--show-toplevel")).resolve() != root:
@@ -196,7 +196,9 @@ def source_identity(reviewed_source_commit: str) -> dict[str, object]:
     for relative, (module_name, expected_digest) in SOURCE_BINDINGS.items():
         module = sys.modules.get(module_name)
         if module is None or getattr(module, "__file__", None) is None:
-            raise gmt_io.GMTAdmissionError(f"expected source module was not imported: {module_name}")
+            raise gmt_io.GMTAdmissionError(
+                f"expected source module was not imported: {module_name}"
+            )
         path = Path(module.__file__).resolve()
         expected_path = (source_root / relative).resolve()
         if path != expected_path or not path.is_relative_to(source_root.resolve()):
@@ -210,6 +212,7 @@ def source_identity(reviewed_source_commit: str) -> dict[str, object]:
     producer_sha256 = gmt_io.sha256_file(producer)
     executed = {**observed, producer_relative: producer_sha256}
     return {
+        "binding_version": SOURCE_BINDING_VERSION,
         "imports": observed,
         "producer": {"path": producer_relative, "sha256": producer_sha256},
         "executed_source_set_sha256": _canonical_sha256(executed),
@@ -297,8 +300,10 @@ def _load_frames(root: Path) -> list[dict[str, Any]]:
 
 
 def _ground_body_names(pairs: object, geom_body_names: object) -> tuple[str, ...]:
-    if type(geom_body_names) is not list or not geom_body_names or any(
-        type(name) is not str or not name for name in geom_body_names
+    if (
+        type(geom_body_names) is not list
+        or not geom_body_names
+        or any(type(name) is not str or not name for name in geom_body_names)
     ):
         raise gmt_io.GMTAdmissionError("invalid trajectory geom-body names")
     if geom_body_names[0] != "world" or type(pairs) is not list:
@@ -365,7 +370,9 @@ def validate_frames(frames: list[dict[str, Any]], qpos: np.ndarray) -> dict[str,
             bodies.update(_ground_body_names(pairs, trajectory.get("geom_body_names")))
             substeps += 1
     if not bodies.issubset(ALLOWED_FEET):
-        raise gmt_io.GMTAdmissionError(f"donor interval has non-foot ground contact: {sorted(bodies)}")
+        raise gmt_io.GMTAdmissionError(
+            f"donor interval has non-foot ground contact: {sorted(bodies)}"
+        )
     if substeps != INTERVAL_COUNT * contracts.SIMULATION_DECIMATION:
         raise gmt_io.GMTAdmissionError("donor substep count differs")
     return {
@@ -383,14 +390,16 @@ def validate_donor(root: Path) -> tuple[np.ndarray, dict[str, object]]:
     config = _verified_json(root, "input_config.json")
     if receipt.get("status") != "succeeded" or receipt.get("commit") != DONOR_COMMIT:
         raise gmt_io.GMTAdmissionError("donor resource receipt status/source differs")
-    if receipt.get("inputs", {}).get("repository_sources", {}).get(
-        "canonical_tree_sha256"
-    ) != DONOR_TREE_SHA256:
+    if (
+        receipt.get("inputs", {}).get("repository_sources", {}).get("canonical_tree_sha256")
+        != DONOR_TREE_SHA256
+    ):
         raise gmt_io.GMTAdmissionError("donor executable source-tree identity differs")
     artifacts = receipt.get("artifacts", {})
-    if artifacts.get("course_manifest", {}).get("sha256") != DONOR_FILES[
-        "course_run_manifest.json"
-    ][0]:
+    if (
+        artifacts.get("course_manifest", {}).get("sha256")
+        != DONOR_FILES["course_run_manifest.json"][0]
+    ):
         raise gmt_io.GMTAdmissionError("donor receipt does not bind the course manifest")
     for name in ("input_config.json", "final_policy_frames.jsonl", "final_policy_trajectory.npz"):
         expected_sha256, expected_size = DONOR_FILES[name]
@@ -418,8 +427,7 @@ def validate_donor(root: Path) -> tuple[np.ndarray, dict[str, object]]:
         "source_commit": DONOR_COMMIT,
         "executable_tree_sha256": DONOR_TREE_SHA256,
         "files": {
-            name: {"sha256": digest, "size": size}
-            for name, (digest, size) in DONOR_FILES.items()
+            name: {"sha256": digest, "size": size} for name, (digest, size) in DONOR_FILES.items()
         },
         "execution_contact_evidence": contact,
     }
@@ -535,12 +543,10 @@ def validate_static_geometry(xml_path: Path, arrays: dict[str, np.ndarray]) -> d
     model = mujoco.MjModel.from_xml_path(str(xml_path))
     expected_joints = ("pelvis", *(f"{name}_joint" for name in contracts.JOINT_NAMES))
     joints = tuple(
-        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, index)
-        for index in range(model.njnt)
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, index) for index in range(model.njnt)
     )
     actuators = tuple(
-        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_ACTUATOR, index)
-        for index in range(model.nu)
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_ACTUATOR, index) for index in range(model.nu)
     )
     if (
         (model.nq, model.nv, model.nu) != (30, 29, contracts.ACTION_DIM)
@@ -554,9 +560,7 @@ def validate_static_geometry(xml_path: Path, arrays: dict[str, np.ndarray]) -> d
     if planes != [0]:
         raise gmt_io.GMTAdmissionError(f"expected sole ground plane geom 0, observed {planes}")
     geom_body_names = [
-        mujoco.mj_id2name(
-            model, mujoco.mjtObj.mjOBJ_BODY, int(model.geom_bodyid[geom_index])
-        )
+        mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, int(model.geom_bodyid[geom_index]))
         for geom_index in range(model.ngeom)
     ]
     data = mujoco.MjData(model)

@@ -201,9 +201,7 @@ def _pair(
             monkeypatch,
             telemetry=True,
             scaled=scaled,
-            finite_horizon_runtime=(
-                finite_horizon_runtime or cell_id == finite_horizon_cell
-            ),
+            finite_horizon_runtime=(finite_horizon_runtime or cell_id == finite_horizon_cell),
             four_state_finite_horizon_runtime=four_state_finite_horizon_runtime,
         )
         config = _replace_budget_and_telemetry(run, config, scaled=scaled)
@@ -325,12 +323,8 @@ def test_scores_pair_with_exact_four_state_finite_horizon_runtime_bindings(
 
     assert result["pair"]["course_runtime_profile_difference"] is False
     for cell in result["cells"].values():
-        assert cell["course_runtime"] == (
-            FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract()
-        )
-        assert cell["learning"]["telemetry_path"] == (
-            FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
-        )
+        assert cell["course_runtime"] == (FOUR_STATE_FINITE_HORIZON_RUNTIME.manifest_contract())
+        assert cell["learning"]["telemetry_path"] == (FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME)
 
 
 def test_study_expectation_rejects_changed_four_state_runtime_profile() -> None:
@@ -620,9 +614,7 @@ def test_updates_select_exact_v3_fixed_normalizer_telemetry(
         reward_scale=TRAINING_REWARD_SCALE,
         fixed_normalizer=state,
     ) as telemetry:
-        telemetry.rollout_boundary(
-            512, np.zeros((1, 2171), dtype=np.float32), {}, None
-        )
+        telemetry.rollout_boundary(512, np.zeros((1, 2171), dtype=np.float32), {}, None)
         telemetry.final_update({}, None)
 
     learning = module._updates(

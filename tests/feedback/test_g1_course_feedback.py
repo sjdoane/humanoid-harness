@@ -158,9 +158,7 @@ def _fixed_state(monkeypatch: pytest.MonkeyPatch) -> FixedNormalizerState:
     )
     monkeypatch.setattr(telemetry_module, "FIXED_NORMALIZER_STATE_SHA256", digest)
     monkeypatch.setattr(module, "FIXED_NORMALIZER_STATE_SHA256", digest)
-    return FixedNormalizerState.from_arrays(
-        mean, standard_deviation, expected_sha256=digest
-    )
+    return FixedNormalizerState.from_arrays(mean, standard_deviation, expected_sha256=digest)
 
 
 def _run_fixture(
@@ -250,9 +248,7 @@ def _run_fixture(
         else (("zero_residual", 0.0), ("final_policy", 0.1))
     )
     for label, residual_rms in labels:
-        outputs[f"{label}_frames.jsonl"] = _write_frames(
-            root / f"{label}_frames.jsonl", rows
-        )
+        outputs[f"{label}_frames.jsonl"] = _write_frames(root / f"{label}_frames.jsonl", rows)
         outputs[f"{label}_trajectory.npz"] = write_deterministic_npz(
             root / f"{label}_trajectory.npz", arrays
         )
@@ -418,9 +414,7 @@ def test_builds_exact_feedback_and_input_receipt(tmp_path, monkeypatch) -> None:
 
 
 def test_probe_loop_runtime_is_bound_in_feedback_receipt(tmp_path, monkeypatch) -> None:
-    manifest, digest, _config = _run_fixture(
-        tmp_path / "run", monkeypatch, loop_runtime=True
-    )
+    manifest, digest, _config = _run_fixture(tmp_path / "run", monkeypatch, loop_runtime=True)
 
     module.build_g1_course_feedback(
         manifest_path=manifest,
@@ -433,9 +427,7 @@ def test_probe_loop_runtime_is_bound_in_feedback_receipt(tmp_path, monkeypatch) 
     assert receipt["inputs"]["course_runtime"] == LOOP_RUNTIME.manifest_contract()
 
 
-def test_finite_horizon_runtime_is_bound_in_feedback_receipt(
-    tmp_path, monkeypatch
-) -> None:
+def test_finite_horizon_runtime_is_bound_in_feedback_receipt(tmp_path, monkeypatch) -> None:
     manifest, digest, _config = _run_fixture(
         tmp_path / "run",
         monkeypatch,
@@ -454,9 +446,7 @@ def test_finite_horizon_runtime_is_bound_in_feedback_receipt(
     )
 
     receipt = json.loads((output / "feedback_receipt_v1.json").read_text())
-    assert receipt["inputs"]["course_runtime"] == (
-        FINITE_HORIZON_RUNTIME.manifest_contract()
-    )
+    assert receipt["inputs"]["course_runtime"] == (FINITE_HORIZON_RUNTIME.manifest_contract())
 
 
 def test_four_state_finite_horizon_feedback_accepts_exact_v4_output_set(
@@ -535,9 +525,7 @@ def test_four_state_finite_horizon_feedback_rejects_historical_telemetry_set(
 
 
 def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatch) -> None:
-    manifest, digest, _ = _run_fixture(
-        tmp_path / "run", monkeypatch, telemetry=True
-    )
+    manifest, digest, _ = _run_fixture(tmp_path / "run", monkeypatch, telemetry=True)
 
     module.build_g1_course_feedback(
         manifest_path=manifest,
@@ -557,12 +545,8 @@ def test_feedback_accepts_exact_optional_training_telemetry(tmp_path, monkeypatc
     assert "do not establish convergence or a causal mechanism" in diagnosis
 
 
-def test_legacy_feedback_rejects_v1_telemetry_renamed_as_v4(
-    tmp_path, monkeypatch
-) -> None:
-    manifest_path, _, _ = _run_fixture(
-        tmp_path / "run", monkeypatch, telemetry=True
-    )
+def test_legacy_feedback_rejects_v1_telemetry_renamed_as_v4(tmp_path, monkeypatch) -> None:
+    manifest_path, _, _ = _run_fixture(tmp_path / "run", monkeypatch, telemetry=True)
     root = manifest_path.parent
     legacy = root / TELEMETRY_FILENAME
     renamed = root / FOUR_STATE_FINITE_HORIZON_TELEMETRY_FILENAME
@@ -591,13 +575,14 @@ def test_training_summary_reports_no_completed_episodes_and_missing_stats(tmp_pa
 
     assert "no completed episodes" in diagnosis
     assert "KL=unavailable (missing)" in diagnosis
-    assert "attempted PPO epochs including KL-stopped partial epochs=unavailable (missing)" in diagnosis
+    assert (
+        "attempted PPO epochs including KL-stopped partial epochs=unavailable (missing)"
+        in diagnosis
+    )
 
 
 def test_scaled_feedback_names_ppo_input_and_raw_return_units(tmp_path, monkeypatch) -> None:
-    manifest, digest, _ = _run_fixture(
-        tmp_path / "run", monkeypatch, telemetry=True, scaled=True
-    )
+    manifest, digest, _ = _run_fixture(tmp_path / "run", monkeypatch, telemetry=True, scaled=True)
 
     module.build_g1_course_feedback(
         manifest_path=manifest,
@@ -606,9 +591,7 @@ def test_scaled_feedback_names_ppo_input_and_raw_return_units(tmp_path, monkeypa
         output=tmp_path / "feedback",
     )
 
-    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())[
-        "diagnosis"
-    ]
+    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())["diagnosis"]
     assert "Scaled pre-bootstrap return means 1/1" in diagnosis
     assert "raw environment return means 64/64" in diagnosis
     assert "value loss is in scaled optimization-reward units" in diagnosis
@@ -651,16 +634,12 @@ def test_feedback_accepts_exact_fixed_normalizer_receipts_and_descriptive_range(
         output=tmp_path / "feedback",
     )
 
-    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())[
-        "diagnosis"
-    ]
+    diagnosis = json.loads((tmp_path / "feedback/feedback_v1.json").read_text())["diagnosis"]
     assert "Fixed-normalized base-slice maximum absolute value" in diagnosis
     assert "descriptive, not a safety threshold" in diagnosis
 
 
-def test_feedback_rejects_changed_fixed_normalizer_metadata(
-    tmp_path, monkeypatch
-) -> None:
+def test_feedback_rejects_changed_fixed_normalizer_metadata(tmp_path, monkeypatch) -> None:
     manifest_path, _, _ = _run_fixture(
         tmp_path / "run",
         monkeypatch,
@@ -668,9 +647,7 @@ def test_feedback_rejects_changed_fixed_normalizer_metadata(
         fixed_normalizer=True,
     )
     manifest = json.loads(manifest_path.read_text())
-    manifest["training"]["observation_preconditioning"][
-        "normalizer_state_sha256"
-    ] = "0" * 64
+    manifest["training"]["observation_preconditioning"]["normalizer_state_sha256"] = "0" * 64
     digest = _write_json(manifest_path, manifest)
 
     with pytest.raises(ValueError, match="observation preconditioning"):
@@ -683,9 +660,7 @@ def test_feedback_rejects_changed_fixed_normalizer_metadata(
 
 
 def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> None:
-    manifest_path, _, _ = _run_fixture(
-        tmp_path / "run", monkeypatch, telemetry=True
-    )
+    manifest_path, _, _ = _run_fixture(tmp_path / "run", monkeypatch, telemetry=True)
     manifest = json.loads(manifest_path.read_text())
     manifest["training"]["telemetry"]["record_count"] += 1
     digest = _write_json(manifest_path, manifest)
@@ -699,9 +674,7 @@ def test_feedback_rejects_telemetry_descriptor_drift(tmp_path, monkeypatch) -> N
         )
 
 
-def test_feedback_rejects_descriptor_key_without_telemetry_output(
-    tmp_path, monkeypatch
-) -> None:
+def test_feedback_rejects_descriptor_key_without_telemetry_output(tmp_path, monkeypatch) -> None:
     manifest_path, _, _ = _run_fixture(tmp_path / "run", monkeypatch)
     manifest = json.loads(manifest_path.read_text())
     manifest["training"]["telemetry"] = None
@@ -780,9 +753,7 @@ def test_rejects_internally_consistent_metrics_forged_against_trajectory(
 
 
 def test_missing_region_is_explicit_missing_evidence(tmp_path, monkeypatch) -> None:
-    manifest, digest, _ = _run_fixture(
-        tmp_path / "run", monkeypatch, observe_region=False
-    )
+    manifest, digest, _ = _run_fixture(tmp_path / "run", monkeypatch, observe_region=False)
 
     module.build_g1_course_feedback(
         manifest_path=manifest,
