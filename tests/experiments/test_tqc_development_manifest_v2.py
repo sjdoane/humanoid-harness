@@ -4,10 +4,12 @@ import dataclasses
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -89,7 +91,7 @@ class FakeValidatedTQCWorkerPreflightDeliveryV2:
 
 
 @dataclass(slots=True)
-class Context:
+class PreflightContext:
     design: Any
     e0: Any
     review: Any
@@ -103,6 +105,10 @@ class Context:
     execution_sources: dict[str, Path]
     preflight_path: Path
     preflight: ValidatedTQCPreflightContractV2
+
+
+@dataclass(slots=True)
+class Context(PreflightContext):
     bootstrap_bytes: bytes
     runtime_bytes: bytes
     instrumentation_bytes: bytes
@@ -365,7 +371,7 @@ def _delivery(
     )
 
 
-def _make_context(tmp_path: Path) -> Context:
+def _make_preflight_context(tmp_path: Path) -> PreflightContext:
     tmp_path.mkdir(parents=True, exist_ok=True)
     design = load_tqc_development_design_v2(DESIGN_PATH, AUDIT_PATH)
     e0 = _e0()
@@ -409,6 +415,27 @@ def _make_context(tmp_path: Path) -> Context:
         python_executable_path=executable,
         reservation=reservation,
     )
+    return PreflightContext(
+        design=design,
+        e0=e0,
+        review=review,
+        reservation=reservation,
+        work=reservation.path,
+        source_root=source_root,
+        dependency_lock=dependency_lock,
+        executable=executable,
+        runtime=runtime,
+        preflight_sources=preflight_sources,
+        execution_sources=execution_sources,
+        preflight_path=reservation.preflight_contract_path,
+        preflight=preflight,
+    )
+
+
+def _make_context(tmp_path: Path) -> Context:
+    preflight_context = _make_preflight_context(tmp_path)
+    preflight = preflight_context.preflight
+    design = preflight_context.design
     bootstrap_bytes = _bootstrap_receipt_bytes(preflight)
     runtime_bytes = _runtime_receipt_bytes(preflight, design)
     instrumentation_bytes = _instrumentation_receipt_bytes(preflight)
@@ -435,19 +462,10 @@ def _make_context(tmp_path: Path) -> Context:
         worker_receipt_set_bytes=receipt_set_bytes,
     )
     return Context(
-        design=design,
-        e0=e0,
-        review=review,
-        reservation=reservation,
-        work=reservation.path,
-        source_root=source_root,
-        dependency_lock=dependency_lock,
-        executable=executable,
-        runtime=runtime,
-        preflight_sources=preflight_sources,
-        execution_sources=execution_sources,
-        preflight_path=reservation.preflight_contract_path,
-        preflight=preflight,
+        **{
+            field.name: getattr(preflight_context, field.name)
+            for field in dataclasses.fields(PreflightContext)
+        },
         bootstrap_bytes=bootstrap_bytes,
         runtime_bytes=runtime_bytes,
         instrumentation_bytes=instrumentation_bytes,
@@ -476,6 +494,57 @@ def _publish_manifest(context: Context) -> ValidatedTQCExecutionManifestV2:
         context.preflight,
         context.worker_receipts,
         execution_source_paths=context.execution_sources,
+    )
+
+
+@pytest.fixture
+def synthetic_preflight_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[Path], PreflightContext]:
+    """Supply synthetic observations for preflight contracts, not host admission."""
+    design = load_tqc_development_design_v2(DESIGN_PATH, AUDIT_PATH)
+    runtime = design.to_dict()["training_projection"]["runtime_requirements"]
+    observed = {
+        field: runtime[field]
+        for field in (
+            "python_version",
+            "platform_system",
+            "platform_machine",
+            "platform_release",
+            "cpu_model",
+            "hardware_model",
+            "logical_cpu_count",
+            "total_memory_bytes",
+        )
+    }
+    monkeypatch.setattr(
+        manifest_module, "_observe_preflight_runtime_identity", lambda: dict(observed)
+    )
+    return _make_preflight_context
+
+
+def test_preflight_observer_reads_actual_host() -> None:
+    observed = manifest_module._observe_preflight_runtime_identity()
+    assert observed == {
+        "python_version": platform.python_version(),
+        "platform_system": platform.system(),
+        "platform_machine": platform.machine(),
+        "platform_release": platform.release(),
+        **runtime_module._host_hardware_identity(),
+    }
+
+
+def test_real_host_must_satisfy_frozen_preflight_runtime(tmp_path: Path) -> None:
+    # Source files and executable are synthetic; host observations remain real.
+    context = _make_preflight_context(tmp_path)
+    observed = manifest_module._observe_preflight_runtime_identity()
+    assert observed == {field: context.runtime[field] for field in observed}
+
+
+def test_actual_instrumentation_must_satisfy_frozen_source_proof() -> None:
+    assert (
+        instrument_module._structural_source_proof(instrument_module._instrumented_humanoid_class())
+        == instrument_module.EXPECTED_STRUCTURAL_SOURCE_PROOF_SHA256
     )
 
 
@@ -566,8 +635,11 @@ def test_reservation_is_fresh_private_exact_and_non_reusable(tmp_path: Path) -> 
         ReservedTQCAttemptDirectoryV2(**dataclasses.asdict(reservation))
 
 
-def test_preflight_is_canonical_exclusive_and_reloads_live_paths(tmp_path: Path) -> None:
-    context = _make_context(tmp_path)
+def test_preflight_is_canonical_exclusive_and_reloads_live_paths(
+    tmp_path: Path,
+    synthetic_preflight_context: Callable[[Path], PreflightContext],
+) -> None:
+    context = synthetic_preflight_context(tmp_path)
     assert canonical_json(context.preflight.to_dict()) == context.preflight_path.read_bytes()
     assert context.preflight_path.stat().st_mode & 0o777 == 0o600
     reloaded = validate_persisted_tqc_preflight_contract_v2(
@@ -582,6 +654,9 @@ def test_preflight_is_canonical_exclusive_and_reloads_live_paths(tmp_path: Path)
         reservation=context.reservation,
     )
     assert reloaded.sha256 == context.preflight.sha256
+    assert type(reloaded) is ValidatedTQCPreflightContractV2
+    assert reloaded.canonical_bytes == context.preflight_path.read_bytes()
+    assert reloaded.to_dict() == context.preflight.to_dict()
     with pytest.raises(ExperimentContractError, match="overwrite"):
         publish_tqc_preflight_contract_v2(
             context.preflight_path,
@@ -596,8 +671,11 @@ def test_preflight_is_canonical_exclusive_and_reloads_live_paths(tmp_path: Path)
         )
 
 
-def test_preflight_rejects_unreserved_path_and_detached_source_tree(tmp_path: Path) -> None:
-    context = _make_context(tmp_path / "context")
+def test_preflight_rejects_unreserved_path_and_detached_source_tree(
+    tmp_path: Path,
+    synthetic_preflight_context: Callable[[Path], PreflightContext],
+) -> None:
+    context = synthetic_preflight_context(tmp_path / "context")
     other = reserve_tqc_attempt_directory_v2(tmp_path / "other")
     with pytest.raises(ExperimentContractError, match="path differs from its reservation"):
         publish_tqc_preflight_contract_v2(
@@ -760,8 +838,11 @@ def test_replaced_work_directory_or_reservation_receipt_blocks_manifest(tmp_path
         _publish_manifest(tampered)
 
 
-def test_source_roles_require_exact_canonical_paths(tmp_path: Path) -> None:
-    context = _make_context(tmp_path / "context")
+def test_source_roles_require_exact_canonical_paths(
+    tmp_path: Path,
+    synthetic_preflight_context: Callable[[Path], PreflightContext],
+) -> None:
+    context = synthetic_preflight_context(tmp_path / "context")
     reservation = reserve_tqc_attempt_directory_v2(tmp_path / "second")
     paths = dict(context.preflight_sources)
     paths["worker_entrypoint_source_sha256"] = paths["runtime_reinspection_source_sha256"]
@@ -867,8 +948,9 @@ def test_capability_classes_cannot_be_constructed_or_replaced_publicly(tmp_path:
 def test_preflight_rejects_wrong_host_observation_and_nonprivate_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    synthetic_preflight_context: Callable[[Path], PreflightContext],
 ) -> None:
-    context = _make_context(tmp_path / "context")
+    context = synthetic_preflight_context(tmp_path / "context")
     observed = manifest_module._observe_preflight_runtime_identity()
     changed_observed = dict(observed, python_version="0.0.0")
     monkeypatch.setattr(
